@@ -44,6 +44,20 @@ const translations: Record<Language, Record<string, string>> = {
     'common.volunteer': 'Volunteer',
     'common.supervisor': 'Supervisor',
     'common.admin': 'Admin',
+    'common.committeeLeader': 'Committee Leader',
+    
+    // Committee Leader
+    'leader.dashboard': 'Committee Dashboard',
+    'leader.overview': 'Manage your committee members and track their progress',
+    'leader.myCommittee': 'My Committee',
+    'leader.members': 'Committee Members',
+    'leader.addMember': 'Add Member',
+    'leader.removeMember': 'Remove Member',
+    'leader.memberProgress': 'Member Progress',
+    'leader.totalMembers': 'Total Members',
+    'leader.avgPoints': 'Average Points',
+    'leader.topPerformer': 'Top Performer',
+    'leader.recentActivities': 'Recent Activities',
     
     // Auth
     'auth.login': 'Login',
@@ -219,6 +233,20 @@ const translations: Record<Language, Record<string, string>> = {
     'common.volunteer': 'متطوع',
     'common.supervisor': 'مشرف',
     'common.admin': 'مسؤول',
+    'common.committeeLeader': 'قائد اللجنة',
+    
+    // Committee Leader
+    'leader.dashboard': 'لوحة تحكم اللجنة',
+    'leader.overview': 'إدارة أعضاء لجنتك ومتابعة تقدمهم',
+    'leader.myCommittee': 'لجنتي',
+    'leader.members': 'أعضاء اللجنة',
+    'leader.addMember': 'إضافة عضو',
+    'leader.removeMember': 'إزالة عضو',
+    'leader.memberProgress': 'تقدم الأعضاء',
+    'leader.totalMembers': 'إجمالي الأعضاء',
+    'leader.avgPoints': 'متوسط النقاط',
+    'leader.topPerformer': 'الأفضل أداءً',
+    'leader.recentActivities': 'الأنشطة الأخيرة',
     
     // Auth
     'auth.login': 'تسجيل الدخول',

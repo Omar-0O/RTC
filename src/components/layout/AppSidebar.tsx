@@ -58,6 +58,12 @@ export function AppSidebar() {
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
   ];
 
+  const leaderNavItems = [
+    { title: t('leader.dashboard'), url: '/leader', icon: Home },
+    { title: t('leader.members'), url: '/leader/members', icon: Users },
+    { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
+  ];
+
   const adminNavItems = [
     { title: t('nav.dashboard'), url: '/admin', icon: Home },
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
@@ -73,6 +79,8 @@ export function AppSidebar() {
         return adminNavItems;
       case 'supervisor':
         return supervisorNavItems;
+      case 'committee_leader':
+        return leaderNavItems;
       default:
         return volunteerNavItems;
     }
@@ -179,6 +187,9 @@ export function AppSidebar() {
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => switchRole('supervisor')}>
               {t('common.switchTo')} {t('common.supervisor')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => switchRole('committee_leader')}>
+              {t('common.switchTo')} {t('common.committeeLeader')}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => switchRole('admin')}>
               {t('common.switchTo')} {t('common.admin')}

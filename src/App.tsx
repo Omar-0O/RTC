@@ -16,6 +16,7 @@ import UserManagement from "./pages/admin/UserManagement";
 import CommitteeManagement from "./pages/admin/CommitteeManagement";
 import ActivityManagement from "./pages/admin/ActivityManagement";
 import Reports from "./pages/admin/Reports";
+import CommitteeLeaderDashboard from "./pages/leader/Dashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,20 +30,42 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+
+  const getDefaultRoute = () => {
+    switch (user?.role) {
+      case 'admin':
+        return '/admin';
+      case 'supervisor':
+        return '/supervisor';
+      case 'committee_leader':
+        return '/leader';
+      default:
+        return '/dashboard';
+    }
+  };
 
   return (
     <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />} />
-      <Route path="/" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
+      <Route path="/login" element={isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <Login />} />
+      <Route path="/" element={<Navigate to={isAuthenticated ? getDefaultRoute() : "/login"} replace />} />
       
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+        {/* Volunteer Routes */}
         <Route path="/dashboard" element={<VolunteerDashboard />} />
         <Route path="/activity" element={<LogActivity />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
+        
+        {/* Supervisor Routes */}
         <Route path="/supervisor" element={<VolunteerDashboard />} />
         <Route path="/supervisor/submissions" element={<VolunteerDashboard />} />
+        
+        {/* Committee Leader Routes */}
+        <Route path="/leader" element={<CommitteeLeaderDashboard />} />
+        <Route path="/leader/members" element={<CommitteeLeaderDashboard />} />
+        
+        {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/users" element={<UserManagement />} />
         <Route path="/admin/committees" element={<CommitteeManagement />} />

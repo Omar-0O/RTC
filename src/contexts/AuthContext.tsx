@@ -47,6 +47,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       case 'supervisor':
         setUser(mockUsers[1]);
         break;
+      case 'committee_leader':
+        // Use the committee leader user (index 4 in mockUsers)
+        setUser(mockUsers[4]);
+        break;
       case 'volunteer':
       default:
         setUser(mockVolunteers[0]);
