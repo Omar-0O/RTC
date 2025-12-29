@@ -434,12 +434,12 @@ export default function UserManagement() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="committee">{t('users.committee')}</Label>
-                  <Select value={formCommitteeId} onValueChange={setFormCommitteeId}>
+                  <Select value={formCommitteeId || 'none'} onValueChange={(val) => setFormCommitteeId(val === 'none' ? '' : val)}>
                     <SelectTrigger>
                       <SelectValue placeholder={t('users.committee')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">No Committee</SelectItem>
+                      <SelectItem value="none">{language === 'ar' ? 'بدون لجنة' : 'No Committee'}</SelectItem>
                       {committees.map(committee => (
                         <SelectItem key={committee.id} value={committee.id}>
                           {language === 'ar' ? committee.name_ar : committee.name}
