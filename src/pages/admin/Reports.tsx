@@ -25,11 +25,11 @@ import {
   Legend
 } from 'recharts';
 import { mockVolunteers, committees, mockSubmissions, activityTypes } from '@/data/mockData';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 
-const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
-
 export default function Reports() {
+  const { t } = useLanguage();
   const [dateRange, setDateRange] = useState('month');
 
   // Committee distribution data
@@ -44,10 +44,10 @@ export default function Reports() {
 
   // Level distribution data
   const levelData = [
-    { name: 'Newbie', value: mockVolunteers.filter(v => v.level === 'Newbie').length, color: 'hsl(var(--level-newbie))' },
-    { name: 'Active', value: mockVolunteers.filter(v => v.level === 'Active').length, color: 'hsl(var(--level-active))' },
-    { name: 'Silver', value: mockVolunteers.filter(v => v.level === 'Silver').length, color: 'hsl(var(--level-silver))' },
-    { name: 'Golden', value: mockVolunteers.filter(v => v.level === 'Golden').length, color: 'hsl(var(--level-golden))' },
+    { name: t('level.newbie'), value: mockVolunteers.filter(v => v.level === 'Newbie').length, color: 'hsl(var(--level-newbie))' },
+    { name: t('level.active'), value: mockVolunteers.filter(v => v.level === 'Active').length, color: 'hsl(var(--level-active))' },
+    { name: t('level.silver'), value: mockVolunteers.filter(v => v.level === 'Silver').length, color: 'hsl(var(--level-silver))' },
+    { name: t('level.golden'), value: mockVolunteers.filter(v => v.level === 'Golden').length, color: 'hsl(var(--level-golden))' },
   ];
 
   // Activity submissions over time (mock data)
@@ -71,32 +71,32 @@ export default function Reports() {
   }).filter(a => a.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
 
   const handleExport = (type: string) => {
-    toast.success(`Exporting ${type} report...`);
+    toast.success(`${t('reports.exportReport')}...`);
   };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Reports & Analytics</h1>
-          <p className="text-muted-foreground">Insights into volunteer engagement and activity</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t('reports.title')}</h1>
+          <p className="text-muted-foreground">{t('reports.subtitle')}</p>
         </div>
         <div className="flex gap-2">
           <Select value={dateRange} onValueChange={setDateRange}>
             <SelectTrigger className="w-[150px]">
-              <Calendar className="mr-2 h-4 w-4" />
+              <Calendar className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="week">This Week</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
-              <SelectItem value="quarter">This Quarter</SelectItem>
-              <SelectItem value="year">This Year</SelectItem>
+              <SelectItem value="week">{t('reports.thisWeek')}</SelectItem>
+              <SelectItem value="month">{t('reports.thisMonth')}</SelectItem>
+              <SelectItem value="quarter">{t('reports.thisQuarter')}</SelectItem>
+              <SelectItem value="year">{t('reports.thisYear')}</SelectItem>
             </SelectContent>
           </Select>
           <Button variant="outline" onClick={() => handleExport('full')}>
-            <Download className="mr-2 h-4 w-4" />
-            Export Report
+            <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+            {t('reports.exportReport')}
           </Button>
         </div>
       </div>
@@ -110,7 +110,7 @@ export default function Reports() {
                 <Users className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Volunteers</p>
+                <p className="text-sm text-muted-foreground">{t('admin.totalVolunteers')}</p>
                 <p className="text-2xl font-bold">{mockVolunteers.length}</p>
               </div>
             </div>
@@ -123,7 +123,7 @@ export default function Reports() {
                 <Activity className="h-6 w-6 text-success" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Activities</p>
+                <p className="text-sm text-muted-foreground">{t('admin.totalActivities')}</p>
                 <p className="text-2xl font-bold">{mockSubmissions.filter(s => s.status === 'approved').length}</p>
               </div>
             </div>
@@ -136,7 +136,7 @@ export default function Reports() {
                 <Award className="h-6 w-6 text-warning" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Points Awarded</p>
+                <p className="text-sm text-muted-foreground">{t('admin.pointsAwarded')}</p>
                 <p className="text-2xl font-bold">{mockVolunteers.reduce((sum, v) => sum + v.totalPoints, 0).toLocaleString()}</p>
               </div>
             </div>
@@ -149,7 +149,7 @@ export default function Reports() {
                 <TrendingUp className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Avg Points/Volunteer</p>
+                <p className="text-sm text-muted-foreground">{t('reports.avgPointsPerVolunteer')}</p>
                 <p className="text-2xl font-bold">
                   {Math.round(mockVolunteers.reduce((sum, v) => sum + v.totalPoints, 0) / mockVolunteers.length)}
                 </p>
@@ -163,8 +163,8 @@ export default function Reports() {
         {/* Activity Trend */}
         <Card>
           <CardHeader>
-            <CardTitle>Activity Submissions Trend</CardTitle>
-            <CardDescription>Monthly submission and approval rates</CardDescription>
+            <CardTitle>{t('reports.activityTrend')}</CardTitle>
+            <CardDescription>{t('reports.activityTrendDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -186,14 +186,14 @@ export default function Reports() {
                     dataKey="submissions" 
                     stroke="hsl(var(--primary))" 
                     strokeWidth={2}
-                    name="Submissions"
+                    name={t('common.submit')}
                   />
                   <Line 
                     type="monotone" 
                     dataKey="approved" 
                     stroke="hsl(var(--success))" 
                     strokeWidth={2}
-                    name="Approved"
+                    name={t('common.approved')}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -204,8 +204,8 @@ export default function Reports() {
         {/* Level Distribution */}
         <Card>
           <CardHeader>
-            <CardTitle>Volunteer Level Distribution</CardTitle>
-            <CardDescription>Breakdown of volunteers by level</CardDescription>
+            <CardTitle>{t('reports.levelDistribution')}</CardTitle>
+            <CardDescription>{t('reports.levelDistributionDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -241,8 +241,8 @@ export default function Reports() {
         {/* Committee Performance */}
         <Card>
           <CardHeader>
-            <CardTitle>Committee Performance</CardTitle>
-            <CardDescription>Points earned by committee</CardDescription>
+            <CardTitle>{t('reports.committeePerformance')}</CardTitle>
+            <CardDescription>{t('reports.committeePerformanceDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-[300px]">
@@ -268,8 +268,8 @@ export default function Reports() {
         {/* Top Activities */}
         <Card>
           <CardHeader>
-            <CardTitle>Top Activities</CardTitle>
-            <CardDescription>Most submitted activity types</CardDescription>
+            <CardTitle>{t('reports.topActivities')}</CardTitle>
+            <CardDescription>{t('reports.topActivitiesDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
@@ -280,7 +280,7 @@ export default function Reports() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{activity.name}</p>
-                    <p className="text-sm text-muted-foreground">{activity.count} submissions • {activity.points} pts each</p>
+                    <p className="text-sm text-muted-foreground">{activity.count} • {activity.points} {t('common.points')}</p>
                   </div>
                   <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
                     <div 
@@ -298,26 +298,26 @@ export default function Reports() {
       {/* Export Options */}
       <Card>
         <CardHeader>
-          <CardTitle>Export Data</CardTitle>
-          <CardDescription>Download reports in various formats</CardDescription>
+          <CardTitle>{t('reports.exportData')}</CardTitle>
+          <CardDescription>{t('reports.exportDataDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Button variant="outline" className="justify-start" onClick={() => handleExport('volunteers')}>
-              <Download className="mr-2 h-4 w-4" />
-              Volunteer List (CSV)
+              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {t('reports.volunteerList')}
             </Button>
             <Button variant="outline" className="justify-start" onClick={() => handleExport('activities')}>
-              <Download className="mr-2 h-4 w-4" />
-              Activity Log (CSV)
+              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {t('reports.activityLog')}
             </Button>
             <Button variant="outline" className="justify-start" onClick={() => handleExport('points')}>
-              <Download className="mr-2 h-4 w-4" />
-              Points Summary (CSV)
+              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {t('reports.pointsSummary')}
             </Button>
             <Button variant="outline" className="justify-start" onClick={() => handleExport('monthly')}>
-              <Download className="mr-2 h-4 w-4" />
-              Monthly Report (PDF)
+              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {t('reports.monthlyReport')}
             </Button>
           </div>
         </CardContent>

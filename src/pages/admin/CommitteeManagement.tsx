@@ -31,9 +31,11 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { committees, mockVolunteers, activityTypes } from '@/data/mockData';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 
 export default function CommitteeManagement() {
+  const { t } = useLanguage();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -53,19 +55,19 @@ export default function CommitteeManagement() {
 
   const handleAddCommittee = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success('Committee created successfully');
+    toast.success(t('committees.title'));
     setIsAddDialogOpen(false);
   };
 
   const handleEditCommittee = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success('Committee updated successfully');
+    toast.success(t('common.save'));
     setIsEditDialogOpen(false);
     setSelectedCommittee(null);
   };
 
   const handleDeleteCommittee = () => {
-    toast.success('Committee deleted successfully');
+    toast.success(t('common.delete'));
     setIsDeleteDialogOpen(false);
     setSelectedCommittee(null);
   };
@@ -74,43 +76,37 @@ export default function CommitteeManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Committee Management</h1>
-          <p className="text-muted-foreground">Create and manage organization committees</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t('committees.title')}</h1>
+          <p className="text-muted-foreground">{t('committees.subtitle')}</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Committee
+              <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {t('committees.addCommittee')}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Create New Committee</DialogTitle>
-              <DialogDescription>
-                Add a new committee to the organization.
-              </DialogDescription>
+              <DialogTitle>{t('committees.createNew')}</DialogTitle>
+              <DialogDescription>{t('committees.createDescription')}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddCommittee}>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Committee Name</Label>
-                  <Input id="name" placeholder="Enter committee name" required />
+                  <Label htmlFor="name">{t('committees.name')}</Label>
+                  <Input id="name" placeholder={t('committees.name')} required />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="description">Description</Label>
-                  <Textarea 
-                    id="description" 
-                    placeholder="Describe the committee's purpose and responsibilities"
-                    rows={3}
-                  />
+                  <Label htmlFor="description">{t('committees.description')}</Label>
+                  <Textarea id="description" placeholder={t('committees.description')} rows={3} />
                 </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
-                <Button type="submit">Create Committee</Button>
+                <Button type="submit">{t('common.add')}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -137,8 +133,8 @@ export default function CommitteeManagement() {
                         setIsEditDialogOpen(true);
                       }}
                     >
-                      <Pencil className="mr-2 h-4 w-4" />
-                      Edit
+                      <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                      {t('common.edit')}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className="text-destructive"
@@ -147,8 +143,8 @@ export default function CommitteeManagement() {
                         setIsDeleteDialogOpen(true);
                       }}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
+                      <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                      {t('common.delete')}
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -162,21 +158,21 @@ export default function CommitteeManagement() {
                     <Users className="h-4 w-4" />
                   </div>
                   <p className="text-2xl font-bold">{committee.volunteerCount}</p>
-                  <p className="text-xs text-muted-foreground">Volunteers</p>
+                  <p className="text-xs text-muted-foreground">{t('common.volunteers')}</p>
                 </div>
                 <div>
                   <div className="flex items-center justify-center gap-1 text-muted-foreground">
                     <Award className="h-4 w-4" />
                   </div>
                   <p className="text-2xl font-bold">{committee.totalPoints}</p>
-                  <p className="text-xs text-muted-foreground">Points</p>
+                  <p className="text-xs text-muted-foreground">{t('common.points')}</p>
                 </div>
                 <div>
                   <div className="flex items-center justify-center gap-1 text-muted-foreground">
                     <Award className="h-4 w-4" />
                   </div>
                   <p className="text-2xl font-bold">{committee.activityCount}</p>
-                  <p className="text-xs text-muted-foreground">Activities</p>
+                  <p className="text-xs text-muted-foreground">{t('nav.activities')}</p>
                 </div>
               </div>
             </CardContent>
@@ -188,35 +184,24 @@ export default function CommitteeManagement() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Committee</DialogTitle>
-            <DialogDescription>
-              Update committee information.
-            </DialogDescription>
+            <DialogTitle>{t('common.edit')}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEditCommittee}>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="edit-name">Committee Name</Label>
-                <Input 
-                  id="edit-name" 
-                  defaultValue={selectedCommittee?.name}
-                  required 
-                />
+                <Label htmlFor="edit-name">{t('committees.name')}</Label>
+                <Input id="edit-name" defaultValue={selectedCommittee?.name} required />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="edit-description">Description</Label>
-                <Textarea 
-                  id="edit-description" 
-                  defaultValue={selectedCommittee?.description}
-                  rows={3}
-                />
+                <Label htmlFor="edit-description">{t('committees.description')}</Label>
+                <Textarea id="edit-description" defaultValue={selectedCommittee?.description} rows={3} />
               </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
-              <Button type="submit">Save Changes</Button>
+              <Button type="submit">{t('common.save')}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -226,19 +211,16 @@ export default function CommitteeManagement() {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Committee?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{selectedCommittee?.name}"? This action cannot be undone.
-              All volunteers in this committee will need to be reassigned.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{t('committees.deleteConfirm')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('committees.deleteWarning')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteCommittee}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Delete
+              {t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
