@@ -1,30 +1,143 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
-import { Calendar, Mail } from 'lucide-react';
+import { Calendar, Mail, Award, Loader2, ExternalLink } from 'lucide-react';
+
+type UserBadge = {
+  id: string;
+  earned_at: string;
+  badge: {
+    id: string;
+    name: string;
+    name_ar: string;
+    description: string | null;
+    description_ar: string | null;
+    icon: string;
+    color: string;
+  };
+};
+
+type ActivitySubmission = {
+  id: string;
+  activity_name: string;
+  committee_name: string;
+  points: number;
+  status: string;
+  submitted_at: string;
+  proof_url: string | null;
+};
 
 export default function Profile() {
-  const { profile } = useAuth();
-  const { t } = useLanguage();
+  const { user, profile } = useAuth();
+  const { t, isRTL } = useLanguage();
+  const [loading, setLoading] = useState(true);
+  const [badges, setBadges] = useState<UserBadge[]>([]);
+  const [activities, setActivities] = useState<ActivitySubmission[]>([]);
   
   const points = profile?.total_points || 0;
   const { progress, nextThreshold } = getLevelProgress(points);
   const userInitials = profile?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
 
-  // Map database level to display level
+  useEffect(() => {
+    if (user?.id) {
+      fetchData();
+    }
+  }, [user?.id]);
+
+  const fetchData = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      const [badgesRes, activitiesRes] = await Promise.all([
+        supabase
+          .from('user_badges')
+          .select(`
+            id,
+            earned_at,
+            badge:badges(id, name, name_ar, description, description_ar, icon, color)
+          `)
+          .eq('user_id', user.id)
+          .order('earned_at', { ascending: false }),
+        supabase
+          .from('activity_submissions')
+          .select(`
+            id,
+            points_awarded,
+            status,
+            submitted_at,
+            proof_url,
+            activity:activity_types(name, name_ar),
+            committee:committees(name, name_ar)
+          `)
+          .eq('volunteer_id', user.id)
+          .order('submitted_at', { ascending: false }),
+      ]);
+
+      if (badgesRes.data) {
+        setBadges(badgesRes.data.map((b: any) => ({
+          id: b.id,
+          earned_at: b.earned_at,
+          badge: b.badge,
+        })));
+      }
+
+      if (activitiesRes.data) {
+        setActivities(activitiesRes.data.map((a: any) => ({
+          id: a.id,
+          activity_name: isRTL ? (a.activity?.name_ar || a.activity?.name) : a.activity?.name,
+          committee_name: isRTL ? (a.committee?.name_ar || a.committee?.name) : a.committee?.name,
+          points: a.points_awarded || 0,
+          status: a.status,
+          submitted_at: a.submitted_at,
+          proof_url: a.proof_url,
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching profile data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const displayLevel = (dbLevel: string) => {
     const levelMap: Record<string, string> = {
-      bronze: 'Newbie',
-      silver: 'Silver',
-      gold: 'Golden',
-      platinum: 'Platinum',
-      diamond: 'Diamond',
+      bronze: isRTL ? 'برونزي' : 'Bronze',
+      silver: isRTL ? 'فضي' : 'Silver',
+      gold: isRTL ? 'ذهبي' : 'Gold',
+      platinum: isRTL ? 'بلاتيني' : 'Platinum',
+      diamond: isRTL ? 'ماسي' : 'Diamond',
     };
-    return levelMap[dbLevel] || 'Newbie';
+    return levelMap[dbLevel] || (isRTL ? 'برونزي' : 'Bronze');
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'approved': return isRTL ? 'مقبول' : 'Approved';
+      case 'rejected': return isRTL ? 'مرفوض' : 'Rejected';
+      default: return isRTL ? 'قيد المراجعة' : 'Pending';
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved': return 'bg-success/10 text-success';
+      case 'rejected': return 'bg-destructive/10 text-destructive';
+      default: return 'bg-warning/10 text-warning';
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
   };
 
   return (
@@ -40,8 +153,10 @@ export default function Profile() {
             </Avatar>
             <div className="flex-1 text-center md:text-left">
               <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-2">
-                <h1 className="text-2xl font-bold">{profile?.full_name}</h1>
-                <LevelBadge level={displayLevel(profile?.level || 'bronze')} />
+                <h1 className="text-2xl font-bold">
+                  {isRTL ? (profile?.full_name_ar || profile?.full_name) : profile?.full_name}
+                </h1>
+                <LevelBadge level={profile?.level || 'bronze'} />
               </div>
               <div className="flex flex-wrap justify-center md:justify-start gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
@@ -50,7 +165,7 @@ export default function Profile() {
                 </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
-                  {t('profile.memberSince')} {new Date(profile?.join_date || '').toLocaleDateString()}
+                  {t('profile.memberSince')} {formatDate(profile?.join_date || new Date().toISOString())}
                 </span>
               </div>
             </div>
@@ -67,14 +182,17 @@ export default function Profile() {
         <CardHeader>
           <CardTitle>{t('profile.pointsProgress')}</CardTitle>
           <CardDescription>
-            {nextThreshold - points} more points to reach the next level
+            {isRTL 
+              ? `${nextThreshold - points} نقطة للوصول للمستوى التالي`
+              : `${nextThreshold - points} more points to reach the next level`
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span>{points} points</span>
-              <span>{nextThreshold} points</span>
+              <span>{points} {isRTL ? 'نقطة' : 'points'}</span>
+              <span>{nextThreshold} {isRTL ? 'نقطة' : 'points'}</span>
             </div>
             <Progress value={progress} className="h-4" />
           </div>
@@ -86,8 +204,8 @@ export default function Profile() {
                   profile?.level === level ? "bg-primary/10 border-2 border-primary" : "bg-muted/50"
                 }`}
               >
-                <LevelBadge level={displayLevel(level)} size="sm" showLabel={false} />
-                <p className="text-xs font-medium mt-1 capitalize">{level}</p>
+                <LevelBadge level={level} size="sm" showLabel={false} />
+                <p className="text-xs font-medium mt-1">{displayLevel(level)}</p>
               </div>
             ))}
           </div>
@@ -97,7 +215,9 @@ export default function Profile() {
       <Tabs defaultValue="activities" className="space-y-4">
         <TabsList>
           <TabsTrigger value="activities">{t('profile.activityHistory')}</TabsTrigger>
-          <TabsTrigger value="badges">{t('profile.badges')}</TabsTrigger>
+          <TabsTrigger value="badges">
+            {t('profile.badges')} ({badges.length})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="activities">
@@ -105,13 +225,52 @@ export default function Profile() {
             <CardHeader>
               <CardTitle>{t('profile.activityHistory')}</CardTitle>
               <CardDescription>
-                All your submitted activities and their status
+                {isRTL ? 'جميع الأنشطة المقدمة وحالتها' : 'All your submitted activities and their status'}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground text-center py-8">
-                No activities yet. Start logging your contributions!
-              </p>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : activities.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  {isRTL ? 'لا توجد أنشطة بعد. ابدأ بتسجيل مساهماتك!' : 'No activities yet. Start logging your contributions!'}
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {activities.map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="flex items-center justify-between rounded-lg border p-3"
+                    >
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {activity.proof_url && (
+                          <a href={activity.proof_url} target="_blank" rel="noopener noreferrer">
+                            <img 
+                              src={activity.proof_url} 
+                              alt="Proof" 
+                              className="w-12 h-12 rounded object-cover shrink-0 hover:opacity-80 transition-opacity"
+                            />
+                          </a>
+                        )}
+                        <div className="space-y-1 flex-1 min-w-0">
+                          <p className="font-medium truncate">{activity.activity_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {activity.committee_name} • {formatDate(activity.submitted_at)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-sm font-medium">+{activity.points}</span>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusColor(activity.status)}`}>
+                          {getStatusText(activity.status)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -119,15 +278,49 @@ export default function Profile() {
         <TabsContent value="badges">
           <Card>
             <CardHeader>
-              <CardTitle>{t('profile.badges')}</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Award className="h-5 w-5" />
+                {t('profile.badges')}
+              </CardTitle>
               <CardDescription>
-                Achievements you've earned through your contributions
+                {isRTL ? 'الإنجازات التي حصلت عليها من خلال مساهماتك' : 'Achievements you\'ve earned through your contributions'}
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground text-center py-8">
-                Complete activities to earn badges!
-              </p>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : badges.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  {isRTL ? 'أكمل الأنشطة للحصول على الشارات!' : 'Complete activities to earn badges!'}
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {badges.map((userBadge) => (
+                    <div
+                      key={userBadge.id}
+                      className="flex flex-col items-center text-center p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                    >
+                      <div 
+                        className="w-16 h-16 rounded-full flex items-center justify-center mb-3"
+                        style={{ backgroundColor: userBadge.badge.color + '20', color: userBadge.badge.color }}
+                      >
+                        <Award className="h-8 w-8" />
+                      </div>
+                      <h4 className="font-medium text-sm">
+                        {isRTL ? userBadge.badge.name_ar : userBadge.badge.name}
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {isRTL ? userBadge.badge.description_ar : userBadge.badge.description}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {formatDate(userBadge.earned_at)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
