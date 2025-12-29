@@ -11,7 +11,7 @@ import {
   ChevronDown,
   Languages
 } from 'lucide-react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import {
@@ -39,9 +39,10 @@ import {
 import { cn } from '@/lib/utils';
 
 export function AppSidebar() {
-  const { user, logout, switchRole } = useAuth();
+  const { user, profile, signOut, primaryRole } = useAuth();
   const { t, language, setLanguage, isRTL } = useLanguage();
   const location = useLocation();
+  const navigate = useNavigate();
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
 
@@ -74,7 +75,7 @@ export function AppSidebar() {
   ];
 
   const getNavItems = () => {
-    switch (user?.role) {
+    switch (primaryRole) {
       case 'admin':
         return adminNavItems;
       case 'supervisor':
@@ -87,10 +88,16 @@ export function AppSidebar() {
   };
 
   const navItems = getNavItems();
-  const userInitials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
+  const displayName = profile?.full_name || user?.email || 'User';
+  const userInitials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
 
   const toggleLanguage = () => {
     setLanguage(language === 'en' ? 'ar' : 'en');
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/auth');
   };
 
   return (
@@ -168,8 +175,8 @@ export function AppSidebar() {
               {!collapsed && (
                 <>
                   <div className="flex flex-col items-start text-left flex-1 min-w-0">
-                    <span className="text-sm font-medium truncate w-full">{user?.name}</span>
-                    <span className="text-xs text-muted-foreground capitalize">{user?.role}</span>
+                    <span className="text-sm font-medium truncate w-full">{displayName}</span>
+                    <span className="text-xs text-muted-foreground capitalize">{primaryRole}</span>
                   </div>
                   <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </>
@@ -178,24 +185,11 @@ export function AppSidebar() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align={isRTL ? 'start' : 'end'} className="w-56">
             <div className="px-2 py-1.5">
-              <p className="text-sm font-medium">{user?.name}</p>
+              <p className="text-sm font-medium">{displayName}</p>
               <p className="text-xs text-muted-foreground">{user?.email}</p>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => switchRole('volunteer')}>
-              {t('common.switchTo')} {t('common.volunteer')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => switchRole('supervisor')}>
-              {t('common.switchTo')} {t('common.supervisor')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => switchRole('committee_leader')}>
-              {t('common.switchTo')} {t('common.committeeLeader')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => switchRole('admin')}>
-              {t('common.switchTo')} {t('common.admin')}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={logout} className="text-destructive">
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive">
               <LogOut className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
               {t('common.logout')}
             </DropdownMenuItem>
