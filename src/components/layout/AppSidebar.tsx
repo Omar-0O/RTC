@@ -71,6 +71,7 @@ export function AppSidebar() {
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
     { title: t('nav.committees'), url: '/admin/committees', icon: Settings },
     { title: t('nav.activities'), url: '/admin/activities', icon: Activity },
+    { title: t('nav.badges'), url: '/admin/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
   ];

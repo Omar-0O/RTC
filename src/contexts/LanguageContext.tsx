@@ -20,6 +20,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.userManagement': 'User Management',
     'nav.committees': 'Committees',
     'nav.activities': 'Activities',
+    'nav.badges': 'Badges',
     'nav.reports': 'Reports',
     'nav.navigation': 'Navigation',
     
@@ -229,6 +230,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.userManagement': 'إدارة المستخدمين',
     'nav.committees': 'اللجان',
     'nav.activities': 'الأنشطة',
+    'nav.badges': 'الشارات',
     'nav.reports': 'التقارير',
     'nav.navigation': 'التنقل',
     
