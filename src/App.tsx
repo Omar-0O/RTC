@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { AppLayout } from "./components/layout/AppLayout";
-import Login from "./pages/Login";
+import Auth from "./pages/Auth";
 import VolunteerDashboard from "./pages/volunteer/Dashboard";
 import LogActivity from "./pages/volunteer/LogActivity";
 import Profile from "./pages/volunteer/Profile";
@@ -22,18 +22,27 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/auth" replace />;
   }
   return <>{children}</>;
 }
 
 function AppRoutes() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isLoading, primaryRole } = useAuth();
 
   const getDefaultRoute = () => {
-    switch (user?.role) {
+    switch (primaryRole) {
       case 'admin':
         return '/admin';
       case 'supervisor':
@@ -45,10 +54,19 @@ function AppRoutes() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
   return (
     <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <Login />} />
-      <Route path="/" element={<Navigate to={isAuthenticated ? getDefaultRoute() : "/login"} replace />} />
+      <Route path="/auth" element={isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <Auth />} />
+      <Route path="/login" element={<Navigate to="/auth" replace />} />
+      <Route path="/" element={<Navigate to={isAuthenticated ? getDefaultRoute() : "/auth"} replace />} />
       
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         {/* Volunteer Routes */}

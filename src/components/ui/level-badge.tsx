@@ -1,18 +1,21 @@
 import { cn } from '@/lib/utils';
-import { VolunteerLevel } from '@/types';
+
+export type VolunteerLevel = 'Newbie' | 'Active' | 'Silver' | 'Golden' | 'Platinum' | 'Diamond';
 
 interface LevelBadgeProps {
-  level: VolunteerLevel;
+  level: VolunteerLevel | string;
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
   className?: string;
 }
 
-const levelConfig: Record<VolunteerLevel, { color: string; icon: string; label: string }> = {
+const levelConfig: Record<string, { color: string; icon: string; label: string }> = {
   Newbie: { color: 'bg-level-newbie', icon: '🌱', label: 'Newbie' },
   Active: { color: 'bg-level-active', icon: '⚡', label: 'Active' },
   Silver: { color: 'bg-level-silver', icon: '🥈', label: 'Silver' },
   Golden: { color: 'bg-level-golden', icon: '👑', label: 'Golden' },
+  Platinum: { color: 'bg-purple-500', icon: '💎', label: 'Platinum' },
+  Diamond: { color: 'bg-cyan-500', icon: '💠', label: 'Diamond' },
 };
 
 const sizeClasses = {
@@ -22,7 +25,7 @@ const sizeClasses = {
 };
 
 export function LevelBadge({ level, size = 'md', showLabel = true, className }: LevelBadgeProps) {
-  const config = levelConfig[level];
+  const config = levelConfig[level] || levelConfig['Newbie'];
 
   return (
     <div
@@ -40,13 +43,17 @@ export function LevelBadge({ level, size = 'md', showLabel = true, className }: 
 }
 
 export function getLevelProgress(points: number): { level: VolunteerLevel; progress: number; nextThreshold: number } {
-  if (points >= 200) {
-    return { level: 'Golden', progress: 100, nextThreshold: 200 };
+  if (points >= 5000) {
+    return { level: 'Diamond', progress: 100, nextThreshold: 5000 };
+  } else if (points >= 2500) {
+    return { level: 'Platinum', progress: ((points - 2500) / 2500) * 100, nextThreshold: 5000 };
+  } else if (points >= 1000) {
+    return { level: 'Golden', progress: ((points - 1000) / 1500) * 100, nextThreshold: 2500 };
+  } else if (points >= 500) {
+    return { level: 'Silver', progress: ((points - 500) / 500) * 100, nextThreshold: 1000 };
   } else if (points >= 100) {
-    return { level: 'Silver', progress: ((points - 100) / 100) * 100, nextThreshold: 200 };
-  } else if (points >= 50) {
-    return { level: 'Active', progress: ((points - 50) / 50) * 100, nextThreshold: 100 };
+    return { level: 'Active', progress: ((points - 100) / 400) * 100, nextThreshold: 500 };
   } else {
-    return { level: 'Newbie', progress: (points / 50) * 100, nextThreshold: 50 };
+    return { level: 'Newbie', progress: (points / 100) * 100, nextThreshold: 100 };
   }
 }
