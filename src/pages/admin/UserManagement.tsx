@@ -39,6 +39,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { mockUsers, mockVolunteers, committees } from '@/data/mockData';
 import { LevelBadge } from '@/components/ui/level-badge';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 
 type UserWithDetails = {
@@ -54,6 +55,7 @@ type UserWithDetails = {
 };
 
 export default function UserManagement() {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [committeeFilter, setCommitteeFilter] = useState<string>('all');
@@ -82,7 +84,7 @@ export default function UserManagement() {
 
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success('User added successfully');
+    toast.success(t('users.addUser'));
     setIsAddDialogOpen(false);
   };
 
@@ -97,55 +99,61 @@ export default function UserManagement() {
     }
   };
 
+  const getRoleText = (role: string) => {
+    switch (role) {
+      case 'admin': return t('common.admin');
+      case 'supervisor': return t('common.supervisor');
+      default: return t('common.volunteer');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground">Manage volunteers, supervisors, and administrators</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t('users.title')}</h1>
+          <p className="text-muted-foreground">{t('users.subtitle')}</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add User
+              <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {t('users.addUser')}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Add New User</DialogTitle>
-              <DialogDescription>
-                Create a new user account for the system.
-              </DialogDescription>
+              <DialogTitle>{t('users.addUser')}</DialogTitle>
+              <DialogDescription>{t('users.createUser')}</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddUser}>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">Full Name</Label>
-                  <Input id="name" placeholder="Enter full name" required />
+                  <Label htmlFor="name">{t('users.fullName')}</Label>
+                  <Input id="name" placeholder={t('users.fullName')} required />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" placeholder="Enter email" required />
+                  <Label htmlFor="email">{t('auth.email')}</Label>
+                  <Input id="email" type="email" placeholder={t('auth.email')} required />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="role">Role</Label>
+                  <Label htmlFor="role">{t('users.role')}</Label>
                   <Select required>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select role" />
+                      <SelectValue placeholder={t('users.role')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="volunteer">Volunteer</SelectItem>
-                      <SelectItem value="supervisor">Supervisor</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
+                      <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                      <SelectItem value="admin">{t('common.admin')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="committee">Committee</Label>
+                  <Label htmlFor="committee">{t('users.committee')}</Label>
                   <Select>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select committee (optional)" />
+                      <SelectValue placeholder={t('users.committee')} />
                     </SelectTrigger>
                     <SelectContent>
                       {committees.map(committee => (
@@ -159,9 +167,9 @@ export default function UserManagement() {
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
-                <Button type="submit">Add User</Button>
+                <Button type="submit">{t('common.add')}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -171,36 +179,36 @@ export default function UserManagement() {
       {/* Filters */}
       <Card>
         <CardHeader>
-          <CardTitle>Filters</CardTitle>
+          <CardTitle>{t('users.filters')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-4 sm:flex-row">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground ltr:left-3 rtl:right-3" />
               <Input
-                placeholder="Search by name or email..."
+                placeholder={t('users.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className="ltr:pl-9 rtl:pr-9"
               />
             </div>
             <Select value={roleFilter} onValueChange={setRoleFilter}>
               <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter by role" />
+                <SelectValue placeholder={t('users.filterByRole')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="volunteer">Volunteers</SelectItem>
-                <SelectItem value="supervisor">Supervisors</SelectItem>
-                <SelectItem value="admin">Admins</SelectItem>
+                <SelectItem value="all">{t('users.allRoles')}</SelectItem>
+                <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
+                <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                <SelectItem value="admin">{t('common.admin')}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={committeeFilter} onValueChange={setCommitteeFilter}>
               <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder="Filter by committee" />
+                <SelectValue placeholder={t('users.filterByCommittee')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Committees</SelectItem>
+                <SelectItem value="all">{t('users.allCommittees')}</SelectItem>
                 {committees.map(committee => (
                   <SelectItem key={committee.id} value={committee.id}>
                     {committee.name}
@@ -215,18 +223,18 @@ export default function UserManagement() {
       {/* Users Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Users ({filteredUsers.length})</CardTitle>
+          <CardTitle>{t('common.volunteers')} ({filteredUsers.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Committee</TableHead>
-                <TableHead>Level</TableHead>
-                <TableHead>Points</TableHead>
-                <TableHead>Joined</TableHead>
+                <TableHead>{t('users.fullName')}</TableHead>
+                <TableHead>{t('users.role')}</TableHead>
+                <TableHead>{t('users.committee')}</TableHead>
+                <TableHead>{t('users.level')}</TableHead>
+                <TableHead>{t('common.points')}</TableHead>
+                <TableHead>{t('users.joined')}</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -247,9 +255,9 @@ export default function UserManagement() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${getRoleBadgeClass(user.role)}`}>
-                      {user.role === 'admin' && <Shield className="mr-1 h-3 w-3" />}
-                      {user.role}
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                      {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
+                      {getRoleText(user.role)}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -278,19 +286,19 @@ export default function UserManagement() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>
-                          <User className="mr-2 h-4 w-4" />
-                          View Profile
+                          <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                          {t('users.viewProfile')}
                         </DropdownMenuItem>
                         <DropdownMenuItem>
-                          <Mail className="mr-2 h-4 w-4" />
-                          Send Email
+                          <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                          {t('users.sendEmail')}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive">
-                          Deactivate User
+                          {t('users.deactivate')}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

@@ -3,8 +3,11 @@ import { StatsCard } from '@/components/ui/stats-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { dashboardStats, mockSubmissions, mockVolunteers, committees } from '@/data/mockData';
 import { LevelBadge } from '@/components/ui/level-badge';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export default function AdminDashboard() {
+  const { t, isRTL } = useLanguage();
+
   const recentSubmissions = mockSubmissions
     .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
     .slice(0, 5);
@@ -21,45 +24,53 @@ export default function AdminDashboard() {
     };
   }).sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 5);
 
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'approved': return t('common.approved');
+      case 'rejected': return t('common.rejected');
+      default: return t('common.pending');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
-        <p className="text-muted-foreground">Overview of RTC Pulse volunteer management system</p>
+        <h1 className="text-3xl font-bold tracking-tight">{t('admin.dashboard')}</h1>
+        <p className="text-muted-foreground">{t('admin.overview')}</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <StatsCard
-          title="Total Volunteers"
+          title={t('admin.totalVolunteers')}
           value={dashboardStats.totalVolunteers}
           icon={Users}
-          description="Active volunteers"
+          description={t('common.volunteers')}
         />
         <StatsCard
-          title="Total Activities"
+          title={t('admin.totalActivities')}
           value={dashboardStats.totalActivities}
           icon={Activity}
-          description="Approved submissions"
+          description={t('common.approved')}
         />
         <StatsCard
-          title="Points Awarded"
+          title={t('admin.pointsAwarded')}
           value={dashboardStats.totalPointsAwarded.toLocaleString()}
           icon={Award}
-          description="Total points earned"
+          description={t('common.points')}
         />
         <StatsCard
-          title="Pending Reviews"
+          title={t('admin.pendingReviews')}
           value={dashboardStats.pendingSubmissions}
           icon={ClipboardCheck}
-          description="Awaiting approval"
+          description={t('common.pending')}
           className={dashboardStats.pendingSubmissions > 0 ? 'border-warning' : ''}
         />
         <StatsCard
-          title="Active Committees"
+          title={t('admin.activeCommittees')}
           value={dashboardStats.activeCommittees}
           icon={Building2}
-          description="Registered committees"
+          description={t('nav.committees')}
         />
       </div>
 
@@ -69,7 +80,7 @@ export default function AdminDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ClipboardCheck className="h-5 w-5" />
-              Recent Submissions
+              {t('admin.recentSubmissions')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -86,7 +97,7 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium">+{submission.points} pts</span>
+                    <span className="text-sm font-medium">+{submission.points} {t('common.points')}</span>
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                         submission.status === 'approved'
@@ -96,7 +107,7 @@ export default function AdminDashboard() {
                           : 'bg-warning/10 text-warning'
                       }`}
                     >
-                      {submission.status}
+                      {getStatusText(submission.status)}
                     </span>
                   </div>
                 </div>
@@ -110,7 +121,7 @@ export default function AdminDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
-              Top Volunteers
+              {t('admin.topVolunteers')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -125,7 +136,7 @@ export default function AdminDashboard() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{volunteer.name}</p>
-                    <p className="text-xs text-muted-foreground">{volunteer.totalPoints} points</p>
+                    <p className="text-xs text-muted-foreground">{volunteer.totalPoints} {t('common.points')}</p>
                   </div>
                   <LevelBadge level={volunteer.level} size="sm" />
                 </div>
@@ -140,7 +151,7 @@ export default function AdminDashboard() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />
-            Committee Performance
+            {t('admin.committeePerformance')}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -152,11 +163,11 @@ export default function AdminDashboard() {
               >
                 <h4 className="font-medium text-sm">{committee.name}</h4>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Volunteers</span>
+                  <span className="text-muted-foreground">{t('common.volunteers')}</span>
                   <span className="font-medium">{committee.volunteerCount}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total Points</span>
+                  <span className="text-muted-foreground">{t('committees.totalPoints')}</span>
                   <span className="font-medium">{committee.totalPoints}</span>
                 </div>
               </div>
