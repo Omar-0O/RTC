@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -8,17 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
-import { CheckCircle2, Globe, Building, Loader2, History } from 'lucide-react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { CheckCircle2, Loader2, History, Upload, X, Image as ImageIcon } from 'lucide-react';
 
 interface Committee {
   id: string;
@@ -44,12 +35,16 @@ interface Submission {
   points: number;
   status: string;
   submitted_at: string;
+  proof_url: string | null;
 }
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export default function LogActivity() {
   const { user, profile } = useAuth();
-  const { t, isRTL, language } = useLanguage();
+  const { t, isRTL } = useLanguage();
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
@@ -58,7 +53,10 @@ export default function LogActivity() {
   const [description, setDescription] = useState('');
   const [hoursSpent, setHoursSpent] = useState('');
   const [participantsCount, setParticipantsCount] = useState('1');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -80,6 +78,7 @@ export default function LogActivity() {
                 points_awarded,
                 status,
                 submitted_at,
+                proof_url,
                 activity:activity_types(name, name_ar),
                 committee:committees(name, name_ar)
               `)
@@ -99,10 +98,10 @@ export default function LogActivity() {
           points: s.points_awarded || 0,
           status: s.status,
           submitted_at: s.submitted_at,
+          proof_url: s.proof_url,
         })));
       }
 
-      // Set default committee from profile
       if (profile?.committee_id && !committeeId) {
         setCommitteeId(profile.committee_id);
       }
@@ -118,11 +117,70 @@ export default function LogActivity() {
   );
   const selectedActivity = activityTypes.find(a => a.id === activityId);
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error(isRTL ? 'يرجى اختيار صورة فقط' : 'Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error(isRTL ? 'حجم الصورة يجب أن يكون أقل من 5 ميجابايت' : 'Image must be less than 5MB');
+      return;
+    }
+
+    setProofFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setProofPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removeFile = () => {
+    setProofFile(null);
+    setProofPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadProof = async (): Promise<string | null> => {
+    if (!proofFile || !user) return null;
+
+    setIsUploading(true);
+    try {
+      const fileExt = proofFile.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('activity-proofs')
+        .upload(fileName, proofFile);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('activity-proofs')
+        .getPublicUrl(fileName);
+
+      return data.publicUrl;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      toast.error(isRTL ? 'فشل في رفع الصورة' : 'Failed to upload image');
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !profile || !selectedActivity) return;
 
-    // Validate inputs
     if (!committeeId || !activityId || !description.trim()) {
       toast.error(isRTL ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill in all required fields');
       return;
@@ -136,6 +194,12 @@ export default function LogActivity() {
     setIsSubmitting(true);
 
     try {
+      // Upload proof if exists
+      let proofUrl: string | null = null;
+      if (proofFile) {
+        proofUrl = await uploadProof();
+      }
+
       const { error } = await supabase.from('activity_submissions').insert({
         volunteer_id: user.id,
         activity_type_id: activityId,
@@ -145,13 +209,14 @@ export default function LogActivity() {
         participants_count: selectedActivity.mode === 'group' ? parseInt(participantsCount) || 1 : 1,
         points_awarded: selectedActivity.points,
         status: 'pending',
+        proof_url: proofUrl,
       });
 
       if (error) throw error;
 
       setIsSubmitted(true);
       toast.success(isRTL ? 'تم تقديم النشاط بنجاح' : 'Activity submitted successfully');
-      fetchData(); // Refresh submissions list
+      fetchData();
     } catch (error: any) {
       console.error('Error submitting activity:', error);
       toast.error(isRTL ? 'فشل في تقديم النشاط' : 'Failed to submit activity');
@@ -165,6 +230,8 @@ export default function LogActivity() {
     setDescription('');
     setHoursSpent('');
     setParticipantsCount('1');
+    setProofFile(null);
+    setProofPreview(null);
     setIsSubmitted(false);
   };
 
@@ -339,6 +406,51 @@ export default function LogActivity() {
                 </p>
               </div>
 
+              {/* Proof Upload */}
+              <div className="space-y-2">
+                <Label>{isRTL ? 'صورة الإثبات (اختياري)' : 'Proof Image (Optional)'}</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                
+                {proofPreview ? (
+                  <div className="relative">
+                    <img 
+                      src={proofPreview} 
+                      alt="Proof preview" 
+                      className="w-full h-48 object-cover rounded-lg border"
+                    />
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-2 right-2"
+                      onClick={removeFile}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-32 border-dashed"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <div className="flex flex-col items-center gap-2">
+                      <Upload className="h-8 w-8 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        {isRTL ? 'اضغط لرفع صورة (حد أقصى 5 ميجابايت)' : 'Click to upload image (max 5MB)'}
+                      </span>
+                    </div>
+                  </Button>
+                )}
+              </div>
+
               {/* Points Preview */}
               {selectedActivity && (
                 <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
@@ -355,12 +467,15 @@ export default function LogActivity() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={!activityId || !description.trim() || isSubmitting}
+                disabled={!activityId || !description.trim() || isSubmitting || isUploading}
               >
-                {isSubmitting ? (
+                {(isSubmitting || isUploading) ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isRTL ? 'جاري الإرسال...' : 'Submitting...'}
+                    {isUploading 
+                      ? (isRTL ? 'جاري رفع الصورة...' : 'Uploading image...') 
+                      : (isRTL ? 'جاري الإرسال...' : 'Submitting...')
+                    }
                   </>
                 ) : (
                   t('activityLog.submitActivity')
@@ -393,11 +508,20 @@ export default function LogActivity() {
                     key={submission.id}
                     className="flex items-center justify-between rounded-lg border p-3"
                   >
-                    <div className="space-y-1 flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{submission.activity_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {submission.committee_name} • {formatDate(submission.submitted_at)}
-                      </p>
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {submission.proof_url && (
+                        <img 
+                          src={submission.proof_url} 
+                          alt="Proof" 
+                          className="w-10 h-10 rounded object-cover shrink-0"
+                        />
+                      )}
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{submission.activity_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {submission.committee_name} • {formatDate(submission.submitted_at)}
+                        </p>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-sm font-medium">+{submission.points}</span>
