@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
+import logo from '@/assets/logo.jpg';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -59,7 +60,6 @@ export default function Auth() {
     setIsLoading(true);
 
     try {
-      // Create the admin user via signup
       const { data, error } = await supabase.auth.signUp({
         email: setupEmail,
         password: setupPassword,
@@ -81,7 +81,6 @@ export default function Auth() {
       }
 
       if (data.user) {
-        // Update the role to admin
         const { error: roleError } = await supabase
           .from('user_roles')
           .update({ role: 'admin' })
@@ -91,7 +90,6 @@ export default function Auth() {
           console.error('Role update error:', roleError);
         }
 
-        // Update profile
         await supabase
           .from('profiles')
           .update({ full_name: setupName })
@@ -122,13 +120,13 @@ export default function Auth() {
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center">
-          <div 
-            className="inline-flex h-16 w-16 items-center justify-center rounded-xl bg-primary text-primary-foreground text-2xl font-bold mb-4 cursor-pointer"
+          <img 
+            src={logo} 
+            alt="RTC Mohandseen Logo" 
+            className="h-24 w-24 mx-auto rounded-xl mb-4 object-cover cursor-pointer"
             onDoubleClick={() => setShowSetup(!showSetup)}
-          >
-            RTC
-          </div>
-          <h1 className="text-2xl font-bold">RTC Pulse</h1>
+          />
+          <h1 className="text-2xl font-bold">RTC Mohandseen</h1>
           <p className="text-muted-foreground">{t('volunteerPortal')}</p>
         </div>
 

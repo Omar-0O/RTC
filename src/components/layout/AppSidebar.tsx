@@ -14,6 +14,7 @@ import {
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import logo from '@/assets/logo.jpg';
 import {
   Sidebar,
   SidebarContent,
@@ -104,12 +105,14 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" side={isRTL ? 'right' : 'left'}>
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold">
-            RTC
-          </div>
+          <img 
+            src={logo} 
+            alt="RTC Logo" 
+            className="h-10 w-10 shrink-0 rounded-lg object-cover"
+          />
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="font-semibold text-sidebar-foreground">{t('app.name')}</span>
+              <span className="font-semibold text-sidebar-foreground">RTC Mohandseen</span>
               <span className="text-xs text-muted-foreground">{t('app.tagline')}</span>
             </div>
           )}
