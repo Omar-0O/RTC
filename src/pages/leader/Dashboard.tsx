@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Users, Award, TrendingUp, Activity, Trash2, UserPlus } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Users, Award, TrendingUp, UserPlus, UserMinus } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import {
   Table,
@@ -32,7 +30,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { StatsCard } from '@/components/ui/stats-card';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { supabase } from '@/integrations/supabase/client';
@@ -43,10 +48,13 @@ import { toast } from 'sonner';
 interface Profile {
   id: string;
   full_name: string | null;
+  full_name_ar: string | null;
   email: string;
   total_points: number;
   level: string;
   activities_count: number;
+  avatar_url: string | null;
+  committee_id: string | null;
 }
 
 interface Committee {
@@ -61,33 +69,44 @@ export default function CommitteeLeaderDashboard() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Profile | null>(null);
+  const [selectedVolunteerId, setSelectedVolunteerId] = useState<string>('');
   const [members, setMembers] = useState<Profile[]>([]);
+  const [availableVolunteers, setAvailableVolunteers] = useState<Profile[]>([]);
   const [committee, setCommittee] = useState<Committee | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   const committeeId = profile?.committee_id;
 
+  const fetchData = async () => {
+    if (!committeeId) return;
+
+    // Fetch committee info
+    const { data: committeeData } = await supabase
+      .from('committees')
+      .select('*')
+      .eq('id', committeeId)
+      .maybeSingle();
+    
+    if (committeeData) setCommittee(committeeData);
+
+    // Fetch committee members
+    const { data: membersData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('committee_id', committeeId);
+    
+    if (membersData) setMembers(membersData);
+
+    // Fetch available volunteers (those without a committee)
+    const { data: volunteersData } = await supabase
+      .from('profiles')
+      .select('*')
+      .is('committee_id', null);
+    
+    if (volunteersData) setAvailableVolunteers(volunteersData);
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      if (!committeeId) return;
-
-      // Fetch committee info
-      const { data: committeeData } = await supabase
-        .from('committees')
-        .select('*')
-        .eq('id', committeeId)
-        .maybeSingle();
-      
-      if (committeeData) setCommittee(committeeData);
-
-      // Fetch committee members
-      const { data: membersData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('committee_id', committeeId);
-      
-      if (membersData) setMembers(membersData);
-    };
-
     fetchData();
   }, [committeeId]);
 
@@ -117,16 +136,58 @@ export default function CommitteeLeaderDashboard() {
     return levelMap[dbLevel] || 'Newbie';
   };
 
-  const handleAddMember = (e: React.FormEvent) => {
-    e.preventDefault();
-    toast.success(t('leader.addMember'));
-    setIsAddDialogOpen(false);
+  const handleAddMember = async () => {
+    if (!selectedVolunteerId || !committeeId) {
+      toast.error(language === 'ar' ? 'يرجى اختيار متطوع' : 'Please select a volunteer');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ committee_id: committeeId })
+        .eq('id', selectedVolunteerId);
+
+      if (error) throw error;
+
+      toast.success(language === 'ar' ? 'تم إضافة العضو بنجاح' : 'Member added successfully');
+      setIsAddDialogOpen(false);
+      setSelectedVolunteerId('');
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleRemoveMember = () => {
-    toast.success(t('leader.removeMember'));
-    setIsRemoveDialogOpen(false);
-    setSelectedMember(null);
+  const handleRemoveMember = async () => {
+    if (!selectedMember) return;
+
+    setIsLoading(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ committee_id: null })
+        .eq('id', selectedMember.id);
+
+      if (error) throw error;
+
+      toast.success(language === 'ar' ? 'تم إزالة العضو بنجاح' : 'Member removed successfully');
+      setIsRemoveDialogOpen(false);
+      setSelectedMember(null);
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const openRemoveDialog = (member: Profile) => {
+    setSelectedMember(member);
+    setIsRemoveDialogOpen(true);
   };
 
   const committeeName = language === 'ar' ? committee?.name_ar : committee?.name;
@@ -148,26 +209,41 @@ export default function CommitteeLeaderDashboard() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{t('leader.addMember')}</DialogTitle>
-              <DialogDescription>{t('leader.overview')}</DialogDescription>
+              <DialogDescription>
+                {language === 'ar' ? 'اختر متطوعاً لإضافته إلى اللجنة' : 'Select a volunteer to add to the committee'}
+              </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAddMember}>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">{t('users.fullName')}</Label>
-                  <Input id="name" placeholder={t('users.fullName')} required />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">{t('auth.email')}</Label>
-                  <Input id="email" type="email" placeholder={t('auth.email')} required />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  {t('common.cancel')}
-                </Button>
-                <Button type="submit">{t('common.add')}</Button>
-              </DialogFooter>
-            </form>
+            <div className="py-4">
+              {availableVolunteers.length === 0 ? (
+                <p className="text-muted-foreground text-center py-4">
+                  {language === 'ar' ? 'لا يوجد متطوعين متاحين للإضافة' : 'No available volunteers to add'}
+                </p>
+              ) : (
+                <Select value={selectedVolunteerId} onValueChange={setSelectedVolunteerId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={language === 'ar' ? 'اختر متطوعاً' : 'Select a volunteer'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableVolunteers.map((volunteer) => (
+                      <SelectItem key={volunteer.id} value={volunteer.id}>
+                        {language === 'ar' ? volunteer.full_name_ar || volunteer.full_name : volunteer.full_name} - {volunteer.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button 
+                onClick={handleAddMember} 
+                disabled={isLoading || !selectedVolunteerId}
+              >
+                {isLoading ? (language === 'ar' ? 'جاري الإضافة...' : 'Adding...') : t('common.add')}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
@@ -211,7 +287,7 @@ export default function CommitteeLeaderDashboard() {
         <CardContent>
           {members.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
-              No members in this committee yet.
+              {language === 'ar' ? 'لا يوجد أعضاء في هذه اللجنة بعد.' : 'No members in this committee yet.'}
             </p>
           ) : (
             <Table>
@@ -221,6 +297,7 @@ export default function CommitteeLeaderDashboard() {
                   <TableHead>{t('users.level')}</TableHead>
                   <TableHead>{t('common.points')}</TableHead>
                   <TableHead>{t('leader.memberProgress')}</TableHead>
+                  <TableHead>{language === 'ar' ? 'إجراءات' : 'Actions'}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -229,13 +306,18 @@ export default function CommitteeLeaderDashboard() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
+                          {member.avatar_url && <AvatarImage src={member.avatar_url} />}
                           <AvatarFallback className="text-xs">
                             {member.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{member.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{member.activities_count} activities</p>
+                          <p className="font-medium">
+                            {language === 'ar' ? member.full_name_ar || member.full_name : member.full_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {member.activities_count} {language === 'ar' ? 'نشاط' : 'activities'}
+                          </p>
                         </div>
                       </div>
                     </TableCell>
@@ -250,6 +332,17 @@ export default function CommitteeLeaderDashboard() {
                         <Progress value={getLevelProgress(member.total_points)} className="h-2 w-24" />
                       </div>
                     </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        onClick={() => openRemoveDialog(member)}
+                        disabled={member.id === profile?.id}
+                      >
+                        <UserMinus className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -262,9 +355,14 @@ export default function CommitteeLeaderDashboard() {
       <AlertDialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('leader.removeMember')}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {language === 'ar' ? 'إزالة العضو من اللجنة؟' : 'Remove member from committee?'}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedMember?.full_name}
+              {language === 'ar' 
+                ? `هل أنت متأكد من إزالة ${selectedMember?.full_name_ar || selectedMember?.full_name} من اللجنة؟`
+                : `Are you sure you want to remove ${selectedMember?.full_name} from the committee?`
+              }
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -272,8 +370,9 @@ export default function CommitteeLeaderDashboard() {
             <AlertDialogAction
               onClick={handleRemoveMember}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isLoading}
             >
-              {t('common.delete')}
+              {isLoading ? (language === 'ar' ? 'جاري الإزالة...' : 'Removing...') : t('common.delete')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
