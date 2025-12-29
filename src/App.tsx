@@ -16,6 +16,7 @@ import UserManagement from "./pages/admin/UserManagement";
 import CommitteeManagement from "./pages/admin/CommitteeManagement";
 import ActivityManagement from "./pages/admin/ActivityManagement";
 import Reports from "./pages/admin/Reports";
+import BadgeManagement from "./pages/admin/BadgeManagement";
 import CommitteeLeaderDashboard from "./pages/leader/Dashboard";
 import NotFound from "./pages/NotFound";
 
@@ -89,6 +90,7 @@ function AppRoutes() {
         <Route path="/admin/committees" element={<CommitteeManagement />} />
         <Route path="/admin/activities" element={<ActivityManagement />} />
         <Route path="/admin/reports" element={<Reports />} />
+        <Route path="/admin/badges" element={<BadgeManagement />} />
       </Route>
       
       <Route path="*" element={<NotFound />} />
