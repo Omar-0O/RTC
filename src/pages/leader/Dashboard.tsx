@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Users, Award, TrendingUp, Activity, Plus, MoreHorizontal, Trash2, UserPlus } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Award, TrendingUp, Activity, Trash2, UserPlus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,12 +23,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -41,52 +35,86 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { StatsCard } from '@/components/ui/stats-card';
 import { LevelBadge } from '@/components/ui/level-badge';
-import { mockVolunteers, mockSubmissions, committees } from '@/data/mockData';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 
+interface Profile {
+  id: string;
+  full_name: string | null;
+  email: string;
+  total_points: number;
+  level: string;
+  activities_count: number;
+}
+
+interface Committee {
+  id: string;
+  name: string;
+  name_ar: string;
+}
+
 export default function CommitteeLeaderDashboard() {
-  const { user } = useAuth();
-  const { t } = useLanguage();
+  const { profile } = useAuth();
+  const { t, language } = useLanguage();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<typeof mockVolunteers[0] | null>(null);
+  const [selectedMember, setSelectedMember] = useState<Profile | null>(null);
+  const [members, setMembers] = useState<Profile[]>([]);
+  const [committee, setCommittee] = useState<Committee | null>(null);
 
-  // Get current committee (using IT as default for demo)
-  const committeeId = user?.committeeId || 'it';
-  const committee = committees.find(c => c.id === committeeId);
-  
-  // Get committee members
-  const members = mockVolunteers.filter(v => v.committeeId === committeeId);
-  
-  // Get committee submissions
-  const submissions = mockSubmissions.filter(s => s.committeeId === committeeId);
-  const recentSubmissions = submissions
-    .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
-    .slice(0, 5);
+  const committeeId = profile?.committee_id;
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!committeeId) return;
+
+      // Fetch committee info
+      const { data: committeeData } = await supabase
+        .from('committees')
+        .select('*')
+        .eq('id', committeeId)
+        .maybeSingle();
+      
+      if (committeeData) setCommittee(committeeData);
+
+      // Fetch committee members
+      const { data: membersData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('committee_id', committeeId);
+      
+      if (membersData) setMembers(membersData);
+    };
+
+    fetchData();
+  }, [committeeId]);
 
   // Calculate stats
   const totalMembers = members.length;
-  const totalPoints = members.reduce((sum, m) => sum + m.totalPoints, 0);
+  const totalPoints = members.reduce((sum, m) => sum + (m.total_points || 0), 0);
   const avgPoints = totalMembers > 0 ? Math.round(totalPoints / totalMembers) : 0;
-  const topPerformer = members.sort((a, b) => b.totalPoints - a.totalPoints)[0];
+  const topPerformer = [...members].sort((a, b) => (b.total_points || 0) - (a.total_points || 0))[0];
 
   // Level progress calculation
   const getLevelProgress = (points: number) => {
-    if (points >= 300) return 100; // Golden
-    if (points >= 150) return ((points - 150) / 150) * 100; // Silver -> Golden
-    if (points >= 50) return ((points - 50) / 100) * 100; // Active -> Silver
-    return (points / 50) * 100; // Newbie -> Active
+    if (points >= 5000) return 100;
+    if (points >= 2500) return ((points - 2500) / 2500) * 100;
+    if (points >= 1000) return ((points - 1000) / 1500) * 100;
+    if (points >= 500) return ((points - 500) / 500) * 100;
+    return (points / 500) * 100;
   };
 
-  const getNextLevel = (level: string) => {
-    switch (level) {
-      case 'Newbie': return t('level.active');
-      case 'Active': return t('level.silver');
-      case 'Silver': return t('level.golden');
-      default: return t('level.golden');
-    }
+  const displayLevel = (dbLevel: string) => {
+    const levelMap: Record<string, string> = {
+      bronze: 'Newbie',
+      silver: 'Silver',
+      gold: 'Golden',
+      platinum: 'Platinum',
+      diamond: 'Diamond',
+    };
+    return levelMap[dbLevel] || 'Newbie';
   };
 
   const handleAddMember = (e: React.FormEvent) => {
@@ -101,20 +129,14 @@ export default function CommitteeLeaderDashboard() {
     setSelectedMember(null);
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'approved': return t('common.approved');
-      case 'rejected': return t('common.rejected');
-      default: return t('common.pending');
-    }
-  };
+  const committeeName = language === 'ar' ? committee?.name_ar : committee?.name;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t('leader.dashboard')}</h1>
-          <p className="text-muted-foreground">{committee?.name} - {t('leader.overview')}</p>
+          <p className="text-muted-foreground">{committeeName} - {t('leader.overview')}</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
@@ -172,22 +194,26 @@ export default function CommitteeLeaderDashboard() {
         />
         <StatsCard
           title={t('leader.topPerformer')}
-          value={topPerformer?.name.split(' ')[0] || '-'}
+          value={topPerformer?.full_name?.split(' ')[0] || '-'}
           icon={Award}
-          description={`${topPerformer?.totalPoints || 0} ${t('common.points')}`}
+          description={`${topPerformer?.total_points || 0} ${t('common.points')}`}
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Members Table */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              {t('leader.members')} ({members.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      {/* Members Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            {t('leader.members')} ({members.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {members.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">
+              No members in this committee yet.
+            </p>
+          ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -195,7 +221,6 @@ export default function CommitteeLeaderDashboard() {
                   <TableHead>{t('users.level')}</TableHead>
                   <TableHead>{t('common.points')}</TableHead>
                   <TableHead>{t('leader.memberProgress')}</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -205,134 +230,31 @@ export default function CommitteeLeaderDashboard() {
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback className="text-xs">
-                            {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                            {member.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium">{member.name}</p>
-                          <p className="text-xs text-muted-foreground">{member.activitiesCompleted} {t('nav.activities')}</p>
+                          <p className="font-medium">{member.full_name}</p>
+                          <p className="text-xs text-muted-foreground">{member.activities_count} activities</p>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <LevelBadge level={member.level} size="sm" />
+                      <LevelBadge level={displayLevel(member.level)} size="sm" />
                     </TableCell>
                     <TableCell>
-                      <span className="font-bold">{member.totalPoints}</span>
+                      <span className="font-bold">{member.total_points}</span>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <Progress value={getLevelProgress(member.totalPoints)} className="h-2 w-24" />
-                        <p className="text-xs text-muted-foreground">
-                          {t('profile.nextLevel')}: {getNextLevel(member.level)}
-                        </p>
+                        <Progress value={getLevelProgress(member.total_points)} className="h-2 w-24" />
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => {
-                              setSelectedMember(member);
-                              setIsRemoveDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                            {t('leader.removeMember')}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
-
-        {/* Recent Activities */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5" />
-              {t('leader.recentActivities')}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentSubmissions.map((submission) => (
-                <div
-                  key={submission.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <div className="space-y-1 min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">{submission.volunteerName}</p>
-                    <p className="text-xs text-muted-foreground truncate">{submission.activityTypeName}</p>
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span className="text-sm font-medium">+{submission.points}</span>
-                    <span
-                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                        submission.status === 'approved'
-                          ? 'bg-success/10 text-success'
-                          : submission.status === 'rejected'
-                          ? 'bg-destructive/10 text-destructive'
-                          : 'bg-warning/10 text-warning'
-                      }`}
-                    >
-                      {getStatusText(submission.status)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {recentSubmissions.length === 0 && (
-                <p className="text-center text-muted-foreground py-4">{t('leader.recentActivities')}</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Member Progress Overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            {t('leader.memberProgress')}
-          </CardTitle>
-          <CardDescription>{t('leader.overview')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {members.slice(0, 8).map((member) => (
-              <div key={member.id} className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback>
-                      {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium truncate">{member.name}</p>
-                    <LevelBadge level={member.level} size="sm" />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">{t('common.points')}</span>
-                    <span className="font-bold">{member.totalPoints}</span>
-                  </div>
-                  <Progress value={getLevelProgress(member.totalPoints)} className="h-2" />
-                </div>
-              </div>
-            ))}
-          </div>
+          )}
         </CardContent>
       </Card>
 
@@ -342,7 +264,7 @@ export default function CommitteeLeaderDashboard() {
           <AlertDialogHeader>
             <AlertDialogTitle>{t('leader.removeMember')}?</AlertDialogTitle>
             <AlertDialogDescription>
-              {selectedMember?.name}
+              {selectedMember?.full_name}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

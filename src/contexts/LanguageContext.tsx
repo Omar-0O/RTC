@@ -68,6 +68,26 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.loginSubtitle': 'Sign in to your RTC Pulse account',
     'auth.demoAccounts': 'Demo Accounts',
     
+    // New Auth translations
+    'error': 'Error',
+    'welcomeBack': 'Welcome back!',
+    'loginSuccess': 'You have successfully logged in.',
+    'loginError': 'An error occurred during login.',
+    'success': 'Success',
+    'accountCreated': 'Your account has been created successfully.',
+    'signupError': 'An error occurred during signup.',
+    'emailAlreadyExists': 'This email is already registered.',
+    'volunteerPortal': 'Volunteer Management Portal',
+    'signIn': 'Sign In',
+    'signUp': 'Sign Up',
+    'email': 'Email',
+    'password': 'Password',
+    'fullName': 'Full Name',
+    'enterFullName': 'Enter your full name',
+    'signingIn': 'Signing in...',
+    'creatingAccount': 'Creating account...',
+    'createAccount': 'Create Account',
+    
     // Dashboard
     'dashboard.title': 'Dashboard',
     'dashboard.welcome': 'Welcome back',
@@ -256,6 +276,26 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.welcomeBack': 'مرحباً بعودتك',
     'auth.loginSubtitle': 'سجل دخولك إلى حساب RTC Pulse',
     'auth.demoAccounts': 'حسابات تجريبية',
+    
+    // New Auth translations
+    'error': 'خطأ',
+    'welcomeBack': 'مرحباً بعودتك!',
+    'loginSuccess': 'تم تسجيل الدخول بنجاح.',
+    'loginError': 'حدث خطأ أثناء تسجيل الدخول.',
+    'success': 'نجاح',
+    'accountCreated': 'تم إنشاء حسابك بنجاح.',
+    'signupError': 'حدث خطأ أثناء إنشاء الحساب.',
+    'emailAlreadyExists': 'هذا البريد الإلكتروني مسجل بالفعل.',
+    'volunteerPortal': 'بوابة إدارة المتطوعين',
+    'signIn': 'تسجيل الدخول',
+    'signUp': 'إنشاء حساب',
+    'email': 'البريد الإلكتروني',
+    'password': 'كلمة المرور',
+    'fullName': 'الاسم الكامل',
+    'enterFullName': 'أدخل اسمك الكامل',
+    'signingIn': 'جاري تسجيل الدخول...',
+    'creatingAccount': 'جاري إنشاء الحساب...',
+    'createAccount': 'إنشاء حساب',
     
     // Dashboard
     'dashboard.title': 'لوحة التحكم',
