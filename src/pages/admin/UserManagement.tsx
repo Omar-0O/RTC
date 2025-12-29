@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -46,7 +46,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -64,6 +64,7 @@ interface UserWithDetails {
   id: string;
   email: string;
   full_name: string | null;
+  avatar_url: string | null;
   role: AppRole;
   committee_id: string | null;
   committee_name?: string;
@@ -84,6 +85,8 @@ export default function UserManagement() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithDetails | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form states
   const [formName, setFormName] = useState('');
@@ -91,6 +94,8 @@ export default function UserManagement() {
   const [formPassword, setFormPassword] = useState('');
   const [formRole, setFormRole] = useState<string>('volunteer');
   const [formCommitteeId, setFormCommitteeId] = useState<string>('');
+  const [formAvatarFile, setFormAvatarFile] = useState<File | null>(null);
+  const [formAvatarPreview, setFormAvatarPreview] = useState<string | null>(null);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -123,6 +128,7 @@ export default function UserManagement() {
         id: profile.id,
         email: profile.email,
         full_name: profile.full_name,
+        avatar_url: profile.avatar_url,
         role: (rolesMap.get(profile.id) as any) || 'volunteer',
         committee_id: profile.committee_id,
         committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
@@ -159,6 +165,52 @@ export default function UserManagement() {
     setFormPassword('');
     setFormRole('volunteer');
     setFormCommitteeId('');
+    setFormAvatarFile(null);
+    setFormAvatarPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error(language === 'ar' ? 'يرجى اختيار صورة فقط' : 'Please select an image file');
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2 ميجابايت' : 'Image must be less than 2MB');
+      return;
+    }
+
+    setFormAvatarFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormAvatarPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uploadAvatar = async (userId: string): Promise<string | null> => {
+    if (!formAvatarFile) return null;
+
+    try {
+      const fileExt = formAvatarFile.name.split('.').pop();
+      const fileName = `${userId}/avatar.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, formAvatarFile, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      return data.publicUrl;
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      return null;
+    }
   };
 
   const handleAddUser = async (e: React.FormEvent) => {
@@ -191,18 +243,25 @@ export default function UserManagement() {
       if (authError) throw authError;
 
       if (authData.user) {
+        // Upload avatar if provided
+        let avatarUrl: string | null = null;
+        if (formAvatarFile) {
+          avatarUrl = await uploadAvatar(authData.user.id);
+        }
+
         // Update role
         await supabase
           .from('user_roles')
           .update({ role: formRole as AppRole })
           .eq('user_id', authData.user.id);
 
-        // Update profile with committee
+        // Update profile with committee and avatar
         await supabase
           .from('profiles')
           .update({ 
             full_name: formName.trim(),
             committee_id: formCommitteeId || null,
+            avatar_url: avatarUrl,
           })
           .eq('id', authData.user.id);
 
@@ -389,6 +448,51 @@ export default function UserManagement() {
                     </SelectContent>
                   </Select>
                 </div>
+                {/* Avatar Upload */}
+                <div className="grid gap-2">
+                  <Label>{language === 'ar' ? 'الصورة الشخصية' : 'Profile Picture'}</Label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarSelect}
+                    className="hidden"
+                  />
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-16 w-16">
+                      {formAvatarPreview ? (
+                        <AvatarImage src={formAvatarPreview} alt="Preview" />
+                      ) : (
+                        <AvatarFallback className="bg-muted">
+                          <Upload className="h-6 w-6 text-muted-foreground" />
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                      {language === 'ar' ? 'اختر صورة' : 'Choose Image'}
+                    </Button>
+                    {formAvatarPreview && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setFormAvatarFile(null);
+                          setFormAvatarPreview(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                      >
+                        {language === 'ar' ? 'إزالة' : 'Remove'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
@@ -477,6 +581,7 @@ export default function UserManagement() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
+                          <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
                           <AvatarFallback className="text-xs">
                             {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                           </AvatarFallback>

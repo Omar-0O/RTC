@@ -1,13 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
-import { Calendar, Mail, Award, Loader2, ExternalLink } from 'lucide-react';
+import { Calendar, Mail, Award, Loader2, Camera, Upload } from 'lucide-react';
+import { toast } from 'sonner';
 
 type UserBadge = {
   id: string;
@@ -34,11 +36,14 @@ type ActivitySubmission = {
 };
 
 export default function Profile() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { t, isRTL } = useLanguage();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [badges, setBadges] = useState<UserBadge[]>([]);
   const [activities, setActivities] = useState<ActivitySubmission[]>([]);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile?.avatar_url || null);
   
   const points = profile?.total_points || 0;
   const { progress, nextThreshold } = getLevelProgress(points);
@@ -49,6 +54,10 @@ export default function Profile() {
       fetchData();
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    setAvatarUrl(profile?.avatar_url || null);
+  }, [profile?.avatar_url]);
 
   const fetchData = async () => {
     if (!user?.id) return;
@@ -105,6 +114,59 @@ export default function Profile() {
     }
   };
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error(isRTL ? 'يرجى اختيار صورة فقط' : 'Please select an image file');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(isRTL ? 'حجم الصورة يجب أن يكون أقل من 2 ميجابايت' : 'Image must be less than 2MB');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/avatar.${fileExt}`;
+
+      // Delete old avatar if exists
+      await supabase.storage.from('avatars').remove([`${user.id}/avatar.jpg`, `${user.id}/avatar.png`, `${user.id}/avatar.webp`]);
+
+      // Upload new avatar
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+
+      // Update profile with new avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: data.publicUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setAvatarUrl(data.publicUrl + '?t=' + Date.now()); // Add cache buster
+      await refreshProfile();
+      toast.success(isRTL ? 'تم تحديث الصورة الشخصية' : 'Profile picture updated');
+    } catch (error: any) {
+      console.error('Error uploading avatar:', error);
+      toast.error(isRTL ? 'فشل في تحميل الصورة' : 'Failed to upload image');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const displayLevel = (dbLevel: string) => {
     const levelMap: Record<string, string> = {
       bronze: isRTL ? 'برونزي' : 'Bronze',
@@ -146,11 +208,34 @@ export default function Profile() {
       <Card>
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row items-center gap-6">
-            <Avatar className="h-24 w-24">
-              <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
-                {userInitials}
-              </AvatarFallback>
-            </Avatar>
+            <div className="relative group">
+              <Avatar className="h-24 w-24">
+                <AvatarImage src={avatarUrl || undefined} alt={profile?.full_name || ''} />
+                <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
+                  {userInitials}
+                </AvatarFallback>
+              </Avatar>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="hidden"
+              />
+              <Button
+                size="icon"
+                variant="secondary"
+                className="absolute bottom-0 right-0 h-8 w-8 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
             <div className="flex-1 text-center md:text-left">
               <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-2">
                 <h1 className="text-2xl font-bold">
