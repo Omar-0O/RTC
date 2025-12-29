@@ -46,7 +46,7 @@ type UserWithDetails = {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'supervisor' | 'volunteer';
+  role: 'admin' | 'supervisor' | 'volunteer' | 'committee_leader';
   committeeId?: string;
   committeeName?: string;
   totalPoints?: number;
@@ -94,6 +94,8 @@ export default function UserManagement() {
         return 'bg-destructive/10 text-destructive';
       case 'supervisor':
         return 'bg-primary/10 text-primary';
+      case 'committee_leader':
+        return 'bg-success/10 text-success';
       default:
         return 'bg-muted text-muted-foreground';
     }
@@ -103,6 +105,7 @@ export default function UserManagement() {
     switch (role) {
       case 'admin': return t('common.admin');
       case 'supervisor': return t('common.supervisor');
+      case 'committee_leader': return t('common.committeeLeader');
       default: return t('common.volunteer');
     }
   };
@@ -144,6 +147,7 @@ export default function UserManagement() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
+                      <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
                       <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
                       <SelectItem value="admin">{t('common.admin')}</SelectItem>
                     </SelectContent>
@@ -199,6 +203,7 @@ export default function UserManagement() {
               <SelectContent>
                 <SelectItem value="all">{t('users.allRoles')}</SelectItem>
                 <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
+                <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
                 <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
                 <SelectItem value="admin">{t('common.admin')}</SelectItem>
               </SelectContent>

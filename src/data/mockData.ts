@@ -84,6 +84,10 @@ export const mockUsers: User[] = [
   { id: 'sup-1', email: 'supervisor.it@rtc.org', name: 'Fatima Ali', role: 'supervisor', committeeId: 'it', joinedAt: '2023-02-20' },
   { id: 'sup-2', email: 'supervisor.dev@rtc.org', name: 'Omar Khaled', role: 'supervisor', committeeId: 'dev', joinedAt: '2023-03-10' },
   { id: 'sup-3', email: 'supervisor.lang@rtc.org', name: 'Layla Ahmed', role: 'supervisor', committeeId: 'lang', joinedAt: '2023-03-15' },
+  // Committee Leaders
+  { id: 'leader-1', email: 'leader.it@rtc.org', name: 'Mohamed Fathy', role: 'committee_leader', committeeId: 'it', joinedAt: '2023-02-25' },
+  { id: 'leader-2', email: 'leader.dev@rtc.org', name: 'Amira Saleh', role: 'committee_leader', committeeId: 'dev', joinedAt: '2023-03-05' },
+  { id: 'leader-3', email: 'leader.lang@rtc.org', name: 'Hassan Ibrahim', role: 'committee_leader', committeeId: 'lang', joinedAt: '2023-03-20' },
 ];
 
 export const mockVolunteers: VolunteerProfile[] = [

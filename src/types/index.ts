@@ -1,4 +1,4 @@
-export type UserRole = 'volunteer' | 'supervisor' | 'admin';
+export type UserRole = 'volunteer' | 'supervisor' | 'admin' | 'committee_leader';
 
 export type VolunteerLevel = 'Newbie' | 'Active' | 'Silver' | 'Golden';
 
