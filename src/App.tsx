@@ -10,6 +10,11 @@ import VolunteerDashboard from "./pages/volunteer/Dashboard";
 import LogActivity from "./pages/volunteer/LogActivity";
 import Profile from "./pages/volunteer/Profile";
 import Leaderboard from "./pages/Leaderboard";
+import AdminDashboard from "./pages/admin/Dashboard";
+import UserManagement from "./pages/admin/UserManagement";
+import CommitteeManagement from "./pages/admin/CommitteeManagement";
+import ActivityManagement from "./pages/admin/ActivityManagement";
+import Reports from "./pages/admin/Reports";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,11 +42,11 @@ function AppRoutes() {
         <Route path="/leaderboard" element={<Leaderboard />} />
         <Route path="/supervisor" element={<VolunteerDashboard />} />
         <Route path="/supervisor/submissions" element={<VolunteerDashboard />} />
-        <Route path="/admin" element={<VolunteerDashboard />} />
-        <Route path="/admin/users" element={<VolunteerDashboard />} />
-        <Route path="/admin/committees" element={<VolunteerDashboard />} />
-        <Route path="/admin/activities" element={<VolunteerDashboard />} />
-        <Route path="/admin/reports" element={<VolunteerDashboard />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/users" element={<UserManagement />} />
+        <Route path="/admin/committees" element={<CommitteeManagement />} />
+        <Route path="/admin/activities" element={<ActivityManagement />} />
+        <Route path="/admin/reports" element={<Reports />} />
       </Route>
       
       <Route path="*" element={<NotFound />} />
