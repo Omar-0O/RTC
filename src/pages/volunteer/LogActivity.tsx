@@ -208,18 +208,19 @@ export default function LogActivity() {
         hours_spent: hoursSpent ? parseFloat(hoursSpent) : null,
         participants_count: selectedActivity.mode === 'group' ? parseInt(participantsCount) || 1 : 1,
         points_awarded: selectedActivity.points,
-        status: 'pending',
+        status: 'approved',
+        reviewed_at: new Date().toISOString(),
         proof_url: proofUrl,
       });
 
       if (error) throw error;
 
       setIsSubmitted(true);
-      toast.success(isRTL ? 'تم تقديم النشاط بنجاح' : 'Activity submitted successfully');
+      toast.success(isRTL ? 'تم تسجيل المشاركة بنجاح!' : 'Participation logged successfully!');
       fetchData();
     } catch (error: any) {
-      console.error('Error submitting activity:', error);
-      toast.error(isRTL ? 'فشل في تقديم النشاط' : 'Failed to submit activity');
+      console.error('Error logging participation:', error);
+      toast.error(isRTL ? 'فشل في تسجيل المشاركة' : 'Failed to log participation');
     } finally {
       setIsSubmitting(false);
     }
@@ -278,10 +279,10 @@ export default function LogActivity() {
               </div>
               <h2 className="text-2xl font-bold mb-2">{isRTL ? 'تم بنجاح!' : 'Success!'}</h2>
               <p className="text-muted-foreground mb-6">
-                {isRTL ? 'طلبك قيد المراجعة الآن.' : 'Your submission is now pending review.'}
+                {isRTL ? 'تم تسجيل مشاركتك وإضافة النقاط!' : 'Your participation has been logged and points added!'}
               </p>
               <div className="bg-muted/50 rounded-lg p-4 mb-6 text-left">
-                <h3 className="font-medium mb-2">{isRTL ? 'تفاصيل الطلب' : 'Submission Details'}</h3>
+                <h3 className="font-medium mb-2">{isRTL ? 'تفاصيل المشاركة' : 'Participation Details'}</h3>
                 <dl className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">{isRTL ? 'النشاط:' : 'Activity:'}</dt>
@@ -293,7 +294,7 @@ export default function LogActivity() {
                   </div>
                 </dl>
               </div>
-              <Button onClick={handleReset}>{isRTL ? 'تسجيل نشاط آخر' : 'Log Another Activity'}</Button>
+              <Button onClick={handleReset}>{isRTL ? 'تسجيل مشاركة أخرى' : 'Log Another Participation'}</Button>
             </div>
           </CardContent>
         </Card>
@@ -312,8 +313,8 @@ export default function LogActivity() {
         {/* Activity Form */}
         <Card>
           <CardHeader>
-            <CardTitle>{isRTL ? 'تسجيل نشاط جديد' : 'Log New Activity'}</CardTitle>
-            <CardDescription>{isRTL ? 'قدم نشاطك التطوعي للمراجعة' : 'Submit your volunteer activity for review'}</CardDescription>
+            <CardTitle>{isRTL ? 'تسجيل مشاركة جديدة' : 'Log New Participation'}</CardTitle>
+            <CardDescription>{isRTL ? 'سجل مشاركتك التطوعية واحصل على النقاط مباشرة' : 'Log your volunteer participation and earn points instantly'}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -474,7 +475,7 @@ export default function LogActivity() {
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     {isUploading 
                       ? (isRTL ? 'جاري رفع الصورة...' : 'Uploading image...') 
-                      : (isRTL ? 'جاري الإرسال...' : 'Submitting...')
+                      : (isRTL ? 'جاري التسجيل...' : 'Logging...')
                     }
                   </>
                 ) : (
@@ -493,13 +494,13 @@ export default function LogActivity() {
               {t('activityLog.submissionHistory')}
             </CardTitle>
             <CardDescription>
-              {isRTL ? 'آخر 10 طلبات' : 'Your last 10 submissions'}
+              {isRTL ? 'آخر 10 مشاركات' : 'Your last 10 participations'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {submissions.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">
-                {isRTL ? 'لا توجد طلبات سابقة' : 'No previous submissions'}
+                {isRTL ? 'لا توجد مشاركات سابقة' : 'No previous participations'}
               </p>
             ) : (
               <div className="space-y-3">
