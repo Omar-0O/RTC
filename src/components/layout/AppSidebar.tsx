@@ -73,7 +73,6 @@ export function AppSidebar() {
     { title: t('nav.activities'), url: '/admin/activities', icon: Activity },
     { title: t('nav.badges'), url: '/admin/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
-    { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
   ];
 
   const getNavItems = () => {
