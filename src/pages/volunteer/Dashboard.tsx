@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { StatsCard } from '@/components/ui/stats-card';
 import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from 'react-router-dom';
 import { Activity, Trophy, Star, ArrowRight, Loader2, Award } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -116,13 +117,21 @@ export default function VolunteerDashboard() {
     <div className="space-y-6 animate-slide-up">
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">
-            {t('dashboard.welcome')}, {profile?.full_name?.split(' ')[0] || (isRTL ? 'متطوع' : 'Volunteer')}! 👋
-          </h1>
-          <p className="text-muted-foreground">
-            {t('dashboard.totalPoints')}: {points}
-          </p>
+        <div className="flex items-center gap-4">
+          <Avatar className="h-14 w-14">
+            <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.full_name || ''} />
+            <AvatarFallback className="bg-primary text-primary-foreground text-lg">
+              {(profile?.full_name || 'V').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <h1 className="text-2xl font-bold">
+              {t('dashboard.welcome')}, {profile?.full_name?.split(' ')[0] || (isRTL ? 'متطوع' : 'Volunteer')}! 👋
+            </h1>
+            <p className="text-muted-foreground">
+              {t('dashboard.totalPoints')}: {points}
+            </p>
+          </div>
         </div>
         <Button asChild>
           <Link to="/activity">
