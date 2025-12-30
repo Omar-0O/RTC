@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { Trophy, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,7 @@ type LeaderboardEntry = {
   id: string;
   full_name: string;
   full_name_ar: string | null;
+  avatar_url: string | null;
   total_points: number;
   activities_count: number;
   level: string;
@@ -47,6 +48,7 @@ export default function Leaderboard() {
           id,
           full_name,
           full_name_ar,
+          avatar_url,
           total_points,
           activities_count,
           level,
@@ -63,6 +65,7 @@ export default function Leaderboard() {
         id: p.id,
         full_name: p.full_name || 'Unknown',
         full_name_ar: p.full_name_ar,
+        avatar_url: p.avatar_url,
         total_points: p.total_points || 0,
         activities_count: p.activities_count || 0,
         level: p.level || 'bronze',
@@ -179,6 +182,7 @@ export default function Leaderboard() {
                         {index + 1}
                       </div>
                       <Avatar className="h-16 w-16 mb-3">
+                        <AvatarImage src={entry.avatar_url || undefined} alt={displayName} />
                         <AvatarFallback className="bg-primary text-primary-foreground text-lg">
                           {userInitials}
                         </AvatarFallback>
@@ -237,6 +241,7 @@ export default function Leaderboard() {
                         {rank}
                       </div>
                       <Avatar className="h-10 w-10 shrink-0">
+                        <AvatarImage src={entry.avatar_url || undefined} alt={displayName} />
                         <AvatarFallback className="bg-secondary text-secondary-foreground text-sm">
                           {userInitials}
                         </AvatarFallback>
