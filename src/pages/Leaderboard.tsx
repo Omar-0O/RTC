@@ -43,7 +43,7 @@ export default function Leaderboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [profilesRes, committeesRes] = await Promise.all([
+      const [profilesRes, committeesRes, adminRolesRes] = await Promise.all([
         supabase.from('profiles').select(`
           id,
           full_name,
@@ -56,23 +56,29 @@ export default function Leaderboard() {
           committee:committees(name, name_ar)
         `).order('total_points', { ascending: false }),
         supabase.from('committees').select('id, name, name_ar').order('name'),
+        supabase.from('user_roles').select('user_id').eq('role', 'admin'),
       ]);
 
       if (profilesRes.error) throw profilesRes.error;
       if (committeesRes.error) throw committeesRes.error;
 
-      const entries = (profilesRes.data || []).map((p: any) => ({
-        id: p.id,
-        full_name: p.full_name || 'Unknown',
-        full_name_ar: p.full_name_ar,
-        avatar_url: p.avatar_url,
-        total_points: p.total_points || 0,
-        activities_count: p.activities_count || 0,
-        level: p.level || 'bronze',
-        committee_id: p.committee_id,
-        committee_name: p.committee?.name || null,
-        committee_name_ar: p.committee?.name_ar || null,
-      }));
+      // Get admin user IDs to exclude from leaderboard
+      const adminIds = new Set((adminRolesRes.data || []).map((r: any) => r.user_id));
+
+      const entries = (profilesRes.data || [])
+        .filter((p: any) => !adminIds.has(p.id)) // Exclude admins
+        .map((p: any) => ({
+          id: p.id,
+          full_name: p.full_name || 'Unknown',
+          full_name_ar: p.full_name_ar,
+          avatar_url: p.avatar_url,
+          total_points: p.total_points || 0,
+          activities_count: p.activities_count || 0,
+          level: p.level || 'bronze',
+          committee_id: p.committee_id,
+          committee_name: p.committee?.name || null,
+          committee_name_ar: p.committee?.name_ar || null,
+        }));
 
       setLeaderboard(entries);
       setCommittees(committeesRes.data || []);
