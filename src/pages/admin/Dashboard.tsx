@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Activity, Award, ClipboardCheck, Building2, TrendingUp, Loader2 } from 'lucide-react';
+import { Users, Activity, Award, Building2, TrendingUp, Loader2 } from 'lucide-react';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LevelBadge } from '@/components/ui/level-badge';
@@ -8,9 +8,8 @@ import { supabase } from '@/integrations/supabase/client';
 
 type DashboardStats = {
   totalVolunteers: number;
-  totalActivities: number;
+  totalParticipations: number;
   totalPointsAwarded: number;
-  pendingSubmissions: number;
   activeCommittees: number;
 };
 
@@ -44,9 +43,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats>({
     totalVolunteers: 0,
-    totalActivities: 0,
+    totalParticipations: 0,
     totalPointsAwarded: 0,
-    pendingSubmissions: 0,
     activeCommittees: 0,
   });
   const [recentSubmissions, setRecentSubmissions] = useState<RecentSubmission[]>([]);
@@ -63,14 +61,12 @@ export default function AdminDashboard() {
       // Fetch all data in parallel
       const [
         profilesRes,
-        activitiesRes,
-        pendingRes,
+        participationsRes,
         committeesRes,
         submissionsRes,
       ] = await Promise.all([
         supabase.from('profiles').select('id, full_name, full_name_ar, total_points, level, committee_id'),
-        supabase.from('activity_submissions').select('points_awarded').eq('status', 'approved'),
-        supabase.from('activity_submissions').select('id', { count: 'exact' }).eq('status', 'pending'),
+        supabase.from('activity_submissions').select('points_awarded'),
         supabase.from('committees').select('id, name, name_ar'),
         supabase.from('activity_submissions')
           .select(`
@@ -88,16 +84,15 @@ export default function AdminDashboard() {
 
       // Calculate stats
       const profiles = profilesRes.data || [];
-      const approvedActivities = activitiesRes.data || [];
+      const participations = participationsRes.data || [];
       const committees = committeesRes.data || [];
 
-      const totalPoints = approvedActivities.reduce((sum, a) => sum + (a.points_awarded || 0), 0);
+      const totalPoints = participations.reduce((sum, a) => sum + (a.points_awarded || 0), 0);
 
       setStats({
         totalVolunteers: profiles.length,
-        totalActivities: approvedActivities.length,
+        totalParticipations: participations.length,
         totalPointsAwarded: totalPoints,
-        pendingSubmissions: pendingRes.count || 0,
         activeCommittees: committees.length,
       });
 
@@ -176,7 +171,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title={t('admin.totalVolunteers')}
           value={stats.totalVolunteers}
@@ -184,23 +179,16 @@ export default function AdminDashboard() {
           description={t('common.volunteers')}
         />
         <StatsCard
-          title={t('admin.totalActivities')}
-          value={stats.totalActivities}
+          title={isRTL ? 'إجمالي المشاركات' : 'Total Participations'}
+          value={stats.totalParticipations}
           icon={Activity}
-          description={t('common.approved')}
+          description={isRTL ? 'مشاركة مسجلة' : 'logged participations'}
         />
         <StatsCard
           title={t('admin.pointsAwarded')}
           value={stats.totalPointsAwarded.toLocaleString()}
           icon={Award}
           description={t('common.points')}
-        />
-        <StatsCard
-          title={t('admin.pendingReviews')}
-          value={stats.pendingSubmissions}
-          icon={ClipboardCheck}
-          description={t('common.pending')}
-          className={stats.pendingSubmissions > 0 ? 'border-warning' : ''}
         />
         <StatsCard
           title={t('admin.activeCommittees')}
@@ -211,19 +199,19 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Recent Submissions */}
+        {/* Recent Participations */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ClipboardCheck className="h-5 w-5" />
-              {t('admin.recentSubmissions')}
+              <Activity className="h-5 w-5" />
+              {isRTL ? 'آخر المشاركات' : 'Recent Participations'}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {recentSubmissions.length === 0 ? (
                 <p className="text-center text-muted-foreground py-4">
-                  {isRTL ? 'لا توجد طلبات حتى الآن' : 'No submissions yet'}
+                  {isRTL ? 'لا توجد مشاركات حتى الآن' : 'No participations yet'}
                 </p>
               ) : (
                 recentSubmissions.map((submission) => (
@@ -237,20 +225,7 @@ export default function AdminDashboard() {
                         {submission.activity_name} • {submission.committee_name}
                       </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium">+{submission.points} {t('common.points')}</span>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          submission.status === 'approved'
-                            ? 'bg-success/10 text-success'
-                            : submission.status === 'rejected'
-                            ? 'bg-destructive/10 text-destructive'
-                            : 'bg-warning/10 text-warning'
-                        }`}
-                      >
-                        {getStatusText(submission.status)}
-                      </span>
-                    </div>
+                    <span className="text-sm font-medium text-primary">+{submission.points} {t('common.points')}</span>
                   </div>
                 ))
               )}
