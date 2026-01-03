@@ -1,73 +1,88 @@
-# Welcome to your Lovable project
+# RTC Pulse 🌟
 
-## Project info
+**RTC Pulse** is a comprehensive Volunteer Management System designed to gamify the volunteering experience and streamline organization management. It empowers volunteers to track their impact while giving administrators powerful tools to oversee activities, committees, and performance.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+![RTC Pulse Banner](public/og-image.png)
 
-## How can I edit this code?
+## 🚀 Features
 
-There are several ways of editing your application.
+### For Volunteers
+- **Gamified Dashboard**: Track your "Impact" (Points), unlock Badges, and progress through Levels (Mubadir -> Musahim -> Moather -> Qaed Molhem).
+- **Log Activities**: Easily submit your volunteer work with proof (images/links).
+- **Leaderboard**: Compete with others! Filter by Month, Quarter, or Committee to see where you stand.
+- **Profile**: manage your personal info and view your complete activity history.
 
-**Use Lovable**
+### For Admins & Leaders
+- **Admin Dashboard**: Real-time statistics on participation, top volunteers (Monthly), and committee performance.
+- **User Management**: Manage volunteers, assign roles (Admin, Supervisor, Committee Leader), and organize them into committees.
+- **Activity Management**: Define activity types and their Impact values.
+- **Reports**: Export data and view insights on volunteer engagement.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### 🌐 Multilingual Support
+Fully localized for **English** and **Arabic (RTL)** to support a diverse community.
 
-Changes made via Lovable will be committed automatically to this repo.
+## 🛠️ Tech Stack
 
-**Use your preferred IDE**
+- **Frontend**: [React](https://reactjs.org/) + [Vite](https://vitejs.dev/)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)
+- **Backend & Auth**: [Supabase](https://supabase.com/) (Auth, Database, Storage)
+- **State Management**: React Context + TanStack Query
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🏁 Getting Started
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Follow these steps to set up the project locally.
 
-Follow these steps:
+### Prerequisites
+- Node.js (v18+)
+- npm or yarn
+- A Supabase account
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Installation
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/your-username/rtc-pulse.git
+    cd rtc-pulse
+    ```
 
-# Step 3: Install the necessary dependencies.
-npm i
+2.  **Install dependencies**
+    ```bash
+    npm install
+    ```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+3.  **Environment Setup**
+    Create a `.env` file in the root directory and add your Supabase credentials:
+    ```env
+    VITE_SUPABASE_URL=your_supabase_url
+    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+    ```
 
-**Edit a file directly in GitHub**
+4.  **Database Setup**
+    Run the SQL scripts located in `supabase/seeds/` in your Supabase SQL Editor to set up the schema, functions, and initial data:
+    - `create_admin.sql`: Sets up the initial admin user.
+    - `create_storage.sql`: Configures storage buckets and policies.
+    - `create_get_leaderboard.sql`: Adds the leaderboard calculation function.
+    - `update_level_logic.sql`: Updates the level threshold logic.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+5.  **Run the App**
+    ```bash
+    npm run dev
+    ```
+    Open [http://localhost:8080](http://localhost:8080) to view it in the browser.
 
-**Use GitHub Codespaces**
+## 📂 Project Structure
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- `src/pages`: Main application pages (Volunteer, Admin, Leader).
+- `src/components`: Reusable UI components.
+- `src/contexts`: Global state (Auth, Language).
+- `src/integrations/supabase`: Supabase client and types.
+- `supabase/seeds`: SQL scripts for database setup.
 
-## What technologies are used for this project?
+## 🤝 Contributing
 
-This project is built with:
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## 📄 License
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+This project is open source and available under the [MIT License](LICENSE).
