@@ -71,6 +71,7 @@ interface UserWithDetails {
   total_points: number;
   level: string;
   join_date: string;
+  phone?: string;
 }
 
 import Profile from '@/pages/volunteer/Profile';
@@ -94,6 +95,7 @@ export default function UserManagement() {
   // Form states
   const [formName, setFormName] = useState('');
   const [formEmail, setFormEmail] = useState('');
+  const [formPhone, setFormPhone] = useState('');
   const [formPassword, setFormPassword] = useState('');
   const [formRole, setFormRole] = useState<string>('volunteer');
   const [formCommitteeId, setFormCommitteeId] = useState<string>('');
@@ -138,6 +140,7 @@ export default function UserManagement() {
         total_points: profile.total_points || 0,
         level: profile.level || 'bronze',
         join_date: profile.join_date,
+        phone: profile.phone,
       }));
 
       setUsers(usersWithDetails);
@@ -165,6 +168,7 @@ export default function UserManagement() {
   const resetForm = () => {
     setFormName('');
     setFormEmail('');
+    setFormPhone('');
     setFormPassword('');
     setFormRole('volunteer');
     setFormCommitteeId('');
@@ -265,6 +269,7 @@ export default function UserManagement() {
             full_name: formName.trim(),
             committee_id: formCommitteeId || null,
             avatar_url: avatarUrl,
+            phone: formPhone.trim() || null,
           })
           .eq('id', authData.user.id);
 
@@ -396,6 +401,16 @@ export default function UserManagement() {
                     onChange={(e) => setFormEmail(e.target.value)}
                     placeholder={t('auth.email')}
                     required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="phone">{t('users.phoneNumber')}</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={formPhone}
+                    onChange={(e) => setFormPhone(e.target.value)}
+                    placeholder="+20 123 456 7890"
                   />
                 </div>
                 <div className="grid gap-2">
@@ -631,9 +646,17 @@ export default function UserManagement() {
                             <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                             {t('users.viewProfile')}
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => {
+                              if (user.phone) {
+                                window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
+                              } else {
+                                toast.error(language === 'ar' ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
+                              }
+                            }}
+                          >
                             <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                            {t('users.sendEmail')}
+                            {t('users.sendWhatsapp')}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
