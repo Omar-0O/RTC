@@ -89,10 +89,14 @@ function AppRoutes() {
         <Route path="/supervisor/committees" element={<SupervisorCommitteeManagement />} />
         <Route path="/supervisor/badges" element={<SupervisorBadgeManagement />} />
         <Route path="/supervisor/reports" element={<SupervisorReports />} />
+        <Route path="/supervisor/activity" element={<LogActivity />} />
+        <Route path="/supervisor/profile" element={<Profile />} />
 
         {/* Committee Leader Routes */}
         <Route path="/leader" element={<CommitteeLeaderDashboard />} />
         <Route path="/leader/members" element={<CommitteeLeaderDashboard />} />
+        <Route path="/leader/activity" element={<LogActivity />} />
+        <Route path="/leader/profile" element={<Profile />} />
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />

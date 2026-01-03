@@ -61,12 +61,16 @@ export function AppSidebar() {
     { title: t('nav.committees'), url: '/supervisor/committees', icon: Settings },
     { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/supervisor/reports', icon: BarChart3 },
+    { title: t('nav.logActivity'), url: '/supervisor/activity', icon: ClipboardCheck },
+    { title: t('nav.profile'), url: '/supervisor/profile', icon: User },
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
   ];
 
   const leaderNavItems = [
     { title: t('leader.dashboard'), url: '/leader', icon: Home },
     { title: t('leader.members'), url: '/leader/members', icon: Users },
+    { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
+    { title: t('nav.profile'), url: '/leader/profile', icon: User },
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
   ];
 
