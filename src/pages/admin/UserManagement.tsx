@@ -94,6 +94,7 @@ export default function UserManagement() {
 
   // Form states
   const [formName, setFormName] = useState('');
+  const [formNameAr, setFormNameAr] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formPassword, setFormPassword] = useState('');
@@ -167,6 +168,7 @@ export default function UserManagement() {
 
   const resetForm = () => {
     setFormName('');
+    setFormNameAr('');
     setFormEmail('');
     setFormPhone('');
     setFormPassword('');
@@ -241,6 +243,7 @@ export default function UserManagement() {
           email: formEmail.trim(),
           password: formPassword,
           fullName: formName.trim(),
+          fullNameAr: formNameAr.trim(),
           role: formRole,
           committeeId: formCommitteeId || null,
           phone: formPhone.trim() || null,
@@ -374,12 +377,22 @@ export default function UserManagement() {
             <form onSubmit={handleAddUser}>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="name">{t('users.fullName')} *</Label>
+                  <Label htmlFor="name">{language === 'ar' ? 'الاسم بالإنجليزي' : 'Full Name (English)'} *</Label>
                   <Input
                     id="name"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder={t('users.fullName')}
+                    placeholder={language === 'ar' ? 'John Doe' : 'Full Name'}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="name-ar">{language === 'ar' ? 'الاسم بالعربي' : 'Full Name (Arabic)'} *</Label>
+                  <Input
+                    id="name-ar"
+                    value={formNameAr}
+                    onChange={(e) => setFormNameAr(e.target.value)}
+                    placeholder={language === 'ar' ? 'جون دو' : 'Arabic Name'}
                     required
                   />
                 </div>
