@@ -587,7 +587,7 @@ export default function UserManagement() {
                           <Avatar className="h-10 w-10">
                             <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
                             <AvatarFallback>
-                              {user.full_nam  e?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                              {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                             </AvatarFallback>
                           </Avatar>
                           <div>
