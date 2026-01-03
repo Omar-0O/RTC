@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Languages } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
-import logo from '@/assets/logo.jpg';
+import logo from '@/assets/logo.png';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -15,7 +16,7 @@ export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { t, isRTL } = useLanguage();
+  const { t, isRTL, language, setLanguage } = useLanguage();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,14 +86,14 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 pb-20" dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center">
           <img
             src={logo}
             alt="RTC Mohandseen Logo"
-            className="h-24 w-24 mx-auto rounded-xl mb-4 object-cover"
+            className="h-48 w-auto mx-auto mb-1 object-contain"
           />
           <h1 className="text-2xl font-bold">RTC Mohandseen</h1>
           <p className="text-muted-foreground">{t('volunteerPortal')}</p>
@@ -135,6 +136,16 @@ export default function Auth() {
           </CardContent>
         </Card>
       </div>
+
+      <Button
+        variant="ghost"
+        size="icon"
+        className="fixed bottom-4 right-4 rounded-full bg-white/50 backdrop-blur-sm hover:bg-white/80 text-black hover:text-black shadow-sm border border-gray-100"
+        onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+        title={language === 'en' ? 'Switch to Arabic' : 'Switch to English'}
+      >
+        <Languages className="h-5 w-5" />
+      </Button>
     </div>
   );
 }

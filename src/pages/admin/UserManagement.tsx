@@ -576,112 +576,218 @@ export default function UserManagement() {
               No users found. Add your first user!
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('users.fullName')}</TableHead>
-                  <TableHead>{t('users.role')}</TableHead>
-                  <TableHead>{t('users.committee')}</TableHead>
-                  <TableHead>{t('users.level')}</TableHead>
-                  <TableHead>{t('common.points')}</TableHead>
-                  <TableHead>{t('users.joined')}</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <>
+              {/* Mobile View (Cards) */}
+              <div className="grid gap-4 md:hidden">
                 {filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
-                          <AvatarFallback className="text-xs">
-                            {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{user.full_name || 'No name'}</p>
-                          <p className="text-sm text-muted-foreground">{user.email}</p>
+                  <Card key={user.id} className="overflow-hidden">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                            <AvatarFallback>
+                              {user.full_nam  e?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{user.full_name || 'No name'}</p>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="-mr-2">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
+                              <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                              {t('users.viewProfile')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                if (user.phone) {
+                                  window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
+                                } else {
+                                  toast.error(language === 'ar' ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
+                                }
+                              }}
+                            >
+                              <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                              {t('users.sendWhatsapp')}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => {
+                                setSelectedUser(user);
+                                setIsDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                              {t('common.delete')}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+
+                      <div className="mt-4 grid gap-2 text-sm">
+                        <div className="flex justify-between items-center py-1 border-b">
+                          <span className="text-muted-foreground">{t('users.role')}</span>
+                          <Select
+                            value={user.role}
+                            onValueChange={(value) => handleUpdateRole(user.id, value)}
+                          >
+                            <SelectTrigger className="h-7 w-[130px]">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                                {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
+                                {getRoleText(user.role)}
+                              </span>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
+                              <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
+                              <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                              <SelectItem value="admin">{t('common.admin')}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex justify-between items-center py-1 border-b">
+                          <span className="text-muted-foreground">{t('users.committee')}</span>
+                          <span>{user.committee_name || '—'}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1 border-b">
+                          <span className="text-muted-foreground">{t('users.level')}</span>
+                          <LevelBadge level={user.level} size="sm" />
+                        </div>
+                        <div className="flex justify-between items-center py-1 border-b">
+                          <span className="text-muted-foreground">{t('common.points')}</span>
+                          <span className="font-medium">{user.total_points.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-muted-foreground">{t('users.joined')}</span>
+                          <span>{new Date(user.join_date).toLocaleDateString()}</span>
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <Select
-                        value={user.role}
-                        onValueChange={(value) => handleUpdateRole(user.id, value)}
-                      >
-                        <SelectTrigger className="w-[140px]">
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
-                            {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
-                            {getRoleText(user.role)}
-                          </span>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
-                          <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
-                          <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
-                          <SelectItem value="admin">{t('common.admin')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm">{user.committee_name || '—'}</span>
-                    </TableCell>
-                    <TableCell>
-                      <LevelBadge level={user.level} size="sm" />
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{user.total_points.toLocaleString()}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {new Date(user.join_date).toLocaleDateString()}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
-                            <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                            {t('users.viewProfile')}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              if (user.phone) {
-                                window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
-                              } else {
-                                toast.error(language === 'ar' ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
-                              }
-                            }}
-                          >
-                            <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                            {t('users.sendWhatsapp')}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setIsDeleteDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                            {t('common.delete')}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
+                    </CardContent>
+                  </Card>
                 ))}
-              </TableBody>
-            </Table>
+              </div>
+
+              {/* Desktop View (Table) */}
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t('users.fullName')}</TableHead>
+                      <TableHead>{t('users.role')}</TableHead>
+                      <TableHead>{t('users.committee')}</TableHead>
+                      <TableHead>{t('users.level')}</TableHead>
+                      <TableHead>{t('common.points')}</TableHead>
+                      <TableHead>{t('users.joined')}</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                              <AvatarFallback className="text-xs">
+                                {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="font-medium">{user.full_name || 'No name'}</p>
+                              <p className="text-sm text-muted-foreground">{user.email}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={user.role}
+                            onValueChange={(value) => handleUpdateRole(user.id, value)}
+                          >
+                            <SelectTrigger className="w-[140px]">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                                {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
+                                {getRoleText(user.role)}
+                              </span>
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
+                              <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
+                              <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                              <SelectItem value="admin">{t('common.admin')}</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm">{user.committee_name || '—'}</span>
+                        </TableCell>
+                        <TableCell>
+                          <LevelBadge level={user.level} size="sm" />
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-medium">{user.total_points.toLocaleString()}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-sm text-muted-foreground">
+                            {new Date(user.join_date).toLocaleDateString()}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
+                                <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                {t('users.viewProfile')}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  if (user.phone) {
+                                    window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
+                                  } else {
+                                    toast.error(language === 'ar' ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
+                                  }
+                                }}
+                              >
+                                <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                {t('users.sendWhatsapp')}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => {
+                                  setSelectedUser(user);
+                                  setIsDeleteDialogOpen(true);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                {t('common.delete')}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

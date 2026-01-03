@@ -216,63 +216,120 @@ export default function SupervisorUserManagement() {
                             No users found
                         </p>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>{t('users.fullName')}</TableHead>
-                                    <TableHead>{t('users.role')}</TableHead>
-                                    <TableHead>{t('users.committee')}</TableHead>
-                                    <TableHead>{t('users.level')}</TableHead>
-                                    <TableHead>{t('common.points')}</TableHead>
-                                    <TableHead>{t('users.joined')}</TableHead>
-                                    <TableHead className="w-[50px]"></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
+                        <>
+                            {/* Mobile View (Cards) */}
+                            <div className="grid gap-4 md:hidden">
                                 {filteredUsers.map((user) => (
-                                    <TableRow key={user.id}>
-                                        <TableCell>
-                                            <div className="flex items-center gap-3">
-                                                <Avatar className="h-8 w-8">
-                                                    <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
-                                                    <AvatarFallback className="text-xs">
-                                                        {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div>
-                                                    <p className="font-medium">{user.full_name || 'No name'}</p>
-                                                    <p className="text-sm text-muted-foreground">{user.email}</p>
+                                    <Card key={user.id} className="overflow-hidden">
+                                        <CardContent className="p-4">
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="h-10 w-10">
+                                                        <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                                                        <AvatarFallback>
+                                                            {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <p className="font-medium">{user.full_name || 'No name'}</p>
+                                                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                                                    </div>
+                                                </div>
+                                                <Button variant="ghost" size="icon" onClick={() => setViewProfileUser(user)} className="-mr-2">
+                                                    <User className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+
+                                            <div className="mt-4 grid gap-2 text-sm">
+                                                <div className="flex justify-between items-center py-1 border-b">
+                                                    <span className="text-muted-foreground">{t('users.role')}</span>
+                                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                                                        {getRoleText(user.role)}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center py-1 border-b">
+                                                    <span className="text-muted-foreground">{t('users.committee')}</span>
+                                                    <span>{user.committee_name || '—'}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center py-1 border-b">
+                                                    <span className="text-muted-foreground">{t('users.level')}</span>
+                                                    <LevelBadge level={user.level} size="sm" />
+                                                </div>
+                                                <div className="flex justify-between items-center py-1 border-b">
+                                                    <span className="text-muted-foreground">{t('common.points')}</span>
+                                                    <span className="font-medium">{user.total_points.toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center py-1">
+                                                    <span className="text-muted-foreground">{t('users.joined')}</span>
+                                                    <span>{new Date(user.join_date).toLocaleDateString()}</span>
                                                 </div>
                                             </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
-                                                {getRoleText(user.role)}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="text-sm">{user.committee_name || '—'}</span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <LevelBadge level={user.level} size="sm" />
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="font-medium">{user.total_points.toLocaleString()}</span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="text-sm text-muted-foreground">
-                                                {new Date(user.join_date).toLocaleDateString()}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Button variant="ghost" size="icon" onClick={() => setViewProfileUser(user)}>
-                                                <User className="h-4 w-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
+                                        </CardContent>
+                                    </Card>
                                 ))}
-                            </TableBody>
-                        </Table>
+                            </div>
+
+                            {/* Desktop View (Table) */}
+                            <div className="hidden md:block">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>{t('users.fullName')}</TableHead>
+                                            <TableHead>{t('users.role')}</TableHead>
+                                            <TableHead>{t('users.committee')}</TableHead>
+                                            <TableHead>{t('users.level')}</TableHead>
+                                            <TableHead>{t('common.points')}</TableHead>
+                                            <TableHead>{t('users.joined')}</TableHead>
+                                            <TableHead className="w-[50px]"></TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {filteredUsers.map((user) => (
+                                            <TableRow key={user.id}>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-3">
+                                                        <Avatar className="h-8 w-8">
+                                                            <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                                                            <AvatarFallback className="text-xs">
+                                                                {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                                                            </AvatarFallback>
+                                                        </Avatar>
+                                                        <div>
+                                                            <p className="font-medium">{user.full_name || 'No name'}</p>
+                                                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                                                        {getRoleText(user.role)}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className="text-sm">{user.committee_name || '—'}</span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <LevelBadge level={user.level} size="sm" />
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className="font-medium">{user.total_points.toLocaleString()}</span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <span className="text-sm text-muted-foreground">
+                                                        {new Date(user.join_date).toLocaleDateString()}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Button variant="ghost" size="icon" onClick={() => setViewProfileUser(user)}>
+                                                        <User className="h-4 w-4" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </>
                     )}
                 </CardContent>
             </Card>

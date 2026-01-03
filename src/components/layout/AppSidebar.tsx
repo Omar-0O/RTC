@@ -15,7 +15,7 @@ import {
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import logo from '@/assets/logo.jpg';
+import logo from '@/assets/logo.png';
 import {
   Sidebar,
   SidebarContent,

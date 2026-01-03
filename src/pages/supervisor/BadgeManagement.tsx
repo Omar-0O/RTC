@@ -1,5 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Plus, MoreHorizontal, Pencil, Trash2, Search, Loader2, Award, UserPlus } from 'lucide-react';
+import { Plus, MoreHorizontal, Pencil, Trash2, Search, Loader2, Award, UserPlus, Star, Trophy, Medal, Crown, Heart, Zap, Target, Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from "@/lib/utils";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,8 +82,26 @@ type Profile = {
   email: string;
 };
 
-const BADGE_ICONS = ['award', 'star', 'trophy', 'medal', 'crown', 'heart', 'zap', 'target'];
-const BADGE_COLORS = ['#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899', '#EF4444', '#14B8A6', '#F97316'];
+const BADGE_ICONS = [
+  { name: 'Award', name_ar: 'وسام', value: 'award', component: Award },
+  { name: 'Star', name_ar: 'نجمة', value: 'star', component: Star },
+  { name: 'Trophy', name_ar: 'كأس', value: 'trophy', component: Trophy },
+  { name: 'Medal', name_ar: 'ميدالية', value: 'medal', component: Medal },
+  { name: 'Crown', name_ar: 'تاج', value: 'crown', component: Crown },
+  { name: 'Heart', name_ar: 'قلب', value: 'heart', component: Heart },
+  { name: 'Zap', name_ar: 'طاقة', value: 'zap', component: Zap },
+  { name: 'Target', name_ar: 'هدف', value: 'target', component: Target },
+];
+const BADGE_COLORS = [
+  { name: 'Amber', name_ar: 'عنبري', value: '#F59E0B' },
+  { name: 'Emerald', name_ar: 'زمردي', value: '#10B981' },
+  { name: 'Blue', name_ar: 'أزرق', value: '#3B82F6' },
+  { name: 'Violet', name_ar: 'بنفسجي', value: '#8B5CF6' },
+  { name: 'Pink', name_ar: 'وردي', value: '#EC4899' },
+  { name: 'Red', name_ar: 'أحمر', value: '#EF4444' },
+  { name: 'Teal', name_ar: 'فيروزي', value: '#14B8A6' },
+  { name: 'Orange', name_ar: 'برتقالي', value: '#F97316' },
+];
 
 export default function BadgeManagement() {
   const { isRTL } = useLanguage();
@@ -84,6 +116,7 @@ export default function BadgeManagement() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [openCombobox, setOpenCombobox] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -267,7 +300,9 @@ export default function BadgeManagement() {
   };
 
   const getIconComponent = (iconName: string) => {
-    return <Award className="h-5 w-5" />;
+    const icon = BADGE_ICONS.find(i => i.value === iconName);
+    const IconComponent = icon ? icon.component : Award;
+    return <IconComponent className="h-5 w-5" />;
   };
 
   if (loading) {
@@ -304,20 +339,20 @@ export default function BadgeManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label>Badge Name (EN)</Label>
-                    <Input 
+                    <Input
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Enter name" 
-                      required 
+                      placeholder="Enter name"
+                      required
                     />
                   </div>
                   <div className="grid gap-2">
                     <Label>اسم الشارة (عربي)</Label>
-                    <Input 
+                    <Input
                       value={formData.name_ar}
                       onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
-                      placeholder="أدخل الاسم" 
-                      required 
+                      placeholder="أدخل الاسم"
+                      required
                       dir="rtl"
                     />
                   </div>
@@ -331,7 +366,12 @@ export default function BadgeManagement() {
                       </SelectTrigger>
                       <SelectContent>
                         {BADGE_ICONS.map(icon => (
-                          <SelectItem key={icon} value={icon}>{icon}</SelectItem>
+                          <SelectItem key={icon.value} value={icon.value}>
+                            <div className="flex items-center gap-2">
+                              {<icon.component className="h-4 w-4" />}
+                              <span>{isRTL ? icon.name_ar : icon.name}</span>
+                            </div>
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -344,10 +384,10 @@ export default function BadgeManagement() {
                       </SelectTrigger>
                       <SelectContent>
                         {BADGE_COLORS.map(color => (
-                          <SelectItem key={color} value={color}>
+                          <SelectItem key={color.value} value={color.value}>
                             <div className="flex items-center gap-2">
-                              <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color }} />
-                              {color}
+                              <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color.value }} />
+                              {isRTL ? color.name_ar : color.name}
                             </div>
                           </SelectItem>
                         ))}
@@ -358,8 +398,8 @@ export default function BadgeManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label>{isRTL ? 'النقاط المطلوبة' : 'Points Required'}</Label>
-                    <Input 
-                      type="number" 
+                    <Input
+                      type="number"
                       min="0"
                       value={formData.points_required}
                       onChange={(e) => setFormData({ ...formData, points_required: e.target.value })}
@@ -368,8 +408,8 @@ export default function BadgeManagement() {
                   </div>
                   <div className="grid gap-2">
                     <Label>{isRTL ? 'الأنشطة المطلوبة' : 'Activities Required'}</Label>
-                    <Input 
-                      type="number" 
+                    <Input
+                      type="number"
                       min="0"
                       value={formData.activities_required}
                       onChange={(e) => setFormData({ ...formData, activities_required: e.target.value })}
@@ -379,7 +419,7 @@ export default function BadgeManagement() {
                 </div>
                 <div className="grid gap-2">
                   <Label>Description (EN)</Label>
-                  <Textarea 
+                  <Textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="Badge description"
@@ -388,7 +428,7 @@ export default function BadgeManagement() {
                 </div>
                 <div className="grid gap-2">
                   <Label>الوصف (عربي)</Label>
-                  <Textarea 
+                  <Textarea
                     value={formData.description_ar}
                     onChange={(e) => setFormData({ ...formData, description_ar: e.target.value })}
                     placeholder="وصف الشارة"
@@ -435,93 +475,179 @@ export default function BadgeManagement() {
           <CardTitle>{isRTL ? 'الشارات' : 'Badges'} ({filteredBadges.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{isRTL ? 'الشارة' : 'Badge'}</TableHead>
-                <TableHead>{isRTL ? 'الوصف' : 'Description'}</TableHead>
-                <TableHead>{isRTL ? 'النقاط المطلوبة' : 'Points Req.'}</TableHead>
-                <TableHead>{isRTL ? 'الأنشطة المطلوبة' : 'Activities Req.'}</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            {/* Mobile View (Cards) */}
+            <div className="grid gap-4 md:hidden">
               {filteredBadges.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                    {isRTL ? 'لا توجد شارات' : 'No badges found'}
-                  </TableCell>
-                </TableRow>
+                <p className="text-center text-muted-foreground py-8">
+                  {isRTL ? 'لا توجد شارات' : 'No badges found'}
+                </p>
               ) : (
                 filteredBadges.map((badge) => (
-                  <TableRow key={badge.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div 
-                          className="w-10 h-10 rounded-full flex items-center justify-center"
-                          style={{ backgroundColor: badge.color + '20', color: badge.color }}
-                        >
-                          {getIconComponent(badge.icon)}
-                        </div>
-                        <span className="font-medium">{isRTL ? badge.name_ar : badge.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-[200px]">
-                      <span className="text-sm text-muted-foreground truncate block">
-                        {isRTL ? badge.description_ar : badge.description}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {badge.points_required ? (
-                        <span className="font-medium">{badge.points_required}</span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {badge.activities_required ? (
-                        <span className="font-medium">{badge.activities_required}</span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => {
-                            setSelectedBadge(badge);
-                            setIsAwardDialogOpen(true);
-                          }}>
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            {isRTL ? 'منح لمتطوع' : 'Award to User'}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => openEditDialog(badge)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            {isRTL ? 'تعديل' : 'Edit'}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => {
-                              setSelectedBadge(badge);
-                              setIsDeleteDialogOpen(true);
-                            }}
+                  <Card key={badge.id} className="overflow-hidden">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center"
+                            style={{ backgroundColor: badge.color + '20', color: badge.color }}
                           >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            {isRTL ? 'حذف' : 'Delete'}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
+                            {getIconComponent(badge.icon)}
+                          </div>
+                          <div>
+                            <p className="font-semibold">{isRTL ? badge.name_ar : badge.name}</p>
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                              {isRTL ? badge.description_ar : badge.description}
+                            </p>
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="-mr-2">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => {
+                              setSelectedBadge(badge);
+                              setIsAwardDialogOpen(true);
+                            }}>
+                              <UserPlus className="mr-2 h-4 w-4" />
+                              {isRTL ? 'منح لمتطوع' : 'Award to User'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEditDialog(badge)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              {isRTL ? 'تعديل' : 'Edit'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => {
+                                setSelectedBadge(badge);
+                                setIsDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {isRTL ? 'حذف' : 'Delete'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+
+                      <div className="mt-4 grid gap-2 text-sm">
+                        <div className="flex justify-between items-center py-1 border-b">
+                          <span className="text-muted-foreground">{isRTL ? 'النقاط المطلوبة' : 'Points Req.'}</span>
+                          {badge.points_required ? (
+                            <span className="font-medium">{badge.points_required}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-muted-foreground">{isRTL ? 'الأنشطة المطلوبة' : 'Activities Req.'}</span>
+                          {badge.activities_required ? (
+                            <span className="font-medium">{badge.activities_required}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))
               )}
-            </TableBody>
-          </Table>
+            </div>
+
+            {/* Desktop View (Table) */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{isRTL ? 'الشارة' : 'Badge'}</TableHead>
+                    <TableHead>{isRTL ? 'الوصف' : 'Description'}</TableHead>
+                    <TableHead>{isRTL ? 'النقاط المطلوبة' : 'Points Req.'}</TableHead>
+                    <TableHead>{isRTL ? 'الأنشطة المطلوبة' : 'Activities Req.'}</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredBadges.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        {isRTL ? 'لا توجد شارات' : 'No badges found'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredBadges.map((badge) => (
+                      <TableRow key={badge.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-10 h-10 rounded-full flex items-center justify-center"
+                              style={{ backgroundColor: badge.color + '20', color: badge.color }}
+                            >
+                              {getIconComponent(badge.icon)}
+                            </div>
+                            <span className="font-medium">{isRTL ? badge.name_ar : badge.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <span className="text-sm text-muted-foreground truncate block">
+                            {isRTL ? badge.description_ar : badge.description}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {badge.points_required ? (
+                            <span className="font-medium">{badge.points_required}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {badge.activities_required ? (
+                            <span className="font-medium">{badge.activities_required}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => {
+                                setSelectedBadge(badge);
+                                setIsAwardDialogOpen(true);
+                              }}>
+                                <UserPlus className="mr-2 h-4 w-4" />
+                                {isRTL ? 'منح لمتطوع' : 'Award to User'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openEditDialog(badge)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                {isRTL ? 'تعديل' : 'Edit'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => {
+                                  setSelectedBadge(badge);
+                                  setIsDeleteDialogOpen(true);
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                {isRTL ? 'حذف' : 'Delete'}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         </CardContent>
       </Card>
 
@@ -536,18 +662,18 @@ export default function BadgeManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>Badge Name (EN)</Label>
-                  <Input 
+                  <Input
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required 
+                    required
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label>اسم الشارة (عربي)</Label>
-                  <Input 
+                  <Input
                     value={formData.name_ar}
                     onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
-                    required 
+                    required
                     dir="rtl"
                   />
                 </div>
@@ -561,7 +687,12 @@ export default function BadgeManagement() {
                     </SelectTrigger>
                     <SelectContent>
                       {BADGE_ICONS.map(icon => (
-                        <SelectItem key={icon} value={icon}>{icon}</SelectItem>
+                        <SelectItem key={icon.value} value={icon.value}>
+                          <div className="flex items-center gap-2">
+                            {<icon.component className="h-4 w-4" />}
+                            <span>{isRTL ? icon.name_ar : icon.name}</span>
+                          </div>
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -574,10 +705,10 @@ export default function BadgeManagement() {
                     </SelectTrigger>
                     <SelectContent>
                       {BADGE_COLORS.map(color => (
-                        <SelectItem key={color} value={color}>
+                        <SelectItem key={color.value} value={color.value}>
                           <div className="flex items-center gap-2">
-                            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color }} />
-                            {color}
+                            <div className="w-4 h-4 rounded-full" style={{ backgroundColor: color.value }} />
+                            {isRTL ? color.name_ar : color.name}
                           </div>
                         </SelectItem>
                       ))}
@@ -588,8 +719,8 @@ export default function BadgeManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>{isRTL ? 'النقاط المطلوبة' : 'Points Required'}</Label>
-                  <Input 
-                    type="number" 
+                  <Input
+                    type="number"
                     min="0"
                     value={formData.points_required}
                     onChange={(e) => setFormData({ ...formData, points_required: e.target.value })}
@@ -597,8 +728,8 @@ export default function BadgeManagement() {
                 </div>
                 <div className="grid gap-2">
                   <Label>{isRTL ? 'الأنشطة المطلوبة' : 'Activities Required'}</Label>
-                  <Input 
-                    type="number" 
+                  <Input
+                    type="number"
                     min="0"
                     value={formData.activities_required}
                     onChange={(e) => setFormData({ ...formData, activities_required: e.target.value })}
@@ -607,7 +738,7 @@ export default function BadgeManagement() {
               </div>
               <div className="grid gap-2">
                 <Label>Description (EN)</Label>
-                <Textarea 
+                <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={2}
@@ -615,7 +746,7 @@ export default function BadgeManagement() {
               </div>
               <div className="grid gap-2">
                 <Label>الوصف (عربي)</Label>
-                <Textarea 
+                <Textarea
                   value={formData.description_ar}
                   onChange={(e) => setFormData({ ...formData, description_ar: e.target.value })}
                   rows={2}
@@ -642,7 +773,7 @@ export default function BadgeManagement() {
           <DialogHeader>
             <DialogTitle>{isRTL ? 'منح الشارة' : 'Award Badge'}</DialogTitle>
             <DialogDescription>
-              {isRTL 
+              {isRTL
                 ? `منح شارة "${selectedBadge?.name_ar}" لمتطوع`
                 : `Award "${selectedBadge?.name}" badge to a volunteer`
               }
@@ -650,18 +781,53 @@ export default function BadgeManagement() {
           </DialogHeader>
           <div className="py-4">
             <Label>{isRTL ? 'اختر المتطوع' : 'Select Volunteer'}</Label>
-            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-              <SelectTrigger className="mt-2">
-                <SelectValue placeholder={isRTL ? 'اختر متطوع...' : 'Select a volunteer...'} />
-              </SelectTrigger>
-              <SelectContent>
-                {profiles.map(profile => (
-                  <SelectItem key={profile.id} value={profile.id}>
-                    {isRTL ? (profile.full_name_ar || profile.full_name || profile.email) : (profile.full_name || profile.email)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openCombobox}
+                  className="w-full justify-between mt-2"
+                >
+                  {selectedUserId
+                    ? profiles.find((profile) => profile.id === selectedUserId)?.full_name ||
+                    profiles.find((profile) => profile.id === selectedUserId)?.email
+                    : (isRTL ? 'اختر متطوع...' : 'Select a volunteer...')}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder={isRTL ? 'ابحث عن متطوع...' : 'Search volunteer...'} />
+                  <CommandList>
+                    <CommandEmpty>{isRTL ? 'لا يوجد متطوعين' : 'No volunteer found.'}</CommandEmpty>
+                    <CommandGroup>
+                      {profiles.map((profile) => (
+                        <CommandItem
+                          key={profile.id}
+                          value={profile.full_name || profile.email}
+                          onSelect={() => {
+                            setSelectedUserId(profile.id === selectedUserId ? "" : profile.id);
+                            setOpenCombobox(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedUserId === profile.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <div className="flex flex-col">
+                            <span>{isRTL ? (profile.full_name_ar || profile.full_name) : profile.full_name}</span>
+                            <span className="text-xs text-muted-foreground">{profile.email}</span>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setIsAwardDialogOpen(false)}>
@@ -681,7 +847,7 @@ export default function BadgeManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>{isRTL ? 'حذف الشارة؟' : 'Delete Badge?'}</AlertDialogTitle>
             <AlertDialogDescription>
-              {isRTL 
+              {isRTL
                 ? `هل أنت متأكد من حذف "${selectedBadge?.name_ar}"؟ لا يمكن التراجع عن هذا الإجراء.`
                 : `Are you sure you want to delete "${selectedBadge?.name}"? This action cannot be undone.`
               }

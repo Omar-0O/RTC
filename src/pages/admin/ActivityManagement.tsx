@@ -124,7 +124,7 @@ export default function ActivityManagement() {
   const filteredActivities = activities.filter(activity => {
     const name = isRTL ? activity.name_ar : activity.name;
     const description = isRTL ? activity.description_ar : activity.description;
-    const matchesSearch = 
+    const matchesSearch =
       name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (description || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCommittee = committeeFilter === 'all' || activity.committee_id === committeeFilter || (!activity.committee_id && committeeFilter === 'none');
@@ -269,30 +269,30 @@ export default function ActivityManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="name">Activity Name (EN)</Label>
-                    <Input 
-                      id="name" 
+                    <Input
+                      id="name"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Enter name" 
-                      required 
+                      placeholder="Enter name"
+                      required
                     />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="name_ar">اسم النشاط (عربي)</Label>
-                    <Input 
-                      id="name_ar" 
+                    <Input
+                      id="name_ar"
                       value={formData.name_ar}
                       onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
-                      placeholder="أدخل الاسم" 
-                      required 
+                      placeholder="أدخل الاسم"
+                      required
                       dir="rtl"
                     />
                   </div>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="committee">{isRTL ? 'اللجنة' : 'Committee'}</Label>
-                  <Select 
-                    value={formData.committee_id} 
+                  <Select
+                    value={formData.committee_id}
                     onValueChange={(value) => setFormData({ ...formData, committee_id: value })}
                   >
                     <SelectTrigger>
@@ -311,20 +311,20 @@ export default function ActivityManagement() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="points">{isRTL ? 'النقاط' : 'Points Value'}</Label>
-                    <Input 
-                      id="points" 
-                      type="number" 
-                      min="1" 
+                    <Input
+                      id="points"
+                      type="number"
+                      min="1"
                       max="1000"
                       value={formData.points}
                       onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 10 })}
-                      required 
+                      required
                     />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="mode">{isRTL ? 'النوع' : 'Mode'}</Label>
-                    <Select 
-                      value={formData.mode} 
+                    <Select
+                      value={formData.mode}
                       onValueChange={(value: 'individual' | 'group') => setFormData({ ...formData, mode: value })}
                     >
                       <SelectTrigger>
@@ -339,8 +339,8 @@ export default function ActivityManagement() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="description">Description (EN)</Label>
-                  <Textarea 
-                    id="description" 
+                  <Textarea
+                    id="description"
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     placeholder="Describe this activity"
@@ -349,8 +349,8 @@ export default function ActivityManagement() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="description_ar">الوصف (عربي)</Label>
-                  <Textarea 
-                    id="description_ar" 
+                  <Textarea
+                    id="description_ar"
                     value={formData.description_ar}
                     onChange={(e) => setFormData({ ...formData, description_ar: e.target.value })}
                     placeholder="وصف النشاط"
@@ -413,80 +413,151 @@ export default function ActivityManagement() {
           <CardTitle>{isRTL ? 'أنواع الأنشطة' : 'Activity Types'} ({filteredActivities.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{isRTL ? 'اسم النشاط' : 'Activity Name'}</TableHead>
-                <TableHead>{isRTL ? 'اللجنة' : 'Committee'}</TableHead>
-                <TableHead>{isRTL ? 'النقاط' : 'Points'}</TableHead>
-                <TableHead>{isRTL ? 'النوع' : 'Mode'}</TableHead>
-                <TableHead className="max-w-[200px]">{isRTL ? 'الوصف' : 'Description'}</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            {/* Mobile View (Cards) */}
+            <div className="grid gap-4 md:hidden">
               {filteredActivities.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                    {isRTL ? 'لا توجد أنشطة' : 'No activities found'}
-                  </TableCell>
-                </TableRow>
+                <p className="text-center text-muted-foreground py-8">
+                  {isRTL ? 'لا توجد أنشطة' : 'No activities found'}
+                </p>
               ) : (
                 filteredActivities.map((activity) => (
-                  <TableRow key={activity.id}>
-                    <TableCell className="font-medium">
-                      {isRTL ? activity.name_ar : activity.name}
-                    </TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
-                        {getCommitteeName(activity.committee_id)}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-bold text-primary">{activity.points} {isRTL ? 'نقطة' : 'pts'}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        activity.mode === 'group' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                      }`}>
-                        {activity.mode === 'group' ? (isRTL ? 'جماعي' : 'Group') : (isRTL ? 'فردي' : 'Individual')}
-                      </span>
-                    </TableCell>
-                    <TableCell className="max-w-[200px]">
-                      <span className="text-sm text-muted-foreground truncate block">
-                        {isRTL ? activity.description_ar : activity.description}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEditDialog(activity)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            {isRTL ? 'تعديل' : 'Edit'}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => {
-                              setSelectedActivity(activity);
-                              setIsDeleteDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            {isRTL ? 'حذف' : 'Delete'}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
+                  <Card key={activity.id} className="overflow-hidden">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-semibold">{isRTL ? activity.name_ar : activity.name}</p>
+                          <span className="text-sm text-muted-foreground block mt-1">
+                            {isRTL ? activity.description_ar : activity.description}
+                          </span>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="-mr-2">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(activity)}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              {isRTL ? 'تعديل' : 'Edit'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => {
+                                setSelectedActivity(activity);
+                                setIsDeleteDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              {isRTL ? 'حذف' : 'Delete'}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+
+                      <div className="mt-4 grid gap-2 text-sm">
+                        <div className="flex justify-between items-center py-1 border-b">
+                          <span className="text-muted-foreground">{isRTL ? 'اللجنة' : 'Committee'}</span>
+                          <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+                            {getCommitteeName(activity.committee_id)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center py-1 border-b">
+                          <span className="text-muted-foreground">{isRTL ? 'النقاط' : 'Points'}</span>
+                          <span className="font-bold text-primary">{activity.points} {isRTL ? 'نقطة' : 'pts'}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-muted-foreground">{isRTL ? 'النوع' : 'Mode'}</span>
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${activity.mode === 'group' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                            }`}>
+                            {activity.mode === 'group' ? (isRTL ? 'جماعي' : 'Group') : (isRTL ? 'فردي' : 'Individual')}
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))
               )}
-            </TableBody>
-          </Table>
+            </div>
+
+            {/* Desktop View (Table) */}
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{isRTL ? 'اسم النشاط' : 'Activity Name'}</TableHead>
+                    <TableHead>{isRTL ? 'اللجنة' : 'Committee'}</TableHead>
+                    <TableHead>{isRTL ? 'النقاط' : 'Points'}</TableHead>
+                    <TableHead>{isRTL ? 'النوع' : 'Mode'}</TableHead>
+                    <TableHead className="max-w-[200px]">{isRTL ? 'الوصف' : 'Description'}</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredActivities.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                        {isRTL ? 'لا توجد أنشطة' : 'No activities found'}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredActivities.map((activity) => (
+                      <TableRow key={activity.id}>
+                        <TableCell className="font-medium">
+                          {isRTL ? activity.name_ar : activity.name}
+                        </TableCell>
+                        <TableCell>
+                          <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+                            {getCommitteeName(activity.committee_id)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-bold text-primary">{activity.points} {isRTL ? 'نقطة' : 'pts'}</span>
+                        </TableCell>
+                        <TableCell>
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${activity.mode === 'group' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                            }`}>
+                            {activity.mode === 'group' ? (isRTL ? 'جماعي' : 'Group') : (isRTL ? 'فردي' : 'Individual')}
+                          </span>
+                        </TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <span className="text-sm text-muted-foreground truncate block">
+                            {isRTL ? activity.description_ar : activity.description}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEditDialog(activity)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                {isRTL ? 'تعديل' : 'Edit'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => {
+                                  setSelectedActivity(activity);
+                                  setIsDeleteDialogOpen(true);
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                {isRTL ? 'حذف' : 'Delete'}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         </CardContent>
       </Card>
 
@@ -504,28 +575,28 @@ export default function ActivityManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="edit-name">Activity Name (EN)</Label>
-                  <Input 
-                    id="edit-name" 
+                  <Input
+                    id="edit-name"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    required 
+                    required
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-name_ar">اسم النشاط (عربي)</Label>
-                  <Input 
-                    id="edit-name_ar" 
+                  <Input
+                    id="edit-name_ar"
                     value={formData.name_ar}
                     onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
-                    required 
+                    required
                     dir="rtl"
                   />
                 </div>
               </div>
               <div className="grid gap-2">
                 <Label>{isRTL ? 'اللجنة' : 'Committee'}</Label>
-                <Select 
-                  value={formData.committee_id || 'all'} 
+                <Select
+                  value={formData.committee_id || 'all'}
                   onValueChange={(value) => setFormData({ ...formData, committee_id: value === 'all' ? '' : value })}
                 >
                   <SelectTrigger>
@@ -544,19 +615,19 @@ export default function ActivityManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>{isRTL ? 'النقاط' : 'Points Value'}</Label>
-                  <Input 
-                    type="number" 
-                    min="1" 
+                  <Input
+                    type="number"
+                    min="1"
                     max="1000"
                     value={formData.points}
                     onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 10 })}
-                    required 
+                    required
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label>{isRTL ? 'النوع' : 'Mode'}</Label>
-                  <Select 
-                    value={formData.mode} 
+                  <Select
+                    value={formData.mode}
                     onValueChange={(value: 'individual' | 'group') => setFormData({ ...formData, mode: value })}
                   >
                     <SelectTrigger>
@@ -571,7 +642,7 @@ export default function ActivityManagement() {
               </div>
               <div className="grid gap-2">
                 <Label>Description (EN)</Label>
-                <Textarea 
+                <Textarea
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   rows={2}
@@ -579,7 +650,7 @@ export default function ActivityManagement() {
               </div>
               <div className="grid gap-2">
                 <Label>الوصف (عربي)</Label>
-                <Textarea 
+                <Textarea
                   value={formData.description_ar}
                   onChange={(e) => setFormData({ ...formData, description_ar: e.target.value })}
                   rows={2}
@@ -606,7 +677,7 @@ export default function ActivityManagement() {
           <AlertDialogHeader>
             <AlertDialogTitle>{isRTL ? 'حذف نوع النشاط؟' : 'Delete Activity Type?'}</AlertDialogTitle>
             <AlertDialogDescription>
-              {isRTL 
+              {isRTL
                 ? `هل أنت متأكد من حذف "${selectedActivity?.name_ar}"؟ لا يمكن التراجع عن هذا الإجراء.`
                 : `Are you sure you want to delete "${selectedActivity?.name}"? This action cannot be undone.`
               }
