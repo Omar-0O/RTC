@@ -25,7 +25,7 @@ export default function VolunteerDashboard() {
   const [loading, setLoading] = useState(true);
   const [recentSubmissions, setRecentSubmissions] = useState<RecentSubmission[]>([]);
   const [badgeCount, setBadgeCount] = useState(0);
-  
+
   const points = profile?.total_points || 0;
   const { progress, nextThreshold } = getLevelProgress(points);
   const level = profile?.level || 'bronze';
@@ -79,14 +79,7 @@ export default function VolunteerDashboard() {
   };
 
   const displayLevel = (dbLevel: string) => {
-    const levelMap: Record<string, string> = {
-      bronze: isRTL ? 'برونزي' : 'Bronze',
-      silver: isRTL ? 'فضي' : 'Silver',
-      gold: isRTL ? 'ذهبي' : 'Gold',
-      platinum: isRTL ? 'بلاتيني' : 'Platinum',
-      diamond: isRTL ? 'ماسي' : 'Diamond',
-    };
-    return levelMap[dbLevel] || (isRTL ? 'برونزي' : 'Bronze');
+    return t(`level.${dbLevel}`);
   };
 
   const getStatusText = (status: string) => {
@@ -188,7 +181,7 @@ export default function VolunteerDashboard() {
             </div>
             <Progress value={progress} className="h-3" />
             <p className="text-sm text-muted-foreground">
-              {isRTL 
+              {isRTL
                 ? `${nextThreshold - points} نقطة للوصول للمستوى التالي`
                 : `${nextThreshold - points} more points to reach the next level`
               }

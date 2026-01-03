@@ -9,13 +9,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -131,11 +131,11 @@ export default function Reports() {
 
   // Level distribution data
   const levelData = [
-    { name: language === 'ar' ? 'مبتدئ' : 'Bronze', value: profiles.filter(p => p.level === 'bronze').length, color: '#CD7F32' },
-    { name: language === 'ar' ? 'فضي' : 'Silver', value: profiles.filter(p => p.level === 'silver').length, color: '#C0C0C0' },
-    { name: language === 'ar' ? 'ذهبي' : 'Gold', value: profiles.filter(p => p.level === 'gold').length, color: '#FFD700' },
-    { name: language === 'ar' ? 'بلاتيني' : 'Platinum', value: profiles.filter(p => p.level === 'platinum').length, color: '#E5E4E2' },
-    { name: language === 'ar' ? 'ماسي' : 'Diamond', value: profiles.filter(p => p.level === 'diamond').length, color: '#B9F2FF' },
+    { name: t('level.bronze'), value: profiles.filter(p => p.level === 'bronze').length, color: '#CD7F32' },
+    { name: t('level.silver'), value: profiles.filter(p => p.level === 'silver').length, color: '#C0C0C0' },
+    { name: t('level.gold'), value: profiles.filter(p => p.level === 'gold').length, color: '#FFD700' },
+    { name: t('level.platinum'), value: profiles.filter(p => p.level === 'platinum').length, color: '#E5E4E2' },
+    { name: t('level.diamond'), value: profiles.filter(p => p.level === 'diamond').length, color: '#B9F2FF' },
   ].filter(l => l.value > 0);
 
   // Activity submissions over time (last 6 months)
@@ -143,12 +143,12 @@ export default function Reports() {
     const date = subMonths(new Date(), 5 - i);
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
-    
+
     const monthSubmissions = submissions.filter(s => {
       const submittedDate = new Date(s.submitted_at);
       return submittedDate >= monthStart && submittedDate <= monthEnd;
     });
-    
+
     return {
       month: format(date, 'MMM'),
       submissions: monthSubmissions.length,
@@ -192,7 +192,7 @@ export default function Reports() {
     link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
-    
+
     toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
   };
 
@@ -209,7 +209,7 @@ export default function Reports() {
         }));
         downloadCSV(volunteersData, 'volunteers');
         break;
-      
+
       case 'activities':
         const activitiesData = submissions.map(s => {
           const volunteer = profiles.find(p => p.id === s.volunteer_id);
@@ -224,7 +224,7 @@ export default function Reports() {
         });
         downloadCSV(activitiesData, 'activities');
         break;
-      
+
       case 'points':
         const pointsData = profiles.map(p => ({
           [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
@@ -234,7 +234,7 @@ export default function Reports() {
         })).sort((a, b) => (b[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number) - (a[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number));
         downloadCSV(pointsData, 'points_summary');
         break;
-      
+
       case 'monthly':
         const monthlyData = activityTrend.map(m => ({
           [language === 'ar' ? 'الشهر' : 'Month']: m.month,
@@ -243,7 +243,7 @@ export default function Reports() {
         }));
         downloadCSV(monthlyData, 'monthly_report');
         break;
-      
+
       case 'full':
         // Export all data as a comprehensive report
         const fullReportData = profiles.map(p => {
@@ -376,25 +376,25 @@ export default function Reports() {
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" />
                   <YAxis className="text-xs" />
-                  <Tooltip 
-                    contentStyle={{ 
+                  <Tooltip
+                    contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
                       borderRadius: '8px'
                     }}
                   />
                   <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="submissions" 
-                    stroke="hsl(var(--primary))" 
+                  <Line
+                    type="monotone"
+                    dataKey="submissions"
+                    stroke="hsl(var(--primary))"
                     strokeWidth={2}
                     name={language === 'ar' ? 'الطلبات' : 'Submissions'}
                   />
-                  <Line 
-                    type="monotone" 
-                    dataKey="approved" 
-                    stroke="hsl(var(--success))" 
+                  <Line
+                    type="monotone"
+                    dataKey="approved"
+                    stroke="hsl(var(--success))"
                     strokeWidth={2}
                     name={language === 'ar' ? 'المعتمدة' : 'Approved'}
                   />
@@ -433,8 +433,8 @@ export default function Reports() {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      contentStyle={{ 
+                    <Tooltip
+                      contentStyle={{
                         backgroundColor: 'hsl(var(--card))',
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px'
@@ -465,8 +465,8 @@ export default function Reports() {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis type="number" className="text-xs" />
                     <YAxis dataKey="name" type="category" className="text-xs" width={80} />
-                    <Tooltip 
-                      contentStyle={{ 
+                    <Tooltip
+                      contentStyle={{
                         backgroundColor: 'hsl(var(--card))',
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px'
@@ -505,7 +505,7 @@ export default function Reports() {
                       </p>
                     </div>
                     <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
-                      <div 
+                      <div
                         className="h-full bg-primary rounded-full"
                         style={{ width: `${(activity.count / activityStats[0].count) * 100}%` }}
                       />
