@@ -97,6 +97,7 @@ export default function AdminDashboard() {
       });
 
       // Top volunteers (of the month)
+      // RPC function defined in types.ts as existing in Database definition
       const { data: topVolunteersData } = await supabase.rpc('get_leaderboard', {
         period_type: 'month',
         target_date: new Date().toISOString(),
