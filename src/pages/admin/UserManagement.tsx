@@ -235,49 +235,40 @@ export default function UserManagement() {
 
     setIsSubmitting(true);
     try {
-      // Create user via signup
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formEmail.trim(),
-        password: formPassword,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            full_name: formName.trim(),
-          },
+      // Call create-user edge function
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: formEmail.trim(),
+          password: formPassword,
+          fullName: formName.trim(),
+          role: formRole,
+          committeeId: formCommitteeId || null,
+          phone: formPhone.trim() || null,
         },
       });
 
-      if (authError) throw authError;
+      if (error) throw error;
+      if (data.error) throw new Error(data.error);
 
-      if (authData.user) {
-        // Upload avatar if provided
-        let avatarUrl: string | null = null;
-        if (formAvatarFile) {
-          avatarUrl = await uploadAvatar(authData.user.id);
+      // Upload avatar if provided
+      if (formAvatarFile && data.user) {
+        await uploadAvatar(data.user.id);
+
+        // Update avatar_url in profile
+        const avatarUrl = await uploadAvatar(data.user.id);
+        if (avatarUrl) {
+          await supabase
+            .from('profiles')
+            .update({ avatar_url: avatarUrl })
+            .eq('id', data.user.id);
         }
-
-        // Update role
-        await supabase
-          .from('user_roles')
-          .update({ role: formRole as AppRole })
-          .eq('user_id', authData.user.id);
-
-        // Update profile with committee and avatar
-        await supabase
-          .from('profiles')
-          .update({
-            full_name: formName.trim(),
-            committee_id: formCommitteeId || null,
-            avatar_url: avatarUrl,
-            phone: formPhone.trim() || null,
-          })
-          .eq('id', authData.user.id);
-
-        toast.success('User added successfully');
-        setIsAddDialogOpen(false);
-        resetForm();
-        fetchData();
       }
+
+      toast.success('User added successfully');
+      setIsAddDialogOpen(false);
+      resetForm();
+      fetchData();
+
     } catch (error: any) {
       console.error('Error adding user:', error);
       toast.error(error.message || 'Failed to add user');

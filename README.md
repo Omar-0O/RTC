@@ -1,8 +1,8 @@
-# RTC Pulse 🌟
+# برنامج تسجيل المشاركات 🌟
 
-**RTC Pulse** is a comprehensive Volunteer Management System designed to gamify the volunteering experience and streamline organization management. It empowers volunteers to track their impact while giving administrators powerful tools to oversee activities, committees, and performance.
+**برنامج تسجيل المشاركات** is a comprehensive Volunteer Management System designed to gamify the volunteering experience and streamline organization management. It empowers volunteers to track their impact while giving administrators powerful tools to oversee activities, committees, and performance.
 
-![RTC Pulse Banner](public/og-image.png)
+![Banner](public/og-image.png)
 
 ## 🚀 Features
 

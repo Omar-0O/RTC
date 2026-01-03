@@ -66,7 +66,7 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.password': 'Password',
     'auth.signIn': 'Sign In',
     'auth.welcomeBack': 'Welcome back',
-    'auth.loginSubtitle': 'Sign in to your RTC Pulse account',
+    'auth.loginSubtitle': 'Sign in to your account',
     'auth.demoAccounts': 'Demo Accounts',
 
     // New Auth translations
@@ -103,7 +103,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Admin Dashboard
     'admin.dashboard': 'Admin Dashboard',
-    'admin.overview': 'Overview of RTC Pulse volunteer management system',
+    'admin.overview': 'Overview of volunteer management system',
     'admin.totalVolunteers': 'Total Volunteers',
     'admin.totalActivities': 'Total Activities',
     'admin.pointsAwarded': 'Points Awarded',
@@ -219,7 +219,7 @@ const translations: Record<Language, Record<string, string>> = {
     'level.diamond': 'Qaed Molhem',
 
     // App
-    'app.name': 'RTC Pulse',
+    'app.name': 'برنامج تسجيل المشاركات',
     'app.tagline': 'Volunteer Portal',
     'app.language': 'Language',
   },
@@ -279,7 +279,7 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.password': 'كلمة المرور',
     'auth.signIn': 'دخول',
     'auth.welcomeBack': 'مرحباً بعودتك',
-    'auth.loginSubtitle': 'سجل دخولك إلى حساب RTC Pulse',
+    'auth.loginSubtitle': 'سجل دخولك إلى حسابك',
     'auth.demoAccounts': 'حسابات تجريبية',
 
     // New Auth translations
@@ -316,7 +316,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Admin Dashboard
     'admin.dashboard': 'لوحة تحكم المسؤول',
-    'admin.overview': 'نظرة عامة على نظام إدارة المتطوعين RTC Pulse',
+    'admin.overview': 'نظرة عامة على نظام برنامج تسجيل المشاركات',
     'admin.totalVolunteers': 'إجمالي المتطوعين',
     'admin.totalActivities': 'إجمالي الأنشطة',
     'admin.pointsAwarded': 'الأثر المحقق',
