@@ -56,7 +56,8 @@ export function AppSidebar() {
   ];
 
   const supervisorNavItems = [
-    { title: t('nav.dashboard'), url: '/supervisor', icon: Home },
+    { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/supervisor', icon: Home },
+    { title: isRTL ? 'نظرة عامة' : 'Overview', url: '/supervisor/dashboard', icon: BarChart3 },
     { title: t('nav.userManagement'), url: '/supervisor/users', icon: Users },
     { title: t('nav.activities'), url: '/supervisor/activities', icon: Activity },
     { title: t('nav.committees'), url: '/supervisor/committees', icon: Settings },

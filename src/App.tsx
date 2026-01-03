@@ -83,7 +83,8 @@ function AppRoutes() {
         <Route path="/leaderboard" element={<Leaderboard />} />
 
         {/* Supervisor Routes */}
-        <Route path="/supervisor" element={<SupervisorDashboard />} />
+        <Route path="/supervisor" element={<VolunteerDashboard />} />
+        <Route path="/supervisor/dashboard" element={<SupervisorDashboard />} />
         <Route path="/supervisor/users" element={<SupervisorUserManagement />} />
         <Route path="/supervisor/activities" element={<SupervisorActivityManagement />} />
         <Route path="/supervisor/committees" element={<SupervisorCommitteeManagement />} />
