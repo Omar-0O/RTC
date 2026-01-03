@@ -250,14 +250,16 @@ export default function UserManagement() {
         },
       });
 
+      // Check for function invocation error (network issues, etc.)
       if (error) throw error;
-      if (data.error) throw new Error(data.error);
+
+      // Check for errors returned from the Edge Function
+      if (!data || data.error) {
+        throw new Error(data?.error || 'Failed to create user');
+      }
 
       // Upload avatar if provided
       if (formAvatarFile && data.user) {
-        await uploadAvatar(data.user.id);
-
-        // Update avatar_url in profile
         const avatarUrl = await uploadAvatar(data.user.id);
         if (avatarUrl) {
           await supabase
