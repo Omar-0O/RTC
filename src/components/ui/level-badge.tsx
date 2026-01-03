@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export type VolunteerLevel = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond';
 
@@ -9,17 +10,15 @@ interface LevelBadgeProps {
   className?: string;
 }
 
-const levelConfig: Record<string, { color: string; icon: string; label: string }> = {
-  bronze: { color: 'bg-level-newbie', icon: '🕊️', label: 'Mubadir' },
-  silver: { color: 'bg-level-active', icon: '🎓', label: 'Musahim' },
-  gold: { color: 'bg-level-silver', icon: '📚', label: 'Moather' },
-  platinum: { color: 'bg-level-golden', icon: '🏅', label: 'Qaed Molhem' },
-  diamond: { color: 'bg-level-golden', icon: '🏅', label: 'Qaed Molhem' },
-  // Fallbacks for older cap values if any
-  Newbie: { color: 'bg-level-newbie', icon: '🕊️', label: 'Mubadir' },
-  Active: { color: 'bg-level-active', icon: '🎓', label: 'Musahim' },
-  Silver: { color: 'bg-level-silver', icon: '📚', label: 'Moather' },
-  Golden: { color: 'bg-level-golden', icon: '🏅', label: 'Qaed Molhem' },
+const levelConfig: Record<string, { color: string; icon: string }> = {
+  bronze: { color: 'bg-level-newbie', icon: '🕊️' },
+  silver: { color: 'bg-level-active', icon: '🎓' },
+  gold: { color: 'bg-level-silver', icon: '📚' },
+  platinum: { color: 'bg-level-golden', icon: '🏅' },
+  diamond: { color: 'bg-level-golden', icon: '🏅' },
+  // Fallback mappings
+  newbie: { color: 'bg-level-newbie', icon: '🕊️' },
+  active: { color: 'bg-level-active', icon: '🎓' },
 };
 
 const sizeClasses = {
@@ -29,10 +28,17 @@ const sizeClasses = {
 };
 
 export function LevelBadge({ level, size = 'md', showLabel = true, className }: LevelBadgeProps) {
+  const { t } = useLanguage();
   // Handle both capitalized and lowercase inputs gracefully
   const normalizedLevel = level.toLowerCase();
-  // Try direct match first (for 'Newbie' etc defined above) or normalized match
-  const config = levelConfig[level] || levelConfig[normalizedLevel] || levelConfig['bronze'];
+
+  // Try direct match first or fallback
+  const config = levelConfig[normalizedLevel] || levelConfig['bronze'];
+
+  // Get translation key, mapping old legacy names to new keys if needed
+  let translationKey = `level.${normalizedLevel}`;
+  if (normalizedLevel === 'newbie') translationKey = 'level.bronze';
+  if (normalizedLevel === 'active') translationKey = 'level.silver';
 
   return (
     <div
@@ -44,7 +50,7 @@ export function LevelBadge({ level, size = 'md', showLabel = true, className }: 
       )}
     >
       <span>{config.icon}</span>
-      {showLabel && <span>{config.label}</span>}
+      {showLabel && <span>{t(translationKey)}</span>}
     </div>
   );
 }

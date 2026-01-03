@@ -210,11 +210,10 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.activityHistory': 'Activity History',
 
     // Levels
-    'level.newbie': 'Mubadir',
-    'level.active': 'Musahim',
-    'level.silver': 'Moather',
-    'level.golden': 'Qaed Molhem',
-    'level.platinum': 'Qaed Molhem',
+    'level.bronze': 'Mubadir',
+    'level.silver': 'Musahim',
+    'level.gold': 'Moather',
+    'level.platinum': 'Qaed',
     'level.diamond': 'Qaed Molhem',
 
     // App
@@ -422,11 +421,11 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.activityHistory': 'سجل النشاط',
 
     // Levels
-    'level.newbie': 'مبادر',
-    'level.active': 'مساهم',
-    'level.silver': 'مؤثر',
-    'level.golden': 'قائد ملهم',
-    'level.platinum': 'قائد ملهم',
+    // Levels
+    'level.bronze': 'مبادر',
+    'level.silver': 'مساهم',
+    'level.gold': 'مؤثر',
+    'level.platinum': 'قائد',
     'level.diamond': 'قائد ملهم',
 
     // App

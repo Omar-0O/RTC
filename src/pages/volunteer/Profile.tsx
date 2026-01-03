@@ -35,34 +35,65 @@ type ActivitySubmission = {
   proof_url: string | null;
 };
 
-export default function Profile() {
-  const { user, profile, refreshProfile } = useAuth();
+interface ProfileProps {
+  userId?: string;
+  onEdit?: () => void;
+}
+
+export default function Profile({ userId }: ProfileProps) {
+  const { user, profile: authProfile, refreshProfile } = useAuth();
   const { t, isRTL } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [badges, setBadges] = useState<UserBadge[]>([]);
   const [activities, setActivities] = useState<ActivitySubmission[]>([]);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(profile?.avatar_url || null);
-  
-  const points = profile?.total_points || 0;
+
+  // If userId is provided and different from current user, we are in view-only mode
+  const isViewOnly = userId && userId !== user?.id;
+  const targetUserId = userId || user?.id;
+
+  const [viewedProfile, setViewedProfile] = useState<any>(null);
+  const [viewedAvatarUrl, setViewedAvatarUrl] = useState<string | null>(null);
+
+  // Use either the fetched profile (for view mode) or auth profile (for own profile)
+  const displayProfile = isViewOnly ? viewedProfile : authProfile;
+  const displayAvatar = isViewOnly ? viewedAvatarUrl : (authProfile?.avatar_url || null);
+
+  const points = displayProfile?.total_points || 0;
   const { progress, nextThreshold } = getLevelProgress(points);
-  const userInitials = profile?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U';
+  const userInitials = displayProfile?.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U';
 
   useEffect(() => {
-    if (user?.id) {
+    if (targetUserId) {
       fetchData();
     }
-  }, [user?.id]);
+  }, [targetUserId]);
 
   useEffect(() => {
-    setAvatarUrl(profile?.avatar_url || null);
-  }, [profile?.avatar_url]);
+    if (!isViewOnly) {
+      setViewedAvatarUrl(authProfile?.avatar_url || null);
+    }
+  }, [authProfile?.avatar_url, isViewOnly]);
 
   const fetchData = async () => {
-    if (!user?.id) return;
+    if (!targetUserId) return;
     setLoading(true);
     try {
+      // If viewing another user, fetch their profile first
+      if (isViewOnly) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', targetUserId)
+          .single();
+
+        if (profileData) {
+          setViewedProfile(profileData);
+          setViewedAvatarUrl(profileData.avatar_url);
+        }
+      }
+
       const [badgesRes, activitiesRes] = await Promise.all([
         supabase
           .from('user_badges')
@@ -71,7 +102,7 @@ export default function Profile() {
             earned_at,
             badge:badges(id, name, name_ar, description, description_ar, icon, color)
           `)
-          .eq('user_id', user.id)
+          .eq('user_id', targetUserId)
           .order('earned_at', { ascending: false }),
         supabase
           .from('activity_submissions')
@@ -84,7 +115,7 @@ export default function Profile() {
             activity:activity_types(name, name_ar),
             committee:committees(name, name_ar)
           `)
-          .eq('volunteer_id', user.id)
+          .eq('volunteer_id', targetUserId)
           .order('submitted_at', { ascending: false }),
       ]);
 
@@ -167,17 +198,6 @@ export default function Profile() {
     }
   };
 
-  const displayLevel = (dbLevel: string) => {
-    const levelMap: Record<string, string> = {
-      bronze: isRTL ? 'برونزي' : 'Bronze',
-      silver: isRTL ? 'فضي' : 'Silver',
-      gold: isRTL ? 'ذهبي' : 'Gold',
-      platinum: isRTL ? 'بلاتيني' : 'Platinum',
-      diamond: isRTL ? 'ماسي' : 'Diamond',
-    };
-    return levelMap[dbLevel] || (isRTL ? 'برونزي' : 'Bronze');
-  };
-
   const getStatusText = (status: string) => {
     switch (status) {
       case 'approved': return isRTL ? 'مقبول' : 'Approved';
@@ -210,47 +230,51 @@ export default function Profile() {
           <div className="flex flex-col md:flex-row items-center gap-6">
             <div className="relative group">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={avatarUrl || undefined} alt={profile?.full_name || ''} />
+                <AvatarImage src={displayAvatar || undefined} alt={displayProfile?.full_name || ''} />
                 <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarChange}
-                className="hidden"
-              />
-              <Button
-                size="icon"
-                variant="secondary"
-                className="absolute bottom-0 right-0 h-8 w-8 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-              >
-                {uploading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Camera className="h-4 w-4" />
-                )}
-              </Button>
+              {!isViewOnly && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                  />
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="absolute bottom-0 right-0 h-8 w-8 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    {uploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
+                  </Button>
+                </>
+              )}
             </div>
             <div className="flex-1 text-center md:text-left">
               <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-2">
                 <h1 className="text-2xl font-bold">
-                  {isRTL ? (profile?.full_name_ar || profile?.full_name) : profile?.full_name}
+                  {isRTL ? (displayProfile?.full_name_ar || displayProfile?.full_name) : displayProfile?.full_name}
                 </h1>
-                <LevelBadge level={profile?.level || 'bronze'} />
+                <LevelBadge level={displayProfile?.level || 'bronze'} />
               </div>
               <div className="flex flex-wrap justify-center md:justify-start gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Mail className="h-4 w-4" />
-                  {profile?.email}
+                  {displayProfile?.email}
                 </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
-                  {t('profile.memberSince')} {formatDate(profile?.join_date || new Date().toISOString())}
+                  {t('profile.memberSince')} {formatDate(displayProfile?.join_date || new Date().toISOString())}
                 </span>
               </div>
             </div>
@@ -267,7 +291,7 @@ export default function Profile() {
         <CardHeader>
           <CardTitle>{t('profile.pointsProgress')}</CardTitle>
           <CardDescription>
-            {isRTL 
+            {isRTL
               ? `${nextThreshold - points} نقطة للوصول للمستوى التالي`
               : `${nextThreshold - points} more points to reach the next level`
             }
@@ -276,8 +300,8 @@ export default function Profile() {
         <CardContent>
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span>{points} {isRTL ? 'نقطة' : 'points'}</span>
-              <span>{nextThreshold} {isRTL ? 'نقطة' : 'points'}</span>
+              <span>{points} {t('common.points')}</span>
+              <span>{nextThreshold} {t('common.points')}</span>
             </div>
             <Progress value={progress} className="h-4" />
           </div>
@@ -285,12 +309,11 @@ export default function Profile() {
             {(['bronze', 'silver', 'gold', 'platinum', 'diamond'] as const).map((level) => (
               <div
                 key={level}
-                className={`text-center p-3 rounded-lg ${
-                  profile?.level === level ? "bg-primary/10 border-2 border-primary" : "bg-muted/50"
-                }`}
+                className={`text-center p-3 rounded-lg ${displayProfile?.level === level ? "bg-primary/10 border-2 border-primary" : "bg-muted/50"
+                  }`}
               >
                 <LevelBadge level={level} size="sm" showLabel={false} />
-                <p className="text-xs font-medium mt-1">{displayLevel(level)}</p>
+                <p className="text-xs font-medium mt-1">{t(`level.${level}`)}</p>
               </div>
             ))}
           </div>
@@ -332,9 +355,9 @@ export default function Profile() {
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         {activity.proof_url && (
                           <a href={activity.proof_url} target="_blank" rel="noopener noreferrer">
-                            <img 
-                              src={activity.proof_url} 
-                              alt="Proof" 
+                            <img
+                              src={activity.proof_url}
+                              alt="Proof"
                               className="w-12 h-12 rounded object-cover shrink-0 hover:opacity-80 transition-opacity"
                             />
                           </a>
@@ -387,7 +410,7 @@ export default function Profile() {
                       key={userBadge.id}
                       className="flex flex-col items-center text-center p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
                     >
-                      <div 
+                      <div
                         className="w-16 h-16 rounded-full flex items-center justify-center mb-3"
                         style={{ backgroundColor: userBadge.badge.color + '20', color: userBadge.badge.color }}
                       >

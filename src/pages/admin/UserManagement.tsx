@@ -73,6 +73,8 @@ interface UserWithDetails {
   join_date: string;
 }
 
+import Profile from '@/pages/volunteer/Profile';
+
 export default function UserManagement() {
   const { t, language } = useLanguage();
   const [users, setUsers] = useState<UserWithDetails[]>([]);
@@ -84,6 +86,7 @@ export default function UserManagement() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithDetails | null>(null);
+  const [viewProfileUser, setViewProfileUser] = useState<UserWithDetails | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -105,7 +108,7 @@ export default function UserManagement() {
         .from('committees')
         .select('id, name, name_ar')
         .order('name');
-      
+
       setCommittees(committeesData || []);
 
       // Fetch users with their roles
@@ -151,7 +154,7 @@ export default function UserManagement() {
   }, [language]);
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = 
+    const matchesSearch =
       (user.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
@@ -215,7 +218,7 @@ export default function UserManagement() {
 
   const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formName.trim() || !formEmail.trim() || !formPassword.trim()) {
       toast.error('Please fill in all required fields');
       return;
@@ -258,7 +261,7 @@ export default function UserManagement() {
         // Update profile with committee and avatar
         await supabase
           .from('profiles')
-          .update({ 
+          .update({
             full_name: formName.trim(),
             committee_id: formCommitteeId || null,
             avatar_url: avatarUrl,
@@ -342,17 +345,6 @@ export default function UserManagement() {
     }
   };
 
-  const displayLevel = (dbLevel: string) => {
-    const levelMap: Record<string, string> = {
-      bronze: 'Newbie',
-      silver: 'Silver',
-      gold: 'Golden',
-      platinum: 'Platinum',
-      diamond: 'Diamond',
-    };
-    return levelMap[dbLevel] || 'Newbie';
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -387,35 +379,35 @@ export default function UserManagement() {
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="name">{t('users.fullName')} *</Label>
-                  <Input 
-                    id="name" 
+                  <Input
+                    id="name"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder={t('users.fullName')} 
-                    required 
+                    placeholder={t('users.fullName')}
+                    required
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="email">{t('auth.email')} *</Label>
-                  <Input 
-                    id="email" 
-                    type="email" 
+                  <Input
+                    id="email"
+                    type="email"
                     value={formEmail}
                     onChange={(e) => setFormEmail(e.target.value)}
-                    placeholder={t('auth.email')} 
-                    required 
+                    placeholder={t('auth.email')}
+                    required
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password">{t('password')} *</Label>
-                  <Input 
-                    id="password" 
-                    type="password" 
+                  <Input
+                    id="password"
+                    type="password"
                     value={formPassword}
                     onChange={(e) => setFormPassword(e.target.value)}
-                    placeholder="••••••••" 
+                    placeholder="••••••••"
                     minLength={6}
-                    required 
+                    required
                   />
                 </div>
                 <div className="grid gap-2">
@@ -615,7 +607,7 @@ export default function UserManagement() {
                       <span className="text-sm">{user.committee_name || '—'}</span>
                     </TableCell>
                     <TableCell>
-                      <LevelBadge level={displayLevel(user.level)} size="sm" />
+                      <LevelBadge level={user.level} size="sm" />
                     </TableCell>
                     <TableCell>
                       <span className="font-medium">{user.total_points.toLocaleString()}</span>
@@ -635,7 +627,7 @@ export default function UserManagement() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
                             <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                             {t('users.viewProfile')}
                           </DropdownMenuItem>
@@ -644,7 +636,7 @@ export default function UserManagement() {
                             {t('users.sendEmail')}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             className="text-destructive"
                             onClick={() => {
                               setSelectedUser(user);
@@ -688,6 +680,18 @@ export default function UserManagement() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* View Profile Dialog */}
+      <Dialog open={!!viewProfileUser} onOpenChange={(open) => !open && setViewProfileUser(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {language === 'ar' ? 'الملف الشخصي للمتطوع' : "Volunteer Profile"}
+            </DialogTitle>
+          </DialogHeader>
+          {viewProfileUser && <Profile userId={viewProfileUser.id} />}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
