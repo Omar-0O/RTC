@@ -199,6 +199,8 @@ const translations: Record<Language, Record<string, string>> = {
     'activityLog.offline': 'Offline',
     'activityLog.description': 'Description',
     'activityLog.descriptionPlaceholder': 'Describe what you did...',
+    'activityLog.notes': 'Notes (Optional)',
+    'activityLog.notesPlaceholder': 'Add any notes or details...',
     'activityLog.proofUrl': 'Proof URL (optional)',
     'activityLog.submitActivity': 'Submit Activity',
     'activityLog.submissionHistory': 'Submission History',
@@ -226,7 +228,7 @@ const translations: Record<Language, Record<string, string>> = {
   ar: {
     // Navigation
     'nav.dashboard': 'لوحة التحكم',
-    'nav.logActivity': 'تسجيل نشاط',
+    'nav.logActivity': 'تسجيل مشاركة',
     'nav.leaderboard': 'المتصدرين',
     'nav.profile': 'ملفي الشخصي',
     'nav.reviewSubmissions': 'مراجعة الطلبات',
@@ -412,6 +414,8 @@ const translations: Record<Language, Record<string, string>> = {
     'activityLog.offline': 'حضوري',
     'activityLog.description': 'الوصف',
     'activityLog.descriptionPlaceholder': 'صف ما فعلته...',
+    'activityLog.notes': 'ملاحظات (اختياري)',
+    'activityLog.notesPlaceholder': 'أضف أي ملاحظات أو تفاصيل...',
     'activityLog.proofUrl': 'رابط الإثبات (اختياري)',
     'activityLog.submitActivity': 'تقديم النشاط',
     'activityLog.submissionHistory': 'سجل التقديمات',

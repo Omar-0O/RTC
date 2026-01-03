@@ -9,7 +9,8 @@ import {
   BarChart3,
   LogOut,
   ChevronDown,
-  Languages
+  Languages,
+  Building2
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -67,7 +68,8 @@ export function AppSidebar() {
   ];
 
   const leaderNavItems = [
-    { title: t('leader.dashboard'), url: '/leader', icon: Home },
+    { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
+    { title: t('leader.dashboard'), url: '/leader/committee', icon: Building2 },
     { title: t('leader.members'), url: '/leader/members', icon: Users },
     { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/leader/profile', icon: User },

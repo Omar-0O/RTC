@@ -70,10 +70,10 @@ export default function LogActivity() {
       const [committeesRes, activitiesRes, submissionsRes] = await Promise.all([
         supabase.from('committees').select('id, name, name_ar').order('name'),
         supabase.from('activity_types').select('*').order('name'),
-        user?.id 
+        user?.id
           ? supabase
-              .from('activity_submissions')
-              .select(`
+            .from('activity_submissions')
+            .select(`
                 id,
                 points_awarded,
                 status,
@@ -82,9 +82,9 @@ export default function LogActivity() {
                 activity:activity_types(name, name_ar),
                 committee:committees(name, name_ar)
               `)
-              .eq('volunteer_id', user.id)
-              .order('submitted_at', { ascending: false })
-              .limit(10)
+            .eq('volunteer_id', user.id)
+            .order('submitted_at', { ascending: false })
+            .limit(10)
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -181,13 +181,8 @@ export default function LogActivity() {
     e.preventDefault();
     if (!user || !profile || !selectedActivity) return;
 
-    if (!committeeId || !activityId || !description.trim()) {
+    if (!committeeId || !activityId) {
       toast.error(isRTL ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill in all required fields');
-      return;
-    }
-
-    if (description.trim().length < 10) {
-      toast.error(isRTL ? 'الوصف يجب أن يكون 10 أحرف على الأقل' : 'Description must be at least 10 characters');
       return;
     }
 
@@ -391,16 +386,15 @@ export default function LogActivity() {
                 )}
               </div>
 
-              {/* Description */}
+              {/* Notes */}
               <div className="space-y-2">
-                <Label>{t('activityLog.description')} *</Label>
+                <Label>{t('activityLog.notes')}</Label>
                 <Textarea
-                  placeholder={t('activityLog.descriptionPlaceholder')}
+                  placeholder={t('activityLog.notesPlaceholder')}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
                   maxLength={1000}
-                  required
                 />
                 <p className="text-xs text-muted-foreground text-right">
                   {description.length}/1000
@@ -417,12 +411,12 @@ export default function LogActivity() {
                   onChange={handleFileSelect}
                   className="hidden"
                 />
-                
+
                 {proofPreview ? (
                   <div className="relative">
-                    <img 
-                      src={proofPreview} 
-                      alt="Proof preview" 
+                    <img
+                      src={proofPreview}
+                      alt="Proof preview"
                       className="w-full h-48 object-cover rounded-lg border"
                     />
                     <Button
@@ -468,13 +462,13 @@ export default function LogActivity() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={!activityId || !description.trim() || isSubmitting || isUploading}
+                disabled={!activityId || isSubmitting || isUploading}
               >
                 {(isSubmitting || isUploading) ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isUploading 
-                      ? (isRTL ? 'جاري رفع الصورة...' : 'Uploading image...') 
+                    {isUploading
+                      ? (isRTL ? 'جاري رفع الصورة...' : 'Uploading image...')
                       : (isRTL ? 'جاري التسجيل...' : 'Logging...')
                     }
                   </>
@@ -511,9 +505,9 @@ export default function LogActivity() {
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       {submission.proof_url && (
-                        <img 
-                          src={submission.proof_url} 
-                          alt="Proof" 
+                        <img
+                          src={submission.proof_url}
+                          alt="Proof"
                           className="w-10 h-10 rounded object-cover shrink-0"
                         />
                       )}

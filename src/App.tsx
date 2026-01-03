@@ -93,7 +93,8 @@ function AppRoutes() {
         <Route path="/supervisor/profile" element={<Profile />} />
 
         {/* Committee Leader Routes */}
-        <Route path="/leader" element={<CommitteeLeaderDashboard />} />
+        <Route path="/leader" element={<VolunteerDashboard />} />
+        <Route path="/leader/committee" element={<CommitteeLeaderDashboard />} />
         <Route path="/leader/members" element={<CommitteeLeaderDashboard />} />
         <Route path="/leader/activity" element={<LogActivity />} />
         <Route path="/leader/profile" element={<Profile />} />
