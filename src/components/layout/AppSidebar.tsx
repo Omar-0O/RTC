@@ -1,11 +1,11 @@
-import { 
-  Home, 
-  Activity, 
-  Trophy, 
-  User, 
-  ClipboardCheck, 
-  Settings, 
-  Users, 
+import {
+  Home,
+  Activity,
+  Trophy,
+  User,
+  ClipboardCheck,
+  Settings,
+  Users,
   BarChart3,
   LogOut,
   ChevronDown,
@@ -56,7 +56,11 @@ export function AppSidebar() {
 
   const supervisorNavItems = [
     { title: t('nav.dashboard'), url: '/supervisor', icon: Home },
-    { title: t('nav.reviewSubmissions'), url: '/supervisor/submissions', icon: ClipboardCheck },
+    { title: t('nav.userManagement'), url: '/supervisor/users', icon: Users },
+    { title: t('nav.activities'), url: '/supervisor/activities', icon: Activity },
+    { title: t('nav.committees'), url: '/supervisor/committees', icon: Settings },
+    { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
+    { title: t('nav.reports'), url: '/supervisor/reports', icon: BarChart3 },
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
   ];
 
@@ -105,9 +109,9 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" side={isRTL ? 'right' : 'left'}>
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="flex items-center gap-3">
-          <img 
-            src={logo} 
-            alt="RTC Logo" 
+          <img
+            src={logo}
+            alt="RTC Logo"
             className="h-10 w-10 shrink-0 rounded-lg object-cover"
           />
           {!collapsed && (
@@ -163,8 +167,8 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border p-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className={cn(
                 "w-full justify-start gap-2 px-2",
                 collapsed && "justify-center px-0"

@@ -1,0 +1,550 @@
+import { useState, useEffect } from 'react';
+import { Download, Calendar, TrendingUp, Users, Activity, Award } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  Legend
+} from 'recharts';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+  email: string;
+  total_points: number;
+  level: string;
+  activities_count: number;
+  committee_id: string | null;
+}
+
+interface Committee {
+  id: string;
+  name: string;
+  name_ar: string;
+}
+
+interface ActivitySubmission {
+  id: string;
+  volunteer_id: string;
+  status: string;
+  points_awarded: number;
+  submitted_at: string;
+  activity_type_id: string;
+}
+
+interface ActivityType {
+  id: string;
+  name: string;
+  name_ar: string;
+  points: number;
+}
+
+export default function Reports() {
+  const { t, language } = useLanguage();
+  const [dateRange, setDateRange] = useState('month');
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [committees, setCommittees] = useState<Committee[]>([]);
+  const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
+  const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [profilesRes, committeesRes, submissionsRes, activityTypesRes] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        supabase.from('committees').select('*'),
+        supabase.from('activity_submissions').select('*'),
+        supabase.from('activity_types').select('*'),
+      ]);
+
+      if (profilesRes.data) setProfiles(profilesRes.data);
+      if (committeesRes.data) setCommittees(committeesRes.data);
+      if (submissionsRes.data) setSubmissions(submissionsRes.data);
+      if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Get date range based on selection
+  const getDateRange = () => {
+    const now = new Date();
+    switch (dateRange) {
+      case 'week':
+        return { start: startOfWeek(now), end: endOfWeek(now) };
+      case 'month':
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case 'quarter':
+        return { start: startOfQuarter(now), end: endOfQuarter(now) };
+      case 'year':
+        return { start: startOfYear(now), end: endOfYear(now) };
+      default:
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+    }
+  };
+
+  // Filter submissions by date range
+  const filteredSubmissions = submissions.filter(s => {
+    const { start, end } = getDateRange();
+    const submittedDate = new Date(s.submitted_at);
+    return submittedDate >= start && submittedDate <= end;
+  });
+
+  // Committee distribution data
+  const committeeData = committees.map(committee => {
+    const volunteers = profiles.filter(p => p.committee_id === committee.id);
+    return {
+      name: language === 'ar' ? committee.name_ar : committee.name,
+      volunteers: volunteers.length,
+      points: volunteers.reduce((sum, v) => sum + (v.total_points || 0), 0),
+    };
+  }).filter(c => c.volunteers > 0);
+
+  // Level distribution data
+  const levelData = [
+    { name: language === 'ar' ? 'مبتدئ' : 'Bronze', value: profiles.filter(p => p.level === 'bronze').length, color: '#CD7F32' },
+    { name: language === 'ar' ? 'فضي' : 'Silver', value: profiles.filter(p => p.level === 'silver').length, color: '#C0C0C0' },
+    { name: language === 'ar' ? 'ذهبي' : 'Gold', value: profiles.filter(p => p.level === 'gold').length, color: '#FFD700' },
+    { name: language === 'ar' ? 'بلاتيني' : 'Platinum', value: profiles.filter(p => p.level === 'platinum').length, color: '#E5E4E2' },
+    { name: language === 'ar' ? 'ماسي' : 'Diamond', value: profiles.filter(p => p.level === 'diamond').length, color: '#B9F2FF' },
+  ].filter(l => l.value > 0);
+
+  // Activity submissions over time (last 6 months)
+  const activityTrend = Array.from({ length: 6 }, (_, i) => {
+    const date = subMonths(new Date(), 5 - i);
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+    
+    const monthSubmissions = submissions.filter(s => {
+      const submittedDate = new Date(s.submitted_at);
+      return submittedDate >= monthStart && submittedDate <= monthEnd;
+    });
+    
+    return {
+      month: format(date, 'MMM'),
+      submissions: monthSubmissions.length,
+      approved: monthSubmissions.filter(s => s.status === 'approved').length,
+    };
+  });
+
+  // Top activities by submissions
+  const activityStats = activityTypes.map(activity => {
+    const activitySubmissions = submissions.filter(s => s.activity_type_id === activity.id);
+    return {
+      name: language === 'ar' ? activity.name_ar : activity.name,
+      count: activitySubmissions.length,
+      points: activity.points,
+    };
+  }).filter(a => a.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
+
+  // CSV Export functions
+  const downloadCSV = (data: any[], filename: string) => {
+    if (data.length === 0) {
+      toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
+      return;
+    }
+
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => {
+        const value = row[header];
+        // Escape commas and quotes in values
+        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value ?? '';
+      }).join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    
+    toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
+  };
+
+  const handleExport = (type: string) => {
+    switch (type) {
+      case 'volunteers':
+        const volunteersData = profiles.map(p => ({
+          [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
+          [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
+          [language === 'ar' ? 'المستوى' : 'Level']: p.level,
+          [language === 'ar' ? 'النقاط' : 'Points']: p.total_points,
+          [language === 'ar' ? 'عدد الأنشطة' : 'Activities Count']: p.activities_count,
+          [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+        }));
+        downloadCSV(volunteersData, 'volunteers');
+        break;
+      
+      case 'activities':
+        const activitiesData = submissions.map(s => {
+          const volunteer = profiles.find(p => p.id === s.volunteer_id);
+          const activityType = activityTypes.find(a => a.id === s.activity_type_id);
+          return {
+            [language === 'ar' ? 'المتطوع' : 'Volunteer']: volunteer?.full_name || '',
+            [language === 'ar' ? 'نوع النشاط' : 'Activity Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'الحالة' : 'Status']: s.status,
+            [language === 'ar' ? 'النقاط' : 'Points']: s.points_awarded || 0,
+            [language === 'ar' ? 'تاريخ التقديم' : 'Submitted At']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+          };
+        });
+        downloadCSV(activitiesData, 'activities');
+        break;
+      
+      case 'points':
+        const pointsData = profiles.map(p => ({
+          [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
+          [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
+          [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
+          [language === 'ar' ? 'المستوى' : 'Level']: p.level,
+        })).sort((a, b) => (b[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number) - (a[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number));
+        downloadCSV(pointsData, 'points_summary');
+        break;
+      
+      case 'monthly':
+        const monthlyData = activityTrend.map(m => ({
+          [language === 'ar' ? 'الشهر' : 'Month']: m.month,
+          [language === 'ar' ? 'إجمالي الطلبات' : 'Total Submissions']: m.submissions,
+          [language === 'ar' ? 'المعتمدة' : 'Approved']: m.approved,
+        }));
+        downloadCSV(monthlyData, 'monthly_report');
+        break;
+      
+      case 'full':
+        // Export all data as a comprehensive report
+        const fullReportData = profiles.map(p => {
+          const volunteerSubmissions = submissions.filter(s => s.volunteer_id === p.id);
+          return {
+            [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
+            [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
+            [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'المستوى' : 'Level']: p.level,
+            [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
+            [language === 'ar' ? 'عدد الأنشطة' : 'Activities Count']: p.activities_count,
+            [language === 'ar' ? 'الطلبات المعلقة' : 'Pending Submissions']: volunteerSubmissions.filter(s => s.status === 'pending').length,
+            [language === 'ar' ? 'الطلبات المعتمدة' : 'Approved Submissions']: volunteerSubmissions.filter(s => s.status === 'approved').length,
+            [language === 'ar' ? 'الطلبات المرفوضة' : 'Rejected Submissions']: volunteerSubmissions.filter(s => s.status === 'rejected').length,
+          };
+        });
+        downloadCSV(fullReportData, 'full_report');
+        break;
+    }
+  };
+
+  // Calculate summary stats
+  const totalVolunteers = profiles.length;
+  const totalApprovedActivities = submissions.filter(s => s.status === 'approved').length;
+  const totalPointsAwarded = profiles.reduce((sum, p) => sum + (p.total_points || 0), 0);
+  const avgPointsPerVolunteer = totalVolunteers > 0 ? Math.round(totalPointsAwarded / totalVolunteers) : 0;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">{t('reports.title')}</h1>
+          <p className="text-muted-foreground">{t('reports.subtitle')}</p>
+        </div>
+        <div className="flex gap-2">
+          <Select value={dateRange} onValueChange={setDateRange}>
+            <SelectTrigger className="w-[150px]">
+              <Calendar className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="week">{t('reports.thisWeek')}</SelectItem>
+              <SelectItem value="month">{t('reports.thisMonth')}</SelectItem>
+              <SelectItem value="quarter">{t('reports.thisQuarter')}</SelectItem>
+              <SelectItem value="year">{t('reports.thisYear')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button variant="outline" onClick={() => handleExport('full')}>
+            <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+            {t('reports.exportReport')}
+          </Button>
+        </div>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="rounded-full bg-primary/10 p-3">
+                <Users className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">{t('admin.totalVolunteers')}</p>
+                <p className="text-2xl font-bold">{totalVolunteers}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="rounded-full bg-success/10 p-3">
+                <Activity className="h-6 w-6 text-success" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">{t('admin.totalActivities')}</p>
+                <p className="text-2xl font-bold">{totalApprovedActivities}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="rounded-full bg-warning/10 p-3">
+                <Award className="h-6 w-6 text-warning" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">{t('admin.pointsAwarded')}</p>
+                <p className="text-2xl font-bold">{totalPointsAwarded.toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="rounded-full bg-primary/10 p-3">
+                <TrendingUp className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">{t('reports.avgPointsPerVolunteer')}</p>
+                <p className="text-2xl font-bold">{avgPointsPerVolunteer}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Activity Trend */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('reports.activityTrend')}</CardTitle>
+            <CardDescription>{t('reports.activityTrendDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={activityTrend}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="month" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="submissions" 
+                    stroke="hsl(var(--primary))" 
+                    strokeWidth={2}
+                    name={language === 'ar' ? 'الطلبات' : 'Submissions'}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="approved" 
+                    stroke="hsl(var(--success))" 
+                    strokeWidth={2}
+                    name={language === 'ar' ? 'المعتمدة' : 'Approved'}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Level Distribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('reports.levelDistribution')}</CardTitle>
+            <CardDescription>{t('reports.levelDistributionDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              {levelData.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  {language === 'ar' ? 'لا توجد بيانات' : 'No data available'}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={levelData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value"
+                      label={({ name, value }) => `${name}: ${value}`}
+                    >
+                      {levelData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Committee Performance */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('reports.committeePerformance')}</CardTitle>
+            <CardDescription>{t('reports.committeePerformanceDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              {committeeData.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  {language === 'ar' ? 'لا توجد بيانات' : 'No data available'}
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={committeeData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis type="number" className="text-xs" />
+                    <YAxis dataKey="name" type="category" className="text-xs" width={80} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar dataKey="points" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Top Activities */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('reports.topActivities')}</CardTitle>
+            <CardDescription>{t('reports.topActivitiesDesc')}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {activityStats.length === 0 ? (
+                <div className="flex items-center justify-center h-32 text-muted-foreground">
+                  {language === 'ar' ? 'لا توجد أنشطة بعد' : 'No activities yet'}
+                </div>
+              ) : (
+                activityStats.map((activity, index) => (
+                  <div key={activity.name} className="flex items-center gap-4">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-bold">
+                      {index + 1}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{activity.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {activity.count} {language === 'ar' ? 'طلب' : 'submissions'} • {activity.points} {t('common.points')}
+                      </p>
+                    </div>
+                    <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
+                      <div 
+                        className="h-full bg-primary rounded-full"
+                        style={{ width: `${(activity.count / activityStats[0].count) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Export Options */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('reports.exportData')}</CardTitle>
+          <CardDescription>{t('reports.exportDataDesc')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Button variant="outline" className="justify-start" onClick={() => handleExport('volunteers')}>
+              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {t('reports.volunteerList')}
+            </Button>
+            <Button variant="outline" className="justify-start" onClick={() => handleExport('activities')}>
+              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {t('reports.activityLog')}
+            </Button>
+            <Button variant="outline" className="justify-start" onClick={() => handleExport('points')}>
+              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {t('reports.pointsSummary')}
+            </Button>
+            <Button variant="outline" className="justify-start" onClick={() => handleExport('monthly')}>
+              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {t('reports.monthlyReport')}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

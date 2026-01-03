@@ -17,6 +17,12 @@ import CommitteeManagement from "./pages/admin/CommitteeManagement";
 import ActivityManagement from "./pages/admin/ActivityManagement";
 import Reports from "./pages/admin/Reports";
 import BadgeManagement from "./pages/admin/BadgeManagement";
+import SupervisorDashboard from "./pages/supervisor/Dashboard";
+import SupervisorUserManagement from "./pages/supervisor/UserManagement";
+import SupervisorActivityManagement from "./pages/supervisor/ActivityManagement";
+import SupervisorCommitteeManagement from "./pages/supervisor/CommitteeManagement";
+import SupervisorBadgeManagement from "./pages/supervisor/BadgeManagement";
+import SupervisorReports from "./pages/supervisor/Reports";
 import CommitteeLeaderDashboard from "./pages/leader/Dashboard";
 import NotFound from "./pages/NotFound";
 
@@ -24,7 +30,7 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -32,7 +38,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/auth" replace />;
   }
@@ -68,22 +74,26 @@ function AppRoutes() {
       <Route path="/auth" element={isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <Auth />} />
       <Route path="/login" element={<Navigate to="/auth" replace />} />
       <Route path="/" element={<Navigate to={isAuthenticated ? getDefaultRoute() : "/auth"} replace />} />
-      
+
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         {/* Volunteer Routes */}
         <Route path="/dashboard" element={<VolunteerDashboard />} />
         <Route path="/activity" element={<LogActivity />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/leaderboard" element={<Leaderboard />} />
-        
+
         {/* Supervisor Routes */}
-        <Route path="/supervisor" element={<VolunteerDashboard />} />
-        <Route path="/supervisor/submissions" element={<VolunteerDashboard />} />
-        
+        <Route path="/supervisor" element={<SupervisorDashboard />} />
+        <Route path="/supervisor/users" element={<SupervisorUserManagement />} />
+        <Route path="/supervisor/activities" element={<SupervisorActivityManagement />} />
+        <Route path="/supervisor/committees" element={<SupervisorCommitteeManagement />} />
+        <Route path="/supervisor/badges" element={<SupervisorBadgeManagement />} />
+        <Route path="/supervisor/reports" element={<SupervisorReports />} />
+
         {/* Committee Leader Routes */}
         <Route path="/leader" element={<CommitteeLeaderDashboard />} />
         <Route path="/leader/members" element={<CommitteeLeaderDashboard />} />
-        
+
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/users" element={<UserManagement />} />
@@ -92,7 +102,7 @@ function AppRoutes() {
         <Route path="/admin/reports" element={<Reports />} />
         <Route path="/admin/badges" element={<BadgeManagement />} />
       </Route>
-      
+
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
