@@ -5,12 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
-import { Trophy, Loader2 } from 'lucide-react';
+import { Trophy, Loader2, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
 type LeaderboardEntry = {
-  id: string;
+  volunteer_id: string; // Changed from id to match RPC
   full_name: string;
   full_name_ar: string | null;
   avatar_url: string | null;
@@ -29,69 +29,46 @@ type Committee = {
 };
 
 export default function Leaderboard() {
-  const { user } = useAuth();
+  const { user, primaryRole } = useAuth();
   const { isRTL, t } = useLanguage();
   const [selectedCommittee, setSelectedCommittee] = useState<string>('all');
+  const [timeFilter, setTimeFilter] = useState<string>('month');
   const [loading, setLoading] = useState(true);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [timeFilter, selectedCommittee]); // Re-fetch when filters change
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [profilesRes, committeesRes, adminRolesRes] = await Promise.all([
-        supabase.from('profiles').select(`
-          id,
-          full_name,
-          full_name_ar,
-          avatar_url,
-          total_points,
-          activities_count,
-          level,
-          committee_id,
-          committee:committees(name, name_ar)
-        `).order('total_points', { ascending: false }),
-        supabase.from('committees').select('id, name, name_ar').order('name'),
-        supabase.from('user_roles').select('user_id').eq('role', 'admin'),
-      ]);
+      // Fetch committees if not already loaded
+      if (committees.length === 0) {
+        const { data } = await supabase.from('committees').select('id, name, name_ar').order('name');
+        if (data) setCommittees(data);
+      }
 
-      if (profilesRes.error) throw profilesRes.error;
-      if (committeesRes.error) throw committeesRes.error;
+      // Determine committee filter (UUID or null)
+      const committeeId = selectedCommittee === 'all' ? null : selectedCommittee;
 
-      // Get admin user IDs to exclude from leaderboard
-      const adminIds = new Set((adminRolesRes.data || []).map((r: any) => r.user_id));
+      // Call the RPC function
+      const { data, error } = await supabase.rpc('get_leaderboard', {
+        period_type: timeFilter,
+        target_date: new Date().toISOString(),
+        committee_filter: committeeId
+      });
 
-      const entries = (profilesRes.data || [])
-        .filter((p: any) => !adminIds.has(p.id)) // Exclude admins
-        .map((p: any) => ({
-          id: p.id,
-          full_name: p.full_name || 'Unknown',
-          full_name_ar: p.full_name_ar,
-          avatar_url: p.avatar_url,
-          total_points: p.total_points || 0,
-          activities_count: p.activities_count || 0,
-          level: p.level || 'bronze',
-          committee_id: p.committee_id,
-          committee_name: p.committee?.name || null,
-          committee_name_ar: p.committee?.name_ar || null,
-        }));
+      if (error) throw error;
+      setLeaderboard(data || []);
 
-      setLeaderboard(entries);
-      setCommittees(committeesRes.data || []);
     } catch (error) {
       console.error('Error fetching leaderboard:', error);
     } finally {
       setLoading(false);
     }
   };
-
-  const filteredLeaderboard = selectedCommittee === 'all' 
-    ? leaderboard 
-    : leaderboard.filter(entry => entry.committee_id === selectedCommittee);
 
   const getRankStyle = (rank: number) => {
     switch (rank) {
@@ -115,14 +92,6 @@ export default function Leaderboard() {
     return isRTL ? (entry.committee_name_ar || entry.committee_name) : entry.committee_name;
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 animate-slide-up">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -135,39 +104,61 @@ export default function Leaderboard() {
             {isRTL ? 'أفضل المتطوعين في RTC' : 'Top performing volunteers across RTC'}
           </p>
         </div>
-        <Select value={selectedCommittee} onValueChange={setSelectedCommittee}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder={isRTL ? 'فلترة حسب اللجنة' : 'Filter by committee'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{isRTL ? 'جميع اللجان' : 'All Committees'}</SelectItem>
-            {committees.map((committee) => (
-              <SelectItem key={committee.id} value={committee.id}>
-                {isRTL ? committee.name_ar : committee.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+        <div className="flex flex-col sm:flex-row gap-2">
+          {/* Time Filter */}
+          <Select value={timeFilter} onValueChange={setTimeFilter}>
+            <SelectTrigger className="w-[180px]">
+              <Calendar className={isRTL ? "ml-2 h-4 w-4" : "mr-2 h-4 w-4"} />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="month">{isRTL ? 'هذا الشهر' : 'This Month'}</SelectItem>
+              <SelectItem value="quarter">{isRTL ? 'هذا الربع' : 'This Quarter'}</SelectItem>
+              <SelectItem value="half_year">{isRTL ? 'نصف سنوي' : 'Half Yearly'}</SelectItem>
+              <SelectItem value="all_time">{isRTL ? 'كل الوقت' : 'All Time'}</SelectItem>
+              {/* Only show Year filter to admins as requested */}
+              {primaryRole === 'admin' && (
+                <SelectItem value="year">{isRTL ? 'هذه السنة' : 'This Year'}</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+
+          {/* Committee Filter */}
+          <Select value={selectedCommittee} onValueChange={setSelectedCommittee}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder={isRTL ? 'فلترة حسب اللجنة' : 'Filter by committee'} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{isRTL ? 'جميع اللجان' : 'All Committees'}</SelectItem>
+              {committees.map((committee) => (
+                <SelectItem key={committee.id} value={committee.id}>
+                  {isRTL ? committee.name_ar : committee.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
-      {filteredLeaderboard.length === 0 ? (
+      {leaderboard.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            {isRTL ? 'لا يوجد متطوعون حتى الآن' : 'No volunteers yet'}
+            {isRTL ? 'لا يوجد متطوعون لهذه الفترة' : 'No volunteers found for this period'}
           </CardContent>
         </Card>
       ) : (
         <>
           {/* Top 3 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {filteredLeaderboard.slice(0, 3).map((entry, index) => {
+            {leaderboard.slice(0, 3).map((entry, index) => {
               const displayName = getName(entry);
               const userInitials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-              const isCurrentUser = entry.id === user?.id;
-              
+              const isCurrentUser = entry.volunteer_id === user?.id; // RPC returns volunteer_id
+
               return (
                 <Card
-                  key={entry.id}
+                  key={entry.volunteer_id}
                   className={cn(
                     "relative overflow-hidden",
                     isCurrentUser && "ring-2 ring-primary"
@@ -198,7 +189,7 @@ export default function Leaderboard() {
                       <LevelBadge level={entry.level as any} size="sm" />
                       <div className="mt-3">
                         <span className="text-2xl font-bold text-primary">{entry.total_points}</span>
-                        <span className="text-sm text-muted-foreground ml-1">{isRTL ? 'نقطة' : 'pts'}</span>
+                        <span className="text-sm text-muted-foreground ml-1">{isRTL ? 'أثر' : 'impact'}</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-1">
                         {entry.activities_count} {isRTL ? 'نشاط' : 'activities'}
@@ -215,26 +206,26 @@ export default function Leaderboard() {
             <CardHeader>
               <CardTitle>{isRTL ? 'الترتيب الكامل' : 'Full Rankings'}</CardTitle>
               <CardDescription>
-                {selectedCommittee === 'all' 
+                {selectedCommittee === 'all'
                   ? (isRTL ? 'جميع المتطوعين' : 'All volunteers')
-                  : (isRTL 
-                      ? committees.find(c => c.id === selectedCommittee)?.name_ar 
-                      : committees.find(c => c.id === selectedCommittee)?.name
-                    )
+                  : (isRTL
+                    ? committees.find(c => c.id === selectedCommittee)?.name_ar
+                    : committees.find(c => c.id === selectedCommittee)?.name
+                  )
                 }
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {filteredLeaderboard.map((entry, index) => {
+                {leaderboard.map((entry, index) => {
                   const displayName = getName(entry);
                   const userInitials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-                  const isCurrentUser = entry.id === user?.id;
+                  const isCurrentUser = entry.volunteer_id === user?.id; // RPC returns volunteer_id
                   const rank = index + 1;
-                  
+
                   return (
                     <div
-                      key={entry.id}
+                      key={entry.volunteer_id}
                       className={cn(
                         "flex items-center gap-4 p-3 rounded-lg transition-colors",
                         isCurrentUser ? "bg-primary/10 border border-primary/20" : "hover:bg-muted/50"
@@ -266,7 +257,7 @@ export default function Leaderboard() {
                       <LevelBadge level={entry.level as any} size="sm" showLabel={false} className="hidden md:flex" />
                       <div className="text-right shrink-0">
                         <p className="font-bold">{entry.total_points}</p>
-                        <p className="text-xs text-muted-foreground">{isRTL ? 'نقطة' : 'points'}</p>
+                        <p className="text-xs text-muted-foreground">{isRTL ? 'أثر' : 'impact'}</p>
                       </div>
                     </div>
                   );

@@ -96,29 +96,33 @@ export default function AdminDashboard() {
         activeCommittees: committees.length,
       });
 
-      // Top volunteers
-      const sortedVolunteers = profiles
-        .sort((a, b) => (b.total_points || 0) - (a.total_points || 0))
-        .slice(0, 5)
-        .map(v => ({
-          id: v.id,
-          full_name: isRTL ? (v.full_name_ar || v.full_name || '') : (v.full_name || ''),
-          total_points: v.total_points || 0,
-          level: v.level || 'bronze',
-        }));
-      setTopVolunteers(sortedVolunteers);
+      // Top volunteers (of the month)
+      const { data: topVolunteersData } = await supabase.rpc('get_leaderboard', {
+        period_type: 'month',
+        target_date: new Date().toISOString(),
+        committee_filter: null
+      });
+
+      if (topVolunteersData) {
+        setTopVolunteers(topVolunteersData.slice(0, 5).map((v: any) => ({
+          id: v.volunteer_id,
+          full_name: isRTL ? (v.full_name_ar || v.full_name || '') : v.full_name || '',
+          total_points: v.total_points,
+          level: v.level || 'bronze'
+        })));
+      }
 
       // Recent submissions
       const submissions = (submissionsRes.data || []).map((s: any) => ({
         id: s.id,
-        volunteer_name: isRTL 
-          ? (s.volunteer?.full_name_ar || s.volunteer?.full_name || '') 
+        volunteer_name: isRTL
+          ? (s.volunteer?.full_name_ar || s.volunteer?.full_name || '')
           : (s.volunteer?.full_name || ''),
-        activity_name: isRTL 
-          ? (s.activity?.name_ar || s.activity?.name || '') 
+        activity_name: isRTL
+          ? (s.activity?.name_ar || s.activity?.name || '')
           : (s.activity?.name || ''),
-        committee_name: isRTL 
-          ? (s.committee?.name_ar || s.committee?.name || '') 
+        committee_name: isRTL
+          ? (s.committee?.name_ar || s.committee?.name || '')
           : (s.committee?.name || ''),
         points: s.points_awarded || 0,
         status: s.status,
@@ -238,14 +242,14 @@ export default function AdminDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
-              {t('admin.topVolunteers')}
+              {isRTL ? 'أفضل متطوع الشهر' : 'Top Volunteers of the Month'}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {topVolunteers.length === 0 ? (
                 <p className="text-center text-muted-foreground py-4">
-                  {isRTL ? 'لا يوجد متطوعون حتى الآن' : 'No volunteers yet'}
+                  {isRTL ? 'لا يوجد متطوعون هذا الشهر' : 'No volunteers this month'}
                 </p>
               ) : (
                 topVolunteers.map((volunteer, index) => (

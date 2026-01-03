@@ -23,7 +23,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.badges': 'Badges',
     'nav.reports': 'Reports',
     'nav.navigation': 'Navigation',
-    
+
     // Common
     'common.search': 'Search',
     'common.filter': 'Filter',
@@ -46,7 +46,7 @@ const translations: Record<Language, Record<string, string>> = {
     'common.supervisor': 'Supervisor',
     'common.admin': 'Admin',
     'common.committeeLeader': 'Committee Leader',
-    
+
     // Committee Leader
     'leader.dashboard': 'Committee Dashboard',
     'leader.overview': 'Manage your committee members and track their progress',
@@ -59,7 +59,7 @@ const translations: Record<Language, Record<string, string>> = {
     'leader.avgPoints': 'Average Points',
     'leader.topPerformer': 'Top Performer',
     'leader.recentActivities': 'Recent Activities',
-    
+
     // Auth
     'auth.login': 'Login',
     'auth.email': 'Email',
@@ -68,7 +68,7 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.welcomeBack': 'Welcome back',
     'auth.loginSubtitle': 'Sign in to your RTC Pulse account',
     'auth.demoAccounts': 'Demo Accounts',
-    
+
     // New Auth translations
     'error': 'Error',
     'welcomeBack': 'Welcome back!',
@@ -88,7 +88,7 @@ const translations: Record<Language, Record<string, string>> = {
     'signingIn': 'Signing in...',
     'creatingAccount': 'Creating account...',
     'createAccount': 'Create Account',
-    
+
     // Dashboard
     'dashboard.title': 'Dashboard',
     'dashboard.welcome': 'Welcome back',
@@ -100,7 +100,7 @@ const translations: Record<Language, Record<string, string>> = {
     'dashboard.quickActions': 'Quick Actions',
     'dashboard.logNewActivity': 'Log New Activity',
     'dashboard.viewLeaderboard': 'View Leaderboard',
-    
+
     // Admin Dashboard
     'admin.dashboard': 'Admin Dashboard',
     'admin.overview': 'Overview of RTC Pulse volunteer management system',
@@ -112,7 +112,7 @@ const translations: Record<Language, Record<string, string>> = {
     'admin.recentSubmissions': 'Recent Submissions',
     'admin.topVolunteers': 'Top Volunteers',
     'admin.committeePerformance': 'Committee Performance',
-    
+
     // User Management
     'users.title': 'User Management',
     'users.subtitle': 'Manage volunteers, supervisors, and administrators',
@@ -132,7 +132,7 @@ const translations: Record<Language, Record<string, string>> = {
     'users.allRoles': 'All Roles',
     'users.allCommittees': 'All Committees',
     'users.createUser': 'Create a new user account for the system.',
-    
+
     // Committee Management
     'committees.title': 'Committee Management',
     'committees.subtitle': 'Create and manage organization committees',
@@ -144,7 +144,7 @@ const translations: Record<Language, Record<string, string>> = {
     'committees.totalPoints': 'Total Points',
     'committees.deleteConfirm': 'Delete Committee?',
     'committees.deleteWarning': 'Are you sure you want to delete this committee? This action cannot be undone. All volunteers in this committee will need to be reassigned.',
-    
+
     // Activity Management
     'activities.title': 'Activity Types',
     'activities.subtitle': 'Manage volunteer activity types and point values',
@@ -155,7 +155,7 @@ const translations: Record<Language, Record<string, string>> = {
     'activities.pointsValue': 'Points Value',
     'activities.deleteConfirm': 'Delete Activity Type?',
     'activities.deleteWarning': 'Are you sure you want to delete this activity type? This action cannot be undone.',
-    
+
     // Reports
     'reports.title': 'Reports & Analytics',
     'reports.subtitle': 'Insights into volunteer engagement and activity',
@@ -179,14 +179,14 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.activityLog': 'Activity Log (CSV)',
     'reports.pointsSummary': 'Points Summary (CSV)',
     'reports.monthlyReport': 'Monthly Report (PDF)',
-    
+
     // Leaderboard
     'leaderboard.title': 'Leaderboard',
     'leaderboard.subtitle': 'Top performing volunteers',
     'leaderboard.rank': 'Rank',
     'leaderboard.name': 'Name',
     'leaderboard.global': 'Global',
-    
+
     // Activity Log
     'activityLog.title': 'Log Activity',
     'activityLog.subtitle': 'Submit your volunteer activity for approval',
@@ -200,7 +200,7 @@ const translations: Record<Language, Record<string, string>> = {
     'activityLog.proofUrl': 'Proof URL (optional)',
     'activityLog.submitActivity': 'Submit Activity',
     'activityLog.submissionHistory': 'Submission History',
-    
+
     // Profile
     'profile.title': 'My Profile',
     'profile.memberSince': 'Member since',
@@ -208,13 +208,15 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.nextLevel': 'Next Level',
     'profile.badges': 'Badges',
     'profile.activityHistory': 'Activity History',
-    
+
     // Levels
-    'level.newbie': 'Newbie',
-    'level.active': 'Active',
-    'level.silver': 'Silver',
-    'level.golden': 'Golden',
-    
+    'level.newbie': 'Mubadir',
+    'level.active': 'Musahim',
+    'level.silver': 'Moather',
+    'level.golden': 'Qaed Molhem',
+    'level.platinum': 'Qaed Molhem',
+    'level.diamond': 'Qaed Molhem',
+
     // App
     'app.name': 'RTC Pulse',
     'app.tagline': 'Volunteer Portal',
@@ -233,7 +235,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.badges': 'الشارات',
     'nav.reports': 'التقارير',
     'nav.navigation': 'التنقل',
-    
+
     // Common
     'common.search': 'بحث',
     'common.filter': 'تصفية',
@@ -246,7 +248,7 @@ const translations: Record<Language, Record<string, string>> = {
     'common.pending': 'قيد الانتظار',
     'common.approved': 'مقبول',
     'common.rejected': 'مرفوض',
-    'common.points': 'نقاط',
+    'common.points': 'أثر',
     'common.volunteers': 'المتطوعين',
     'common.actions': 'إجراءات',
     'common.all': 'الكل',
@@ -256,7 +258,7 @@ const translations: Record<Language, Record<string, string>> = {
     'common.supervisor': 'مشرف',
     'common.admin': 'مسؤول',
     'common.committeeLeader': 'قائد اللجنة',
-    
+
     // Committee Leader
     'leader.dashboard': 'لوحة تحكم اللجنة',
     'leader.overview': 'إدارة أعضاء لجنتك ومتابعة تقدمهم',
@@ -266,10 +268,10 @@ const translations: Record<Language, Record<string, string>> = {
     'leader.removeMember': 'إزالة عضو',
     'leader.memberProgress': 'تقدم الأعضاء',
     'leader.totalMembers': 'إجمالي الأعضاء',
-    'leader.avgPoints': 'متوسط النقاط',
+    'leader.avgPoints': 'متوسط الأثر',
     'leader.topPerformer': 'الأفضل أداءً',
     'leader.recentActivities': 'الأنشطة الأخيرة',
-    
+
     // Auth
     'auth.login': 'تسجيل الدخول',
     'auth.email': 'البريد الإلكتروني',
@@ -278,7 +280,7 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.welcomeBack': 'مرحباً بعودتك',
     'auth.loginSubtitle': 'سجل دخولك إلى حساب RTC Pulse',
     'auth.demoAccounts': 'حسابات تجريبية',
-    
+
     // New Auth translations
     'error': 'خطأ',
     'welcomeBack': 'مرحباً بعودتك!',
@@ -298,11 +300,11 @@ const translations: Record<Language, Record<string, string>> = {
     'signingIn': 'جاري تسجيل الدخول...',
     'creatingAccount': 'جاري إنشاء الحساب...',
     'createAccount': 'إنشاء حساب',
-    
+
     // Dashboard
     'dashboard.title': 'لوحة التحكم',
     'dashboard.welcome': 'مرحباً بعودتك',
-    'dashboard.totalPoints': 'إجمالي النقاط',
+    'dashboard.totalPoints': 'إجمالي الأثر',
     'dashboard.currentRank': 'الترتيب الحالي',
     'dashboard.activitiesCompleted': 'الأنشطة المكتملة',
     'dashboard.currentLevel': 'المستوى الحالي',
@@ -310,23 +312,23 @@ const translations: Record<Language, Record<string, string>> = {
     'dashboard.quickActions': 'إجراءات سريعة',
     'dashboard.logNewActivity': 'تسجيل نشاط جديد',
     'dashboard.viewLeaderboard': 'عرض المتصدرين',
-    
+
     // Admin Dashboard
     'admin.dashboard': 'لوحة تحكم المسؤول',
     'admin.overview': 'نظرة عامة على نظام إدارة المتطوعين RTC Pulse',
     'admin.totalVolunteers': 'إجمالي المتطوعين',
     'admin.totalActivities': 'إجمالي الأنشطة',
-    'admin.pointsAwarded': 'النقاط الممنوحة',
+    'admin.pointsAwarded': 'الأثر المحقق',
     'admin.pendingReviews': 'المراجعات المعلقة',
     'admin.activeCommittees': 'اللجان النشطة',
     'admin.recentSubmissions': 'الطلبات الأخيرة',
     'admin.topVolunteers': 'أفضل المتطوعين',
     'admin.committeePerformance': 'أداء اللجان',
-    
+
     // User Management
     'users.title': 'إدارة المستخدمين',
     'users.subtitle': 'إدارة المتطوعين والمشرفين والمسؤولين',
-    'users.addUser': 'إضافة مستخدم',
+    'users.addUser': 'إضافة متطوع جديد',
     'users.fullName': 'الاسم الكامل',
     'users.role': 'الدور',
     'users.committee': 'اللجنة',
@@ -342,7 +344,7 @@ const translations: Record<Language, Record<string, string>> = {
     'users.allRoles': 'جميع الأدوار',
     'users.allCommittees': 'جميع اللجان',
     'users.createUser': 'إنشاء حساب مستخدم جديد في النظام.',
-    
+
     // Committee Management
     'committees.title': 'إدارة اللجان',
     'committees.subtitle': 'إنشاء وإدارة لجان المنظمة',
@@ -351,21 +353,21 @@ const translations: Record<Language, Record<string, string>> = {
     'committees.createDescription': 'إضافة لجنة جديدة للمنظمة.',
     'committees.name': 'اسم اللجنة',
     'committees.description': 'الوصف',
-    'committees.totalPoints': 'إجمالي النقاط',
+    'committees.totalPoints': 'إجمالي الأثر',
     'committees.deleteConfirm': 'حذف اللجنة؟',
     'committees.deleteWarning': 'هل أنت متأكد من حذف هذه اللجنة؟ لا يمكن التراجع عن هذا الإجراء. سيحتاج جميع المتطوعين في هذه اللجنة إلى إعادة تعيين.',
-    
+
     // Activity Management
     'activities.title': 'أنواع الأنشطة',
-    'activities.subtitle': 'إدارة أنواع أنشطة المتطوعين وقيم النقاط',
+    'activities.subtitle': 'إدارة أنواع أنشطة المتطوعين وقيم الأثر',
     'activities.addActivity': 'إضافة نوع نشاط',
     'activities.createActivity': 'إنشاء نوع نشاط',
     'activities.createDescription': 'تحديد نوع جديد من أنشطة التطوع.',
     'activities.activityName': 'اسم النشاط',
-    'activities.pointsValue': 'قيمة النقاط',
+    'activities.pointsValue': 'قيمة الأثر',
     'activities.deleteConfirm': 'حذف نوع النشاط؟',
     'activities.deleteWarning': 'هل أنت متأكد من حذف نوع النشاط هذا؟ لا يمكن التراجع عن هذا الإجراء.',
-    
+
     // Reports
     'reports.title': 'التقارير والتحليلات',
     'reports.subtitle': 'رؤى حول مشاركة المتطوعين والنشاط',
@@ -374,29 +376,29 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.thisMonth': 'هذا الشهر',
     'reports.thisQuarter': 'هذا الربع',
     'reports.thisYear': 'هذا العام',
-    'reports.avgPointsPerVolunteer': 'متوسط النقاط/متطوع',
+    'reports.avgPointsPerVolunteer': 'متوسط الأثر/متطوع',
     'reports.activityTrend': 'اتجاه تقديم الأنشطة',
     'reports.activityTrendDesc': 'معدلات التقديم والموافقة الشهرية',
     'reports.levelDistribution': 'توزيع مستويات المتطوعين',
     'reports.levelDistributionDesc': 'تفصيل المتطوعين حسب المستوى',
     'reports.committeePerformance': 'أداء اللجان',
-    'reports.committeePerformanceDesc': 'النقاط المكتسبة حسب اللجنة',
+    'reports.committeePerformanceDesc': 'الأثر المحقق حسب اللجنة',
     'reports.topActivities': 'أفضل الأنشطة',
     'reports.topActivitiesDesc': 'أكثر أنواع الأنشطة تقديماً',
     'reports.exportData': 'تصدير البيانات',
     'reports.exportDataDesc': 'تنزيل التقارير بتنسيقات مختلفة',
     'reports.volunteerList': 'قائمة المتطوعين (CSV)',
     'reports.activityLog': 'سجل الأنشطة (CSV)',
-    'reports.pointsSummary': 'ملخص النقاط (CSV)',
+    'reports.pointsSummary': 'ملخص الأثر (CSV)',
     'reports.monthlyReport': 'التقرير الشهري (PDF)',
-    
+
     // Leaderboard
     'leaderboard.title': 'المتصدرين',
     'leaderboard.subtitle': 'أفضل المتطوعين أداءً',
     'leaderboard.rank': 'الترتيب',
     'leaderboard.name': 'الاسم',
     'leaderboard.global': 'عام',
-    
+
     // Activity Log
     'activityLog.title': 'تسجيل نشاط',
     'activityLog.subtitle': 'قدم نشاطك التطوعي للموافقة',
@@ -410,27 +412,31 @@ const translations: Record<Language, Record<string, string>> = {
     'activityLog.proofUrl': 'رابط الإثبات (اختياري)',
     'activityLog.submitActivity': 'تقديم النشاط',
     'activityLog.submissionHistory': 'سجل التقديمات',
-    
+
     // Profile
     'profile.title': 'ملفي الشخصي',
     'profile.memberSince': 'عضو منذ',
-    'profile.pointsProgress': 'تقدم النقاط',
+    'profile.pointsProgress': 'تقدم الأثر',
     'profile.nextLevel': 'المستوى التالي',
     'profile.badges': 'الشارات',
     'profile.activityHistory': 'سجل النشاط',
-    
+
     // Levels
-    'level.newbie': 'مبتدئ',
-    'level.active': 'نشط',
-    'level.silver': 'فضي',
-    'level.golden': 'ذهبي',
-    
+    'level.newbie': 'مبادر',
+    'level.active': 'مساهم',
+    'level.silver': 'مؤثر',
+    'level.golden': 'قائد ملهم',
+    'level.platinum': 'قائد ملهم',
+    'level.diamond': 'قائد ملهم',
+
     // App
-    'app.name': 'RTC Pulse',
-    'app.tagline': 'بوابة المتطوعين',
+    'app.name': '',
+    'app.tagline': 'تسجيل المشاركات',
     'app.language': 'اللغة',
   },
 };
+
+
 
 const LanguageContext = createContext<LanguageContextType | null>(null);
 

@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
 
-export type VolunteerLevel = 'Newbie' | 'Active' | 'Silver' | 'Golden' | 'Platinum' | 'Diamond';
+export type VolunteerLevel = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond';
 
 interface LevelBadgeProps {
   level: VolunteerLevel | string;
@@ -10,12 +10,16 @@ interface LevelBadgeProps {
 }
 
 const levelConfig: Record<string, { color: string; icon: string; label: string }> = {
-  Newbie: { color: 'bg-level-newbie', icon: '🌱', label: 'Newbie' },
-  Active: { color: 'bg-level-active', icon: '⚡', label: 'Active' },
-  Silver: { color: 'bg-level-silver', icon: '🥈', label: 'Silver' },
-  Golden: { color: 'bg-level-golden', icon: '👑', label: 'Golden' },
-  Platinum: { color: 'bg-purple-500', icon: '💎', label: 'Platinum' },
-  Diamond: { color: 'bg-cyan-500', icon: '💠', label: 'Diamond' },
+  bronze: { color: 'bg-level-newbie', icon: '🕊️', label: 'Mubadir' },
+  silver: { color: 'bg-level-active', icon: '🎓', label: 'Musahim' },
+  gold: { color: 'bg-level-silver', icon: '📚', label: 'Moather' },
+  platinum: { color: 'bg-level-golden', icon: '🏅', label: 'Qaed Molhem' },
+  diamond: { color: 'bg-level-golden', icon: '🏅', label: 'Qaed Molhem' },
+  // Fallbacks for older cap values if any
+  Newbie: { color: 'bg-level-newbie', icon: '🕊️', label: 'Mubadir' },
+  Active: { color: 'bg-level-active', icon: '🎓', label: 'Musahim' },
+  Silver: { color: 'bg-level-silver', icon: '📚', label: 'Moather' },
+  Golden: { color: 'bg-level-golden', icon: '🏅', label: 'Qaed Molhem' },
 };
 
 const sizeClasses = {
@@ -25,7 +29,10 @@ const sizeClasses = {
 };
 
 export function LevelBadge({ level, size = 'md', showLabel = true, className }: LevelBadgeProps) {
-  const config = levelConfig[level] || levelConfig['Newbie'];
+  // Handle both capitalized and lowercase inputs gracefully
+  const normalizedLevel = level.toLowerCase();
+  // Try direct match first (for 'Newbie' etc defined above) or normalized match
+  const config = levelConfig[level] || levelConfig[normalizedLevel] || levelConfig['bronze'];
 
   return (
     <div
@@ -43,17 +50,16 @@ export function LevelBadge({ level, size = 'md', showLabel = true, className }: 
 }
 
 export function getLevelProgress(points: number): { level: VolunteerLevel; progress: number; nextThreshold: number } {
-  if (points >= 5000) {
-    return { level: 'Diamond', progress: 100, nextThreshold: 5000 };
-  } else if (points >= 2500) {
-    return { level: 'Platinum', progress: ((points - 2500) / 2500) * 100, nextThreshold: 5000 };
-  } else if (points >= 1000) {
-    return { level: 'Golden', progress: ((points - 1000) / 1500) * 100, nextThreshold: 2500 };
-  } else if (points >= 500) {
-    return { level: 'Silver', progress: ((points - 500) / 500) * 100, nextThreshold: 1000 };
-  } else if (points >= 100) {
-    return { level: 'Active', progress: ((points - 100) / 400) * 100, nextThreshold: 500 };
+  if (points > 351) {
+    return { level: 'Platinum', progress: 100, nextThreshold: 351 };
+  } else if (points > 151) {
+    // 151 to 350
+    return { level: 'Gold', progress: ((points - 151) / 200) * 100, nextThreshold: 351 };
+  } else if (points > 51) {
+    // 51 to 150
+    return { level: 'Silver', progress: ((points - 51) / 100) * 100, nextThreshold: 151 };
   } else {
-    return { level: 'Newbie', progress: (points / 100) * 100, nextThreshold: 100 };
+    // 0 to 50
+    return { level: 'Bronze', progress: (points / 51) * 100, nextThreshold: 51 };
   }
 }

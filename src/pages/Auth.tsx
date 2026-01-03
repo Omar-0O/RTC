@@ -25,10 +25,14 @@ export default function Auth() {
     e.preventDefault();
     setIsLoading(true);
 
+    // Clean input
+    const cleanEmail = email.trim();
+    console.log('Attempting login with:', cleanEmail);
+
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+        email: cleanEmail,
+        password: password,
       });
 
       if (error) {
@@ -59,10 +63,15 @@ export default function Auth() {
     e.preventDefault();
     setIsLoading(true);
 
+    const cleanEmail = setupEmail.trim().toLowerCase();
+    const cleanPassword = setupPassword.trim();
+
+    console.log('Attempting admin setup for:', cleanEmail);
+
     try {
       const { data, error } = await supabase.auth.signUp({
-        email: setupEmail,
-        password: setupPassword,
+        email: cleanEmail,
+        password: cleanPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/`,
           data: {
@@ -99,7 +108,7 @@ export default function Auth() {
           title: 'Success!',
           description: 'Admin account created. You can now login.',
         });
-        
+
         setShowSetup(false);
         setEmail(setupEmail);
         setPassword(setupPassword);
@@ -120,9 +129,9 @@ export default function Auth() {
       <div className="w-full max-w-md space-y-6">
         {/* Logo */}
         <div className="text-center">
-          <img 
-            src={logo} 
-            alt="RTC Mohandseen Logo" 
+          <img
+            src={logo}
+            alt="RTC Mohandseen Logo"
             className="h-24 w-24 mx-auto rounded-xl mb-4 object-cover cursor-pointer"
             onDoubleClick={() => setShowSetup(!showSetup)}
           />
@@ -175,10 +184,10 @@ export default function Auth() {
                 <Button type="submit" className="w-full" disabled={isLoading}>
                   {isLoading ? 'Creating...' : 'Create Admin Account'}
                 </Button>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full" 
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
                   onClick={() => setShowSetup(false)}
                 >
                   Back to Login

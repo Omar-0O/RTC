@@ -49,3 +49,20 @@ WITH CHECK (
   bucket_id = 'avatars' 
   AND public.has_role(auth.uid(), 'admin')
 );
+
+
+
+
+
+     
+
+
+
+
+
+
+
+
+
+
+
