@@ -214,11 +214,11 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.activityHistory': 'Activity History',
 
     // Levels
-    'level.bronze': 'Mubadir',
-    'level.silver': 'Musahim',
-    'level.gold': 'Moather',
-    'level.platinum': 'Qaed',
-    'level.diamond': 'Qaed Molhem',
+    'level.bronze': 'Contributor',
+    'level.silver': 'Influencer',
+    'level.gold': 'Volunteer Advocate',
+    'level.platinum': 'Leader',
+    'level.diamond': 'Inspiring Leader',
 
     // App
     'app.name': 'برنامج تسجيل المشاركات',
@@ -430,9 +430,9 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Levels
     // Levels
-    'level.bronze': 'مبادر',
-    'level.silver': 'مساهم',
-    'level.gold': 'مؤثر',
+    'level.bronze': 'مساهم',
+    'level.silver': 'مؤثر',
+    'level.gold': 'دحيح تطوع',
     'level.platinum': 'قائد',
     'level.diamond': 'قائد ملهم',
 
