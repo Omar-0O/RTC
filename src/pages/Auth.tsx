@@ -26,7 +26,7 @@ export default function Auth() {
     console.log('Attempting login with:', cleanEmail);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: password,
       });

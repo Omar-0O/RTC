@@ -187,7 +187,6 @@ export default function Profile({ userId }: ProfileProps) {
 
       if (updateError) throw updateError;
 
-      setAvatarUrl(data.publicUrl + '?t=' + Date.now()); // Add cache buster
       await refreshProfile();
       toast.success(isRTL ? 'تم تحديث الصورة الشخصية' : 'Profile picture updated');
     } catch (error: any) {

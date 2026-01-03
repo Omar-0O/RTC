@@ -29,7 +29,10 @@ Deno.serve(async (req: Request) => {
         const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
         if (!supabaseUrl || !serviceRoleKey) {
-            throw new Error('Missing Supabase environment variables')
+            const missingVars: string[] = [];
+            if (!supabaseUrl) missingVars.push('SUPABASE_URL');
+            if (!serviceRoleKey) missingVars.push('SUPABASE_SERVICE_ROLE_KEY');
+            throw new Error(`Missing Supabase environment variables: ${missingVars.join(', ')}`)
         }
 
         // Create admin client with service role key
@@ -54,23 +57,25 @@ Deno.serve(async (req: Request) => {
         const { data: { user: requester }, error: requesterError } = await supabaseAdmin.auth.getUser(token)
 
         if (requesterError || !requester) {
-            throw new Error(`Unauthorized: ${requesterError?.message || 'User not found'}`)
+            throw new Error(`Unauthorized (User Check): ${requesterError?.message || 'User not found'}`)
         }
 
-        const { data: requesterRole, error: roleError } = await supabaseAdmin
+        const { data: requesterRoles, error: roleError } = await supabaseAdmin
             .from('user_roles')
             .select('role')
             .eq('user_id', requester.id)
-            .maybeSingle()
 
         if (roleError) {
             throw new Error(`Database error verifying role: ${roleError.message}`)
         }
 
-        if (!requesterRole || requesterRole.role !== 'admin') {
-            // Log for debugging (in real logs)
-            console.log(`User ${requester.id} attempted to create user but has role: ${requesterRole?.role}`)
-            throw new Error('Unauthorized: Admin access required')
+        const roles = requesterRoles?.map(r => r.role) || []
+        const isAdmin = roles.includes('admin')
+
+        if (!isAdmin) {
+            // Log for debugging
+            console.log(`User ${requester.id} attempted to create user but has roles: ${roles.join(', ')}`)
+            throw new Error(`Unauthorized: Admin access required. User roles are: ${roles.join(', ') || 'none'}`)
         }
 
         // Create the user with email confirmed
@@ -117,11 +122,14 @@ Deno.serve(async (req: Request) => {
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        console.error('Error in create-user:', errorMessage)
+
+        // Return 200 with error field to ensure client receives the message
         return new Response(
             JSON.stringify({ error: errorMessage }),
             {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-                status: 400
+                status: 200
             }
         )
     }
