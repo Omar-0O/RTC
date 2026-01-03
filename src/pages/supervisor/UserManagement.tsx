@@ -274,12 +274,12 @@ export default function SupervisorUserManagement() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>{t('users.fullName')}</TableHead>
-                                            <TableHead>{t('users.role')}</TableHead>
-                                            <TableHead>{t('users.committee')}</TableHead>
-                                            <TableHead>{t('users.level')}</TableHead>
-                                            <TableHead>{t('common.points')}</TableHead>
-                                            <TableHead>{t('users.joined')}</TableHead>
+                                            <TableHead className="text-start">{t('users.fullName')}</TableHead>
+                                            <TableHead className="text-start">{t('users.role')}</TableHead>
+                                            <TableHead className="text-start">{t('users.committee')}</TableHead>
+                                            <TableHead className="text-start">{t('users.level')}</TableHead>
+                                            <TableHead className="text-start">{t('common.points')}</TableHead>
+                                            <TableHead className="text-start">{t('users.joined')}</TableHead>
                                             <TableHead className="w-[50px]"></TableHead>
                                         </TableRow>
                                     </TableHeader>
