@@ -29,7 +29,7 @@ import {
   SidebarHeader,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -182,6 +182,7 @@ export function AppSidebar() {
               )}
             >
               <Avatar className="h-8 w-8">
+                <AvatarImage src={profile?.avatar_url || undefined} alt={displayName} />
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs">
                   {userInitials}
                 </AvatarFallback>

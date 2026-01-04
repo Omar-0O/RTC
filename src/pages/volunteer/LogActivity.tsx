@@ -266,32 +266,78 @@ export default function LogActivity() {
   if (isSubmitted) {
     return (
       <div className="max-w-2xl mx-auto animate-slide-up">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-12">
-              <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-success/10 mb-4">
-                <CheckCircle2 className="h-8 w-8 text-success" />
+        <Card className="overflow-hidden border-2 border-primary/20">
+          <div className="bg-gradient-to-br from-primary/10 via-success/10 to-accent/10 pt-8 pb-4">
+            <CardContent>
+              <div className="text-center">
+                {/* Success Icon with Animation */}
+                <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-success to-success/80 mb-4 animate-bounce shadow-lg">
+                  <CheckCircle2 className="h-10 w-10 text-white" />
+                </div>
+
+                {/* Main Success Message */}
+                <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-success to-accent bg-clip-text text-transparent">
+                  {isRTL ? '🎉 رائع! تم التسجيل بنجاح! 🎉' : '🎉 Awesome! Successfully Logged! 🎉'}
+                </h2>
+
+                {/* Thank You Message */}
+                <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg p-6 mb-6 shadow-md">
+                  <p className="text-xl font-semibold text-primary mb-2">
+                    {isRTL ? '✨ شكراً لأنك عضو فعال في RTC ✨' : '✨ Thank You for Being an Active RTC Member ✨'}
+                  </p>
+                  <p className="text-muted-foreground text-sm">
+                    {isRTL ? '🌟 مساهمتك تصنع الفرق في المجتمع 🌟' : '🌟 Your contribution makes a difference in our community 🌟'}
+                  </p>
+                </div>
+
+                {/* Participation Details */}
+                <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-5 mb-6 text-left border border-primary/20 shadow-sm">
+                  <h3 className="font-bold mb-4 text-lg flex items-center gap-2">
+                    <span>📋</span>
+                    <span>{isRTL ? 'تفاصيل المشاركة' : 'Participation Details'}</span>
+                  </h3>
+                  <dl className="space-y-3">
+                    <div className="flex justify-between items-center p-2 rounded bg-primary/5">
+                      <dt className="text-muted-foreground flex items-center gap-2">
+                        <span>🎯</span>
+                        <span>{isRTL ? 'النشاط:' : 'Activity:'}</span>
+                      </dt>
+                      <dd className="font-medium">{isRTL ? selectedActivity?.name_ar : selectedActivity?.name}</dd>
+                    </div>
+                    <div className="flex justify-between items-center p-2 rounded bg-success/5">
+                      <dt className="text-muted-foreground flex items-center gap-2">
+                        <span>⭐</span>
+                        <span>{isRTL ? 'النقاط المكتسبة:' : 'Points Earned:'}</span>
+                      </dt>
+                      <dd className="font-bold text-xl text-success">
+                        +{selectedActivity?.points} {isRTL ? 'نقطة' : 'pts'} 🎊
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                {/* Motivational Quote */}
+                <div className="bg-accent/10 border border-accent/30 rounded-lg p-4 mb-6">
+                  <p className="text-sm italic text-accent-foreground">
+                    {isRTL
+                      ? '💪 "استمر في العطاء، فكل مساهمة تبني مستقبلاً أفضل"'
+                      : '💪 "Keep giving, every contribution builds a better future"'}
+                  </p>
+                </div>
+
+                {/* Action Button */}
+                <Button
+                  onClick={handleReset}
+                  size="lg"
+                  className="w-full sm:w-auto bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 shadow-lg"
+                >
+                  <span className="text-lg">
+                    {isRTL ? '➕ تسجيل مشاركة جديدة' : '➕ Log Another Participation'}
+                  </span>
+                </Button>
               </div>
-              <h2 className="text-2xl font-bold mb-2">{isRTL ? 'تم بنجاح!' : 'Success!'}</h2>
-              <p className="text-muted-foreground mb-6">
-                {isRTL ? 'تم تسجيل مشاركتك وإضافة النقاط!' : 'Your participation has been logged and points added!'}
-              </p>
-              <div className="bg-muted/50 rounded-lg p-4 mb-6 text-left">
-                <h3 className="font-medium mb-2">{isRTL ? 'تفاصيل المشاركة' : 'Participation Details'}</h3>
-                <dl className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">{isRTL ? 'النشاط:' : 'Activity:'}</dt>
-                    <dd>{isRTL ? selectedActivity?.name_ar : selectedActivity?.name}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">{isRTL ? 'النقاط:' : 'Points:'}</dt>
-                    <dd className="font-semibold text-primary">+{selectedActivity?.points} {isRTL ? 'نقطة' : 'pts'}</dd>
-                  </div>
-                </dl>
-              </div>
-              <Button onClick={handleReset}>{isRTL ? 'تسجيل مشاركة أخرى' : 'Log Another Participation'}</Button>
-            </div>
-          </CardContent>
+            </CardContent>
+          </div>
         </Card>
       </div>
     );
