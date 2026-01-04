@@ -562,10 +562,10 @@ export default function BadgeManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{isRTL ? 'الشارة' : 'Badge'}</TableHead>
-                    <TableHead>{isRTL ? 'الوصف' : 'Description'}</TableHead>
-                    <TableHead>{isRTL ? 'النقاط المطلوبة' : 'Points Req.'}</TableHead>
-                    <TableHead>{isRTL ? 'الأنشطة المطلوبة' : 'Activities Req.'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'الشارة' : 'Badge'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'الوصف' : 'Description'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'النقاط المطلوبة' : 'Points Req.'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'الأنشطة المطلوبة' : 'Activities Req.'}</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>

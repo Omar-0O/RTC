@@ -486,11 +486,11 @@ export default function ActivityManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{isRTL ? 'اسم النشاط' : 'Activity Name'}</TableHead>
-                    <TableHead>{isRTL ? 'اللجنة' : 'Committee'}</TableHead>
-                    <TableHead>{isRTL ? 'النقاط' : 'Points'}</TableHead>
-                    <TableHead>{isRTL ? 'النوع' : 'Mode'}</TableHead>
-                    <TableHead className="max-w-[200px]">{isRTL ? 'الوصف' : 'Description'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'اسم النشاط' : 'Activity Name'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'اللجنة' : 'Committee'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'النقاط' : 'Points'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'النوع' : 'Mode'}</TableHead>
+                    <TableHead className="max-w-[200px] text-start">{isRTL ? 'الوصف' : 'Description'}</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>

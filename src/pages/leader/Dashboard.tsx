@@ -86,7 +86,7 @@ export default function CommitteeLeaderDashboard() {
       .select('*')
       .eq('id', committeeId)
       .maybeSingle();
-    
+
     if (committeeData) setCommittee(committeeData);
 
     // Fetch committee members
@@ -94,7 +94,7 @@ export default function CommitteeLeaderDashboard() {
       .from('profiles')
       .select('*')
       .eq('committee_id', committeeId);
-    
+
     if (membersData) setMembers(membersData);
 
     // Fetch available volunteers (those without a committee)
@@ -102,7 +102,7 @@ export default function CommitteeLeaderDashboard() {
       .from('profiles')
       .select('*')
       .is('committee_id', null);
-    
+
     if (volunteersData) setAvailableVolunteers(volunteersData);
   };
 
@@ -237,8 +237,8 @@ export default function CommitteeLeaderDashboard() {
               <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                 {t('common.cancel')}
               </Button>
-              <Button 
-                onClick={handleAddMember} 
+              <Button
+                onClick={handleAddMember}
                 disabled={isLoading || !selectedVolunteerId}
               >
                 {isLoading ? (language === 'ar' ? 'جاري الإضافة...' : 'Adding...') : t('common.add')}
@@ -293,11 +293,11 @@ export default function CommitteeLeaderDashboard() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t('users.fullName')}</TableHead>
-                  <TableHead>{t('users.level')}</TableHead>
-                  <TableHead>{t('common.points')}</TableHead>
-                  <TableHead>{t('leader.memberProgress')}</TableHead>
-                  <TableHead>{language === 'ar' ? 'إجراءات' : 'Actions'}</TableHead>
+                  <TableHead className="text-start">{t('users.fullName')}</TableHead>
+                  <TableHead className="text-start">{t('users.level')}</TableHead>
+                  <TableHead className="text-start">{t('common.points')}</TableHead>
+                  <TableHead className="text-start">{t('leader.memberProgress')}</TableHead>
+                  <TableHead className="text-start">{language === 'ar' ? 'إجراءات' : 'Actions'}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -359,7 +359,7 @@ export default function CommitteeLeaderDashboard() {
               {language === 'ar' ? 'إزالة العضو من اللجنة؟' : 'Remove member from committee?'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {language === 'ar' 
+              {language === 'ar'
                 ? `هل أنت متأكد من إزالة ${selectedMember?.full_name_ar || selectedMember?.full_name} من اللجنة؟`
                 : `Are you sure you want to remove ${selectedMember?.full_name} from the committee?`
               }
