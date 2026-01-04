@@ -138,6 +138,35 @@ export default function Reports() {
     { name: t('level.diamond'), value: profiles.filter(p => p.level === 'diamond').length, color: '#B9F2FF' },
   ].filter(l => l.value > 0);
 
+  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name, fill }: any) => {
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5 + (outerRadius - innerRadius);
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+    // Standard logic is x > cx ? 'start' : 'end'
+    // In RTL: 'start' aligns to Right, 'end' aligns to Left.
+    // So for right side (x > cx), we want text extending Right -> 'end' (Left edge at point)
+    // For left side (x < cx), we want text extending Left -> 'start' (Right edge at point)
+    let textAnchor = x > cx ? 'start' : 'end';
+    if (language === 'ar') {
+      textAnchor = x > cx ? 'end' : 'start';
+    }
+
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="hsl(var(--foreground))"
+        textAnchor={textAnchor}
+        dominantBaseline="central"
+        fontSize={12}
+      >
+        {`${name}: ${value}`}
+      </text>
+    );
+  };
+
   // Activity submissions over time (last 6 months)
   const activityTrend = Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
@@ -427,7 +456,7 @@ export default function Reports() {
                       outerRadius={100}
                       paddingAngle={5}
                       dataKey="value"
-                      label={({ name, value }) => `${name}: ${value}`}
+                      label={renderCustomLabel}
                     >
                       {levelData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -464,7 +493,13 @@ export default function Reports() {
                   <BarChart data={committeeData} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis type="number" className="text-xs" />
-                    <YAxis dataKey="name" type="category" className="text-xs" width={80} />
+                    <YAxis
+                      dataKey="name"
+                      type="category"
+                      className="text-xs"
+                      width={80}
+                      orientation={language === 'ar' ? 'right' : 'left'}
+                    />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: 'hsl(var(--card))',
@@ -472,7 +507,7 @@ export default function Reports() {
                         borderRadius: '8px'
                       }}
                     />
-                    <Bar dataKey="points" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="points" fill="hsl(var(--primary))" radius={language === 'ar' ? [4, 0, 0, 4] : [0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}

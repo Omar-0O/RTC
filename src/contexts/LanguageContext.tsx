@@ -180,7 +180,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.volunteerList': 'Volunteer List (CSV)',
     'reports.activityLog': 'Activity Log (CSV)',
     'reports.pointsSummary': 'Points Summary (CSV)',
-    'reports.monthlyReport': 'Monthly Report (PDF)',
+    'reports.monthlyReport': 'Monthly Report (CSV)',
 
     // Leaderboard
     'leaderboard.title': 'Leaderboard',
@@ -395,7 +395,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.volunteerList': 'قائمة المتطوعين (CSV)',
     'reports.activityLog': 'سجل الأنشطة (CSV)',
     'reports.pointsSummary': 'ملخص الأثر (CSV)',
-    'reports.monthlyReport': 'التقرير الشهري (PDF)',
+    'reports.monthlyReport': 'التقرير الشهري (CSV)',
 
     // Leaderboard
     'leaderboard.title': 'المتصدرين',
