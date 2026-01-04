@@ -41,7 +41,7 @@ interface Submission {
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export default function LogActivity() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { t, isRTL } = useLanguage();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -212,6 +212,7 @@ export default function LogActivity() {
 
       setIsSubmitted(true);
       toast.success(isRTL ? 'تم تسجيل المشاركة بنجاح!' : 'Participation logged successfully!');
+      await refreshProfile();
       fetchData();
     } catch (error: any) {
       console.error('Error logging participation:', error);

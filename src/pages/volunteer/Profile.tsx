@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
 import { Calendar, Mail, Award, Loader2, Camera, Upload } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 type UserBadge = {
@@ -127,8 +128,9 @@ export default function Profile({ userId }: ProfileProps) {
   useEffect(() => {
     if (!isViewOnly) {
       setViewedAvatarUrl(authProfile?.avatar_url || null);
+      refreshProfile();
     }
-  }, [authProfile?.avatar_url, isViewOnly]);
+  }, [authProfile?.avatar_url, isViewOnly, refreshProfile]);
 
   const fetchData = async () => {
     if (!targetUserId) return;
@@ -363,7 +365,7 @@ export default function Profile({ userId }: ProfileProps) {
               <span>{points} {t('common.points')}</span>
               <span>{nextThreshold} {t('common.points')}</span>
             </div>
-            <Progress value={progress} className="h-4" />
+            <Progress value={progress} className={cn("h-4", isRTL && "rotate-180")} />
           </div>
           <div className="grid grid-cols-5 gap-2 mt-6">
             {(['bronze', 'silver', 'gold', 'platinum', 'diamond'] as const).map((level) => (

@@ -9,6 +9,7 @@ import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from 'react-router-dom';
 import { Activity, Trophy, Star, ArrowRight, Loader2, Award } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
 type RecentSubmission = {
@@ -20,7 +21,7 @@ type RecentSubmission = {
 };
 
 export default function VolunteerDashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const { t, isRTL } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [recentSubmissions, setRecentSubmissions] = useState<RecentSubmission[]>([]);
@@ -33,6 +34,7 @@ export default function VolunteerDashboard() {
 
   useEffect(() => {
     if (user?.id) {
+      refreshProfile();
       fetchData();
     }
   }, [user?.id]);
@@ -119,7 +121,7 @@ export default function VolunteerDashboard() {
           </Avatar>
           <div>
             <h1 className="text-2xl font-bold">
-              {t('dashboard.welcome')}, {profile?.full_name?.split(' ')[0] || (isRTL ? 'متطوع' : 'Volunteer')}! 👋
+              {t('dashboard.welcome')}, {(isRTL ? (profile?.full_name_ar || profile?.full_name) : profile?.full_name)?.split(' ')[0] || (isRTL ? 'متطوع' : 'Volunteer')}! 👋
             </h1>
             <p className="text-muted-foreground">
               {t('dashboard.totalPoints')}: {points}
@@ -179,7 +181,7 @@ export default function VolunteerDashboard() {
               <span>{points} {isRTL ? 'نقطة' : 'points'}</span>
               <span>{nextThreshold} {isRTL ? 'نقطة' : 'points'}</span>
             </div>
-            <Progress value={progress} className="h-3" />
+            <Progress value={progress} className={cn("h-3", isRTL && "rotate-180")} />
             <p className="text-sm text-muted-foreground">
               {isRTL
                 ? `${nextThreshold - points} نقطة للوصول للمستوى التالي`
