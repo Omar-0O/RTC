@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-type AppRole = 'admin' | 'supervisor' | 'committee_leader' | 'volunteer';
+type AppRole = 'admin' | 'supervisor' | 'committee_leader' | 'volunteer' | 'hr' | 'head_hr';
 
 interface Profile {
   id: string;
@@ -89,7 +89,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        
+
         // Defer profile fetch with setTimeout to avoid deadlock
         if (session?.user) {
           setTimeout(() => {
@@ -99,7 +99,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProfile(null);
           setRoles([]);
         }
-        
+
         setIsLoading(false);
       }
     );
@@ -108,11 +108,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
         fetchProfile(session.user.id);
       }
-      
+
       setIsLoading(false);
     });
 
@@ -134,18 +134,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Determine primary role (highest privilege)
   const getPrimaryRole = (): AppRole => {
     if (roles.includes('admin')) return 'admin';
+    if (roles.includes('head_hr')) return 'head_hr';
+    if (roles.includes('hr')) return 'hr';
     if (roles.includes('supervisor')) return 'supervisor';
     if (roles.includes('committee_leader')) return 'committee_leader';
     return 'volunteer';
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      session, 
-      profile, 
+    <AuthContext.Provider value={{
+      user,
+      session,
+      profile,
       roles,
-      isAuthenticated: !!user, 
+      isAuthenticated: !!user,
       isLoading,
       signOut,
       refreshProfile,

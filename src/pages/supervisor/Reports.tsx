@@ -115,11 +115,15 @@ export default function Reports() {
   const getLevelName = (level: string): string => {
     if (language === 'ar') {
       const levelMap: Record<string, string> = {
-        'bronze': 'مساهم',
-        'silver': 'مؤثر',
-        'gold': 'دحيح تطوع',
-        'platinum': 'قائد',
-        'diamond': 'قائد ملهم',
+        'under_follow_up': 'تحت المتابعة',
+        'project_responsible': 'مشروع مسئول',
+        'responsible': 'مسئول',
+        // Fallback for old data
+        'bronze': 'تحت المتابعة',
+        'silver': 'تحت المتابعة',
+        'gold': 'مشروع مسئول',
+        'platinum': 'مسئول',
+        'diamond': 'مسئول',
       };
       return levelMap[level] || level;
     }
@@ -162,11 +166,9 @@ export default function Reports() {
 
   // Level distribution data
   const levelData = [
-    { name: t('level.bronze'), value: profiles.filter(p => p.level === 'bronze').length, color: '#CD7F32' },
-    { name: t('level.silver'), value: profiles.filter(p => p.level === 'silver').length, color: '#C0C0C0' },
-    { name: t('level.gold'), value: profiles.filter(p => p.level === 'gold').length, color: '#FFD700' },
-    { name: t('level.platinum'), value: profiles.filter(p => p.level === 'platinum').length, color: '#E5E4E2' },
-    { name: t('level.diamond'), value: profiles.filter(p => p.level === 'diamond').length, color: '#B9F2FF' },
+    { name: t('level.under_follow_up'), value: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length, color: '#64748b' }, // slate-500
+    { name: t('level.project_responsible'), value: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length, color: '#3b82f6' }, // blue-500
+    { name: t('level.responsible'), value: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length, color: '#9333ea' }, // purple-600
   ].filter(l => l.value > 0);
 
   const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name, fill }: any) => {

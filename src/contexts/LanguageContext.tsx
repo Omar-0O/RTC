@@ -46,6 +46,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.supervisor': 'Supervisor',
     'common.admin': 'Admin',
     'common.committeeLeader': 'Committee Leader',
+    'common.hr': 'HR',
+    'common.head_hr': 'Head HR',
 
     // Committee Leader
     'leader.dashboard': 'Committee Dashboard',
@@ -204,6 +206,9 @@ const translations: Record<Language, Record<string, string>> = {
     'activityLog.proofUrl': 'Proof URL (optional)',
     'activityLog.submitActivity': 'Submit Activity',
     'activityLog.submissionHistory': 'Submission History',
+    'activityLog.location': 'Location',
+    'activityLog.branch': 'Branch',
+    'activityLog.home': 'Home',
 
     // Profile
     'profile.title': 'My Profile',
@@ -214,11 +219,9 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.activityHistory': 'Activity History',
 
     // Levels
-    'level.bronze': 'Contributor',
-    'level.silver': 'Influencer',
-    'level.gold': 'Volunteer Advocate',
-    'level.platinum': 'Leader',
-    'level.diamond': 'Inspiring Leader',
+    'level.under_follow_up': 'Under Follow-up',
+    'level.project_responsible': 'Project Responsible',
+    'level.responsible': 'Responsible',
 
     // App
     'app.name': 'برنامج تسجيل المشاركات',
@@ -261,6 +264,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.supervisor': 'مشرف',
     'common.admin': 'مسؤول',
     'common.committeeLeader': 'قائد اللجنة',
+    'common.hr': 'HR',
+    'common.head_hr': 'Head HR',
 
     // Committee Leader
     'leader.dashboard': 'لوحة تحكم اللجنة',
@@ -419,6 +424,9 @@ const translations: Record<Language, Record<string, string>> = {
     'activityLog.proofUrl': 'رابط الإثبات (اختياري)',
     'activityLog.submitActivity': 'تقديم النشاط',
     'activityLog.submissionHistory': 'سجل التقديمات',
+    'activityLog.location': 'المكان',
+    'activityLog.branch': 'الفرع',
+    'activityLog.home': 'البيت',
 
     // Profile
     'profile.title': 'ملفي الشخصي',
@@ -430,11 +438,10 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Levels
     // Levels
-    'level.bronze': 'مساهم',
-    'level.silver': 'مؤثر',
-    'level.gold': 'دحيح تطوع',
-    'level.platinum': 'قائد',
-    'level.diamond': 'قائد ملهم',
+    // Levels
+    'level.under_follow_up': 'تحت المتابعة',
+    'level.project_responsible': 'مشروع مسئول',
+    'level.responsible': 'مسئول',
 
     // App
     'app.name': '',

@@ -56,6 +56,9 @@ function AppRoutes() {
         return '/supervisor';
       case 'committee_leader':
         return '/leader';
+      case 'hr':
+      case 'head_hr':
+        return '/dashboard'; // Primarily they are volunteers who manage others
       default:
         return '/dashboard';
     }

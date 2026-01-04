@@ -116,7 +116,7 @@ export default function Profile({ userId }: ProfileProps) {
   const displayAvatar = isViewOnly ? viewedAvatarUrl : (authProfile?.avatar_url || null);
 
   const points = displayProfile?.total_points || 0;
-  const { progress, nextThreshold } = getLevelProgress(points);
+  // Level progress is now manual, so we don't calculate it from points
   const userInitials = displayProfile?.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U';
 
   useEffect(() => {
@@ -348,39 +348,7 @@ export default function Profile({ userId }: ProfileProps) {
         </CardContent>
       </Card>
 
-      {/* Level Progress */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('profile.pointsProgress')}</CardTitle>
-          <CardDescription>
-            {isRTL
-              ? `${nextThreshold - points} نقطة للوصول للمستوى التالي`
-              : `${nextThreshold - points} more points to reach the next level`
-            }
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>{points} {t('common.points')}</span>
-              <span>{nextThreshold} {t('common.points')}</span>
-            </div>
-            <Progress value={progress} className={cn("h-4", isRTL && "rotate-180")} />
-          </div>
-          <div className="grid grid-cols-5 gap-2 mt-6">
-            {(['bronze', 'silver', 'gold', 'platinum', 'diamond'] as const).map((level) => (
-              <div
-                key={level}
-                className={`text-center p-3 rounded-lg ${displayProfile?.level === level ? "bg-primary/10 border-2 border-primary" : "bg-muted/50"
-                  }`}
-              >
-                <LevelBadge level={level} size="sm" showLabel={false} />
-                <p className="text-xs font-medium mt-1">{t(`level.${level}`)}</p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+
 
       <Tabs defaultValue="activities" className="space-y-4">
         <TabsList>

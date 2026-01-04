@@ -51,7 +51,6 @@ export function AppSidebar() {
   const volunteerNavItems = [
     { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
     { title: t('nav.logActivity'), url: '/activity', icon: Activity },
-    { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
     { title: t('nav.profile'), url: '/profile', icon: User },
   ];
 
@@ -86,6 +85,18 @@ export function AppSidebar() {
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
   ];
 
+  const hrNavItems = [
+    { title: t('nav.dashboard'), url: '/dashboard', icon: Home }, // Or a specific dashboard if needed
+    { title: t('nav.userManagement'), url: '/admin/users', icon: Users }, // Reuse admin user management for now
+    { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 }, // Reuse admin reports
+    { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
+    { title: t('nav.profile'), url: '/profile', icon: User },
+    // Head HR might have more, but for now they share this. 
+    // If Head HR needs to be distinct, I can add logic. 
+    // The user said "Head HR can promote", which is in user management.
+    // "Have a sheet with all volunteers..." -> Reports.
+  ];
+
   const getNavItems = () => {
     switch (primaryRole) {
       case 'admin':
@@ -94,6 +105,9 @@ export function AppSidebar() {
         return supervisorNavItems;
       case 'committee_leader':
         return leaderNavItems;
+      case 'hr':
+      case 'head_hr':
+        return hrNavItems;
       default:
         return volunteerNavItems;
     }

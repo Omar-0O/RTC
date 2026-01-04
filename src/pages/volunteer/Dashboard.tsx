@@ -21,7 +21,7 @@ type RecentSubmission = {
 };
 
 export default function VolunteerDashboard() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user, profile, refreshProfile, primaryRole } = useAuth();
   const { t, isRTL } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [recentSubmissions, setRecentSubmissions] = useState<RecentSubmission[]>([]);
@@ -208,12 +208,14 @@ export default function VolunteerDashboard() {
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild className="w-full justify-between" variant="outline">
-              <Link to="/leaderboard">
-                {t('dashboard.viewLeaderboard')}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
+            {primaryRole !== 'volunteer' && (
+              <Button asChild className="w-full justify-between" variant="outline">
+                <Link to="/leaderboard">
+                  {t('dashboard.viewLeaderboard')}
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            )}
             <Button asChild className="w-full justify-between" variant="outline">
               <Link to="/profile">
                 {t('nav.profile')}

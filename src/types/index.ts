@@ -1,4 +1,4 @@
-export type UserRole = 'volunteer' | 'supervisor' | 'admin' | 'committee_leader';
+export type UserRole = 'volunteer' | 'supervisor' | 'admin' | 'committee_leader' | 'hr' | 'head_hr';
 
 export type VolunteerLevel = 'Newbie' | 'Active' | 'Silver' | 'Golden';
 
@@ -9,8 +9,9 @@ export type ActivityMode = 'online' | 'offline';
 export interface Committee {
   id: string;
   name: string;
-  description: string;
-  icon?: string;
+  description_ar: string | null;
+  color: string | null;
+  committee_type: 'production' | 'fourth_year';
 }
 
 export interface ActivityType {

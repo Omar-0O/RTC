@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 
-export type VolunteerLevel = 'Bronze' | 'Silver' | 'Gold' | 'Platinum' | 'Diamond';
+export type VolunteerLevel = 'under_follow_up' | 'project_responsible' | 'responsible';
 
 interface LevelBadgeProps {
   level: VolunteerLevel | string;
@@ -11,14 +11,17 @@ interface LevelBadgeProps {
 }
 
 const levelConfig: Record<string, { color: string; icon: string }> = {
-  bronze: { color: 'bg-level-newbie', icon: '🕊️' },
-  silver: { color: 'bg-level-active', icon: '🎓' },
-  gold: { color: 'bg-level-silver', icon: '📚' },
-  platinum: { color: 'bg-level-golden', icon: '🏅' },
-  diamond: { color: 'bg-level-golden', icon: '🏅' },
-  // Fallback mappings
-  newbie: { color: 'bg-level-newbie', icon: '🕊️' },
-  active: { color: 'bg-level-active', icon: '🎓' },
+  under_follow_up: { color: 'bg-slate-500', icon: '👀' },
+  project_responsible: { color: 'bg-blue-500', icon: '📋' },
+  responsible: { color: 'bg-purple-600', icon: '👑' },
+  // Fallback mappings for old data just in case
+  bronze: { color: 'bg-slate-500', icon: '👀' },
+  silver: { color: 'bg-slate-500', icon: '👀' },
+  gold: { color: 'bg-blue-500', icon: '📋' },
+  platinum: { color: 'bg-purple-600', icon: '👑' },
+  diamond: { color: 'bg-purple-600', icon: '👑' },
+  newbie: { color: 'bg-slate-500', icon: '👀' },
+  active: { color: 'bg-slate-500', icon: '👀' },
 };
 
 const sizeClasses = {
@@ -30,15 +33,10 @@ const sizeClasses = {
 export function LevelBadge({ level, size = 'md', showLabel = true, className }: LevelBadgeProps) {
   const { t } = useLanguage();
   // Handle both capitalized and lowercase inputs gracefully
-  const normalizedLevel = level.toLowerCase();
+  const normalizedLevel = level?.toLowerCase() || 'under_follow_up';
 
   // Try direct match first or fallback
-  const config = levelConfig[normalizedLevel] || levelConfig['bronze'];
-
-  // Get translation key, mapping old legacy names to new keys if needed
-  let translationKey = `level.${normalizedLevel}`;
-  if (normalizedLevel === 'newbie') translationKey = 'level.bronze';
-  if (normalizedLevel === 'active') translationKey = 'level.silver';
+  const config = levelConfig[normalizedLevel] || levelConfig['under_follow_up'];
 
   return (
     <div
@@ -50,22 +48,13 @@ export function LevelBadge({ level, size = 'md', showLabel = true, className }: 
       )}
     >
       <span>{config.icon}</span>
-      {showLabel && <span>{t(translationKey)}</span>}
+      {showLabel && <span>{t(`level.${normalizedLevel}`)}</span>}
     </div>
   );
 }
 
 export function getLevelProgress(points: number): { level: VolunteerLevel; progress: number; nextThreshold: number } {
-  if (points > 351) {
-    return { level: 'Platinum', progress: 100, nextThreshold: 351 };
-  } else if (points > 151) {
-    // 151 to 350
-    return { level: 'Gold', progress: ((points - 151) / 200) * 100, nextThreshold: 351 };
-  } else if (points > 51) {
-    // 51 to 150
-    return { level: 'Silver', progress: ((points - 51) / 100) * 100, nextThreshold: 151 };
-  } else {
-    // 0 to 50
-    return { level: 'Bronze', progress: (points / 51) * 100, nextThreshold: 51 };
-  }
+  // Levels are now manually assigned by HR, so points don't automatically determine level.
+  // Returning dummy data regarding level.
+  return { level: 'under_follow_up', progress: 0, nextThreshold: 0 };
 }

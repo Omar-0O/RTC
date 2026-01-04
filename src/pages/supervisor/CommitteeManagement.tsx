@@ -41,6 +41,7 @@ interface Committee {
   description: string | null;
   description_ar: string | null;
   color: string | null;
+  committee_type: 'production' | 'fourth_year';
 }
 
 interface CommitteeWithStats extends Committee {
@@ -63,7 +64,9 @@ export default function CommitteeManagement() {
   const [formNameAr, setFormNameAr] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formDescriptionAr, setFormDescriptionAr] = useState('');
+  const [formDescriptionAr, setFormDescriptionAr] = useState('');
   const [formColor, setFormColor] = useState('#3B82F6');
+  const [formType, setFormType] = useState<'production' | 'fourth_year'>('production');
 
   const fetchCommittees = async () => {
     setIsLoading(true);
@@ -113,6 +116,7 @@ export default function CommitteeManagement() {
     setFormDescription('');
     setFormDescriptionAr('');
     setFormColor('#3B82F6');
+    setFormType('production');
   };
 
   const handleAddCommittee = async (e: React.FormEvent) => {
@@ -130,6 +134,7 @@ export default function CommitteeManagement() {
         description: formDescription.trim() || null,
         description_ar: formDescriptionAr.trim() || null,
         color: formColor,
+        committee_type: formType,
       });
 
       if (error) throw error;
@@ -160,6 +165,7 @@ export default function CommitteeManagement() {
           description: formDescription.trim() || null,
           description_ar: formDescriptionAr.trim() || null,
           color: formColor,
+          committee_type: formType,
         })
         .eq('id', selectedCommittee.id);
 
@@ -209,6 +215,7 @@ export default function CommitteeManagement() {
     setFormDescription(committee.description || '');
     setFormDescriptionAr(committee.description_ar || '');
     setFormColor(committee.color || '#3B82F6');
+    setFormType(committee.committee_type || 'production');
     setIsEditDialogOpen(true);
   };
 
@@ -254,50 +261,62 @@ export default function CommitteeManagement() {
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="name">Name (English) *</Label>
-                  <Input 
-                    id="name" 
+                  <Input
+                    id="name"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="Committee name in English" 
-                    required 
+                    placeholder="Committee name in English"
+                    required
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="name-ar">الاسم (عربي) *</Label>
-                  <Input 
-                    id="name-ar" 
+                  <Input
+                    id="name-ar"
                     value={formNameAr}
                     onChange={(e) => setFormNameAr(e.target.value)}
-                    placeholder="اسم اللجنة بالعربي" 
+                    placeholder="اسم اللجنة بالعربي"
                     dir="rtl"
-                    required 
+                    required
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="description">Description (English)</Label>
-                  <Textarea 
-                    id="description" 
+                  <Textarea
+                    id="description"
                     value={formDescription}
                     onChange={(e) => setFormDescription(e.target.value)}
-                    placeholder="Committee description" 
-                    rows={2} 
+                    placeholder="Committee description"
+                    rows={2}
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="description-ar">الوصف (عربي)</Label>
-                  <Textarea 
-                    id="description-ar" 
+                  <Textarea
+                    id="description-ar"
                     value={formDescriptionAr}
                     onChange={(e) => setFormDescriptionAr(e.target.value)}
-                    placeholder="وصف اللجنة" 
+                    placeholder="وصف اللجنة"
                     dir="rtl"
-                    rows={2} 
+                    rows={2}
                   />
                 </div>
                 <div className="grid gap-2">
+                  <Label htmlFor="type">Type</Label>
+                  <select
+                    id="type"
+                    value={formType}
+                    onChange={(e) => setFormType(e.target.value as 'production' | 'fourth_year')}
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="production"> Production Committee / لجنة انتاج</option>
+                    <option value="fourth_year"> Fourth Year Committee / لجنة سنة رابعة</option>
+                  </select>
+                </div>
+                <div className="grid gap-2">
                   <Label htmlFor="color">Color</Label>
-                  <Input 
-                    id="color" 
+                  <Input
+                    id="color"
                     type="color"
                     value={formColor}
                     onChange={(e) => setFormColor(e.target.value)}
@@ -329,7 +348,7 @@ export default function CommitteeManagement() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {committees.map((committee) => (
             <Card key={committee.id} className="relative">
-              <div 
+              <div
                 className="absolute top-0 left-0 right-0 h-1 rounded-t-lg"
                 style={{ backgroundColor: committee.color || '#3B82F6' }}
               />
@@ -403,46 +422,58 @@ export default function CommitteeManagement() {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="edit-name">Name (English) *</Label>
-                <Input 
-                  id="edit-name" 
+                <Input
+                  id="edit-name"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  required 
+                  required
                 />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-name-ar">الاسم (عربي) *</Label>
-                <Input 
-                  id="edit-name-ar" 
+                <Input
+                  id="edit-name-ar"
                   value={formNameAr}
                   onChange={(e) => setFormNameAr(e.target.value)}
                   dir="rtl"
-                  required 
+                  required
                 />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-description">Description (English)</Label>
-                <Textarea 
-                  id="edit-description" 
+                <Textarea
+                  id="edit-description"
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
-                  rows={2} 
+                  rows={2}
                 />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-description-ar">الوصف (عربي)</Label>
-                <Textarea 
-                  id="edit-description-ar" 
+                <Textarea
+                  id="edit-description-ar"
                   value={formDescriptionAr}
                   onChange={(e) => setFormDescriptionAr(e.target.value)}
                   dir="rtl"
-                  rows={2} 
+                  rows={2}
                 />
               </div>
               <div className="grid gap-2">
+                <Label htmlFor="color">Type</Label>
+                <select
+                  id="edit-type"
+                  value={formType}
+                  onChange={(e) => setFormType(e.target.value as 'production' | 'fourth_year')}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="production"> Production Committee / لجنة انتاج</option>
+                  <option value="fourth_year"> Fourth Year Committee / لجنة سنة رابعة</option>
+                </select>
+              </div>
+              <div className="grid gap-2">
                 <Label htmlFor="edit-color">Color</Label>
-                <Input 
-                  id="edit-color" 
+                <Input
+                  id="edit-color"
                   type="color"
                   value={formColor}
                   onChange={(e) => setFormColor(e.target.value)}

@@ -58,7 +58,7 @@ interface Committee {
   name_ar: string;
 }
 
-type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader';
+type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr';
 
 interface UserWithDetails {
   id: string;
@@ -75,6 +75,7 @@ interface UserWithDetails {
 }
 
 import Profile from '@/pages/volunteer/Profile';
+import { useAuth } from '@/contexts/AuthContext';
 
 const compressImage = async (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
@@ -132,6 +133,7 @@ const compressImage = async (file: File): Promise<File> => {
 
 export default function UserManagement() {
   const { t, language } = useLanguage();
+  const { primaryRole } = useAuth();
   const [users, setUsers] = useState<UserWithDetails[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -154,6 +156,7 @@ export default function UserManagement() {
   const [formPhone, setFormPhone] = useState('');
   const [formPassword, setFormPassword] = useState('');
   const [formRole, setFormRole] = useState<string>('volunteer');
+  const [formLevel, setFormLevel] = useState<string>('under_follow_up');
   const [formCommitteeId, setFormCommitteeId] = useState<string>('');
   const [formAvatarFile, setFormAvatarFile] = useState<File | null>(null);
   const [formAvatarPreview, setFormAvatarPreview] = useState<string | null>(null);
@@ -228,6 +231,7 @@ export default function UserManagement() {
     setFormPhone('');
     setFormPassword('');
     setFormRole('volunteer');
+    setFormLevel('under_follow_up');
     setFormCommitteeId('');
     setFormAvatarFile(null);
     setFormAvatarPreview(null);
@@ -351,6 +355,7 @@ export default function UserManagement() {
     setFormEmail(user.email);
     setFormPhone(user.phone || '');
     setFormRole(user.role);
+    setFormLevel(user.level || 'under_follow_up');
     setFormCommitteeId(user.committee_id || '');
     setIsEditDialogOpen(true);
   };
@@ -375,6 +380,7 @@ export default function UserManagement() {
           email: formEmail.trim(),
           phone: formPhone.trim() || null,
           committee_id: formCommitteeId || null,
+          level: formLevel,
         })
         .eq('id', selectedUser.id);
 
@@ -453,6 +459,9 @@ export default function UserManagement() {
         return 'bg-primary/10 text-primary';
       case 'committee_leader':
         return 'bg-success/10 text-success';
+      case 'hr':
+      case 'head_hr':
+        return 'bg-purple-100 text-purple-700';
       default:
         return 'bg-muted text-muted-foreground';
     }
@@ -463,6 +472,8 @@ export default function UserManagement() {
       case 'admin': return t('common.admin');
       case 'supervisor': return t('common.supervisor');
       case 'committee_leader': return t('common.committeeLeader');
+      case 'hr': return t('common.hr');
+      case 'head_hr': return t('common.head_hr');
       default: return t('common.volunteer');
     }
   };
@@ -486,12 +497,14 @@ export default function UserManagement() {
           setIsAddDialogOpen(open);
           if (!open) resetForm();
         }}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-              {t('users.addUser')}
-            </Button>
-          </DialogTrigger>
+          {primaryRole === 'admin' && (
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                {t('users.addUser')}
+              </Button>
+            </DialogTrigger>
+          )}
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{t('users.addUser')}</DialogTitle>
@@ -562,13 +575,19 @@ export default function UserManagement() {
                       <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
                       <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
                       <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                      <SelectItem value="hr">{t('common.hr')}</SelectItem>
+                      <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
                       <SelectItem value="admin">{t('common.admin')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="committee">{t('users.committee')}</Label>
-                  <Select value={formCommitteeId || 'none'} onValueChange={(val) => setFormCommitteeId(val === 'none' ? '' : val)}>
+                  <Select
+                    value={formCommitteeId || 'none'}
+                    onValueChange={(val) => setFormCommitteeId(val === 'none' ? '' : val)}
+                    disabled={primaryRole !== 'admin'}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder={t('users.committee')} />
                     </SelectTrigger>
@@ -710,6 +729,8 @@ export default function UserManagement() {
                     <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
                     <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
                     <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                    <SelectItem value="hr">{t('common.hr')}</SelectItem>
+                    <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
                     <SelectItem value="admin">{t('common.admin')}</SelectItem>
                   </SelectContent>
                 </Select>
@@ -727,6 +748,19 @@ export default function UserManagement() {
                         {language === 'ar' ? committee.name_ar : committee.name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-level">{t('users.level')}</Label>
+                <Select value={formLevel} onValueChange={setFormLevel} disabled={primaryRole !== 'admin' && primaryRole !== 'head_hr'}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={t('users.level')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="under_follow_up">{t('level.under_follow_up')}</SelectItem>
+                    <SelectItem value="project_responsible">{t('level.project_responsible')}</SelectItem>
+                    <SelectItem value="responsible">{t('level.responsible')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -768,6 +802,8 @@ export default function UserManagement() {
                 <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
                 <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
                 <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                <SelectItem value="hr">{t('common.hr')}</SelectItem>
+                <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
                 <SelectItem value="admin">{t('common.admin')}</SelectItem>
               </SelectContent>
             </Select>
@@ -832,23 +868,33 @@ export default function UserManagement() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Select
-                            value={user.role}
-                            onValueChange={(value) => handleUpdateRole(user.id, value)}
-                          >
-                            <SelectTrigger className="w-[140px]">
-                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
-                                {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
-                                {getRoleText(user.role)}
-                              </span>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
-                              <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
-                              <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
-                              <SelectItem value="admin">{t('common.admin')}</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          {primaryRole === 'admin' ? (
+                            <Select
+                              value={user.role}
+                              onValueChange={(value) => handleUpdateRole(user.id, value)}
+                            >
+                              <SelectTrigger className="w-[140px]">
+                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                                  {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
+                                  {getRoleText(user.role)}
+                                </span>
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
+                                <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
+                                <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                                <SelectItem value="hr">{t('common.hr')}</SelectItem>
+                                <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
+                                <SelectItem value="admin">{t('common.admin')}</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                              {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
+                              {getRoleText(user.role)}
+                            </span>
+                          )}
+
                         </TableCell>
                         <TableCell>
                           <span className="text-sm">{user.committee_name || '—'}</span>
@@ -874,10 +920,14 @@ export default function UserManagement() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                                <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                {t('common.edit')}
-                              </DropdownMenuItem>
+                              <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
+                              <DropdownMenuSeparator />
+                              {(primaryRole === 'admin' || primaryRole === 'head_hr') && (
+                                <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                                  <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                  {t('common.edit')}
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
                                 <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                 {t('users.viewProfile')}
@@ -894,17 +944,21 @@ export default function UserManagement() {
                                 <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                 {t('users.sendWhatsapp')}
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => {
-                                  setSelectedUser(user);
-                                  setIsDeleteDialogOpen(true);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                {t('common.delete')}
-                              </DropdownMenuItem>
+                              {primaryRole === 'admin' && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={() => {
+                                      setSelectedUser(user);
+                                      setIsDeleteDialogOpen(true);
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                    {t('common.delete')}
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -990,6 +1044,8 @@ export default function UserManagement() {
                           <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
                           <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
                           <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                          <SelectItem value="hr">{t('common.hr')}</SelectItem>
+                          <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
                           <SelectItem value="admin">{t('common.admin')}</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1011,12 +1067,13 @@ export default function UserManagement() {
                 ))}
               </div>
             </>
-          )}
-        </CardContent>
-      </Card>
+          )
+          }
+        </CardContent >
+      </Card >
 
       {/* Delete Confirmation */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+      < AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen} >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete User?</AlertDialogTitle>
@@ -1037,10 +1094,10 @@ export default function UserManagement() {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-      </AlertDialog>
+      </AlertDialog >
 
       {/* View Profile Dialog */}
-      <Dialog open={!!viewProfileUser} onOpenChange={(open) => !open && setViewProfileUser(null)}>
+      < Dialog open={!!viewProfileUser} onOpenChange={(open) => !open && setViewProfileUser(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
@@ -1049,7 +1106,7 @@ export default function UserManagement() {
           </DialogHeader>
           {viewProfileUser && <Profile userId={viewProfileUser.id} />}
         </DialogContent>
-      </Dialog>
-    </div>
+      </Dialog >
+    </div >
   );
 }

@@ -48,6 +48,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 type ActivityType = {
   id: string;
@@ -68,6 +69,7 @@ type Committee = {
 
 export default function ActivityManagement() {
   const { t, isRTL } = useLanguage();
+  const { profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [committeeFilter, setCommitteeFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -300,11 +302,13 @@ export default function ActivityManagement() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{isRTL ? 'جميع اللجان' : 'All Committees'}</SelectItem>
-                      {committees.map(committee => (
-                        <SelectItem key={committee.id} value={committee.id}>
-                          {isRTL ? committee.name_ar : committee.name}
-                        </SelectItem>
-                      ))}
+                      {committees
+                        .filter(c => !profile?.committee_id || c.id === profile.committee_id)
+                        .map(committee => (
+                          <SelectItem key={committee.id} value={committee.id}>
+                            {isRTL ? committee.name_ar : committee.name}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -604,11 +608,13 @@ export default function ActivityManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">{isRTL ? 'جميع اللجان' : 'All Committees'}</SelectItem>
-                    {committees.map(committee => (
-                      <SelectItem key={committee.id} value={committee.id}>
-                        {isRTL ? committee.name_ar : committee.name}
-                      </SelectItem>
-                    ))}
+                    {committees
+                      .filter(c => !profile?.committee_id || c.id === profile.committee_id)
+                      .map(committee => (
+                        <SelectItem key={committee.id} value={committee.id}>
+                          {isRTL ? committee.name_ar : committee.name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
