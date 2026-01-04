@@ -169,7 +169,7 @@ export default function Reports() {
     );
   };
 
-  // Activity submissions over time (last 6 months)
+  // Activity submissions over time (last 6 months) by Level
   const activityTrend = Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
     const monthStart = startOfMonth(date);
@@ -180,10 +180,31 @@ export default function Reports() {
       return submittedDate >= monthStart && submittedDate <= monthEnd;
     });
 
+    const counts = {
+      under_follow_up: 0,
+      project_responsible: 0,
+      responsible: 0
+    };
+
+    monthSubmissions.forEach(s => {
+      const volunteer = profiles.find(p => p.id === s.volunteer_id);
+      if (volunteer) {
+        const level = volunteer.level || 'under_follow_up';
+
+        if (['responsible', 'platinum', 'diamond'].includes(level)) {
+          counts.responsible++;
+        } else if (['project_responsible', 'gold'].includes(level)) {
+          counts.project_responsible++;
+        } else {
+          // Default to under_follow_up for others (bronze, silver, newbie, active, etc)
+          counts.under_follow_up++;
+        }
+      }
+    });
+
     return {
       month: format(date, 'MMM'),
-      submissions: monthSubmissions.length,
-      approved: monthSubmissions.filter(s => s.status === 'approved').length,
+      ...counts
     };
   });
 
@@ -242,7 +263,6 @@ export default function Reports() {
         downloadCSV(volunteersData, 'volunteers');
         break;
 
-      case 'monthly':
       case 'activities':
         const reportData = filteredSubmissions.map(s => {
           const volunteer = profiles.find(p => p.id === s.volunteer_id);
@@ -264,6 +284,26 @@ export default function Reports() {
         });
         // Use 'activities_log' filename for consistency, filtered by date
         downloadCSV(reportData, `activity_report_${dateRange}`);
+        break;
+
+      case 'points':
+        const pointsData = profiles.map(p => ({
+          [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
+          [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
+          [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
+          [language === 'ar' ? 'المستوى' : 'Level']: p.level,
+        })).sort((a, b) => (b[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number) - (a[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number));
+        downloadCSV(pointsData, 'points_summary');
+        break;
+
+      case 'monthly':
+        const monthlyData = activityTrend.map(m => ({
+          [language === 'ar' ? 'الشهر' : 'Month']: m.month,
+          [t('level.under_follow_up')]: m.under_follow_up,
+          [t('level.project_responsible')]: m.project_responsible,
+          [t('level.responsible')]: m.responsible,
+        }));
+        downloadCSV(monthlyData, 'monthly_report');
         break;
 
       case 'full':
@@ -409,17 +449,24 @@ export default function Reports() {
                   <Legend />
                   <Line
                     type="monotone"
-                    dataKey="submissions"
-                    stroke="hsl(var(--primary))"
+                    dataKey="under_follow_up"
+                    stroke="#64748b"
                     strokeWidth={2}
-                    name={language === 'ar' ? 'الطلبات' : 'Submissions'}
+                    name={t('level.under_follow_up')}
                   />
                   <Line
                     type="monotone"
-                    dataKey="approved"
-                    stroke="hsl(var(--success))"
+                    dataKey="project_responsible"
+                    stroke="#3b82f6"
                     strokeWidth={2}
-                    name={language === 'ar' ? 'المعتمدة' : 'Approved'}
+                    name={t('level.project_responsible')}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="responsible"
+                    stroke="#9333ea"
+                    strokeWidth={2}
+                    name={t('level.responsible')}
                   />
                 </LineChart>
               </ResponsiveContainer>

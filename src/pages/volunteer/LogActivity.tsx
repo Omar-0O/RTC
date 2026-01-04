@@ -15,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { toast } from 'sonner';
 import { CheckCircle2, Loader2, History, Upload, X, Image as ImageIcon, Check, ChevronsUpDown, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { generateGroupSubmissionExcel } from '@/utils/excel';
+import { generateGroupSubmissionCSV } from '@/utils/excel';
 
 interface Committee {
   id: string;
@@ -248,7 +248,7 @@ export default function LogActivity() {
   const uploadExcel = async (excelBlob: Blob): Promise<string | null> => {
     if (!user) return null;
     try {
-      const fileName = `${user.id}/group-reports/${Date.now()}.xlsx`;
+      const fileName = `${user.id}/group-reports/${Date.now()}.csv`;
       const { error: uploadError } = await supabase.storage
         .from('activity-proofs') // Reusing same bucket or create new one
         .upload(fileName, excelBlob);
@@ -353,7 +353,7 @@ export default function LogActivity() {
           }))
         ];
 
-        const excelBlob = generateGroupSubmissionExcel({
+        const excelBlob = generateGroupSubmissionCSV({
           leaderName: profile.full_name || 'Leader',
           activityName: isRTL ? selectedActivity.name_ar : selectedActivity.name,
           committeeName: committees.find(c => c.id === committeeId)?.name || '',

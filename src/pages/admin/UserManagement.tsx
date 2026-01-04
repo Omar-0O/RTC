@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
+import { format } from 'date-fns';
 import { Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -499,6 +500,35 @@ export default function UserManagement() {
     }
   };
 
+  const downloadCSV = (data: any[], filename: string) => {
+    if (data.length === 0) {
+      toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
+      return;
+    }
+
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => {
+        const value = row[header];
+        // Escape commas and quotes in values
+        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value ?? '';
+      }).join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+
+    toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
+  };
+
   const handleExportUsers = async () => {
     try {
       const { data: profilesData, error: profilesError } = await supabase
@@ -536,10 +566,7 @@ export default function UserManagement() {
         'Joined At': new Date(u.created_at).toLocaleDateString()
       }));
 
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Users");
-      XLSX.writeFile(wb, `Users_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+      downloadCSV(exportData, 'Users_Export');
 
     } catch (error) {
       console.error('Export error:', error);
