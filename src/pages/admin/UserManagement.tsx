@@ -797,7 +797,7 @@ export default function UserManagement() {
                     </TableCell>
                     <TableCell>
                       <span className="text-sm text-muted-foreground">
-                        {new Date(user.join_date).toLocaleDateString()}
+                        {new Date(user.join_date).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB')}
                       </span>
                     </TableCell>
                     <TableCell>

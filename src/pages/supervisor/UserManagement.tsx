@@ -261,7 +261,7 @@ export default function SupervisorUserManagement() {
                                                 </div>
                                                 <div className="flex justify-between items-center py-1">
                                                     <span className="text-muted-foreground">{t('users.joined')}</span>
-                                                    <span>{new Date(user.join_date).toLocaleDateString()}</span>
+                                                    <span>{new Date(user.join_date).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB')}</span>
                                                 </div>
                                             </div>
                                         </CardContent>
@@ -316,7 +316,7 @@ export default function SupervisorUserManagement() {
                                                 </TableCell>
                                                 <TableCell>
                                                     <span className="text-sm text-muted-foreground">
-                                                        {new Date(user.join_date).toLocaleDateString()}
+                                                        {new Date(user.join_date).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB')}
                                                     </span>
                                                 </TableCell>
                                                 <TableCell>
