@@ -135,15 +135,9 @@ export default function Reports() {
 
   // Level distribution data
   const levelData = [
-<<<<<<< HEAD
     { name: t('level.under_follow_up'), value: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length, color: '#64748b' }, // slate-500
     { name: t('level.project_responsible'), value: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length, color: '#3b82f6' }, // blue-500
     { name: t('level.responsible'), value: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length, color: '#9333ea' }, // purple-600
-=======
-    { name: t('level.under_follow_up'), value: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length, color: '#64748b' },
-    { name: t('level.project_responsible'), value: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length, color: '#3b82f6' },
-    { name: t('level.responsible'), value: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length, color: '#9333ea' },
->>>>>>> 34aaeee (Enhance reports, replace xlsx with csv, and fix syntax errors)
   ].filter(l => l.value > 0);
 
   const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name, fill }: any) => {
@@ -269,7 +263,6 @@ export default function Reports() {
         downloadCSV(volunteersData, 'volunteers');
         break;
 
-      case 'monthly':
       case 'activities':
         const reportData = filteredSubmissions.map(s => {
           const volunteer = profiles.find(p => p.id === s.volunteer_id);
@@ -289,11 +282,8 @@ export default function Reports() {
             [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
           };
         });
-<<<<<<< HEAD
         // Use 'activities_log' filename for consistency, filtered by date
         downloadCSV(reportData, `activity_report_${dateRange}`);
-=======
-        downloadCSV(activitiesData, 'activities');
         break;
 
       case 'points':
@@ -314,7 +304,6 @@ export default function Reports() {
           [t('level.responsible')]: m.responsible,
         }));
         downloadCSV(monthlyData, 'monthly_report');
->>>>>>> 34aaeee (Enhance reports, replace xlsx with csv, and fix syntax errors)
         break;
 
       case 'full':

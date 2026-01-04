@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import * as XLSX from 'xlsx';
+
 
 interface Caravan {
     id: string;
@@ -202,6 +202,35 @@ export default function CaravanManagement() {
         setParticipants([]);
     };
 
+    const downloadCSV = (data: any[], filename: string) => {
+        if (data.length === 0) {
+            toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
+            return;
+        }
+
+        const headers = Object.keys(data[0]);
+        const csvContent = [
+            headers.join(','),
+            ...data.map(row => headers.map(header => {
+                const value = row[header];
+                // Escape commas and quotes in values
+                if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+                    return `"${value.replace(/"/g, '""')}"`;
+                }
+                return value ?? '';
+            }).join(','))
+        ].join('\n');
+
+        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
+    };
+
     const exportCaravanDetails = async (caravan: Caravan) => {
         try {
             // Fetch participants
@@ -219,10 +248,7 @@ export default function CaravanManagement() {
                 [t('caravans.location')]: caravan.location
             }));
 
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Participants");
-            XLSX.writeFile(wb, `${caravan.name}_Report.xlsx`);
+            downloadCSV(exportData, `${caravan.name}_Report`);
         } catch (error) {
             console.error('Export error:', error);
             toast.error('Export failed');
@@ -276,10 +302,7 @@ export default function CaravanManagement() {
                 }
             });
 
-            const ws = XLSX.utils.json_to_sheet(flattenedData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "All Caravans");
-            XLSX.writeFile(wb, `All_Caravans_Report_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+            downloadCSV(flattenedData, 'All_Caravans_Report');
 
         } catch (e) {
             console.error(e);
