@@ -76,6 +76,60 @@ interface UserWithDetails {
 
 import Profile from '@/pages/volunteer/Profile';
 
+const compressImage = async (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Max dimension 1200px (good for avatars)
+        const MAX_DIMENSION = 1200;
+        if (width > height) {
+          if (width > MAX_DIMENSION) {
+            height *= MAX_DIMENSION / width;
+            width = MAX_DIMENSION;
+          }
+        } else {
+          if (height > MAX_DIMENSION) {
+            width *= MAX_DIMENSION / height;
+            height = MAX_DIMENSION;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error('Image compression failed'));
+              return;
+            }
+            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          },
+          'image/jpeg',
+          0.7
+        );
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
 export default function UserManagement() {
   const { t, language } = useLanguage();
   const [users, setUsers] = useState<UserWithDetails[]>([]);
@@ -180,7 +234,7 @@ export default function UserManagement() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleAvatarSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -189,17 +243,24 @@ export default function UserManagement() {
       return;
     }
 
+    let processedFile = file;
     if (file.size > 2 * 1024 * 1024) {
-      toast.error(language === 'ar' ? 'حجم الصورة يجب أن يكون أقل من 2 ميجابايت' : 'Image must be less than 2MB');
-      return;
+      toast.info(language === 'ar' ? 'جاري ضغط الصورة لتناسب الحجم المسموح...' : 'Compressing image to fit size limit...');
+      try {
+        processedFile = await compressImage(file);
+      } catch (error) {
+        console.error('Compression error:', error);
+        toast.error(language === 'ar' ? 'فشل ضغط الصورة' : 'Failed to compress image');
+        return;
+      }
     }
 
-    setFormAvatarFile(file);
+    setFormAvatarFile(processedFile);
     const reader = new FileReader();
     reader.onloadend = () => {
       setFormAvatarPreview(reader.result as string);
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(processedFile);
   };
 
   const uploadAvatar = async (userId: string): Promise<string | null> => {

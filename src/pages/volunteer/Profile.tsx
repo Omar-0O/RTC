@@ -40,6 +40,60 @@ interface ProfileProps {
   onEdit?: () => void;
 }
 
+const compressImage = async (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Max dimension 1200px (good for avatars)
+        const MAX_DIMENSION = 1200;
+        if (width > height) {
+          if (width > MAX_DIMENSION) {
+            height *= MAX_DIMENSION / width;
+            width = MAX_DIMENSION;
+          }
+        } else {
+          if (height > MAX_DIMENSION) {
+            width *= MAX_DIMENSION / height;
+            height = MAX_DIMENSION;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error('Image compression failed'));
+              return;
+            }
+            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          },
+          'image/jpeg',
+          0.7
+        );
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
+
 export default function Profile({ userId }: ProfileProps) {
   const { user, profile: authProfile, refreshProfile } = useAuth();
   const { t, isRTL } = useLanguage();
@@ -156,14 +210,21 @@ export default function Profile({ userId }: ProfileProps) {
     }
 
     // Validate file size (max 2MB)
+    let processedFile = file;
     if (file.size > 2 * 1024 * 1024) {
-      toast.error(isRTL ? 'حجم الصورة يجب أن يكون أقل من 2 ميجابايت' : 'Image must be less than 2MB');
-      return;
+      toast.info(isRTL ? 'جاري ضغط الصورة لتناسب الحجم المسموح...' : 'Compressing image to fit size limit...');
+      try {
+        processedFile = await compressImage(file);
+      } catch (error) {
+        console.error('Compression error:', error);
+        toast.error(isRTL ? 'فشل ضغط الصورة' : 'Failed to compress image');
+        return;
+      }
     }
 
     setUploading(true);
     try {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = processedFile.name.split('.').pop();
       const fileName = `${user.id}/avatar.${fileExt}`;
 
       // Delete old avatar if exists
@@ -172,7 +233,7 @@ export default function Profile({ userId }: ProfileProps) {
       // Upload new avatar
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, file, { upsert: true });
+        .upload(fileName, processedFile, { upsert: true });
 
       if (uploadError) throw uploadError;
 
