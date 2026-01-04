@@ -810,6 +810,10 @@ export default function UserManagement() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                           <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                            <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                            {t('common.edit')}
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
                             <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                             {t('users.viewProfile')}
