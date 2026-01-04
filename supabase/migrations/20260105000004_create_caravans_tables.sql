@@ -31,30 +31,35 @@ ALTER TABLE public.caravans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.caravan_participants ENABLE ROW LEVEL SECURITY;
 
 -- Policies for caravans
+-- Policies for caravans
+DROP POLICY IF EXISTS "View caravans for everyone" ON public.caravans;
 CREATE POLICY "View caravans for everyone" ON public.caravans
     FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Manage caravans for head_caravans and admin" ON public.caravans;
 CREATE POLICY "Manage caravans for head_caravans and admin" ON public.caravans
     FOR ALL USING (
         auth.uid() IN (
             SELECT user_id FROM user_roles 
-            WHERE role IN ('admin', 'head_caravans', 'supervisor')
+            WHERE role IN ('admin', 'head_caravans', 'supervisor', 'head_fourth_year')
         )
     );
 
 -- Policies for caravan_participants
+DROP POLICY IF EXISTS "View caravan participants for authorized users" ON public.caravan_participants;
 CREATE POLICY "View caravan participants for authorized users" ON public.caravan_participants
     FOR SELECT USING (
         auth.uid() IN (
             SELECT user_id FROM user_roles 
-            WHERE role IN ('admin', 'head_caravans', 'supervisor')
+            WHERE role IN ('admin', 'head_caravans', 'supervisor', 'head_fourth_year')
         )
     );
 
+DROP POLICY IF EXISTS "Manage caravan participants for head_caravans and admin" ON public.caravan_participants;
 CREATE POLICY "Manage caravan participants for head_caravans and admin" ON public.caravan_participants
     FOR ALL USING (
         auth.uid() IN (
             SELECT user_id FROM user_roles 
-            WHERE role IN ('admin', 'head_caravans', 'supervisor')
+            WHERE role IN ('admin', 'head_caravans', 'supervisor', 'head_fourth_year')
         )
     );

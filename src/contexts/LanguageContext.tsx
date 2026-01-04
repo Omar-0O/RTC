@@ -68,6 +68,7 @@ const translations: Record<Language, Record<string, string>> = {
     'common.head_production': 'Production Head',
     'common.head_fourth_year': 'Fourth Year Head',
     'common.head_caravans': 'Head of Caravans',
+    'common.head_events': 'Head of Events',
 
     // Committee Leader
     'leader.dashboard': 'Committee Dashboard',
@@ -314,6 +315,7 @@ const translations: Record<Language, Record<string, string>> = {
     'common.head_production': 'هيد لجان انتاج',
     'common.head_fourth_year': 'هيد لجان سنة رابعة',
     'common.head_caravans': 'هيد لجنة قوافل',
+    'common.head_events': 'هيد لجنة ايفنتات',
 
     // Committee Leader
     'leader.dashboard': 'لوحة تحكم اللجنة',

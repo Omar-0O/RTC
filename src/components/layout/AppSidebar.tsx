@@ -75,7 +75,8 @@ export function AppSidebar() {
     { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/leader/profile', icon: User },
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
-    { title: t('nav.caravans'), url: '/caravans', icon: Bus }, // Make sure Bus is imported
+    { title: t('nav.caravans'), url: '/caravans', icon: Bus },
+    { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
   ];
 
   const adminNavItems = [
@@ -110,10 +111,14 @@ export function AppSidebar() {
       case 'hr':
       case 'head_hr':
         return hrNavItems;
-      case 'head_production':
       case 'head_fourth_year':
       case 'head_caravans':
-        return leaderNavItems; // Sharing dashboard with Committee Leaders for now as they are Heads
+      case 'head_events':
+        return leaderNavItems;
+      case 'head_production':
+        // Production head acts like a committee leader but without Caravan access from leaderNavItems if it was there
+        // Actually leaderNavItems HAS caravans. So we need a version WITHOUT it.
+        return leaderNavItems.filter(item => item.url !== '/caravans');
       default:
         return volunteerNavItems;
     }

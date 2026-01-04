@@ -17,9 +17,15 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -304,15 +310,18 @@ export default function CommitteeManagement() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="type">Type</Label>
-                  <select
-                    id="type"
+                  <Select
                     value={formType}
-                    onChange={(e) => setFormType(e.target.value as 'production' | 'fourth_year')}
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    onValueChange={(val: 'production' | 'fourth_year') => setFormType(val)}
                   >
-                    <option value="production"> Production Committee / لجنة انتاج</option>
-                    <option value="fourth_year"> Fourth Year Committee / لجنة سنة رابعة</option>
-                  </select>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="production">Production Committee / لجنة انتاج</SelectItem>
+                      <SelectItem value="fourth_year">Fourth Year Committee / لجنة سنة رابعة</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="color">Color</Label>
@@ -461,15 +470,18 @@ export default function CommitteeManagement() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-type">Type</Label>
-                <select
-                  id="edit-type"
+                <Select
                   value={formType}
-                  onChange={(e) => setFormType(e.target.value as 'production' | 'fourth_year')}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  onValueChange={(val: 'production' | 'fourth_year') => setFormType(val)}
                 >
-                  <option value="production"> Production Committee / لجنة انتاج</option>
-                  <option value="fourth_year"> Fourth Year Committee / لجنة سنة رابعة</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="production">Production Committee / لجنة انتاج</SelectItem>
+                    <SelectItem value="fourth_year">Fourth Year Committee / لجنة سنة رابعة</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-color">Color</Label>

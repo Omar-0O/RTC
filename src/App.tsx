@@ -26,6 +26,7 @@ import SupervisorReports from "./pages/supervisor/Reports";
 import CommitteeLeaderDashboard from "./pages/leader/Dashboard";
 import Caravans from "./pages/caravans/Caravans";
 import CaravanManagement from "./pages/caravans/CaravanManagement";
+import CourseManagement from "./pages/courses/CourseManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -61,6 +62,11 @@ function AppRoutes() {
       case 'hr':
       case 'head_hr':
         return '/dashboard'; // Primarily they are volunteers who manage others
+      case 'head_production':
+      case 'head_fourth_year':
+      case 'head_events':
+      case 'head_caravans':
+        return '/leader';
       default:
         return '/dashboard';
     }
@@ -109,6 +115,9 @@ function AppRoutes() {
         <Route path="/caravans" element={<Caravans />}>
           <Route index element={<CaravanManagement />} />
         </Route>
+
+        {/* Course Routes */}
+        <Route path="/courses" element={<CourseManagement />} />
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />

@@ -36,7 +36,13 @@ Deno.serve(async (req: Request) => {
             throw new Error(`Missing Supabase environment variables: ${missingVars.join(', ')}`)
         }
 
-        // Create admin client with service role key
+        // Check if requester is admin or head_hr
+        const authHeader = req.headers.get('Authorization')
+        if (!authHeader) {
+            throw new Error('Missing Authorization header')
+        }
+
+        // Create admin client with service role key, propagating the auth context
         const supabaseAdmin = createClient(
             supabaseUrl,
             serviceRoleKey,
@@ -44,20 +50,20 @@ Deno.serve(async (req: Request) => {
                 auth: {
                     autoRefreshToken: false,
                     persistSession: false
+                },
+                global: {
+                    headers: {
+                        Authorization: authHeader
+                    }
                 }
             }
         )
-
-        // Check if requester is admin
-        const authHeader = req.headers.get('Authorization')
-        if (!authHeader) {
-            throw new Error('Missing Authorization header')
-        }
 
         const token = authHeader.replace('Bearer ', '')
         const { data: { user: requester }, error: requesterError } = await supabaseAdmin.auth.getUser(token)
 
         if (requesterError || !requester) {
+            console.error('User check failed:', requesterError)
             throw new Error(`Unauthorized (User Check): ${requesterError?.message || 'User not found'}`)
         }
 
@@ -71,12 +77,12 @@ Deno.serve(async (req: Request) => {
         }
 
         const roles = requesterRoles?.map(r => r.role) || []
-        const isAdmin = roles.includes('admin')
+        const isAuthorized = roles.includes('admin') || roles.includes('head_hr')
 
-        if (!isAdmin) {
+        if (!isAuthorized) {
             // Log for debugging
             console.log(`User ${requester.id} attempted to create user but has roles: ${roles.join(', ')}`)
-            throw new Error(`Unauthorized: Admin access required. User roles are: ${roles.join(', ') || 'none'}`)
+            throw new Error(`Unauthorized: Admin or HR access required. User roles are: ${roles.join(', ') || 'none'}`)
         }
 
         // Create the user with email confirmed

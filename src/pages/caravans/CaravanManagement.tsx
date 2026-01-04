@@ -129,6 +129,14 @@ export default function CaravanManagement() {
 
     const handleAddGuest = () => {
         if (!guestName) return;
+
+        // Validate tripartite name (at least 3 parts)
+        const nameParts = guestName.trim().split(/\s+/);
+        if (nameParts.length < 3) {
+            toast.error(isRTL ? 'يجب إدخال الاسم ثلاثي على الأقل' : 'Please enter at least a tripartite name');
+            return;
+        }
+
         setParticipants([...participants, {
             name: guestName,
             phone: guestPhone,
@@ -320,7 +328,18 @@ export default function CaravanManagement() {
                                     </div>
                                     <div className="space-y-2">
                                         <Label>{t('caravans.type')}</Label>
-                                        <Input value={formData.type} onChange={e => setFormData({ ...formData, type: e.target.value })} placeholder="Medical, Aid..." />
+                                        <Select
+                                            value={formData.type}
+                                            onValueChange={val => setFormData({ ...formData, type: val })}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder={isRTL ? 'اختر نوع القافلة' : 'Select Type'} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="food_distribution">{isRTL ? 'إطعام' : 'Food Distribution'}</SelectItem>
+                                                <SelectItem value="charity_market">{isRTL ? 'سوق خيري' : 'Charity Market'}</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                     <div className="space-y-2">
                                         <Label>{t('caravans.location')}</Label>
