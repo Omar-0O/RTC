@@ -258,6 +258,44 @@ export default function BadgeManagement() {
     if (!selectedBadge || !selectedUserId) return;
     setSubmitting(true);
     try {
+      // Get volunteer's current points and activities count
+      const selectedProfile = profiles.find(p => p.id === selectedUserId);
+
+      if (!selectedProfile) {
+        toast.error(isRTL ? 'لم يتم العثور على المتطوع' : 'Volunteer not found');
+        return;
+      }
+
+      // Fetch full profile data with points and activities count
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('total_points, activities_count')
+        .eq('id', selectedUserId)
+        .single();
+
+      if (profileError) throw profileError;
+
+      // Check if volunteer meets the requirements
+      if (selectedBadge.points_required && profileData.total_points < selectedBadge.points_required) {
+        toast.error(
+          isRTL
+            ? `المتطوع يحتاج ${selectedBadge.points_required} أثر، ولديه ${profileData.total_points} فقط`
+            : `Volunteer needs ${selectedBadge.points_required} points, but has only ${profileData.total_points}`
+        );
+        setSubmitting(false);
+        return;
+      }
+
+      if (selectedBadge.activities_required && profileData.activities_count < selectedBadge.activities_required) {
+        toast.error(
+          isRTL
+            ? `المتطوع يحتاج ${selectedBadge.activities_required} مشاركة، ولديه ${profileData.activities_count} فقط`
+            : `Volunteer needs ${selectedBadge.activities_required} activities, but has only ${profileData.activities_count}`
+        );
+        setSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase.from('user_badges').insert({
         user_id: selectedUserId,
         badge_id: selectedBadge.id,
@@ -796,7 +834,7 @@ export default function BadgeManagement() {
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" side="bottom">
                 <Command>
                   <CommandInput placeholder={isRTL ? 'ابحث عن متطوع...' : 'Search volunteer...'} />
                   <CommandList>

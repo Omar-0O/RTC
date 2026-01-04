@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -73,6 +74,7 @@ type Badge = {
   color: string;
   points_required: number | null;
   activities_required: number | null;
+  auto_award: boolean | null;
 };
 
 type Profile = {
@@ -127,6 +129,7 @@ export default function BadgeManagement() {
     color: '#F59E0B',
     points_required: '',
     activities_required: '',
+    auto_award: false,
   });
 
   useEffect(() => {
@@ -171,6 +174,7 @@ export default function BadgeManagement() {
       color: '#F59E0B',
       points_required: '',
       activities_required: '',
+      auto_award: false,
     });
   };
 
@@ -187,6 +191,7 @@ export default function BadgeManagement() {
         color: formData.color,
         points_required: formData.points_required ? parseInt(formData.points_required) : null,
         activities_required: formData.activities_required ? parseInt(formData.activities_required) : null,
+        auto_award: formData.auto_award,
       });
 
       if (error) throw error;
@@ -217,6 +222,7 @@ export default function BadgeManagement() {
         color: formData.color,
         points_required: formData.points_required ? parseInt(formData.points_required) : null,
         activities_required: formData.activities_required ? parseInt(formData.activities_required) : null,
+        auto_award: formData.auto_award,
       }).eq('id', selectedBadge.id);
 
       if (error) throw error;
@@ -258,6 +264,44 @@ export default function BadgeManagement() {
     if (!selectedBadge || !selectedUserId) return;
     setSubmitting(true);
     try {
+      // Get volunteer's current points and activities count
+      const selectedProfile = profiles.find(p => p.id === selectedUserId);
+
+      if (!selectedProfile) {
+        toast.error(isRTL ? 'لم يتم العثور على المتطوع' : 'Volunteer not found');
+        return;
+      }
+
+      // Fetch full profile data with points and activities count
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('total_points, activities_count')
+        .eq('id', selectedUserId)
+        .single();
+
+      if (profileError) throw profileError;
+
+      // Check if volunteer meets the requirements
+      if (selectedBadge.points_required && profileData.total_points < selectedBadge.points_required) {
+        toast.error(
+          isRTL
+            ? `المتطوع يحتاج ${selectedBadge.points_required} أثر، ولديه ${profileData.total_points} فقط`
+            : `Volunteer needs ${selectedBadge.points_required} points, but has only ${profileData.total_points}`
+        );
+        setSubmitting(false);
+        return;
+      }
+
+      if (selectedBadge.activities_required && profileData.activities_count < selectedBadge.activities_required) {
+        toast.error(
+          isRTL
+            ? `المتطوع يحتاج ${selectedBadge.activities_required} مشاركة، ولديه ${profileData.activities_count} فقط`
+            : `Volunteer needs ${selectedBadge.activities_required} activities, but has only ${profileData.activities_count}`
+        );
+        setSubmitting(false);
+        return;
+      }
+
       const { error } = await supabase.from('user_badges').insert({
         user_id: selectedUserId,
         badge_id: selectedBadge.id,
@@ -295,6 +339,7 @@ export default function BadgeManagement() {
       color: badge.color,
       points_required: badge.points_required?.toString() || '',
       activities_required: badge.activities_required?.toString() || '',
+      auto_award: badge.auto_award ?? false,
     });
     setIsEditDialogOpen(true);
   };
@@ -435,6 +480,16 @@ export default function BadgeManagement() {
                     rows={2}
                     dir="rtl"
                   />
+                </div>
+                <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                  <Checkbox
+                    id="auto_award"
+                    checked={formData.auto_award}
+                    onCheckedChange={(checked) => setFormData({ ...formData, auto_award: checked as boolean })}
+                  />
+                  <Label htmlFor="auto_award" className="text-sm font-normal cursor-pointer">
+                    {isRTL ? 'منح تلقائي عند توفر المتطلبات' : 'Auto-award when requirements are met'}
+                  </Label>
                 </div>
               </div>
               <DialogFooter>
@@ -753,6 +808,16 @@ export default function BadgeManagement() {
                   dir="rtl"
                 />
               </div>
+              <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                <Checkbox
+                  id="edit_auto_award"
+                  checked={formData.auto_award}
+                  onCheckedChange={(checked) => setFormData({ ...formData, auto_award: checked as boolean })}
+                />
+                <Label htmlFor="edit_auto_award" className="text-sm font-normal cursor-pointer">
+                  {isRTL ? 'منح تلقائي عند توفر المتطلبات' : 'Auto-award when requirements are met'}
+                </Label>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
@@ -796,7 +861,7 @@ export default function BadgeManagement() {
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+              <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start" side="bottom">
                 <Command>
                   <CommandInput placeholder={isRTL ? 'ابحث عن متطوع...' : 'Search volunteer...'} />
                   <CommandList>
