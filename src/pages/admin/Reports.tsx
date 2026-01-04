@@ -135,9 +135,15 @@ export default function Reports() {
 
   // Level distribution data
   const levelData = [
+<<<<<<< HEAD
     { name: t('level.under_follow_up'), value: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length, color: '#64748b' }, // slate-500
     { name: t('level.project_responsible'), value: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length, color: '#3b82f6' }, // blue-500
     { name: t('level.responsible'), value: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length, color: '#9333ea' }, // purple-600
+=======
+    { name: t('level.under_follow_up'), value: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length, color: '#64748b' },
+    { name: t('level.project_responsible'), value: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length, color: '#3b82f6' },
+    { name: t('level.responsible'), value: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length, color: '#9333ea' },
+>>>>>>> 34aaeee (Enhance reports, replace xlsx with csv, and fix syntax errors)
   ].filter(l => l.value > 0);
 
   const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name, fill }: any) => {
@@ -169,7 +175,7 @@ export default function Reports() {
     );
   };
 
-  // Activity submissions over time (last 6 months)
+  // Activity submissions over time (last 6 months) by Level
   const activityTrend = Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
     const monthStart = startOfMonth(date);
@@ -180,10 +186,31 @@ export default function Reports() {
       return submittedDate >= monthStart && submittedDate <= monthEnd;
     });
 
+    const counts = {
+      under_follow_up: 0,
+      project_responsible: 0,
+      responsible: 0
+    };
+
+    monthSubmissions.forEach(s => {
+      const volunteer = profiles.find(p => p.id === s.volunteer_id);
+      if (volunteer) {
+        const level = volunteer.level || 'under_follow_up';
+
+        if (['responsible', 'platinum', 'diamond'].includes(level)) {
+          counts.responsible++;
+        } else if (['project_responsible', 'gold'].includes(level)) {
+          counts.project_responsible++;
+        } else {
+          // Default to under_follow_up for others (bronze, silver, newbie, active, etc)
+          counts.under_follow_up++;
+        }
+      }
+    });
+
     return {
       month: format(date, 'MMM'),
-      submissions: monthSubmissions.length,
-      approved: monthSubmissions.filter(s => s.status === 'approved').length,
+      ...counts
     };
   });
 
@@ -262,8 +289,32 @@ export default function Reports() {
             [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
           };
         });
+<<<<<<< HEAD
         // Use 'activities_log' filename for consistency, filtered by date
         downloadCSV(reportData, `activity_report_${dateRange}`);
+=======
+        downloadCSV(activitiesData, 'activities');
+        break;
+
+      case 'points':
+        const pointsData = profiles.map(p => ({
+          [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
+          [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
+          [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
+          [language === 'ar' ? 'المستوى' : 'Level']: p.level,
+        })).sort((a, b) => (b[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number) - (a[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number));
+        downloadCSV(pointsData, 'points_summary');
+        break;
+
+      case 'monthly':
+        const monthlyData = activityTrend.map(m => ({
+          [language === 'ar' ? 'الشهر' : 'Month']: m.month,
+          [t('level.under_follow_up')]: m.under_follow_up,
+          [t('level.project_responsible')]: m.project_responsible,
+          [t('level.responsible')]: m.responsible,
+        }));
+        downloadCSV(monthlyData, 'monthly_report');
+>>>>>>> 34aaeee (Enhance reports, replace xlsx with csv, and fix syntax errors)
         break;
 
       case 'full':
@@ -409,17 +460,24 @@ export default function Reports() {
                   <Legend />
                   <Line
                     type="monotone"
-                    dataKey="submissions"
-                    stroke="hsl(var(--primary))"
+                    dataKey="under_follow_up"
+                    stroke="#64748b"
                     strokeWidth={2}
-                    name={language === 'ar' ? 'الطلبات' : 'Submissions'}
+                    name={t('level.under_follow_up')}
                   />
                   <Line
                     type="monotone"
-                    dataKey="approved"
-                    stroke="hsl(var(--success))"
+                    dataKey="project_responsible"
+                    stroke="#3b82f6"
                     strokeWidth={2}
-                    name={language === 'ar' ? 'المعتمدة' : 'Approved'}
+                    name={t('level.project_responsible')}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="responsible"
+                    stroke="#9333ea"
+                    strokeWidth={2}
+                    name={t('level.responsible')}
                   />
                 </LineChart>
               </ResponsiveContainer>

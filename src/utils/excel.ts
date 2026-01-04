@@ -1,6 +1,3 @@
-
-import * as XLSX from 'xlsx';
-
 interface Participant {
     name: string;
     phone: string;
@@ -17,11 +14,18 @@ interface GroupSubmissionData {
     participants: Participant[];
 }
 
-export const generateGroupSubmissionExcel = (data: GroupSubmissionData): Blob => {
-    const wb = XLSX.utils.book_new();
+export const generateGroupSubmissionCSV = (data: GroupSubmissionData): Blob => {
+    // Helper to escape CSV values
+    const escape = (val: string | number | undefined | null) => {
+        if (val === undefined || val === null) return '';
+        const str = String(val);
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    };
 
-    // Create header
-    const wsData = [
+    const rows = [
         ['Activity Report', data.activityName],
         ['Committee', data.committeeName],
         ['Submitted By', data.leaderName],
@@ -32,7 +36,7 @@ export const generateGroupSubmissionExcel = (data: GroupSubmissionData): Blob =>
 
     // Add participants
     data.participants.forEach(p => {
-        wsData.push([
+        rows.push([
             p.name,
             p.phone || '-',
             p.type === 'volunteer' ? 'Volunteer' : 'Guest',
@@ -41,21 +45,8 @@ export const generateGroupSubmissionExcel = (data: GroupSubmissionData): Blob =>
         ]);
     });
 
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const csvContent = rows.map(row => row.map(escape).join(',')).join('\n');
 
-    // Set column widths
-    ws['!cols'] = [
-        { wch: 30 }, // Name
-        { wch: 20 }, // Phone
-        { wch: 15 }, // Type
-        { wch: 15 }, // Role
-        { wch: 15 }, // Points
-    ];
-
-    XLSX.utils.book_append_sheet(wb, ws, 'Participants');
-
-    // Generate buffer
-    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-
-    return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    // Add BOM for Excel compatibility with UTF-8
+    return new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
 };
