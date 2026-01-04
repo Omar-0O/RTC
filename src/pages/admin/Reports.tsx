@@ -32,7 +32,9 @@ import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, st
 interface Profile {
   id: string;
   full_name: string | null;
+  full_name_ar: string | null;
   email: string;
+  phone: string | null;
   total_points: number;
   level: string;
   activities_count: number;
@@ -52,6 +54,8 @@ interface ActivitySubmission {
   points_awarded: number;
   submitted_at: string;
   activity_type_id: string;
+  location?: string;
+  committee_id: string | null;
 }
 
 interface ActivityType {
@@ -131,11 +135,9 @@ export default function Reports() {
 
   // Level distribution data
   const levelData = [
-    { name: t('level.bronze'), value: profiles.filter(p => p.level === 'bronze').length, color: '#CD7F32' },
-    { name: t('level.silver'), value: profiles.filter(p => p.level === 'silver').length, color: '#C0C0C0' },
-    { name: t('level.gold'), value: profiles.filter(p => p.level === 'gold').length, color: '#FFD700' },
-    { name: t('level.platinum'), value: profiles.filter(p => p.level === 'platinum').length, color: '#E5E4E2' },
-    { name: t('level.diamond'), value: profiles.filter(p => p.level === 'diamond').length, color: '#B9F2FF' },
+    { name: t('level.under_follow_up'), value: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length, color: '#64748b' }, // slate-500
+    { name: t('level.project_responsible'), value: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length, color: '#3b82f6' }, // blue-500
+    { name: t('level.responsible'), value: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length, color: '#9333ea' }, // purple-600
   ].filter(l => l.value > 0);
 
   const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name, fill }: any) => {
@@ -231,7 +233,8 @@ export default function Reports() {
         const volunteersData = profiles.map(p => ({
           [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
           [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-          [language === 'ar' ? 'المستوى' : 'Level']: p.level,
+          [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
+          [language === 'ar' ? 'المستوى' : 'Level']: t(`level.${p.level || 'under_follow_up'}`),
           [language === 'ar' ? 'النقاط' : 'Points']: p.total_points,
           [language === 'ar' ? 'عدد الأنشطة' : 'Activities Count']: p.activities_count,
           [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
@@ -239,38 +242,28 @@ export default function Reports() {
         downloadCSV(volunteersData, 'volunteers');
         break;
 
+      case 'monthly':
       case 'activities':
-        const activitiesData = submissions.map(s => {
+        const reportData = filteredSubmissions.map(s => {
           const volunteer = profiles.find(p => p.id === s.volunteer_id);
           const activityType = activityTypes.find(a => a.id === s.activity_type_id);
+          const committee = committees.find(c => c.id === (volunteer?.committee_id || s.committee_id));
+
+          let locationStr = s.location || 'branch';
+          if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
+          else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
+
           return {
-            [language === 'ar' ? 'المتطوع' : 'Volunteer']: volunteer?.full_name || '',
-            [language === 'ar' ? 'نوع النشاط' : 'Activity Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-            [language === 'ar' ? 'الحالة' : 'Status']: s.status,
-            [language === 'ar' ? 'النقاط' : 'Points']: s.points_awarded || 0,
-            [language === 'ar' ? 'تاريخ التقديم' : 'Submitted At']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+            [language === 'ar' ? 'النشاط' : 'Activity']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
+            [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
+            [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
           };
         });
-        downloadCSV(activitiesData, 'activities');
-        break;
-
-      case 'points':
-        const pointsData = profiles.map(p => ({
-          [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
-          [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-          [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
-          [language === 'ar' ? 'المستوى' : 'Level']: p.level,
-        })).sort((a, b) => (b[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number) - (a[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number));
-        downloadCSV(pointsData, 'points_summary');
-        break;
-
-      case 'monthly':
-        const monthlyData = activityTrend.map(m => ({
-          [language === 'ar' ? 'الشهر' : 'Month']: m.month,
-          [language === 'ar' ? 'إجمالي الطلبات' : 'Total Submissions']: m.submissions,
-          [language === 'ar' ? 'المعتمدة' : 'Approved']: m.approved,
-        }));
-        downloadCSV(monthlyData, 'monthly_report');
+        // Use 'activities_log' filename for consistency, filtered by date
+        downloadCSV(reportData, `activity_report_${dateRange}`);
         break;
 
       case 'full':
@@ -280,8 +273,9 @@ export default function Reports() {
           return {
             [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
             [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
             [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-            [language === 'ar' ? 'المستوى' : 'Level']: p.level,
+            [language === 'ar' ? 'المستوى' : 'Level']: t(`level.${p.level || 'under_follow_up'}`),
             [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
             [language === 'ar' ? 'عدد الأنشطة' : 'Activities Count']: p.activities_count,
             [language === 'ar' ? 'الطلبات المعلقة' : 'Pending Submissions']: volunteerSubmissions.filter(s => s.status === 'pending').length,
@@ -536,7 +530,7 @@ export default function Reports() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{activity.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {activity.count} {language === 'ar' ? 'طلب' : 'submissions'} • {activity.points} {t('common.points')}
+                        {activity.count} {language === 'ar' ? 'مشاركة' : 'submissions'} • {activity.points} {t('common.points')}
                       </p>
                     </div>
                     <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">

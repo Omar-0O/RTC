@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil } from 'lucide-react';
+import { Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -58,7 +59,7 @@ interface Committee {
   name_ar: string;
 }
 
-type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr';
+type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr' | 'head_production' | 'head_fourth_year';
 
 interface UserWithDetails {
   id: string;
@@ -132,7 +133,7 @@ const compressImage = async (file: File): Promise<File> => {
 };
 
 export default function UserManagement() {
-  const { t, language } = useLanguage();
+  const { t, language, isRTL } = useLanguage();
   const { primaryRole } = useAuth();
   const [users, setUsers] = useState<UserWithDetails[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
@@ -197,7 +198,7 @@ export default function UserManagement() {
         committee_id: profile.committee_id,
         committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
         total_points: profile.total_points || 0,
-        level: profile.level || 'bronze',
+        level: profile.level || 'under_follow_up',
         join_date: profile.join_date,
         phone: profile.phone,
       }));
@@ -335,6 +336,21 @@ export default function UserManagement() {
         }
       }
 
+      // Save visible password to private details (Admin only)
+      if (data.user) {
+        const { error: privateError } = await supabase
+          .from('user_private_details')
+          .insert({
+            id: data.user.id,
+            visible_password: formPassword
+          });
+
+        if (privateError) {
+          console.error('Failed to save visible password:', privateError);
+          // access silent fail or warn?
+        }
+      }
+
       toast.success('User added successfully');
       setIsAddDialogOpen(false);
       resetForm();
@@ -462,6 +478,9 @@ export default function UserManagement() {
       case 'hr':
       case 'head_hr':
         return 'bg-purple-100 text-purple-700';
+      case 'head_production':
+      case 'head_fourth_year':
+        return 'bg-blue-100 text-blue-700';
       default:
         return 'bg-muted text-muted-foreground';
     }
@@ -474,7 +493,57 @@ export default function UserManagement() {
       case 'committee_leader': return t('common.committeeLeader');
       case 'hr': return t('common.hr');
       case 'head_hr': return t('common.head_hr');
+      case 'head_production': return t('common.head_production');
+      case 'head_fourth_year': return t('common.head_fourth_year');
       default: return t('common.volunteer');
+    }
+  };
+
+  const handleExportUsers = async () => {
+    try {
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*');
+
+      if (profilesError) throw profilesError;
+
+      const { data: rolesData, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      if (rolesError) throw rolesError;
+
+      let passwordsMap = new Map<string, string>();
+      if (['admin', 'head_hr', 'hr'].includes(primaryRole)) {
+        const { data: passwordsData, error: passwordsError } = await supabase
+          .from('user_private_details')
+          .select('id, visible_password');
+
+        if (!passwordsError && passwordsData) {
+          passwordsMap = new Map(passwordsData.map(p => [p.id, p.visible_password]));
+        }
+      }
+
+      const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role]) || []);
+
+      const exportData = profilesData.map(u => ({
+        'Full Name (English)': u.full_name,
+        'Full Name (Arabic)': u.full_name_ar,
+        'Email': u.email,
+        'Phone': u.phone,
+        'Role': rolesMap.get(u.id) || 'volunteer',
+        'Password': passwordsMap.get(u.id) || '',
+        'Joined At': new Date(u.created_at).toLocaleDateString()
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Users");
+      XLSX.writeFile(wb, `Users_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export users');
     }
   };
 
@@ -497,13 +566,19 @@ export default function UserManagement() {
           setIsAddDialogOpen(open);
           if (!open) resetForm();
         }}>
-          {primaryRole === 'admin' && (
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                {t('users.addUser')}
+          {['admin', 'head_hr', 'hr'].includes(primaryRole) && (
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleExportUsers}>
+                <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                {isRTL ? 'تصدير المتطوعين' : 'Export Users'}
               </Button>
-            </DialogTrigger>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                  {t('users.addUser')}
+                </Button>
+              </DialogTrigger>
+            </div>
           )}
           <DialogContent>
             <DialogHeader>
@@ -577,6 +652,9 @@ export default function UserManagement() {
                       <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
                       <SelectItem value="hr">{t('common.hr')}</SelectItem>
                       <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
+                      <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
+                      <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
+                      <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
                       <SelectItem value="admin">{t('common.admin')}</SelectItem>
                     </SelectContent>
                   </Select>
@@ -586,7 +664,7 @@ export default function UserManagement() {
                   <Select
                     value={formCommitteeId || 'none'}
                     onValueChange={(val) => setFormCommitteeId(val === 'none' ? '' : val)}
-                    disabled={primaryRole !== 'admin'}
+                    disabled={!['admin', 'head_hr', 'hr'].includes(primaryRole)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={t('users.committee')} />
@@ -731,6 +809,8 @@ export default function UserManagement() {
                     <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
                     <SelectItem value="hr">{t('common.hr')}</SelectItem>
                     <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
+                    <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
+                    <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
                     <SelectItem value="admin">{t('common.admin')}</SelectItem>
                   </SelectContent>
                 </Select>
@@ -753,7 +833,7 @@ export default function UserManagement() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-level">{t('users.level')}</Label>
-                <Select value={formLevel} onValueChange={setFormLevel} disabled={primaryRole !== 'admin' && primaryRole !== 'head_hr'}>
+                <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr', 'hr'].includes(primaryRole)}>
                   <SelectTrigger>
                     <SelectValue placeholder={t('users.level')} />
                   </SelectTrigger>
@@ -868,7 +948,7 @@ export default function UserManagement() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {primaryRole === 'admin' ? (
+                          {['admin', 'head_hr', 'hr'].includes(primaryRole) ? (
                             <Select
                               value={user.role}
                               onValueChange={(value) => handleUpdateRole(user.id, value)}
@@ -922,7 +1002,7 @@ export default function UserManagement() {
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              {(primaryRole === 'admin' || primaryRole === 'head_hr') && (
+                              {['admin', 'head_hr', 'hr'].includes(primaryRole) && (
                                 <DropdownMenuItem onClick={() => openEditDialog(user)}>
                                   <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                   {t('common.edit')}

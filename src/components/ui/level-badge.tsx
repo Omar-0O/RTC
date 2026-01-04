@@ -14,7 +14,8 @@ const levelConfig: Record<string, { color: string; icon: string }> = {
   under_follow_up: { color: 'bg-slate-500', icon: '👀' },
   project_responsible: { color: 'bg-blue-500', icon: '📋' },
   responsible: { color: 'bg-purple-600', icon: '👑' },
-  // Fallback mappings for old data just in case
+
+  // Fallback mappings for old data
   bronze: { color: 'bg-slate-500', icon: '👀' },
   silver: { color: 'bg-slate-500', icon: '👀' },
   gold: { color: 'bg-blue-500', icon: '📋' },

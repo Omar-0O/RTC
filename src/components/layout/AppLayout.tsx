@@ -18,7 +18,7 @@ export function AppLayout() {
             <div className="flex-1">
               <h1 className="text-lg font-semibold">
                 {user?.role === 'admin' && 'Admin Dashboard'}
-                {user?.role === 'supervisor' && 'Supervisor Dashboard'}
+                {user?.role === 'supervisor' && 'Head of Branch Dashboard'}
                 {user?.role === 'volunteer' && 'Volunteer Portal'}
               </h1>
             </div>

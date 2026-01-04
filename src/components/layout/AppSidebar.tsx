@@ -10,7 +10,8 @@ import {
   LogOut,
   ChevronDown,
   Languages,
-  Building2
+  Building2,
+  Bus
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -74,6 +75,7 @@ export function AppSidebar() {
     { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/leader/profile', icon: User },
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
+    { title: t('nav.caravans'), url: '/caravans', icon: Bus }, // Make sure Bus is imported
   ];
 
   const adminNavItems = [
@@ -108,6 +110,10 @@ export function AppSidebar() {
       case 'hr':
       case 'head_hr':
         return hrNavItems;
+      case 'head_production':
+      case 'head_fourth_year':
+      case 'head_caravans':
+        return leaderNavItems; // Sharing dashboard with Committee Leaders for now as they are Heads
       default:
         return volunteerNavItems;
     }

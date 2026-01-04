@@ -29,7 +29,7 @@ export default function VolunteerDashboard() {
 
   const points = profile?.total_points || 0;
   const { progress, nextThreshold } = getLevelProgress(points);
-  const level = profile?.level || 'bronze';
+  const level = profile?.level || 'under_follow_up';
   const activitiesCount = profile?.activities_count || 0;
 
   useEffect(() => {

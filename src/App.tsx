@@ -24,6 +24,8 @@ import SupervisorCommitteeManagement from "./pages/supervisor/CommitteeManagemen
 import SupervisorBadgeManagement from "./pages/supervisor/BadgeManagement";
 import SupervisorReports from "./pages/supervisor/Reports";
 import CommitteeLeaderDashboard from "./pages/leader/Dashboard";
+import Caravans from "./pages/caravans/Caravans";
+import CaravanManagement from "./pages/caravans/CaravanManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -102,6 +104,11 @@ function AppRoutes() {
         <Route path="/leader/members" element={<CommitteeLeaderDashboard />} />
         <Route path="/leader/activity" element={<LogActivity />} />
         <Route path="/leader/profile" element={<Profile />} />
+
+        {/* Caravans Routes - Accessible by specific roles via sidebar/protection, or generic wrapper */}
+        <Route path="/caravans" element={<Caravans />}>
+          <Route index element={<CaravanManagement />} />
+        </Route>
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />

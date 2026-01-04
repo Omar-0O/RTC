@@ -37,7 +37,7 @@ interface Committee {
     name_ar: string;
 }
 
-type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader';
+type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr' | 'head_production' | 'head_fourth_year' | 'head_caravans';
 
 interface UserWithDetails {
     id: string;
@@ -96,7 +96,7 @@ export default function SupervisorUserManagement() {
                 committee_id: profile.committee_id,
                 committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
                 total_points: profile.total_points || 0,
-                level: profile.level || 'bronze',
+                level: profile.level || 'under_follow_up',
                 join_date: profile.join_date,
                 phone: profile.phone,
             }));
@@ -131,6 +131,9 @@ export default function SupervisorUserManagement() {
                 return 'bg-primary/10 text-primary';
             case 'committee_leader':
                 return 'bg-success/10 text-success';
+            case 'head_production':
+            case 'head_fourth_year':
+                return 'bg-blue-100 text-blue-700';
             default:
                 return 'bg-muted text-muted-foreground';
         }
@@ -141,6 +144,8 @@ export default function SupervisorUserManagement() {
             case 'admin': return t('common.admin');
             case 'supervisor': return t('common.supervisor');
             case 'committee_leader': return t('common.committeeLeader');
+            case 'head_production': return t('common.head_production');
+            case 'head_fourth_year': return t('common.head_fourth_year');
             default: return t('common.volunteer');
         }
     };
@@ -184,6 +189,9 @@ export default function SupervisorUserManagement() {
                                 <SelectItem value="all">{t('users.allRoles')}</SelectItem>
                                 <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
                                 <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
+                                <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
+                                <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
+                                <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
                                 <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
                                 <SelectItem value="admin">{t('common.admin')}</SelectItem>
                             </SelectContent>

@@ -2,7 +2,9 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
-type AppRole = 'admin' | 'supervisor' | 'committee_leader' | 'volunteer' | 'hr' | 'head_hr';
+import { UserRole } from '@/types';
+
+type AppRole = UserRole;
 
 interface Profile {
   id: string;
@@ -138,6 +140,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (roles.includes('hr')) return 'hr';
     if (roles.includes('supervisor')) return 'supervisor';
     if (roles.includes('committee_leader')) return 'committee_leader';
+    if (roles.includes('head_production')) return 'head_production';
+    if (roles.includes('head_fourth_year')) return 'head_fourth_year';
+    if (roles.includes('head_caravans')) return 'head_caravans';
     return 'volunteer';
   };
 

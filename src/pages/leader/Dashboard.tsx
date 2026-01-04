@@ -127,13 +127,16 @@ export default function CommitteeLeaderDashboard() {
 
   const displayLevel = (dbLevel: string) => {
     const levelMap: Record<string, string> = {
-      bronze: 'Newbie',
-      silver: 'Silver',
-      gold: 'Golden',
-      platinum: 'Platinum',
-      diamond: 'Diamond',
+      bronze: 'تحت المتابعة',
+      silver: 'تحت المتابعة',
+      gold: 'مشروع مسئول',
+      platinum: 'مسؤول',
+      diamond: 'مسؤول',
+      under_follow_up: 'تحت المتابعة',
+      project_responsible: 'مشروع مسئول',
+      responsible: 'مسؤول',
     };
-    return levelMap[dbLevel] || 'Newbie';
+    return levelMap[dbLevel] || 'تحت المتابعة';
   };
 
   const handleAddMember = async () => {

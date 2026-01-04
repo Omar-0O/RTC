@@ -64,7 +64,7 @@ export default function CommitteeManagement() {
   const [formNameAr, setFormNameAr] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formDescriptionAr, setFormDescriptionAr] = useState('');
-  const [formDescriptionAr, setFormDescriptionAr] = useState('');
+
   const [formColor, setFormColor] = useState('#3B82F6');
   const [formType, setFormType] = useState<'production' | 'fourth_year'>('production');
 

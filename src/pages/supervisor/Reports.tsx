@@ -65,6 +65,8 @@ interface ActivitySubmission {
   points_awarded: number;
   submitted_at: string;
   activity_type_id: string;
+  location?: string;
+  committee_id: string | null;
 }
 
 interface ActivityType {
@@ -356,6 +358,29 @@ export default function Reports() {
           };
         }).filter(a => (a[language === 'ar' ? 'عدد المشاركات' : 'Submissions Count'] as number) > 0);
         downloadCSV(activitiesData, `activities_${periodLabel}`);
+        break;
+
+      case 'activity_log':
+        const activityLogData = periodSubmissions.map(s => {
+          const volunteer = profiles.find(p => p.id === s.volunteer_id);
+          const activityType = activityTypes.find(a => a.id === s.activity_type_id);
+          const committee = committees.find(c => c.id === (volunteer?.committee_id || s.committee_id));
+
+          let locationStr = s.location || 'branch';
+          if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
+          else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
+
+          // User requested Order: Activity, Committee, Volunteer, Phone, Participation Type, Date
+          return {
+            [language === 'ar' ? 'النشاط' : 'Activity']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.[language === 'ar' ? 'full_name_ar' : 'full_name'] || volunteer?.full_name || '',
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
+            [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
+            [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+          };
+        });
+        downloadCSV(activityLogData, `activity_log_${periodLabel}`);
         break;
 
       case 'all':
@@ -794,7 +819,11 @@ export default function Reports() {
                     </div>
                     <div className="flex items-center space-x-2 rtl:space-x-reverse">
                       <RadioGroupItem value="activities" id="activities" />
-                      <Label htmlFor="activities" className="font-normal cursor-pointer">{language === 'ar' ? 'الأنشطة' : 'Activities'}</Label>
+                      <Label htmlFor="activities" className="font-normal cursor-pointer">{language === 'ar' ? 'إحصائيات الأنشطة' : 'Activities Stats'}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <RadioGroupItem value="activity_log" id="activity_log" />
+                      <Label htmlFor="activity_log" className="font-normal cursor-pointer">{language === 'ar' ? 'سجل المشاركات' : 'Activity Log'}</Label>
                     </div>
                   </RadioGroup>
                 </div>

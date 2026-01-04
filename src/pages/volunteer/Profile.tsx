@@ -327,7 +327,7 @@ export default function Profile({ userId }: ProfileProps) {
                 <h1 className="text-2xl font-bold">
                   {isRTL ? (displayProfile?.full_name_ar || displayProfile?.full_name) : displayProfile?.full_name}
                 </h1>
-                <LevelBadge level={displayProfile?.level || 'bronze'} />
+                <LevelBadge level={displayProfile?.level || 'under_follow_up'} />
               </div>
               <div className="flex flex-wrap justify-center md:justify-start gap-4 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">

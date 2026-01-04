@@ -109,7 +109,7 @@ export default function AdminDashboard() {
           id: v.volunteer_id,
           full_name: isRTL ? (v.full_name_ar || v.full_name || '') : v.full_name || '',
           total_points: v.total_points,
-          level: v.level || 'bronze'
+          level: v.level || 'under_follow_up'
         })));
       }
 
