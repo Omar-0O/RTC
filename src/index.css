@@ -39,10 +39,10 @@
     /* Custom tokens for RTC Pulse */
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
-    
+
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    
+
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
 
@@ -95,10 +95,10 @@
     /* Custom tokens */
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
-    
+
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
-    
+
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
 
@@ -138,6 +138,21 @@
   html[dir="rtl"] {
     /* Adjust spacing for RTL */
   }
+
+  /* Fix for touch events after dialog closes */
+  body {
+    pointer-events: auto !important;
+    touch-action: auto !important;
+  }
+
+  /* Ensure dialogs don't block touch events permanently */
+  [data-radix-portal] {
+    pointer-events: none;
+  }
+
+  [data-radix-portal]>* {
+    pointer-events: auto;
+  }
 }
 
 @layer utilities {
@@ -146,15 +161,15 @@
   }
 
   /* RTL utility classes */
-  [dir="rtl"] .space-x-2 > :not([hidden]) ~ :not([hidden]) {
+  [dir="rtl"] .space-x-2> :not([hidden])~ :not([hidden]) {
     --tw-space-x-reverse: 1;
   }
 
-  [dir="rtl"] .space-x-3 > :not([hidden]) ~ :not([hidden]) {
+  [dir="rtl"] .space-x-3> :not([hidden])~ :not([hidden]) {
     --tw-space-x-reverse: 1;
   }
 
-  [dir="rtl"] .space-x-4 > :not([hidden]) ~ :not([hidden]) {
+  [dir="rtl"] .space-x-4> :not([hidden])~ :not([hidden]) {
     --tw-space-x-reverse: 1;
   }
 }
