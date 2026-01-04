@@ -95,6 +95,21 @@ export default function Reports() {
     }
   };
 
+  // Helper function to get localized level name
+  const getLevelName = (level: string): string => {
+    if (language === 'ar') {
+      const levelMap: Record<string, string> = {
+        'bronze': 'مساهم',
+        'silver': 'مؤثر',
+        'gold': 'دحيح تطوع',
+        'platinum': 'قائد',
+        'diamond': 'قائد ملهم',
+      };
+      return levelMap[level] || level;
+    }
+    return t(`level.${level}`);
+  };
+
   // Get date range based on selection
   const getDateRange = () => {
     const now = new Date();
@@ -167,23 +182,28 @@ export default function Reports() {
     );
   };
 
-  // Activity submissions over time (last 6 months)
-  const activityTrend = Array.from({ length: 6 }, (_, i) => {
-    const date = subMonths(new Date(), 5 - i);
-    const monthStart = startOfMonth(date);
-    const monthEnd = endOfMonth(date);
+  // Activity submissions over time (from start of year)
+  const activityTrend = (() => {
+    const now = new Date();
+    const currentMonth = now.getMonth(); // 0-based (0 = January)
+    const yearStart = startOfYear(now);
 
-    const monthSubmissions = submissions.filter(s => {
-      const submittedDate = new Date(s.submitted_at);
-      return submittedDate >= monthStart && submittedDate <= monthEnd;
+    return Array.from({ length: currentMonth + 1 }, (_, i) => {
+      const date = new Date(now.getFullYear(), i, 1);
+      const monthStart = startOfMonth(date);
+      const monthEnd = endOfMonth(date);
+
+      const monthSubmissions = submissions.filter(s => {
+        const submittedDate = new Date(s.submitted_at);
+        return submittedDate >= monthStart && submittedDate <= monthEnd;
+      });
+
+      return {
+        month: format(date, 'MMM'),
+        submissions: monthSubmissions.length,
+      };
     });
-
-    return {
-      month: format(date, 'MMM'),
-      submissions: monthSubmissions.length,
-      approved: monthSubmissions.filter(s => s.status === 'approved').length,
-    };
-  });
+  })();
 
   // Top activities by submissions
   const activityStats = activityTypes.map(activity => {
@@ -229,9 +249,11 @@ export default function Reports() {
     switch (type) {
       case 'volunteers':
         const volunteersData = profiles.map(p => ({
-          [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
+          [language === 'ar' ? 'الاسم (عربي)' : 'Name (Arabic)']: p.full_name_ar || '',
+          [language === 'ar' ? 'الاسم (إنجليزي)' : 'Name (English)']: p.full_name || '',
           [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-          [language === 'ar' ? 'المستوى' : 'Level']: p.level,
+          [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
+          [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Level']: getLevelName(p.level),
           [language === 'ar' ? 'النقاط' : 'Points']: p.total_points,
           [language === 'ar' ? 'عدد الأنشطة' : 'Activities Count']: p.activities_count,
           [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
@@ -256,10 +278,12 @@ export default function Reports() {
 
       case 'points':
         const pointsData = profiles.map(p => ({
-          [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
+          [language === 'ar' ? 'الاسم (عربي)' : 'Name (Arabic)']: p.full_name_ar || '',
+          [language === 'ar' ? 'الاسم (إنجليزي)' : 'Name (English)']: p.full_name || '',
           [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
+          [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
           [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
-          [language === 'ar' ? 'المستوى' : 'Level']: p.level,
+          [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Level']: getLevelName(p.level),
         })).sort((a, b) => (b[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number) - (a[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number));
         downloadCSV(pointsData, 'points_summary');
         break;
@@ -267,8 +291,8 @@ export default function Reports() {
       case 'monthly':
         const monthlyData = activityTrend.map(m => ({
           [language === 'ar' ? 'الشهر' : 'Month']: m.month,
-          [language === 'ar' ? 'إجمالي الطلبات' : 'Total Submissions']: m.submissions,
-          [language === 'ar' ? 'المعتمدة' : 'Approved']: m.approved,
+          [language === 'ar' ? 'إجمالي المشاركات' : 'Total Submissions']: m.submissions,
+
         }));
         downloadCSV(monthlyData, 'monthly_report');
         break;
@@ -278,15 +302,14 @@ export default function Reports() {
         const fullReportData = profiles.map(p => {
           const volunteerSubmissions = submissions.filter(s => s.volunteer_id === p.id);
           return {
-            [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
+            [language === 'ar' ? 'الاسم (عربي)' : 'Name (Arabic)']: p.full_name_ar || '',
+            [language === 'ar' ? 'الاسم (إنجليزي)' : 'Name (English)']: p.full_name || '',
             [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
             [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-            [language === 'ar' ? 'المستوى' : 'Level']: p.level,
+            [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Level']: getLevelName(p.level),
             [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
             [language === 'ar' ? 'عدد الأنشطة' : 'Activities Count']: p.activities_count,
-            [language === 'ar' ? 'الطلبات المعلقة' : 'Pending Submissions']: volunteerSubmissions.filter(s => s.status === 'pending').length,
-            [language === 'ar' ? 'الطلبات المعتمدة' : 'Approved Submissions']: volunteerSubmissions.filter(s => s.status === 'approved').length,
-            [language === 'ar' ? 'الطلبات المرفوضة' : 'Rejected Submissions']: volunteerSubmissions.filter(s => s.status === 'rejected').length,
           };
         });
         downloadCSV(fullReportData, 'full_report');
@@ -418,15 +441,9 @@ export default function Reports() {
                     dataKey="submissions"
                     stroke="hsl(var(--primary))"
                     strokeWidth={2}
-                    name={language === 'ar' ? 'الطلبات' : 'Submissions'}
+                    name={language === 'ar' ? 'المشاركات' : 'Submissions'}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="approved"
-                    stroke="hsl(var(--success))"
-                    strokeWidth={2}
-                    name={language === 'ar' ? 'المعتمدة' : 'Approved'}
-                  />
+
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -483,22 +500,32 @@ export default function Reports() {
             <CardDescription>{t('reports.committeePerformanceDesc')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-[300px]">
+            <div className="h-[350px]">
               {committeeData.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   {language === 'ar' ? 'لا توجد بيانات' : 'No data available'}
                 </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={committeeData} layout="vertical">
+                  <BarChart data={committeeData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis type="number" className="text-xs" />
+                    <XAxis
+                      type="number"
+                      className="text-xs"
+                      label={{
+                        value: language === 'ar' ? 'إجمالي الأثر' : 'Total Points',
+                        position: 'insideBottom',
+                        offset: -5,
+                        style: { fontSize: '12px', fill: 'hsl(var(--foreground))' }
+                      }}
+                    />
                     <YAxis
                       dataKey="name"
                       type="category"
                       className="text-xs"
-                      width={80}
+                      width={120}
                       orientation={language === 'ar' ? 'right' : 'left'}
+                      tick={{ fontSize: 11 }}
                     />
                     <Tooltip
                       contentStyle={{
@@ -506,8 +533,32 @@ export default function Reports() {
                         border: '1px solid hsl(var(--border))',
                         borderRadius: '8px'
                       }}
+                      formatter={(value: number) => [
+                        `${value.toLocaleString()} ${language === 'ar' ? 'أثر' : 'points'}`,
+                        language === 'ar' ? 'إجمالي الأثر' : 'Total Points'
+                      ]}
                     />
-                    <Bar dataKey="points" fill="hsl(var(--primary))" radius={language === 'ar' ? [4, 0, 0, 4] : [0, 4, 4, 0]} />
+                    <Legend
+                      wrapperStyle={{ fontSize: '12px' }}
+                      payload={[
+                        {
+                          value: language === 'ar' ? 'الأثر المحقق' : 'Points Earned',
+                          type: 'rect',
+                          color: 'hsl(var(--primary))'
+                        }
+                      ]}
+                    />
+                    <Bar
+                      dataKey="points"
+                      fill="hsl(var(--primary))"
+                      radius={language === 'ar' ? [4, 0, 0, 4] : [0, 4, 4, 0]}
+                      label={{
+                        position: language === 'ar' ? 'left' : 'right',
+                        fontSize: 11,
+                        fill: 'hsl(var(--foreground))',
+                        formatter: (value: number) => value.toLocaleString()
+                      }}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -536,7 +587,7 @@ export default function Reports() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{activity.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {activity.count} {language === 'ar' ? 'طلب' : 'submissions'} • {activity.points} {t('common.points')}
+                        {activity.count} {language === 'ar' ? 'مشاركة' : 'submissions'} • {activity.points} {t('common.points')}
                       </p>
                     </div>
                     <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">

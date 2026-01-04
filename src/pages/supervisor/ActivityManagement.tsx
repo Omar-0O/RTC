@@ -248,7 +248,7 @@ export default function ActivityManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{isRTL ? 'أنواع الأنشطة' : 'Activity Types'}</h1>
-          <p className="text-muted-foreground">{isRTL ? 'إدارة أنواع الأنشطة التطوعية والنقاط' : 'Manage volunteer activity types and point values'}</p>
+          <p className="text-muted-foreground">{isRTL ? 'إدارة أنواع الأنشطة التطوعية والأثر' : 'Manage volunteer activity types and point values'}</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={(open) => { setIsAddDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
@@ -310,7 +310,7 @@ export default function ActivityManagement() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="points">{isRTL ? 'النقاط' : 'Points Value'}</Label>
+                    <Label htmlFor="points">{isRTL ? 'الأثر' : 'Points Value'}</Label>
                     <Input
                       id="points"
                       type="number"
@@ -464,8 +464,8 @@ export default function ActivityManagement() {
                           </span>
                         </div>
                         <div className="flex justify-between items-center py-1 border-b">
-                          <span className="text-muted-foreground">{isRTL ? 'النقاط' : 'Points'}</span>
-                          <span className="font-bold text-primary">{activity.points} {isRTL ? 'نقطة' : 'pts'}</span>
+                          <span className="text-muted-foreground">{isRTL ? 'الأثر' : 'Points'}</span>
+                          <span className="font-bold text-primary">{activity.points} {isRTL ? 'أثر' : 'pts'}</span>
                         </div>
                         <div className="flex justify-between items-center py-1">
                           <span className="text-muted-foreground">{isRTL ? 'النوع' : 'Mode'}</span>
@@ -488,7 +488,7 @@ export default function ActivityManagement() {
                   <TableRow>
                     <TableHead className="text-start">{isRTL ? 'اسم النشاط' : 'Activity Name'}</TableHead>
                     <TableHead className="text-start">{isRTL ? 'اللجنة' : 'Committee'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'النقاط' : 'Points'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'الأثر' : 'Points'}</TableHead>
                     <TableHead className="text-start">{isRTL ? 'النوع' : 'Mode'}</TableHead>
                     <TableHead className="max-w-[200px] text-start">{isRTL ? 'الوصف' : 'Description'}</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
@@ -513,7 +513,7 @@ export default function ActivityManagement() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          <span className="font-bold text-primary">{activity.points} {isRTL ? 'نقطة' : 'pts'}</span>
+                          <span className="font-bold text-primary">{activity.points} {isRTL ? 'أثر' : 'pts'}</span>
                         </TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${activity.mode === 'group' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
@@ -614,7 +614,7 @@ export default function ActivityManagement() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label>{isRTL ? 'النقاط' : 'Points Value'}</Label>
+                  <Label>{isRTL ? 'الأثر' : 'Points Value'}</Label>
                   <Input
                     type="number"
                     min="1"

@@ -384,7 +384,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.avgPointsPerVolunteer': 'متوسط الأثر/متطوع',
     'reports.activityTrend': 'اتجاه تقديم الأنشطة',
     'reports.activityTrendDesc': 'معدلات التقديم والموافقة الشهرية',
-    'reports.levelDistribution': 'توزيع مستويات المتطوعين',
+    'reports.levelDistribution': 'توزيع الدرجات التطوعية',
     'reports.levelDistributionDesc': 'تفصيل المتطوعين حسب المستوى',
     'reports.committeePerformance': 'أداء اللجان',
     'reports.committeePerformanceDesc': 'الأثر المحقق حسب اللجنة',
