@@ -10,6 +10,17 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
   BarChart,
   Bar,
   XAxis,
@@ -32,7 +43,9 @@ import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, st
 interface Profile {
   id: string;
   full_name: string | null;
+  full_name_ar: string | null;
   email: string;
+  phone: string | null;
   total_points: number;
   level: string;
   activities_count: number;
@@ -69,6 +82,9 @@ export default function Reports() {
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportType, setExportType] = useState('all');
+  const [exportPeriod, setExportPeriod] = useState('year');
 
   useEffect(() => {
     fetchData();
@@ -182,11 +198,10 @@ export default function Reports() {
     );
   };
 
-  // Activity submissions over time (from start of year)
-  const activityTrend = (() => {
+  // Monthly activity statistics for export
+  const monthlyActivityStats = (() => {
     const now = new Date();
-    const currentMonth = now.getMonth(); // 0-based (0 = January)
-    const yearStart = startOfYear(now);
+    const currentMonth = now.getMonth();
 
     return Array.from({ length: currentMonth + 1 }, (_, i) => {
       const date = new Date(now.getFullYear(), i, 1);
@@ -198,22 +213,34 @@ export default function Reports() {
         return submittedDate >= monthStart && submittedDate <= monthEnd;
       });
 
-      return {
+      const stats: any = {
         month: format(date, 'MMM'),
-        submissions: monthSubmissions.length,
+        total: monthSubmissions.length,
       };
+
+      // Count per activity type
+      activityTypes.forEach(activity => {
+        stats[activity.id] = monthSubmissions.filter(s => s.activity_type_id === activity.id).length;
+      });
+
+      return stats;
     });
   })();
 
-  // Top activities by submissions
-  const activityStats = activityTypes.map(activity => {
+  // Activity distribution data
+  const allActivityStats = activityTypes.map(activity => {
     const activitySubmissions = submissions.filter(s => s.activity_type_id === activity.id);
+    const uniqueVolunteers = new Set(activitySubmissions.map(s => s.volunteer_id)).size;
     return {
       name: language === 'ar' ? activity.name_ar : activity.name,
-      count: activitySubmissions.length,
+      submissions: activitySubmissions.length,
+      volunteers: uniqueVolunteers,
       points: activity.points,
     };
-  }).filter(a => a.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
+  }).filter(a => a.submissions > 0).sort((a, b) => b.submissions - a.submissions);
+
+  // Top activities by submissions (for the list)
+  const activityStats = allActivityStats.slice(0, 5);
 
   // CSV Export functions
   const downloadCSV = (data: any[], filename: string) => {
@@ -243,6 +270,114 @@ export default function Reports() {
     URL.revokeObjectURL(link.href);
 
     toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
+  };
+
+  // Get date range for selected period
+  const getPeriodDateRange = (period: string) => {
+    const now = new Date();
+    switch (period) {
+      case 'month':
+        return { start: startOfMonth(now), end: endOfMonth(now) };
+      case 'quarter':
+        return { start: startOfQuarter(now), end: endOfQuarter(now) };
+      case 'semi':
+        return { start: subMonths(startOfMonth(now), 5), end: endOfMonth(now) };
+      case 'year':
+        return { start: startOfYear(now), end: endOfYear(now) };
+      default:
+        return { start: startOfYear(now), end: endOfYear(now) };
+    }
+  };
+
+  // Handle detailed export
+  const handleDetailedExport = () => {
+    const { start, end } = getPeriodDateRange(exportPeriod);
+    const periodLabel = {
+      month: language === 'ar' ? 'شهري' : 'monthly',
+      quarter: language === 'ar' ? 'ربع_سنوي' : 'quarterly',
+      semi: language === 'ar' ? 'نصف_سنوي' : 'semi_annual',
+      year: language === 'ar' ? 'سنوي' : 'annual',
+    }[exportPeriod];
+
+    const periodSubmissions = submissions.filter(s => {
+      const date = new Date(s.submitted_at);
+      return date >= start && date <= end;
+    });
+
+    switch (exportType) {
+      case 'volunteers':
+        const volunteersData = profiles.map(p => {
+          const userSubmissions = periodSubmissions.filter(s => s.volunteer_id === p.id);
+          return {
+            [language === 'ar' ? 'الاسم (عربي)' : 'Name (Arabic)']: p.full_name_ar || '',
+            [language === 'ar' ? 'الاسم (إنجليزي)' : 'Name (English)']: p.full_name || '',
+            [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
+            [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Level']: getLevelName(p.level),
+            [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
+            [language === 'ar' ? 'النقاط في الفترة' : 'Period Points']: userSubmissions.reduce((sum, s) => sum + (s.points_awarded || 0), 0),
+            [language === 'ar' ? 'عدد المشاركات' : 'Submissions Count']: userSubmissions.length,
+            [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+          };
+        });
+        downloadCSV(volunteersData, `volunteers_${periodLabel}`);
+        break;
+
+      case 'committees':
+        const committeesData = committees.map(committee => {
+          const committeeVolunteers = profiles.filter(p => p.committee_id === committee.id);
+          const committeeSubmissions = periodSubmissions.filter(s => {
+            const volunteer = profiles.find(p => p.id === s.volunteer_id);
+            return volunteer?.committee_id === committee.id;
+          });
+          return {
+            [language === 'ar' ? 'اللجنة (عربي)' : 'Committee (Arabic)']: committee.name_ar,
+            [language === 'ar' ? 'اللجنة (إنجليزي)' : 'Committee (English)']: committee.name,
+            [language === 'ar' ? 'عدد المتطوعين' : 'Volunteers Count']: committeeVolunteers.length,
+            [language === 'ar' ? 'إجمالي الأثر' : 'Total Points']: committeeVolunteers.reduce((sum, v) => sum + v.total_points, 0),
+            [language === 'ar' ? 'الأثر في الفترة' : 'Period Points']: committeeSubmissions.reduce((sum, s) => sum + (s.points_awarded || 0), 0),
+            [language === 'ar' ? 'عدد المشاركات' : 'Submissions Count']: committeeSubmissions.length,
+          };
+        });
+        downloadCSV(committeesData, `committees_${periodLabel}`);
+        break;
+
+      case 'activities':
+        const activitiesData = activityTypes.map(activity => {
+          const activitySubmissions = periodSubmissions.filter(s => s.activity_type_id === activity.id);
+          return {
+            [language === 'ar' ? 'النشاط (عربي)' : 'Activity (Arabic)']: activity.name_ar,
+            [language === 'ar' ? 'النشاط (إنجليزي)' : 'Activity (English)']: activity.name,
+            [language === 'ar' ? 'قيمة الأثر' : 'Points Value']: activity.points,
+            [language === 'ar' ? 'عدد المشاركات' : 'Submissions Count']: activitySubmissions.length,
+            [language === 'ar' ? 'إجمالي الأثر المحقق' : 'Total Points Earned']: activitySubmissions.reduce((sum, s) => sum + (s.points_awarded || 0), 0),
+          };
+        }).filter(a => (a[language === 'ar' ? 'عدد المشاركات' : 'Submissions Count'] as number) > 0);
+        downloadCSV(activitiesData, `activities_${periodLabel}`);
+        break;
+
+      case 'all':
+        const allData = profiles.map(p => {
+          const userSubmissions = periodSubmissions.filter(s => s.volunteer_id === p.id);
+          return {
+            [language === 'ar' ? 'الاسم (عربي)' : 'Name (Arabic)']: p.full_name_ar || '',
+            [language === 'ar' ? 'الاسم (إنجليزي)' : 'Name (English)']: p.full_name || '',
+            [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
+            [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Level']: getLevelName(p.level),
+            [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
+            [language === 'ar' ? 'النقاط في الفترة' : 'Period Points']: userSubmissions.reduce((sum, s) => sum + (s.points_awarded || 0), 0),
+            [language === 'ar' ? 'عدد الأنشطة الكلي' : 'Total Activities']: p.activities_count,
+            [language === 'ar' ? 'المشاركات في الفترة' : 'Period Submissions']: userSubmissions.length,
+          };
+        });
+        downloadCSV(allData, `complete_report_${periodLabel}`);
+        break;
+    }
+
+    setIsExportDialogOpen(false);
+    toast.success(language === 'ar' ? 'تم تصدير التقرير بنجاح' : 'Report exported successfully');
   };
 
   const handleExport = (type: string) => {
@@ -288,13 +423,23 @@ export default function Reports() {
         downloadCSV(pointsData, 'points_summary');
         break;
 
-      case 'monthly':
-        const monthlyData = activityTrend.map(m => ({
-          [language === 'ar' ? 'الشهر' : 'Month']: m.month,
-          [language === 'ar' ? 'إجمالي المشاركات' : 'Total Submissions']: m.submissions,
 
-        }));
-        downloadCSV(monthlyData, 'monthly_report');
+
+      case 'monthly':
+        const monthlyData = monthlyActivityStats.map(stat => {
+          const row: any = {
+            [language === 'ar' ? 'الشهر' : 'Month']: stat.month,
+            [language === 'ar' ? 'إجمالي المشاركات' : 'Total Submissions']: stat.total,
+          };
+
+          activityTypes.forEach(activity => {
+            const activityName = language === 'ar' ? activity.name_ar : activity.name;
+            row[activityName] = stat[activity.id] || 0;
+          });
+
+          return row;
+        });
+        downloadCSV(monthlyData, 'monthly_activity_report');
         break;
 
       case 'full':
@@ -424,10 +569,16 @@ export default function Reports() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={activityTrend}>
+                <BarChart data={allActivityStats} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="month" className="text-xs" />
-                  <YAxis className="text-xs" />
+                  <XAxis type="number" className="text-xs" />
+                  <YAxis
+                    dataKey="name"
+                    type="category"
+                    className="text-xs"
+                    width={120}
+                    orientation={language === 'ar' ? 'right' : 'left'}
+                  />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
@@ -436,15 +587,13 @@ export default function Reports() {
                     }}
                   />
                   <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="submissions"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    name={language === 'ar' ? 'المشاركات' : 'Submissions'}
+                  <Bar
+                    dataKey="volunteers"
+                    fill="hsl(var(--primary))"
+                    radius={language === 'ar' ? [4, 0, 0, 4] : [0, 4, 4, 0]}
+                    name={language === 'ar' ? 'عدد المتطوعين' : 'Volunteers Count'}
                   />
-
-                </LineChart>
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -587,13 +736,12 @@ export default function Reports() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{activity.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {activity.count} {language === 'ar' ? 'مشاركة' : 'submissions'} • {activity.points} {t('common.points')}
+                        {activity.submissions} {language === 'ar' ? 'مشاركة' : 'submissions'} • {activity.points} {t('common.points')}
                       </p>
                     </div>
                     <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
                       <div
-                        className="h-full bg-primary rounded-full"
-                        style={{ width: `${(activity.count / activityStats[0].count) * 100}%` }}
+                        style={{ width: `${(activity.submissions / activityStats[0].submissions) * 100}%` }}
                       />
                     </div>
                   </div>
@@ -604,31 +752,83 @@ export default function Reports() {
         </Card>
       </div>
 
-      {/* Export Options */}
+
+      {/* Export Dialog */}
       <Card>
         <CardHeader>
-          <CardTitle>{t('reports.exportData')}</CardTitle>
-          <CardDescription>{t('reports.exportDataDesc')}</CardDescription>
+          <CardTitle>{language === 'ar' ? 'تصدير التقارير' : 'Export Reports'}</CardTitle>
+          <CardDescription>{language === 'ar' ? 'تصدير تقارير مفصلة حسب النوع والفترة الزمنية' : 'Export detailed reports by type and time period'}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className="justify-start" onClick={() => handleExport('volunteers')}>
-              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-              {t('reports.volunteerList')}
-            </Button>
-            <Button variant="outline" className="justify-start" onClick={() => handleExport('activities')}>
-              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-              {t('reports.activityLog')}
-            </Button>
-            <Button variant="outline" className="justify-start" onClick={() => handleExport('points')}>
-              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-              {t('reports.pointsSummary')}
-            </Button>
-            <Button variant="outline" className="justify-start" onClick={() => handleExport('monthly')}>
-              <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-              {t('reports.monthlyReport')}
-            </Button>
-          </div>
+          <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="w-full">
+                <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                {language === 'ar' ? 'تصدير تقرير مفصل' : 'Export Detailed Report'}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>{language === 'ar' ? 'تصدير تقرير مفصل' : 'Export Detailed Report'}</DialogTitle>
+                <DialogDescription>
+                  {language === 'ar' ? 'اختر نوع التقرير والفترة الزمنية للتصدير' : 'Select report type and time period to export'}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-6 py-4">
+                <div className="grid gap-3">
+                  <Label className="text-base font-semibold">{language === 'ar' ? 'نوع التقرير' : 'Report Type'}</Label>
+                  <RadioGroup value={exportType} onValueChange={setExportType}>
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <RadioGroupItem value="all" id="all" />
+                      <Label htmlFor="all" className="font-normal cursor-pointer">{language === 'ar' ? 'تقرير شامل (كل البيانات)' : 'Complete Report (All Data)'}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <RadioGroupItem value="volunteers" id="volunteers" />
+                      <Label htmlFor="volunteers" className="font-normal cursor-pointer">{language === 'ar' ? 'المتطوعين' : 'Volunteers'}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <RadioGroupItem value="committees" id="committees" />
+                      <Label htmlFor="committees" className="font-normal cursor-pointer">{language === 'ar' ? 'اللجان' : 'Committees'}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <RadioGroupItem value="activities" id="activities" />
+                      <Label htmlFor="activities" className="font-normal cursor-pointer">{language === 'ar' ? 'الأنشطة' : 'Activities'}</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+                <div className="grid gap-3">
+                  <Label className="text-base font-semibold">{language === 'ar' ? 'الفترة الزمنية' : 'Time Period'}</Label>
+                  <RadioGroup value={exportPeriod} onValueChange={setExportPeriod}>
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <RadioGroupItem value="month" id="month" />
+                      <Label htmlFor="month" className="font-normal cursor-pointer">{language === 'ar' ? 'الشهر الحالي' : 'Current Month'}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <RadioGroupItem value="quarter" id="quarter" />
+                      <Label htmlFor="quarter" className="font-normal cursor-pointer">{language === 'ar' ? 'الربع الحالي' : 'Current Quarter'}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <RadioGroupItem value="semi" id="semi" />
+                      <Label htmlFor="semi" className="font-normal cursor-pointer">{language === 'ar' ? 'آخر 6 أشهر' : 'Last 6 Months'}</Label>
+                    </div>
+                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                      <RadioGroupItem value="year" id="year" />
+                      <Label htmlFor="year" className="font-normal cursor-pointer">{language === 'ar' ? 'السنة الحالية' : 'Current Year'}</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
+                  {language === 'ar' ? 'إلغاء' : 'Cancel'}
+                </Button>
+                <Button onClick={handleDetailedExport}>
+                  <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                  {language === 'ar' ? 'تصدير' : 'Export'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
     </div>
