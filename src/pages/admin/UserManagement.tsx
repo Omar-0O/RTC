@@ -753,46 +753,50 @@ export default function UserManagement() {
             </DialogHeader>
             <form onSubmit={handleAddUser} className="max-h-[80vh] overflow-y-auto px-1">
               <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">{language === 'ar' ? 'الاسم بالإنجليزي' : 'Full Name (English)'} *</Label>
-                  <Input
-                    id="name"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    placeholder={language === 'ar' ? 'Omar Mohamed' : 'Full Name'}
-                    required
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">{language === 'ar' ? 'الاسم بالإنجليزي' : 'Full Name (English)'} *</Label>
+                    <Input
+                      id="name"
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      placeholder={language === 'ar' ? 'Omar Mohamed' : 'Full Name'}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="name-ar">{language === 'ar' ? 'الاسم بالعربي' : 'Full Name (Arabic)'} *</Label>
+                    <Input
+                      id="name-ar"
+                      value={formNameAr}
+                      onChange={(e) => setFormNameAr(e.target.value)}
+                      placeholder={language === 'ar' ? 'عمر محمد' : 'Arabic Name'}
+                      required
+                    />
+                  </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="name-ar">{language === 'ar' ? 'الاسم بالعربي' : 'Full Name (Arabic)'} *</Label>
-                  <Input
-                    id="name-ar"
-                    value={formNameAr}
-                    onChange={(e) => setFormNameAr(e.target.value)}
-                    placeholder={language === 'ar' ? 'عمر محمد' : 'Arabic Name'}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="email">{t('auth.email')} *</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
-                    placeholder={t('auth.email')}
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="phone">{t('users.phoneNumber')}</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
-                    placeholder="+20 123 456 7890"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="email">{t('auth.email')} *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formEmail}
+                      onChange={(e) => setFormEmail(e.target.value)}
+                      placeholder={t('auth.email')}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="phone">{t('users.phoneNumber')}</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={formPhone}
+                      onChange={(e) => setFormPhone(e.target.value)}
+                      placeholder="+20 123 456 7890"
+                    />
+                  </div>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password">{t('password')} *</Label>
@@ -820,25 +824,40 @@ export default function UserManagement() {
                     </button>
                   </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="role">{t('users.role')}</Label>
-                  <Select value={formRole} onValueChange={setFormRole}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t('users.role')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
-                      <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
-                      <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
-                      <SelectItem value="hr">{t('common.hr')}</SelectItem>
-                      <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
-                      <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
-                      <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
-                      <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
-                      <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
-                      <SelectItem value="admin">{t('common.admin')}</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="role">{t('users.role')}</Label>
+                    <Select value={formRole} onValueChange={setFormRole}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('users.role')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
+                        <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
+                        <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                        <SelectItem value="hr">{t('common.hr')}</SelectItem>
+                        <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
+                        <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
+                        <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
+                        <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
+                        <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
+                        <SelectItem value="admin">{t('common.admin')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="level">{t('users.level')}</Label>
+                    <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder={t('users.level')} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="under_follow_up">{t('level.under_follow_up')}</SelectItem>
+                        <SelectItem value="project_responsible">{t('level.project_responsible')}</SelectItem>
+                        <SelectItem value="responsible">{t('level.responsible')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="committee">{t('users.committee')}</Label>
@@ -857,19 +876,6 @@ export default function UserManagement() {
                           {language === 'ar' ? committee.name_ar : committee.name}
                         </SelectItem>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="level">{t('users.level')}</Label>
-                  <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={t('users.level')} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="under_follow_up">{t('level.under_follow_up')}</SelectItem>
-                      <SelectItem value="project_responsible">{t('level.project_responsible')}</SelectItem>
-                      <SelectItem value="responsible">{t('level.responsible')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -979,69 +985,88 @@ export default function UserManagement() {
           </DialogHeader>
           <form onSubmit={handleEditUser} className="max-h-[80vh] overflow-y-auto px-1">
             <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-name">{language === 'ar' ? 'الاسم بالإنجليزي' : 'Full Name (English)'} *</Label>
-                <Input
-                  id="edit-name"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  placeholder={language === 'ar' ? 'Omar Mohamed' : 'Full Name'}
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-name">{language === 'ar' ? 'الاسم بالإنجليزي' : 'Full Name (English)'} *</Label>
+                  <Input
+                    id="edit-name"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder={language === 'ar' ? 'Omar Mohamed' : 'Full Name'}
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-name-ar">{language === 'ar' ? 'الاسم بالعربي' : 'Full Name (Arabic)'}</Label>
+                  <Input
+                    id="edit-name-ar"
+                    value={formNameAr}
+                    onChange={(e) => setFormNameAr(e.target.value)}
+                    placeholder={language === 'ar' ? 'عمر محمد' : 'Arabic Name'}
+                    dir="rtl"
+                  />
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-name-ar">{language === 'ar' ? 'الاسم بالعربي' : 'Full Name (Arabic)'}</Label>
-                <Input
-                  id="edit-name-ar"
-                  value={formNameAr}
-                  onChange={(e) => setFormNameAr(e.target.value)}
-                  placeholder={language === 'ar' ? 'عمر محمد' : 'Arabic Name'}
-                  dir="rtl"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-email">{t('auth.email')} *</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={formEmail}
+                    onChange={(e) => setFormEmail(e.target.value)}
+                    placeholder={t('auth.email')}
+                    required
+                    disabled
+                    className="opacity-60"
+                  />
+                  <p className="text-xs text-muted-foreground">{language === 'ar' ? 'لا يمكن تعديل البريد الإلكتروني' : 'Email cannot be changed'}</p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-phone">{t('users.phoneNumber')}</Label>
+                  <Input
+                    id="edit-phone"
+                    type="tel"
+                    value={formPhone}
+                    onChange={(e) => setFormPhone(e.target.value)}
+                    placeholder="+20 123 456 7890"
+                  />
+                </div>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-email">{t('auth.email')} *</Label>
-                <Input
-                  id="edit-email"
-                  type="email"
-                  value={formEmail}
-                  onChange={(e) => setFormEmail(e.target.value)}
-                  placeholder={t('auth.email')}
-                  required
-                  disabled
-                  className="opacity-60"
-                />
-                <p className="text-xs text-muted-foreground">{language === 'ar' ? 'لا يمكن تعديل البريد الإلكتروني' : 'Email cannot be changed'}</p>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-phone">{t('users.phoneNumber')}</Label>
-                <Input
-                  id="edit-phone"
-                  type="tel"
-                  value={formPhone}
-                  onChange={(e) => setFormPhone(e.target.value)}
-                  placeholder="+20 123 456 7890"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-role">{t('users.role')}</Label>
-                <Select value={formRole} onValueChange={setFormRole} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t('users.role')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
-                    <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
-                    <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
-                    <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
-                    <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
-                    <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
-                    <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
-                    <SelectItem value="hr">{t('common.hr')}</SelectItem>
-                    <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
-                    <SelectItem value="admin">{t('common.admin')}</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-role">{t('users.role')}</Label>
+                  <Select value={formRole} onValueChange={setFormRole} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t('users.role')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
+                      <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
+                      <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                      <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
+                      <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
+                      <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
+                      <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
+                      <SelectItem value="hr">{t('common.hr')}</SelectItem>
+                      <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
+                      <SelectItem value="admin">{t('common.admin')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-level">{t('users.level')}</Label>
+                  <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t('users.level')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="under_follow_up">{t('level.under_follow_up')}</SelectItem>
+                      <SelectItem value="project_responsible">{t('level.project_responsible')}</SelectItem>
+                      <SelectItem value="responsible">{t('level.responsible')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-committee">{t('users.committee')}</Label>
@@ -1056,19 +1081,6 @@ export default function UserManagement() {
                         {language === 'ar' ? committee.name_ar : committee.name}
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="edit-level">{t('users.level')}</Label>
-                <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={t('users.level')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="under_follow_up">{t('level.under_follow_up')}</SelectItem>
-                    <SelectItem value="project_responsible">{t('level.project_responsible')}</SelectItem>
-                    <SelectItem value="responsible">{t('level.responsible')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

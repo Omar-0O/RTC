@@ -32,6 +32,8 @@ interface ActivityType {
   points: number;
   mode: 'individual' | 'group';
   committee_id: string | null;
+  category: string;
+  created_at: string;
 }
 
 interface Submission {
@@ -181,7 +183,7 @@ export default function LogActivity() {
   const filteredActivities = activityTypes.filter(
     a => {
       const matchesCommittee = !a.committee_id || a.committee_id === committeeId;
-      const matchesMode = isGroupSubmission ? a.mode === 'group' : true;
+      const matchesMode = isGroupSubmission ? a.mode === 'group' : a.mode === 'individual';
       return matchesCommittee && matchesMode;
     }
   );
@@ -370,7 +372,7 @@ export default function LogActivity() {
             leader_id: user.id,
             activity_type_id: activityId,
             committee_id: committeeId,
-            guest_participants: guestParticipants.filter(g => g.name),
+            guest_participants: guestParticipants.filter(g => g.name) as any,
             excel_sheet_url: excelUrl,
             submitted_at: new Date().toISOString()
           })

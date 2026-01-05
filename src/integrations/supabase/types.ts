@@ -73,29 +73,104 @@ export interface Database {
             activity_types: {
                 Row: {
                     category: string
+                    committee_id: string | null
                     created_at: string
+                    description: string | null
+                    description_ar: string | null
                     id: string
+                    mode: "individual" | "group"
                     name: string
                     name_ar: string
                     points: number
                 }
                 Insert: {
                     category: string
+                    committee_id?: string | null
                     created_at?: string
+                    description?: string | null
+                    description_ar?: string | null
                     id?: string
+                    mode?: "individual" | "group"
                     name: string
                     name_ar: string
                     points: number
                 }
                 Update: {
                     category?: string
+                    committee_id?: string | null
                     created_at?: string
+                    description?: string | null
+                    description_ar?: string | null
                     id?: string
+                    mode?: "individual" | "group"
                     name?: string
                     name_ar?: string
                     points?: number
                 }
-                Relationships: []
+                Relationships: [
+                    {
+                        foreignKeyName: "activity_types_committee_id_fkey"
+                        columns: ["committee_id"]
+                        isOneToOne: false
+                        referencedRelation: "committees"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            group_submissions: {
+                Row: {
+                    activity_type_id: string
+                    committee_id: string
+                    created_at: string
+                    excel_sheet_url: string | null
+                    guest_participants: Json | null
+                    id: string
+                    leader_id: string
+                    submitted_at: string
+                }
+                Insert: {
+                    activity_type_id: string
+                    committee_id: string
+                    created_at?: string
+                    excel_sheet_url?: string | null
+                    guest_participants?: Json | null
+                    id?: string
+                    leader_id: string
+                    submitted_at?: string
+                }
+                Update: {
+                    activity_type_id?: string
+                    committee_id?: string
+                    created_at?: string
+                    excel_sheet_url?: string | null
+                    guest_participants?: Json | null
+                    id?: string
+                    leader_id?: string
+                    submitted_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "group_submissions_activity_type_id_fkey"
+                        columns: ["activity_type_id"]
+                        isOneToOne: false
+                        referencedRelation: "activity_types"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "group_submissions_committee_id_fkey"
+                        columns: ["committee_id"]
+                        isOneToOne: false
+                        referencedRelation: "committees"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "group_submissions_leader_id_fkey"
+                        columns: ["leader_id"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
+                        referencedColumns: ["id"]
+                    }
+                ]
             }
             badges: {
                 Row: {
