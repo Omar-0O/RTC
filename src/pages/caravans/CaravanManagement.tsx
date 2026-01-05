@@ -352,6 +352,9 @@ export default function CaravanManagement() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const flattenedData: any[] = [];
             allCaravans.forEach((c: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+                const volunteersCount = (c.caravan_participants || []).filter((p: any) => p.is_volunteer).length;
+                const guestsCount = (c.caravan_participants || []).filter((p: any) => !p.is_volunteer).length;
+
                 if (c.caravan_participants && c.caravan_participants.length > 0) {
                     c.caravan_participants.forEach((p: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
                         flattenedData.push({
@@ -359,6 +362,8 @@ export default function CaravanManagement() {
                             [t('caravans.type')]: c.type,
                             [t('caravans.date')]: c.date,
                             [t('caravans.location')]: c.location,
+                            [t('caravans.volunteersCount')]: volunteersCount,
+                            [t('caravans.guestsCount')]: guestsCount,
                             [t('caravans.moveTime')]: c.move_time,
                             [t('caravans.actualMoveTime')]: c.actual_move_time,
                             [t('caravans.busArrivalTime')]: c.bus_arrival_time,
@@ -375,6 +380,8 @@ export default function CaravanManagement() {
                         [t('caravans.type')]: c.type,
                         [t('caravans.date')]: c.date,
                         [t('caravans.location')]: c.location,
+                        [t('caravans.volunteersCount')]: volunteersCount,
+                        [t('caravans.guestsCount')]: guestsCount,
                         [t('caravans.moveTime')]: c.move_time,
                         [t('caravans.actualMoveTime')]: c.actual_move_time,
                         [t('caravans.busArrivalTime')]: c.bus_arrival_time,

@@ -40,6 +40,8 @@ const translations: Record<Language, Record<string, string>> = {
     'caravans.export': 'Export Details',
     'caravans.exportAll': 'Export All Report',
     'caravans.noCaravans': 'No caravans found',
+    'caravans.volunteersCount': 'Volunteers Count',
+    'caravans.guestsCount': 'Guests Count',
 
     // Common
     'common.search': 'Search',
@@ -287,6 +289,8 @@ const translations: Record<Language, Record<string, string>> = {
     'caravans.export': 'تصدير التفاصيل',
     'caravans.exportAll': 'تصدير تقرير شامل',
     'caravans.noCaravans': 'لا توجد قوافل مسجلة',
+    'caravans.volunteersCount': 'عدد المتطوعين',
+    'caravans.guestsCount': 'عدد الغير متطوعين',
 
     // Common
     'common.search': 'بحث',

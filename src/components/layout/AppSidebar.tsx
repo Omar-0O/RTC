@@ -116,11 +116,11 @@ export function AppSidebar() {
         return leaderNavItems;
       case 'head_caravans':
         return leaderNavItems.filter(item =>
-          !['/courses', '/supervisor/activities', '/leaderboard'].includes(item.url)
+          !['/courses', '/supervisor/activities', '/leaderboard', '/leader/committee', '/leader/members'].includes(item.url)
         );
       case 'head_events':
         return leaderNavItems.filter(item =>
-          !['/caravans', '/courses', '/supervisor/activities', '/leaderboard'].includes(item.url)
+          !['/caravans', '/courses', '/supervisor/activities', '/leaderboard', '/leader/committee', '/leader/members'].includes(item.url)
         );
       case 'head_production':
         // Production head acts like a committee leader but without Caravan access from leaderNavItems if it was there
