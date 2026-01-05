@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download } from 'lucide-react';
+import { Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download, Eye, EyeOff } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -162,6 +162,7 @@ export default function UserManagement() {
   const [formCommitteeId, setFormCommitteeId] = useState<string>('');
   const [formAvatarFile, setFormAvatarFile] = useState<File | null>(null);
   const [formAvatarPreview, setFormAvatarPreview] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -675,15 +676,29 @@ export default function UserManagement() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="password">{t('password')} *</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    value={formPassword}
-                    onChange={(e) => setFormPassword(e.target.value)}
-                    placeholder="••••••••"
-                    minLength={6}
-                    required
-                  />
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      value={formPassword}
+                      onChange={(e) => setFormPassword(e.target.value)}
+                      placeholder="••••••••"
+                      minLength={6}
+                      required
+                      className="ltr:pr-10 rtl:pl-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="role">{t('users.role')}</Label>
@@ -845,7 +860,7 @@ export default function UserManagement() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-role">{t('users.role')}</Label>
-                <Select value={formRole} onValueChange={setFormRole}>
+                <Select value={formRole} onValueChange={setFormRole} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
                   <SelectTrigger>
                     <SelectValue placeholder={t('users.role')} />
                   </SelectTrigger>
@@ -1136,25 +1151,10 @@ export default function UserManagement() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2 mb-3">
-                        <Select
-                          value={user.role}
-                          onValueChange={(value) => handleUpdateRole(user.id, value)}
-                        >
-                          <SelectTrigger className="h-7 w-auto text-xs px-2">
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
-                              {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
-                              {getRoleText(user.role)}
-                            </span>
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
-                            <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
-                            <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
-                            <SelectItem value="hr">{t('common.hr')}</SelectItem>
-                            <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
-                            <SelectItem value="admin">{t('common.admin')}</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                          {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
+                          {getRoleText(user.role)}
+                        </span>
                         <LevelBadge level={user.level} size="sm" />
                       </div>
 

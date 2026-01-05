@@ -357,7 +357,7 @@ export default function Profile({ userId }: ProfileProps) {
             <div className="flex gap-6 text-center">
               <div>
                 <div className="text-4xl font-bold text-primary">{points}</div>
-                <div className="text-sm text-muted-foreground">{!isViewOnly ? (isRTL ? 'أثر هذا الشهر' : 'Monthly Impact') : t('dashboard.totalImpact')}</div>
+                <div className="text-sm text-muted-foreground">{!isViewOnly ? (isRTL ? 'أثر هذا الشهر' : 'Monthly Impact') : (isRTL ? 'إجمالي الأثر' : 'Total Impact')}</div>
               </div>
               <div className="border-r"></div>
               <div>
