@@ -955,7 +955,7 @@ export default function UserManagement() {
           ) : (
             <>
               {/* Desktop View */}
-              <div className="hidden md:block">
+              <div className="hidden lg:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -1062,101 +1062,119 @@ export default function UserManagement() {
               </div>
 
               {/* Mobile View */}
-              <div className="grid gap-4 md:hidden">
+              <div className="grid gap-4 lg:hidden">
                 {filteredUsers.map((user) => (
-                  <div key={user.id} className="flex flex-col gap-4 p-4 border rounded-lg bg-card shadow-sm">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
-                          <AvatarFallback>
-                            {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{user.full_name || 'No name'}</p>
-                          <p className="text-sm text-muted-foreground">{user.email}</p>
+                  <Card key={user.id}>
+                    <CardContent className="p-4">
+                      {/* Header with avatar and actions */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-12 w-12">
+                            <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                            <AvatarFallback className="text-sm">
+                              {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold truncate">{user.full_name || 'No name'}</p>
+                            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                          </div>
                         </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 -mr-2 rtl:-ml-2">
+                              <MoreHorizontal className="h-5 w-5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            {['admin', 'head_hr', 'hr'].includes(primaryRole) && (
+                              <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                                <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                {t('common.edit')}
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
+                              <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                              {t('users.viewProfile')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                if (user.phone) {
+                                  window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
+                                } else {
+                                  toast.error(language === 'ar' ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
+                                }
+                              }}
+                            >
+                              <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                              {t('users.sendWhatsapp')}
+                            </DropdownMenuItem>
+                            {primaryRole === 'admin' && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setIsDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                  {t('common.delete')}
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="-mt-1 -mr-2">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                            <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                            {t('common.edit')}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
-                            <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                            {t('users.viewProfile')}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => {
-                              if (user.phone) {
-                                window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
-                              } else {
-                                toast.error(language === 'ar' ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
-                              }
-                            }}
-                          >
-                            <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                            {t('users.sendWhatsapp')}
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setIsDeleteDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                            {t('common.delete')}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Select
-                        value={user.role}
-                        onValueChange={(value) => handleUpdateRole(user.id, value)}
-                      >
-                        <SelectTrigger className="h-8 w-auto gap-2">
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
-                            {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
-                            {getRoleText(user.role)}
-                          </span>
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
-                          <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
-                          <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
-                          <SelectItem value="hr">{t('common.hr')}</SelectItem>
-                          <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
-                          <SelectItem value="admin">{t('common.admin')}</SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <LevelBadge level={user.level} size="sm" />
-                    </div>
-
-                    <div className="flex items-center justify-between text-sm text-muted-foreground pt-2 border-t">
-                      <div className="flex items-center gap-4">
-                        <span className="flex items-center gap-1">
-                          {user.committee_name || (language === 'ar' ? 'بدون لجنة' : 'No Committee')}
-                        </span>
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <Select
+                          value={user.role}
+                          onValueChange={(value) => handleUpdateRole(user.id, value)}
+                        >
+                          <SelectTrigger className="h-7 w-auto text-xs px-2">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                              {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
+                              {getRoleText(user.role)}
+                            </span>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
+                            <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
+                            <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                            <SelectItem value="hr">{t('common.hr')}</SelectItem>
+                            <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
+                            <SelectItem value="admin">{t('common.admin')}</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <LevelBadge level={user.level} size="sm" />
                       </div>
-                      <div className="font-medium text-foreground">
-                        {user.total_points.toLocaleString()} {t('common.points')}
+
+                      <div className="grid grid-cols-2 gap-3 pt-3 border-t text-sm">
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-0.5">{t('users.committee')}</p>
+                          <p className="font-medium truncate">{user.committee_name || '—'}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-0.5">{t('common.points')}</p>
+                          <p className="font-medium">{user.total_points?.toLocaleString() || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-0.5">{t('users.joined')}</p>
+                          <p>{new Date(user.join_date).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB')}</p>
+                        </div>
+                        {user.phone && (
+                          <div>
+                            <p className="text-xs text-muted-foreground mb-0.5">{t('users.phoneNumber')}</p>
+                            <p dir="ltr" className="text-start">{user.phone}</p>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             </>
