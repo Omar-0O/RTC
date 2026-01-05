@@ -113,8 +113,11 @@ export function AppSidebar() {
       case 'head_hr':
         return hrNavItems;
       case 'head_fourth_year':
-      case 'head_caravans':
         return leaderNavItems;
+      case 'head_caravans':
+        return leaderNavItems.filter(item =>
+          !['/courses', '/supervisor/activities', '/leaderboard'].includes(item.url)
+        );
       case 'head_events':
         return leaderNavItems.filter(item =>
           !['/caravans', '/courses', '/supervisor/activities', '/leaderboard'].includes(item.url)
