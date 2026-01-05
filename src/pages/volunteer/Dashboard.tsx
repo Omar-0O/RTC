@@ -179,82 +179,48 @@ export default function VolunteerDashboard() {
       {/* Course Schedule */}
       <CourseSchedule />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Quick Actions */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>{t('dashboard.quickActions')}</CardTitle>
-              <CardDescription>{isRTL ? 'ابدأ بهذه الإجراءات' : 'Get started with these actions'}</CardDescription>
+      {/* Recent Participations */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>{isRTL ? 'مشاركاتك الأخيرة!' : 'Your Recent Participations!'}</CardTitle>
+            <CardDescription>{isRTL ? 'آخر مشاركاتك' : 'Your latest participations'}</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/profile">
+              {isRTL ? 'عرض الكل' : 'View all'} <ArrowRight className={isRTL ? "mr-1 h-4 w-4" : "ml-1 h-4 w-4"} />
+            </Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
             </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Button asChild className="w-full justify-between" variant="outline">
-              <Link to="/activity">
-                {t('dashboard.logNewActivity')}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-            {primaryRole !== 'volunteer' && (
-              <Button asChild className="w-full justify-between" variant="outline">
-                <Link to="/leaderboard">
-                  {t('dashboard.viewLeaderboard')}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              </Button>
-            )}
-            <Button asChild className="w-full justify-between" variant="outline">
-              <Link to="/profile">
-                {t('nav.profile')}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Recent Participations */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>{isRTL ? 'مشاركاتك الأخيرة!' : 'Your Recent Participations!'}</CardTitle>
-              <CardDescription>{isRTL ? 'آخر مشاركاتك' : 'Your latest participations'}</CardDescription>
-            </div>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/profile">
-                {isRTL ? 'عرض الكل' : 'View all'} <ArrowRight className={isRTL ? "mr-1 h-4 w-4" : "ml-1 h-4 w-4"} />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            ) : recentSubmissions.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">
-                {isRTL ? 'لا توجد أنشطة بعد. ابدأ بتسجيل مساهماتك!' : 'No activities yet. Start logging your contributions!'}
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {recentSubmissions.map((submission) => (
-                  <div
-                    key={submission.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
-                  >
-                    <div className="space-y-1">
-                      <p className="font-medium text-sm">{submission.activity_name}</p>
-                      <p className="text-xs text-muted-foreground">{formatDate(submission.submitted_at)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-primary">+{submission.points} {isRTL ? 'نقطة' : 'pts'}</span>
-                    </div>
+          ) : recentSubmissions.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">
+              {isRTL ? 'لا توجد أنشطة بعد. ابدأ بتسجيل مساهماتك!' : 'No activities yet. Start logging your contributions!'}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {recentSubmissions.map((submission) => (
+                <div
+                  key={submission.id}
+                  className="flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div className="space-y-1">
+                    <p className="font-medium text-sm">{submission.activity_name}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(submission.submitted_at)}</p>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-primary">+{submission.points} {isRTL ? 'نقطة' : 'pts'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

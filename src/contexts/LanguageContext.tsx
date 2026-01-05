@@ -120,9 +120,9 @@ const translations: Record<Language, Record<string, string>> = {
     'dashboard.activitiesCompleted': 'Activities Completed',
     'dashboard.currentLevel': 'Volunteer Grade',
     'dashboard.recentActivity': 'Recent Activity',
-    'dashboard.quickActions': 'Quick Actions',
+
     'dashboard.logNewActivity': 'Log New Activity',
-    'dashboard.viewLeaderboard': 'View Leaderboard',
+
 
     // Admin Dashboard
     'admin.dashboard': 'Admin Dashboard',
@@ -367,9 +367,9 @@ const translations: Record<Language, Record<string, string>> = {
     'dashboard.activitiesCompleted': 'الأنشطة المكتملة',
     'dashboard.currentLevel': 'الدرجة التطوعية',
     'dashboard.recentActivity': 'النشاط الأخير',
-    'dashboard.quickActions': 'إجراءات سريعة',
+
     'dashboard.logNewActivity': 'تسجيل نشاط جديد',
-    'dashboard.viewLeaderboard': 'عرض المتصدرين',
+
 
     // Admin Dashboard
     'admin.dashboard': 'لوحة تحكم المسؤول',
