@@ -154,13 +154,11 @@ export default function VolunteerDashboard() {
           title={t('dashboard.totalPoints')}
           value={points}
           icon={Star}
-          description={isRTL ? 'استمر في الكسب للترقية!' : 'Keep earning to level up!'}
         />
         <StatsCard
           title={t('dashboard.currentLevel')}
           value={displayLevel(level)}
           icon={Trophy}
-          description={isRTL ? 'مستواك الحالي' : 'Your current tier'}
         />
         <StatsCard
           title={isRTL ? 'إجمالي مشاركاتك خلال الشهر' : 'Activities This Month'}

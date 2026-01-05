@@ -206,13 +206,13 @@ export default function CourseSchedule() {
                     </div>
                     <div className="flex items-center gap-2">
                         <Button variant="outline" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-                            <ChevronLeft className="h-4 w-4" />
+                            {isRTL ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
                         </Button>
                         <Button variant="outline" size="sm" onClick={() => setCurrentMonth(new Date())}>
                             {isRTL ? 'اليوم' : 'Today'}
                         </Button>
                         <Button variant="outline" size="icon" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-                            <ChevronRight className="h-4 w-4" />
+                            {isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </Button>
                         {canViewDetails && (
                             <Button variant="outline" size="sm" onClick={exportAllCourses} className="ml-2">

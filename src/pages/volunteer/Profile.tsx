@@ -362,7 +362,7 @@ export default function Profile({ userId }: ProfileProps) {
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-primary">{points}</div>
-              <div className="text-sm text-muted-foreground">{!isViewOnly ? (isRTL ? 'نقاط هذا الشهر' : 'Monthly Points') : t('dashboard.totalPoints')}</div>
+              <div className="text-sm text-muted-foreground">{!isViewOnly ? (isRTL ? 'أثر هذا الشهر' : 'Monthly Impact') : t('dashboard.totalImpact')}</div>
             </div>
           </div>
         </CardContent>

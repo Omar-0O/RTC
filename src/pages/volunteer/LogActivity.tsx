@@ -529,14 +529,12 @@ export default function LogActivity() {
     <div className="space-y-6 animate-slide-up">
       <div>
         <h1 className="text-2xl font-bold">{t('activityLog.title')}</h1>
-        <p className="text-muted-foreground">{t('activityLog.subtitle')}</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>{isRTL ? 'تسجيل مشاركة جديدة' : 'Log New Participation'}</CardTitle>
-            <CardDescription>{isRTL ? 'سجل مشاركتك التطوعية واحصل على النقاط مباشرة' : 'Log your volunteer participation and earn points instantly'}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">

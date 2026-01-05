@@ -213,8 +213,8 @@ const translations: Record<Language, Record<string, string>> = {
     'leaderboard.global': 'Global',
 
     // Activity Log
-    'activityLog.title': 'Log Activity',
-    'activityLog.subtitle': 'Submit your volunteer activity for approval',
+    'activityLog.title': 'تسجيل مشاركة',
+    'activityLog.subtitle': '',
     'activityLog.selectCommittee': 'Select Committee',
     'activityLog.selectActivity': 'Select Activity',
     'activityLog.mode': 'Mode',
