@@ -201,7 +201,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.exportData': 'Export Data',
     'reports.exportDataDesc': 'Download reports in various formats',
     'reports.volunteerList': 'Volunteer List (CSV)',
-    'reports.activityLog': 'Activity Log (CSV)',
+    'reports.activityLog': 'Monthly Participation Log (CSV)',
     'reports.pointsSummary': 'Points Summary (CSV)',
     'reports.monthlyReport': 'Monthly Report (CSV)',
 
@@ -448,7 +448,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.exportData': 'تصدير البيانات',
     'reports.exportDataDesc': 'تنزيل التقارير بتنسيقات مختلفة',
     'reports.volunteerList': 'قائمة المتطوعين (CSV)',
-    'reports.activityLog': 'سجل الأنشطة (CSV)',
+    'reports.activityLog': 'سجل المشاركات الشهري (CSV)',
     'reports.pointsSummary': 'ملخص الأثر (CSV)',
     'reports.monthlyReport': 'التقرير الشهري (CSV)',
 

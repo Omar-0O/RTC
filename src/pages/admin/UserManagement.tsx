@@ -305,7 +305,14 @@ export default function UserManagement() {
 
     setIsSubmitting(true);
     try {
-      // Call create-user edge function
+      // Get the current session to pass the auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Session expired. Please log in again.');
+        return;
+      }
+
+      // Call create-user edge function with explicit auth header
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: {
           email: formEmail.trim(),
@@ -315,6 +322,9 @@ export default function UserManagement() {
           role: formRole,
           committeeId: formCommitteeId || null,
           phone: formPhone.trim() || null,
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
         },
       });
 
@@ -682,6 +692,7 @@ export default function UserManagement() {
                       <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
                       <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
                       <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
+                      <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
                       <SelectItem value="admin">{t('common.admin')}</SelectItem>
                     </SelectContent>
                   </Select>
@@ -975,33 +986,10 @@ export default function UserManagement() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {['admin', 'head_hr', 'hr'].includes(primaryRole) ? (
-                            <Select
-                              value={user.role}
-                              onValueChange={(value) => handleUpdateRole(user.id, value)}
-                            >
-                              <SelectTrigger className="w-[140px]">
-                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
-                                  {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
-                                  {getRoleText(user.role)}
-                                </span>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
-                                <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
-                                <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
-                                <SelectItem value="hr">{t('common.hr')}</SelectItem>
-                                <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
-                                <SelectItem value="admin">{t('common.admin')}</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          ) : (
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
-                              {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
-                              {getRoleText(user.role)}
-                            </span>
-                          )}
-
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                            {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
+                            {getRoleText(user.role)}
+                          </span>
                         </TableCell>
                         <TableCell>
                           <span className="text-sm">{user.committee_name || '—'}</span>
@@ -1025,8 +1013,6 @@ export default function UserManagement() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
                               <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                               <DropdownMenuSeparator />
                               {['admin', 'head_hr', 'hr'].includes(primaryRole) && (

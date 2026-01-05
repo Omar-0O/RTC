@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
             throw new Error('Missing Authorization header')
         }
 
-        // Create admin client with service role key, propagating the auth context
+        // Create admin client with service role key (no user context needed for admin operations)
         const supabaseAdmin = createClient(
             supabaseUrl,
             serviceRoleKey,
@@ -50,21 +50,17 @@ Deno.serve(async (req: Request) => {
                 auth: {
                     autoRefreshToken: false,
                     persistSession: false
-                },
-                global: {
-                    headers: {
-                        Authorization: authHeader
-                    }
                 }
             }
         )
 
+        // Verify the requester's token
         const token = authHeader.replace('Bearer ', '')
         const { data: { user: requester }, error: requesterError } = await supabaseAdmin.auth.getUser(token)
 
         if (requesterError || !requester) {
-            console.error('User check failed:', requesterError)
-            throw new Error(`Unauthorized (User Check): ${requesterError?.message || 'User not found'}`)
+            console.error('User check failed:', requesterError?.message || 'No user returned')
+            throw new Error(`Unauthorized (User Check): ${requesterError?.message || 'Auth session missing!'}`)
         }
 
         const { data: requesterRoles, error: roleError } = await supabaseAdmin

@@ -282,8 +282,7 @@ export default function Reports() {
             [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
           };
         });
-        // Use 'activities_log' filename for consistency, filtered by date
-        downloadCSV(reportData, `activity_report_${dateRange}`);
+        // Use 'participation_log' filename, filtered by current month\n        downloadCSV(reportData, `participation_log_${dateRange}`);
         break;
 
       case 'points':
