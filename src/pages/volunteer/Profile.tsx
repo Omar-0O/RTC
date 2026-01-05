@@ -9,7 +9,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
 import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -277,41 +276,7 @@ export default function Profile({ userId }: ProfileProps) {
     }
   };
 
-  const handleAttendanceChange = async (type: 'mini_camp' | 'camp', checked: boolean) => {
-    if (!['admin', 'head_hr', 'supervisor'].includes(primaryRole)) return;
 
-    const targetId = isViewOnly ? targetUserId : user?.id;
-    if (!targetId) return;
-
-    try {
-      const updateData = type === 'mini_camp'
-        ? { attended_mini_camp: checked }
-        : { attended_camp: checked };
-
-      const { error } = await supabase
-        .from('profiles')
-        .update(updateData)
-        .eq('id', targetId);
-
-      if (error) throw error;
-
-      // Update local state
-      if (isViewOnly && viewedProfile) {
-        setViewedProfile({ ...viewedProfile, ...updateData });
-      } else if (!isViewOnly && user) {
-        // Optimistic update or refresh needed? Usually profile is fetched from auth context or separate query?
-        // In this file, 'displayProfile' is derived.
-        // If it's my own profile, 'user' from useAuth might need refresh, but here we mainly use 'displayProfile'.
-        // We'll trust that we need to refresh the profile fetch.
-        await refreshProfile();
-      }
-
-      toast.success(isRTL ? 'تم تحديث حالة الحضور' : 'Attendance updated');
-    } catch (error) {
-      console.error('Error updating attendance:', error);
-      toast.error(isRTL ? 'فشل تحديث الحالة' : 'Failed to update status');
-    }
-  };
 
   const getStatusText = (status: string) => {
     switch (status) {
@@ -402,50 +367,31 @@ export default function Profile({ userId }: ProfileProps) {
               // but here displayProfile comes from profiles table directly). 
               // displayProfile.role is a string (e.g. 'committee_leader').
               const showCamp = displayProfile?.role === 'committee_leader';
-              const canEdit = ['admin', 'head_hr', 'supervisor'].includes(primaryRole);
 
               if (!showMiniCamp && !showCamp) return null;
 
               return (
                 <div className="flex flex-col items-center justify-center gap-2 py-2 border-t border-b w-full my-4">
                   <div className="flex items-center gap-2">
-                    {canEdit ? (
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          checked={showMiniCamp ? !!displayProfile?.attended_mini_camp : !!displayProfile?.attended_camp}
-                          onCheckedChange={(checked) => handleAttendanceChange(showMiniCamp ? 'mini_camp' : 'camp', checked)}
-                        />
-                        <span className={cn(
-                          "text-sm font-medium",
-                          !(showMiniCamp ? displayProfile?.attended_mini_camp : displayProfile?.attended_camp) && "text-destructive"
-                        )}>
-                          {showMiniCamp
-                            ? (displayProfile?.attended_mini_camp ? (isRTL ? 'حضر الميني كامب' : 'Attended Mini Camp') : (isRTL ? 'لم يحضر الميني كامب' : 'Did not attend Mini Camp'))
-                            : (displayProfile?.attended_camp ? (isRTL ? 'حضر الكامب' : 'Attended Camp') : (isRTL ? 'لم يحضر الكامب' : 'Did not attend Camp'))
-                          }
-                        </span>
-                      </div>
-                    ) : (
-                      <div className={cn(
-                        "flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium",
-                        (showMiniCamp ? displayProfile?.attended_mini_camp : displayProfile?.attended_camp)
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                      )}>
-                        {(showMiniCamp ? displayProfile?.attended_mini_camp : displayProfile?.attended_camp) ? (
-                          <>
-                            <Check className="h-4 w-4" />
-                            {isRTL ? (showMiniCamp ? 'حضر الميني كامب' : 'حضر الكامب') : (showMiniCamp ? 'Attended Mini Camp' : 'Attended Camp')}
-                          </>
-                        ) : (
-                          <>
-                            <X className="h-4 w-4" />
-                            {isRTL ? (showMiniCamp ? 'لم يحضر الميني كامب' : 'لم يحضر الكامب') : (showMiniCamp ? 'Did not attend Mini Camp' : 'Did not attend Camp')}
-                          </>
-                        )
-                        }
-                      </div>
-                    )}
+                    <div className={cn(
+                      "flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium",
+                      (showMiniCamp ? displayProfile?.attended_mini_camp : displayProfile?.attended_camp)
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    )}>
+                      {(showMiniCamp ? displayProfile?.attended_mini_camp : displayProfile?.attended_camp) ? (
+                        <>
+                          <Check className="h-4 w-4" />
+                          {isRTL ? (showMiniCamp ? 'حضر الميني كامب' : 'حضر الكامب') : (showMiniCamp ? 'Attended Mini Camp' : 'Attended Camp')}
+                        </>
+                      ) : (
+                        <>
+                          <X className="h-4 w-4" />
+                          {isRTL ? (showMiniCamp ? 'لم يحضر الميني كامب' : 'لم يحضر الكامب') : (showMiniCamp ? 'Did not attend Mini Camp' : 'Did not attend Camp')}
+                        </>
+                      )
+                      }
+                    </div>
                   </div>
                 </div>
               );

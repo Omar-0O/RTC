@@ -50,6 +50,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
+import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
@@ -403,6 +404,7 @@ export default function UserManagement() {
           role: formRole,
           committeeId: formCommitteeId || null,
           phone: formPhone.trim() || null,
+          level: formLevel,
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -458,11 +460,14 @@ export default function UserManagement() {
           updates.attended_mini_camp = formAttendedMiniCamp;
         }
 
-        if (formRole === 'committee_leader') { // Project Responsible
+        if (formLevel === 'project_responsible') {
           updates.attended_camp = formAttendedCamp;
         }
 
         if (Object.keys(updates).length > 0) {
+          // Include level in updates as a fallback/confirmation
+          updates.level = formLevel;
+
           const { error: updateError } = await supabase
             .from('profiles')
             .update(updates)
@@ -524,7 +529,7 @@ export default function UserManagement() {
           committee_id: formCommitteeId || null,
           level: formLevel,
           attended_mini_camp: formLevel === 'under_follow_up' ? formAttendedMiniCamp : null,
-          attended_camp: formRole === 'committee_leader' ? formAttendedCamp : null,
+          attended_camp: formLevel === 'project_responsible' ? formAttendedCamp : null,
         })
         .eq('id', selectedUser.id);
 
@@ -746,7 +751,7 @@ export default function UserManagement() {
               <DialogTitle>{t('users.addUser')}</DialogTitle>
               <DialogDescription>{t('users.createUser')}</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAddUser}>
+            <form onSubmit={handleAddUser} className="max-h-[80vh] overflow-y-auto px-1">
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="name">{language === 'ar' ? 'الاسم بالإنجليزي' : 'Full Name (English)'} *</Label>
@@ -855,6 +860,19 @@ export default function UserManagement() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="level">{t('users.level')}</Label>
+                  <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={t('users.level')} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="under_follow_up">{t('level.under_follow_up')}</SelectItem>
+                      <SelectItem value="project_responsible">{t('level.project_responsible')}</SelectItem>
+                      <SelectItem value="responsible">{t('level.responsible')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 {/* Avatar Upload */}
                 <div className="grid gap-2">
                   <Label>{language === 'ar' ? 'الصورة الشخصية' : 'Profile Picture'}</Label>
@@ -901,6 +919,38 @@ export default function UserManagement() {
                   </div>
                 </div>
               </div>
+
+              {(formLevel === 'under_follow_up' || formLevel === 'project_responsible') && (
+                <div className="border-t pt-4 mt-4 pb-4">
+                  <h4 className="text-sm font-medium mb-4">{t('users.attendance')}</h4>
+                  <div className="grid gap-4">
+                    {formLevel === 'under_follow_up' && (
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="mini-camp-attendance">{language === 'ar' ? 'حضور الميني كامب' : 'Mini Camp Attendance'}</Label>
+                        </div>
+                        <Switch
+                          id="mini-camp-attendance"
+                          checked={formAttendedMiniCamp}
+                          onCheckedChange={setFormAttendedMiniCamp}
+                        />
+                      </div>
+                    )}
+                    {formLevel === 'project_responsible' && (
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="camp-attendance">{language === 'ar' ? 'حضور الكامب' : 'Camp Attendance'}</Label>
+                        </div>
+                        <Switch
+                          id="camp-attendance"
+                          checked={formAttendedCamp}
+                          onCheckedChange={setFormAttendedCamp}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                   {t('common.cancel')}
@@ -927,7 +977,7 @@ export default function UserManagement() {
             <DialogTitle>{language === 'ar' ? 'تعديل المستخدم' : 'Edit User'}</DialogTitle>
             <DialogDescription>{language === 'ar' ? 'تعديل بيانات المستخدم' : 'Update user information'}</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEditUser}>
+          <form onSubmit={handleEditUser} className="max-h-[80vh] overflow-y-auto px-1">
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="edit-name">{language === 'ar' ? 'الاسم بالإنجليزي' : 'Full Name (English)'} *</Label>
@@ -1022,6 +1072,38 @@ export default function UserManagement() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {(formLevel === 'under_follow_up' || formLevel === 'project_responsible') && (
+                <div className="border-t pt-4 mt-4 pb-4">
+                  <h4 className="text-sm font-medium mb-4">{t('users.attendance')}</h4>
+                  <div className="grid gap-4">
+                    {formLevel === 'under_follow_up' && (
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="mini-camp-attendance">{language === 'ar' ? 'حضور الميني كامب' : 'Mini Camp Attendance'}</Label>
+                        </div>
+                        <Switch
+                          id="mini-camp-attendance"
+                          checked={formAttendedMiniCamp}
+                          onCheckedChange={setFormAttendedMiniCamp}
+                        />
+                      </div>
+                    )}
+                    {formLevel === 'project_responsible' && (
+                      <div className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="camp-attendance">{language === 'ar' ? 'حضور الكامب' : 'Camp Attendance'}</Label>
+                        </div>
+                        <Switch
+                          id="camp-attendance"
+                          checked={formAttendedCamp}
+                          onCheckedChange={setFormAttendedCamp}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>

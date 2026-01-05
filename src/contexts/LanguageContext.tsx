@@ -138,7 +138,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // User Management
     'users.title': 'Volunteer Management',
-    'users.subtitle': 'Manage volunteers, heads of branch, and administrators',
+    'users.subtitle': '',
     'users.addUser': 'Add User',
     'users.fullName': 'Full Name',
     'users.role': 'Role',
@@ -385,7 +385,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // User Management
     'users.title': 'إدارة المتطوعين',
-    'users.subtitle': 'إدارة المتطوعين وهيد الفرع والمسؤولين',
+    'users.subtitle': '',
     'users.addUser': 'إضافة متطوع جديد',
     'users.fullName': 'الاسم الكامل',
     'users.role': 'الدور',
