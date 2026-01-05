@@ -114,8 +114,11 @@ export function AppSidebar() {
         return hrNavItems;
       case 'head_fourth_year':
       case 'head_caravans':
-      case 'head_events':
         return leaderNavItems;
+      case 'head_events':
+        return leaderNavItems.filter(item =>
+          !['/caravans', '/courses', '/supervisor/activities', '/leaderboard'].includes(item.url)
+        );
       case 'head_production':
         // Production head acts like a committee leader but without Caravan access from leaderNavItems if it was there
         // Actually leaderNavItems HAS caravans. So we need a version WITHOUT it.
