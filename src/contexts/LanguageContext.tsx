@@ -473,7 +473,7 @@ const translations: Record<Language, Record<string, string>> = {
     'activityLog.notesPlaceholder': 'أضف أي ملاحظات أو تفاصيل...',
     'activityLog.proofUrl': 'رابط الإثبات (اختياري)',
     'activityLog.submitActivity': 'تسجيل المشاركة',
-    'activityLog.submissionHistory': 'سجل التقديمات',
+    'activityLog.submissionHistory': 'سجل المشاركات',
     'activityLog.location': 'المكان',
     'activityLog.branch': 'الفرع',
     'activityLog.home': 'البيت',
@@ -484,7 +484,7 @@ const translations: Record<Language, Record<string, string>> = {
     'profile.pointsProgress': 'تقدم الأثر',
     'profile.nextLevel': 'المستوى التالي',
     'profile.badges': 'الشارات',
-    'profile.activityHistory': 'سجل النشاط',
+    'profile.activityHistory': 'سجل المشاركات',
 
     // Levels
     // Levels

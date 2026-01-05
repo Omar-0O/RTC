@@ -69,7 +69,8 @@ export default function CourseSchedule() {
     const [organizers, setOrganizers] = useState<CourseOrganizer[]>([]);
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
-    const canViewDetails = HEAD_ROLES.includes(primaryRole || '');
+    const canViewDetails = true; // Everyone can view details now, but content varies
+    const isHead = HEAD_ROLES.includes(primaryRole || '');
     const locale = language === 'ar' ? ar : enUS;
 
     useEffect(() => {
@@ -94,16 +95,17 @@ export default function CourseSchedule() {
     };
 
     const openCourseDetails = async (course: Course) => {
-        if (!canViewDetails) return;
         setSelectedCourse(course);
-        try {
-            const { data } = await supabase
-                .from('course_organizers')
-                .select('*')
-                .eq('course_id', course.id);
-            setOrganizers(data || []);
-        } catch (e) {
-            console.error(e);
+        if (isHead) {
+            try {
+                const { data } = await supabase
+                    .from('course_organizers')
+                    .select('*')
+                    .eq('course_id', course.id);
+                setOrganizers(data || []);
+            } catch (e) {
+                console.error(e);
+            }
         }
     };
 
@@ -145,15 +147,36 @@ export default function CourseSchedule() {
     };
 
     const exportAllCourses = () => {
-        const data = courses.map(c => ({
-            [isRTL ? 'اسم الكورس' : 'Course']: c.name,
-            [isRTL ? 'المدرب' : 'Trainer']: c.trainer_name,
-            [isRTL ? 'القاعة' : 'Room']: getRoomLabel(c.room),
-            [isRTL ? 'الأيام' : 'Days']: c.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', '),
-            [isRTL ? 'الوقت' : 'Time']: formatTime(c.schedule_time),
-            [isRTL ? 'المحاضرات' : 'Lectures']: c.total_lectures,
-        }));
-        downloadCSV(data, 'courses_report');
+        let data;
+
+        if (isHead) {
+            data = courses.map(c => ({
+                [isRTL ? 'اسم الكورس' : 'Course']: c.name,
+                [isRTL ? 'المدرب' : 'Trainer']: c.trainer_name,
+                [isRTL ? 'القاعة' : 'Room']: getRoomLabel(c.room),
+                [isRTL ? 'الأيام' : 'Days']: c.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', '),
+                [isRTL ? 'الوقت' : 'Time']: formatTime(c.schedule_time),
+                [isRTL ? 'المحاضرات' : 'Lectures']: c.total_lectures,
+            }));
+        } else {
+            // Volunteer: Filter for current month and simplified columns
+            const monthStart = startOfMonth(currentMonth);
+            const monthEnd = endOfMonth(currentMonth);
+
+            const filteredCourses = courses.filter(c => {
+                // Basic overlap check: Course started before end of month AND (no end date OR ended after start of month)
+                const start = new Date(c.start_date);
+                const end = c.end_date ? new Date(c.end_date) : null;
+                return start <= monthEnd && (!end || end >= monthStart);
+            });
+
+            data = filteredCourses.map(c => ({
+                [isRTL ? 'اسم الكورس' : 'Course Name']: c.name,
+                [isRTL ? 'المعاد' : 'Time']: formatTime(c.schedule_time),
+            }));
+        }
+
+        downloadCSV(data, 'courses_schedule');
     };
 
     // Get courses for a specific date (only active courses)
@@ -214,12 +237,10 @@ export default function CourseSchedule() {
                         <Button variant="outline" size="icon" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
                             {isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </Button>
-                        {canViewDetails && (
-                            <Button variant="outline" size="sm" onClick={exportAllCourses} className="ml-2">
-                                <FileSpreadsheet className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                {isRTL ? 'تصدير' : 'Export'}
-                            </Button>
-                        )}
+                        <Button variant="outline" size="sm" onClick={exportAllCourses} className="ml-2">
+                            <FileSpreadsheet className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                            {isRTL ? 'تصدير' : 'Export'}
+                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
@@ -280,14 +301,16 @@ export default function CourseSchedule() {
                             </div>
 
                             {/* Legend */}
-                            <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
-                                {Object.entries(ROOMS).map(([key, val]) => (
-                                    <div key={key} className="flex items-center gap-2 text-sm">
-                                        <div className={`w-4 h-4 rounded ${val.color}`}></div>
-                                        <span>{val[language as 'en' | 'ar']}</span>
-                                    </div>
-                                ))}
-                            </div>
+                            {isHead && (
+                                <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
+                                    {Object.entries(ROOMS).map(([key, val]) => (
+                                        <div key={key} className="flex items-center gap-2 text-sm">
+                                            <div className={`w-4 h-4 rounded ${val.color}`}></div>
+                                            <span>{val[language as 'en' | 'ar']}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </>
                     )}
                 </CardContent>
@@ -299,67 +322,83 @@ export default function CourseSchedule() {
                     <DialogHeader>
                         <DialogTitle>{selectedCourse?.name}</DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div className="flex items-center gap-2">
-                                <User className="h-4 w-4 text-muted-foreground" />
-                                <div>
-                                    <p className="text-muted-foreground">{isRTL ? 'المدرب' : 'Trainer'}</p>
-                                    <p className="font-medium">{selectedCourse?.trainer_name}</p>
+
+                    {isHead ? (
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <User className="h-4 w-4 text-muted-foreground" />
+                                    <div>
+                                        <p className="text-muted-foreground">{isRTL ? 'المدرب' : 'Trainer'}</p>
+                                        <p className="font-medium">{selectedCourse?.trainer_name}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Phone className="h-4 w-4 text-muted-foreground" />
+                                    <div>
+                                        <p className="text-muted-foreground">{isRTL ? 'رقم المدرب' : 'Phone'}</p>
+                                        <p className="font-medium">{selectedCourse?.trainer_phone || '—'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                                    <div>
+                                        <p className="text-muted-foreground">{isRTL ? 'القاعة' : 'Room'}</p>
+                                        <p className="font-medium">{selectedCourse && getRoomLabel(selectedCourse.room)}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                                    <div>
+                                        <p className="text-muted-foreground">{isRTL ? 'الأيام' : 'Days'}</p>
+                                        <p className="font-medium">{selectedCourse?.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', ')}</p>
+                                    </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <Phone className="h-4 w-4 text-muted-foreground" />
+
+                            <div className="grid grid-cols-3 gap-3 text-center border-t pt-4">
                                 <div>
-                                    <p className="text-muted-foreground">{isRTL ? 'رقم المدرب' : 'Phone'}</p>
-                                    <p className="font-medium">{selectedCourse?.trainer_phone || '—'}</p>
+                                    <p className="text-2xl font-bold">{selectedCourse?.total_lectures}</p>
+                                    <p className="text-xs text-muted-foreground">{isRTL ? 'المحاضرات' : 'Lectures'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold">{selectedCourse && formatTime(selectedCourse.schedule_time)}</p>
+                                    <p className="text-xs text-muted-foreground">{isRTL ? 'الوقت' : 'Time'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-2xl font-bold">{selectedCourse?.has_interview ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No')}</p>
+                                    <p className="text-xs text-muted-foreground">{isRTL ? 'انترفيو' : 'Interview'}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <MapPin className="h-4 w-4 text-muted-foreground" />
-                                <div>
-                                    <p className="text-muted-foreground">{isRTL ? 'القاعة' : 'Room'}</p>
-                                    <p className="font-medium">{selectedCourse && getRoomLabel(selectedCourse.room)}</p>
+
+                            {organizers.length > 0 && (
+                                <div className="border-t pt-4">
+                                    <p className="font-medium mb-2">{isRTL ? 'المنظمين' : 'Organizers'}</p>
+                                    <div className="space-y-2">
+                                        {organizers.map(org => (
+                                            <div key={org.id} className="flex items-center justify-between text-sm">
+                                                <span>{org.name}</span>
+                                                <span className="text-muted-foreground">{org.phone || '—'}</span>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                            )}
+                        </div>
+                    ) : (
+                        /* Simplified View for Volunteers */
+                        <div className="space-y-4 py-4">
+                            <div className="flex flex-col items-center justify-center text-center gap-4">
+                                <div className="bg-primary/10 p-4 rounded-full">
+                                    <Clock className="h-8 w-8 text-primary" />
+                                </div>
                                 <div>
-                                    <p className="text-muted-foreground">{isRTL ? 'الأيام' : 'Days'}</p>
-                                    <p className="font-medium">{selectedCourse?.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', ')}</p>
+                                    <p className="text-muted-foreground text-sm mb-1">{isRTL ? 'معاد الكورس' : 'Class Time'}</p>
+                                    <p className="text-3xl font-bold">{selectedCourse && formatTime(selectedCourse.schedule_time)}</p>
                                 </div>
                             </div>
                         </div>
-
-                        <div className="grid grid-cols-3 gap-3 text-center border-t pt-4">
-                            <div>
-                                <p className="text-2xl font-bold">{selectedCourse?.total_lectures}</p>
-                                <p className="text-xs text-muted-foreground">{isRTL ? 'المحاضرات' : 'Lectures'}</p>
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold">{selectedCourse && formatTime(selectedCourse.schedule_time)}</p>
-                                <p className="text-xs text-muted-foreground">{isRTL ? 'الوقت' : 'Time'}</p>
-                            </div>
-                            <div>
-                                <p className="text-2xl font-bold">{selectedCourse?.has_interview ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No')}</p>
-                                <p className="text-xs text-muted-foreground">{isRTL ? 'انترفيو' : 'Interview'}</p>
-                            </div>
-                        </div>
-
-                        {organizers.length > 0 && (
-                            <div className="border-t pt-4">
-                                <p className="font-medium mb-2">{isRTL ? 'المنظمين' : 'Organizers'}</p>
-                                <div className="space-y-2">
-                                    {organizers.map(org => (
-                                        <div key={org.id} className="flex items-center justify-between text-sm">
-                                            <span>{org.name}</span>
-                                            <span className="text-muted-foreground">{org.phone || '—'}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    )}
                 </DialogContent>
             </Dialog>
         </>
