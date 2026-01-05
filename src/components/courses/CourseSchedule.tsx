@@ -171,6 +171,7 @@ export default function CourseSchedule() {
             });
 
             data = filteredCourses.map(c => ({
+                [isRTL ? 'الشهر' : 'Month']: format(currentMonth, 'MMMM', { locale }),
                 [isRTL ? 'اسم الكورس' : 'Course Name']: c.name,
                 [isRTL ? 'المعاد' : 'Time']: formatTime(c.schedule_time),
             }));
@@ -250,54 +251,108 @@ export default function CourseSchedule() {
                         </p>
                     ) : (
                         <>
-                            {/* Day Headers */}
-                            <div className="grid grid-cols-7 mb-2">
-                                {['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'].map(day => (
-                                    <div key={day} className="text-center font-semibold text-sm py-2 text-muted-foreground">
-                                        {DAYS_LABELS[day][language as 'en' | 'ar']}
-                                    </div>
-                                ))}
+                            {/* Desktop View (Calendar Grid) */}
+                            <div className="hidden md:block">
+                                <div className="grid grid-cols-7 mb-2">
+                                    {['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'].map(day => (
+                                        <div key={day} className="text-center font-semibold text-sm py-2 text-muted-foreground">
+                                            {DAYS_LABELS[day][language as 'en' | 'ar']}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="grid grid-cols-7 gap-1">
+                                    {paddedDays.map((day, idx) => {
+                                        if (!day) {
+                                            return <div key={`empty-${idx}`} className="min-h-[120px] bg-muted/20 rounded"></div>;
+                                        }
+                                        const dayCourses = getCoursesForDate(day);
+                                        const isDayToday = isToday(day);
+                                        return (
+                                            <div
+                                                key={day.toISOString()}
+                                                className={`min-h-[120px] p-2 rounded border ${isDayToday ? 'border-primary bg-primary/5' : 'border-border'}`}
+                                            >
+                                                <div className={`text-sm font-medium mb-1 ${isDayToday ? 'text-primary' : ''}`}>
+                                                    {format(day, 'd')}
+                                                </div>
+                                                <div className="space-y-1">
+                                                    {dayCourses.slice(0, 3).map(course => (
+                                                        <div
+                                                            key={course.id}
+                                                            className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 ${getRoomBg(course.room)}`}
+                                                            onClick={() => openCourseDetails(course)}
+                                                        >
+                                                            <p className="font-medium truncate">{course.name}</p>
+                                                            <p className="text-muted-foreground flex items-center gap-1">
+                                                                <Clock className="h-3 w-3" />
+                                                                {formatTime(course.schedule_time)}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                    {dayCourses.length > 3 && (
+                                                        <p className="text-xs text-muted-foreground text-center">
+                                                            +{dayCourses.length - 3} {isRTL ? 'المزيد' : 'more'}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
-                            {/* Calendar Grid */}
-                            <div className="grid grid-cols-7 gap-1">
-                                {paddedDays.map((day, idx) => {
-                                    if (!day) {
-                                        return <div key={`empty-${idx}`} className="min-h-[120px] bg-muted/20 rounded"></div>;
-                                    }
+                            {/* Mobile View (List) */}
+                            <div className="md:hidden space-y-4">
+                                {calendarDays.map((day) => {
                                     const dayCourses = getCoursesForDate(day);
+                                    if (dayCourses.length === 0) return null; // Only show days with courses
+
                                     const isDayToday = isToday(day);
                                     return (
-                                        <div
-                                            key={day.toISOString()}
-                                            className={`min-h-[120px] p-2 rounded border ${isDayToday ? 'border-primary bg-primary/5' : 'border-border'}`}
-                                        >
-                                            <div className={`text-sm font-medium mb-1 ${isDayToday ? 'text-primary' : ''}`}>
-                                                {format(day, 'd')}
+                                        <div key={day.toISOString()} className={`rounded-lg border p-4 ${isDayToday ? 'border-primary bg-primary/5' : 'bg-card'}`}>
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <div className={`text-lg font-bold ${isDayToday ? 'text-primary' : ''}`}>
+                                                    {format(day, 'EEEE, d MMMM', { locale })}
+                                                </div>
+                                                {isDayToday && (
+                                                    <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                                                        {isRTL ? 'اليوم' : 'Today'}
+                                                    </span>
+                                                )}
                                             </div>
-                                            <div className="space-y-1">
-                                                {dayCourses.slice(0, 3).map(course => (
+                                            <div className="space-y-3">
+                                                {dayCourses.map(course => (
                                                     <div
                                                         key={course.id}
-                                                        className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 ${getRoomBg(course.room)}`}
+                                                        className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${getRoomBg(course.room)}`}
                                                         onClick={() => openCourseDetails(course)}
                                                     >
-                                                        <p className="font-medium truncate">{course.name}</p>
-                                                        <p className="text-muted-foreground flex items-center gap-1">
-                                                            <Clock className="h-3 w-3" />
-                                                            {formatTime(course.schedule_time)}
-                                                        </p>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-semibold text-sm truncate mb-1">{course.name}</p>
+                                                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                                                <div className="flex items-center gap-1">
+                                                                    <Clock className="h-3 w-3" />
+                                                                    {formatTime(course.schedule_time)}
+                                                                </div>
+                                                                {isHead && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <MapPin className="h-3 w-3" />
+                                                                        {getRoomLabel(course.room)}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 ))}
-                                                {dayCourses.length > 3 && (
-                                                    <p className="text-xs text-muted-foreground text-center">
-                                                        +{dayCourses.length - 3} {isRTL ? 'المزيد' : 'more'}
-                                                    </p>
-                                                )}
                                             </div>
                                         </div>
                                     );
                                 })}
+
+                                {/* Show message if no courses found in the list view (only redundant if we filter) - actually we filter above. 
+                                    If no courses in the whole month, the parent 'courses.length === 0' check handles it. 
+                                    So we are safe here. */}
                             </div>
 
                             {/* Legend */}
