@@ -143,6 +143,8 @@ export interface Database {
                     phone: string | null
                     role: string | null
                     total_points: number | null
+                    attended_mini_camp: boolean | null
+                    attended_camp: boolean | null
                 }
                 Insert: {
                     avatar_url?: string | null
@@ -156,6 +158,8 @@ export interface Database {
                     phone?: string | null
                     role?: string | null
                     total_points?: number | null
+                    attended_mini_camp?: boolean | null
+                    attended_camp?: boolean | null
                 }
                 Update: {
                     avatar_url?: string | null
@@ -169,6 +173,8 @@ export interface Database {
                     phone?: string | null
                     role?: string | null
                     total_points?: number | null
+                    attended_mini_camp?: boolean | null
+                    attended_camp?: boolean | null
                 }
                 Relationships: [
                     {

@@ -60,7 +60,9 @@ interface Committee {
   name_ar: string;
 }
 
-type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr' | 'head_production' | 'head_fourth_year';
+import { UserRole } from '@/types';
+
+type AppRole = UserRole;
 
 interface UserWithDetails {
   id: string;
@@ -188,22 +190,46 @@ export default function UserManagement() {
         .from('user_roles')
         .select('user_id, role');
 
-      const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role]) || []);
+      const rolesMap = new Map<string, AppRole[]>();
+      rolesData?.forEach(r => {
+        const userRoles = rolesMap.get(r.user_id) || [];
+        userRoles.push(r.role as AppRole);
+        rolesMap.set(r.user_id, userRoles);
+      });
+
+      const getPrimaryRole = (roles: AppRole[]): AppRole => {
+        if (roles.includes('admin')) return 'admin';
+        if (roles.includes('head_hr')) return 'head_hr';
+        if (roles.includes('hr')) return 'hr';
+        if (roles.includes('supervisor')) return 'supervisor';
+        if (roles.includes('committee_leader')) return 'committee_leader';
+        if (roles.includes('head_production')) return 'head_production';
+        if (roles.includes('head_fourth_year')) return 'head_fourth_year';
+        if (roles.includes('head_caravans')) return 'head_caravans';
+        if (roles.includes('head_events')) return 'head_events';
+        return 'volunteer';
+      };
+
       const committeesMap = new Map(committeesData?.map(c => [c.id, language === 'ar' ? c.name_ar : c.name]) || []);
 
-      const usersWithDetails: UserWithDetails[] = (profilesData || []).map(profile => ({
-        id: profile.id,
-        email: profile.email,
-        full_name: profile.full_name,
-        avatar_url: profile.avatar_url,
-        role: (rolesMap.get(profile.id) as any) || 'volunteer',
-        committee_id: profile.committee_id,
-        committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
-        total_points: profile.total_points || 0,
-        level: profile.level || 'under_follow_up',
-        join_date: profile.created_at,
-        phone: profile.phone,
-      }));
+      const usersWithDetails: UserWithDetails[] = (profilesData || []).map(profile => {
+        const userRoles = rolesMap.get(profile.id) || ['volunteer'];
+        const uniqueRoles = Array.from(new Set(userRoles)); // deduplicate just in case
+
+        return {
+          id: profile.id,
+          email: profile.email,
+          full_name: profile.full_name,
+          avatar_url: profile.avatar_url,
+          role: getPrimaryRole(uniqueRoles),
+          committee_id: profile.committee_id,
+          committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
+          total_points: profile.total_points || 0,
+          level: profile.level || 'under_follow_up',
+          join_date: profile.created_at,
+          phone: profile.phone,
+        };
+      });
 
       setUsers(usersWithDetails);
     } catch (error) {
@@ -499,6 +525,8 @@ export default function UserManagement() {
         return 'bg-purple-100 text-purple-700';
       case 'head_production':
       case 'head_fourth_year':
+      case 'head_caravans':
+      case 'head_events':
         return 'bg-blue-100 text-blue-700';
       default:
         return 'bg-muted text-muted-foreground';
@@ -514,6 +542,8 @@ export default function UserManagement() {
       case 'head_hr': return t('common.head_hr');
       case 'head_production': return t('common.head_production');
       case 'head_fourth_year': return t('common.head_fourth_year');
+      case 'head_caravans': return t('common.head_caravans');
+      case 'head_events': return t('common.head_events');
       default: return t('common.volunteer');
     }
   };
@@ -582,7 +612,9 @@ export default function UserManagement() {
         'Phone': u.phone,
         'Role': rolesMap.get(u.id) || 'volunteer',
         'Password': passwordsMap.get(u.id) || '',
-        'Joined At': new Date(u.created_at).toLocaleDateString()
+        'Joined At': new Date(u.created_at).toLocaleDateString(),
+        'Mini Camp Attendance': u.level === 'under_follow_up' ? (u.attended_mini_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A',
+        'Camp Attendance': u.level === 'project_responsible' ? (u.attended_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A'
       }));
 
       downloadCSV(exportData, 'Users_Export');
@@ -1035,7 +1067,7 @@ export default function UserManagement() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              {['admin', 'head_hr', 'hr'].includes(primaryRole) && (
+                              {['admin', 'head_hr'].includes(primaryRole) && (
                                 <DropdownMenuItem onClick={() => openEditDialog(user)}>
                                   <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                   {t('common.edit')}
@@ -1109,7 +1141,7 @@ export default function UserManagement() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            {['admin', 'head_hr', 'hr'].includes(primaryRole) && (
+                            {['admin', 'head_hr'].includes(primaryRole) && (
                               <DropdownMenuItem onClick={() => openEditDialog(user)}>
                                 <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                 {t('common.edit')}
