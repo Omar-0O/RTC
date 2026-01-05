@@ -499,7 +499,7 @@ export default function LogActivity() {
                   <CheckCircle2 className="h-10 w-10 text-white" />
                 </div>
                 <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-success to-accent bg-clip-text text-transparent">
-                  {isRTL ? '🎉 رائع! تم التسجيل بنجاح! 🎉' : '🎉 Awesome! Successfully Logged! 🎉'}
+                  {isRTL ? 'شكرا لأنك عضو فعال في RTC ❤️' : 'Thank you for being an active member in RTC ❤️'}
                 </h2>
 
                 {isGroupSubmission && (

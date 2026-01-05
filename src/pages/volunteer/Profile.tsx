@@ -421,9 +421,6 @@ export default function Profile({ userId }: ProfileProps) {
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="text-sm font-medium">+{activity.points}</span>
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusColor(activity.status)}`}>
-                          {getStatusText(activity.status)}
-                        </span>
                       </div>
                     </div>
                   ))}
