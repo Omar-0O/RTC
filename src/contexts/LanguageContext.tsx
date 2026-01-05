@@ -368,7 +368,7 @@ const translations: Record<Language, Record<string, string>> = {
     'dashboard.currentLevel': 'الدرجة التطوعية',
     'dashboard.recentActivity': 'النشاط الأخير',
 
-    'dashboard.logNewActivity': 'تسجيل نشاط جديد',
+    'dashboard.logNewActivity': 'تسجيل مشاركة جديدة',
 
 
     // Admin Dashboard
@@ -448,7 +448,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.exportData': 'تصدير البيانات',
     'reports.exportDataDesc': 'تنزيل التقارير بتنسيقات مختلفة',
     'reports.volunteerList': 'قائمة المتطوعين (CSV)',
-    'reports.activityLog': 'سجل المشاركات الشهري (CSV)',
+    'reports.activityLog': 'تقرير المشاركات الشهري (CSV)',
     'reports.pointsSummary': 'ملخص الأثر (CSV)',
     'reports.monthlyReport': 'التقرير الشهري (CSV)',
 
