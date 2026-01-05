@@ -17,6 +17,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -97,6 +98,7 @@ export default function CommitteeManagement() {
 
           return {
             ...committee,
+            committee_type: (committee.committee_type as 'production' | 'fourth_year') || 'production',
             volunteerCount,
             totalPoints,
           };

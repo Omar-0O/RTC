@@ -738,8 +738,8 @@ export default function LogActivity() {
               </div>
 
               {/* Proof Upload */}
-              {/* Proof Upload - Only for non-volunteers (Leaders, Supervisors, etc) */}
-              {primaryRole !== 'volunteer' && (
+              {/* Proof Upload - Excluded for volunteers and HR roles */}
+              {primaryRole !== 'volunteer' && primaryRole !== 'hr' && primaryRole !== 'head_hr' && (
                 <div className="space-y-2">
                   <Label>{isRTL ? 'صورة الإثبات (اختياري)' : 'Proof Image (Optional)'}</Label>
                   <input
@@ -782,18 +782,6 @@ export default function LogActivity() {
                       </div>
                     </Button>
                   )}
-                </div>
-              )}
-
-              {/* Points Preview */}
-              {selectedActivity && !isGroupSubmission && (
-                <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm">{isRTL ? 'النقاط التي ستحصل عليها:' : 'Points you\'ll earn:'}</span>
-                    <span className="text-xl font-bold text-primary">
-                      +{selectedActivity.points} {isRTL ? 'نقطة' : 'pts'}
-                    </span>
-                  </div>
                 </div>
               )}
 

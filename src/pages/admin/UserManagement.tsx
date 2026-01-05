@@ -200,7 +200,7 @@ export default function UserManagement() {
         committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
         total_points: profile.total_points || 0,
         level: profile.level || 'under_follow_up',
-        join_date: profile.join_date,
+        join_date: profile.created_at,
         phone: profile.phone,
       }));
 
@@ -354,7 +354,8 @@ export default function UserManagement() {
       }
 
       // Save visible password to private details (Admin only)
-      if (data.user) {
+      // TODO: Add user_private_details table to database or regenerate types
+      /* if (data.user) {
         const { error: privateError } = await supabase
           .from('user_private_details')
           .insert({
@@ -366,7 +367,7 @@ export default function UserManagement() {
           console.error('Failed to save visible password:', privateError);
           // access silent fail or warn?
         }
-      }
+      } */
 
       toast.success('User added successfully');
       setIsAddDialogOpen(false);
@@ -560,7 +561,8 @@ export default function UserManagement() {
       if (rolesError) throw rolesError;
 
       let passwordsMap = new Map<string, string>();
-      if (['admin', 'head_hr', 'hr'].includes(primaryRole)) {
+      // TODO: Add user_private_details table to database or regenerate types
+      /* if (['admin', 'head_hr', 'hr'].includes(primaryRole)) {
         const { data: passwordsData, error: passwordsError } = await supabase
           .from('user_private_details')
           .select('id, visible_password');
@@ -568,7 +570,7 @@ export default function UserManagement() {
         if (!passwordsError && passwordsData) {
           passwordsMap = new Map(passwordsData.map(p => [p.id, p.visible_password]));
         }
-      }
+      } */
 
       const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role]) || []);
 
@@ -609,7 +611,7 @@ export default function UserManagement() {
           setIsAddDialogOpen(open);
           if (!open) resetForm();
         }}>
-          {['admin', 'head_hr', 'hr'].includes(primaryRole) && (
+          {['admin', 'head_hr'].includes(primaryRole) && (
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleExportUsers}>
                 <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
