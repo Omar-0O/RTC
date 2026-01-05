@@ -97,6 +97,39 @@ export interface Database {
                 }
                 Relationships: []
             }
+            badges: {
+                Row: {
+                    color: string
+                    created_at: string
+                    description: string | null
+                    description_ar: string | null
+                    icon: string
+                    id: string
+                    name: string
+                    name_ar: string
+                }
+                Insert: {
+                    color: string
+                    created_at?: string
+                    description?: string | null
+                    description_ar?: string | null
+                    icon: string
+                    id?: string
+                    name: string
+                    name_ar: string
+                }
+                Update: {
+                    color?: string
+                    created_at?: string
+                    description?: string | null
+                    description_ar?: string | null
+                    icon?: string
+                    id?: string
+                    name?: string
+                    name_ar?: string
+                }
+                Relationships: []
+            }
             committees: {
                 Row: {
                     color: string | null
@@ -182,6 +215,45 @@ export interface Database {
                         columns: ["committee_id"]
                         isOneToOne: false
                         referencedRelation: "committees"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            user_badges: {
+                Row: {
+                    badge_id: string
+                    created_at: string
+                    earned_at: string
+                    id: string
+                    user_id: string
+                }
+                Insert: {
+                    badge_id: string
+                    created_at?: string
+                    earned_at?: string
+                    id?: string
+                    user_id: string
+                }
+                Update: {
+                    badge_id?: string
+                    created_at?: string
+                    earned_at?: string
+                    id?: string
+                    user_id?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "user_badges_badge_id_fkey"
+                        columns: ["badge_id"]
+                        isOneToOne: false
+                        referencedRelation: "badges"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "user_badges_user_id_fkey"
+                        columns: ["user_id"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
                         referencedColumns: ["id"]
                     }
                 ]

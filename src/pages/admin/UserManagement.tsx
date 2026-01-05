@@ -73,9 +73,12 @@ interface UserWithDetails {
   committee_id: string | null;
   committee_name?: string;
   total_points: number;
+  participation_count: number;
   level: string;
   join_date: string;
   phone?: string;
+  attended_mini_camp?: boolean;
+  attended_camp?: boolean;
 }
 
 import Profile from '@/pages/volunteer/Profile';
@@ -164,6 +167,8 @@ export default function UserManagement() {
   const [formCommitteeId, setFormCommitteeId] = useState<string>('');
   const [formAvatarFile, setFormAvatarFile] = useState<File | null>(null);
   const [formAvatarPreview, setFormAvatarPreview] = useState<string | null>(null);
+  const [formAttendedMiniCamp, setFormAttendedMiniCamp] = useState(false);
+  const [formAttendedCamp, setFormAttendedCamp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const fetchData = async () => {
@@ -177,24 +182,53 @@ export default function UserManagement() {
 
       setCommittees(committeesData || []);
 
-      // Fetch users with their roles
-      const { data: profilesData, error: profilesError } = await supabase
+      setCommittees(committeesData || []);
+
+      // Fetch users, roles, and activity submissions in parallel to avoid join issues
+      const usersQuery = supabase
         .from('profiles')
         .select('*')
         .order('full_name');
 
-      if (profilesError) throw profilesError;
-
-      // Fetch roles for all users
-      const { data: rolesData } = await supabase
+      const rolesQuery = supabase
         .from('user_roles')
         .select('user_id, role');
 
+      const activitiesQuery = supabase
+        .from('activity_submissions')
+        .select('volunteer_id, status')
+        .eq('status', 'approved');
+
+      const [profilesRes, rolesRes, activitiesRes] = await Promise.all([
+        usersQuery,
+        rolesQuery,
+        activitiesQuery
+      ]);
+
+      if (profilesRes.error) {
+        console.error('Profiles fetch error:', profilesRes.error);
+        throw profilesRes.error;
+      }
+
+      const profilesData = profilesRes.data;
+      const rolesData = rolesRes.data || [];
+      const activitiesData = activitiesRes.data || [];
+
+      // Create maps for O(1) lookup
       const rolesMap = new Map<string, AppRole[]>();
-      rolesData?.forEach(r => {
-        const userRoles = rolesMap.get(r.user_id) || [];
-        userRoles.push(r.role as AppRole);
-        rolesMap.set(r.user_id, userRoles);
+      rolesData.forEach((r: any) => {
+        if (r.user_id) {
+          const currentRoles = rolesMap.get(r.user_id) || [];
+          currentRoles.push(r.role as AppRole);
+          rolesMap.set(r.user_id, currentRoles);
+        }
+      });
+
+      const participationMap = new Map<string, number>();
+      activitiesData.forEach((activity: any) => {
+        if (activity.volunteer_id) {
+          participationMap.set(activity.volunteer_id, (participationMap.get(activity.volunteer_id) || 0) + 1);
+        }
       });
 
       const getPrimaryRole = (roles: AppRole[]): AppRole => {
@@ -212,8 +246,23 @@ export default function UserManagement() {
 
       const committeesMap = new Map(committeesData?.map(c => [c.id, language === 'ar' ? c.name_ar : c.name]) || []);
 
-      const usersWithDetails: UserWithDetails[] = (profilesData || []).map(profile => {
-        const userRoles = rolesMap.get(profile.id) || ['volunteer'];
+      const usersWithDetails: UserWithDetails[] = (profilesData || []).map((profile: any) => {
+        // Get roles from map and fallback to profile.role
+        const userRoles = rolesMap.get(profile.id) || [];
+        if (profile.role) {
+          // Normalize role string (e.g. 'Head HR' -> 'head_hr')
+          const normalizedRole = profile.role.toLowerCase().trim().replace(/ /g, '_');
+          if (!userRoles.includes(normalizedRole as AppRole)) {
+            userRoles.push(normalizedRole as AppRole);
+          }
+        }
+
+        // Participation count from map
+        const participationCount = participationMap.get(profile.id) || 0;
+
+        // If no roles found, default to 'volunteer'
+        if (userRoles.length === 0) userRoles.push('volunteer');
+
         const uniqueRoles = Array.from(new Set(userRoles)); // deduplicate just in case
 
         return {
@@ -221,13 +270,16 @@ export default function UserManagement() {
           email: profile.email,
           full_name: profile.full_name,
           avatar_url: profile.avatar_url,
-          role: getPrimaryRole(uniqueRoles),
+          role: getPrimaryRole(uniqueRoles as AppRole[]),
           committee_id: profile.committee_id,
           committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
           total_points: profile.total_points || 0,
+          participation_count: participationCount,
           level: profile.level || 'under_follow_up',
           join_date: profile.created_at,
           phone: profile.phone,
+          attended_mini_camp: profile.attended_mini_camp,
+          attended_camp: profile.attended_camp,
         };
       });
 
@@ -264,6 +316,8 @@ export default function UserManagement() {
     setFormCommitteeId('');
     setFormAvatarFile(null);
     setFormAvatarPreview(null);
+    setFormAttendedMiniCamp(false);
+    setFormAttendedCamp(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -396,6 +450,31 @@ export default function UserManagement() {
         }
       } */
 
+      // Update attendance status if applicable
+      if (data.user) {
+        const updates: any = {};
+
+        if (formLevel === 'under_follow_up') {
+          updates.attended_mini_camp = formAttendedMiniCamp;
+        }
+
+        if (formRole === 'committee_leader') { // Project Responsible
+          updates.attended_camp = formAttendedCamp;
+        }
+
+        if (Object.keys(updates).length > 0) {
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update(updates)
+            .eq('id', data.user.id);
+
+          if (updateError) {
+            console.error('Failed to update attendance:', updateError);
+            toast.error('User created but failed to save attendance status');
+          }
+        }
+      }
+
       toast.success('User added successfully');
       setIsAddDialogOpen(false);
       resetForm();
@@ -418,6 +497,8 @@ export default function UserManagement() {
     setFormRole(user.role);
     setFormLevel(user.level || 'under_follow_up');
     setFormCommitteeId(user.committee_id || '');
+    setFormAttendedMiniCamp(user.attended_mini_camp || false);
+    setFormAttendedCamp(user.attended_camp || false);
     setIsEditDialogOpen(true);
   };
 
@@ -442,6 +523,8 @@ export default function UserManagement() {
           phone: formPhone.trim() || null,
           committee_id: formCommitteeId || null,
           level: formLevel,
+          attended_mini_camp: formLevel === 'under_follow_up' ? formAttendedMiniCamp : null,
+          attended_camp: formRole === 'committee_leader' ? formAttendedCamp : null,
         })
         .eq('id', selectedUser.id);
 
@@ -900,10 +983,12 @@ export default function UserManagement() {
                     <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
                     <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
                     <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
-                    <SelectItem value="hr">{t('common.hr')}</SelectItem>
-                    <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
                     <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
                     <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
+                    <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
+                    <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
+                    <SelectItem value="hr">{t('common.hr')}</SelectItem>
+                    <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
                     <SelectItem value="admin">{t('common.admin')}</SelectItem>
                   </SelectContent>
                 </Select>
@@ -1015,7 +1100,7 @@ export default function UserManagement() {
                       <TableHead className="text-start">{t('users.role')}</TableHead>
                       <TableHead className="text-start">{t('users.committee')}</TableHead>
                       <TableHead className="text-start">{t('users.level')}</TableHead>
-                      <TableHead className="text-start">{t('common.points')}</TableHead>
+                      <TableHead className="text-start">{language === 'ar' ? 'عدد المشاركات' : 'Number of Participations'}</TableHead>
                       <TableHead className="text-start">{t('users.joined')}</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
@@ -1050,7 +1135,7 @@ export default function UserManagement() {
                           <LevelBadge level={user.level} size="sm" />
                         </TableCell>
                         <TableCell>
-                          <span className="font-medium">{user.total_points.toLocaleString()}</span>
+                          <span className="font-medium">{user.participation_count || 0}</span>
                         </TableCell>
                         <TableCell>
                           <span className="text-sm text-muted-foreground">
@@ -1196,8 +1281,8 @@ export default function UserManagement() {
                           <p className="font-medium truncate">{user.committee_name || '—'}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground mb-0.5">{t('common.points')}</p>
-                          <p className="font-medium">{user.total_points?.toLocaleString() || 0}</p>
+                          <p className="text-xs text-muted-foreground mb-0.5">{language === 'ar' ? 'عدد المشاركات' : 'Participations'}</p>
+                          <p className="font-medium">{user.participation_count || 0}</p>
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground mb-0.5">{t('users.joined')}</p>

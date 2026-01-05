@@ -398,7 +398,10 @@ export default function Profile({ userId }: ProfileProps) {
             {(() => {
               const level = displayProfile?.level || 'under_follow_up';
               const showMiniCamp = level === 'under_follow_up';
-              const showCamp = level === 'project_responsible';
+              // Check role from profiles table (which includes role fallback logic via fetch if needed, 
+              // but here displayProfile comes from profiles table directly). 
+              // displayProfile.role is a string (e.g. 'committee_leader').
+              const showCamp = displayProfile?.role === 'committee_leader';
               const canEdit = ['admin', 'head_hr', 'supervisor'].includes(primaryRole);
 
               if (!showMiniCamp && !showCamp) return null;

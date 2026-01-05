@@ -88,7 +88,19 @@ export default function Reports() {
         supabase.from('activity_types').select('*'),
       ]);
 
-      if (profilesRes.data) setProfiles(profilesRes.data);
+      const profilesData = profilesRes.data || [];
+      const submissionsData = submissionsRes.data || [];
+
+      if (profilesData) {
+        const enrichedProfiles: Profile[] = profilesData.map(profile => ({
+          ...profile,
+          total_points: profile.total_points ?? 0,
+          level: profile.level ?? 'under_follow_up',
+          activities_count: submissionsData.filter(s => s.volunteer_id === profile.id).length
+        }));
+        setProfiles(enrichedProfiles);
+      }
+
       if (committeesRes.data) setCommittees(committeesRes.data);
       if (submissionsRes.data) setSubmissions(submissionsRes.data);
       if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
@@ -383,10 +395,7 @@ export default function Reports() {
               <SelectItem value="year">{t('reports.thisYear')}</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={() => handleExport('full')}>
-            <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-            {t('reports.exportReport')}
-          </Button>
+
         </div>
       </div>
 
@@ -615,7 +624,7 @@ export default function Reports() {
           <CardDescription>{t('reports.exportDataDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('volunteers')}>
               <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
               <span className="truncate">{t('reports.volunteerList')}</span>
@@ -624,10 +633,7 @@ export default function Reports() {
               <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
               <span className="truncate">{t('reports.activityLog')}</span>
             </Button>
-            <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('points')}>
-              <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
-              <span className="truncate">{t('reports.pointsSummary')}</span>
-            </Button>
+
             <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('monthly')}>
               <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
               <span className="truncate">{t('reports.monthlyReport')}</span>
