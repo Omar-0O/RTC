@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil } from 'lucide-react';
+import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import {
@@ -21,6 +21,19 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from '@/components/ui/command';
 
 interface Course {
     id: string;
@@ -30,6 +43,7 @@ interface Course {
     room: string;
     schedule_days: string[];
     schedule_time: string;
+    schedule_end_time: string | null;
     has_interview: boolean;
     interview_date: string | null;
     total_lectures: number;
@@ -52,6 +66,13 @@ interface CourseLecture {
     lecture_number: number;
     date: string;
     status: 'scheduled' | 'completed' | 'cancelled';
+}
+
+interface Volunteer {
+    id: string;
+    full_name: string;
+    full_name_ar: string | null;
+    phone: string | null;
 }
 
 const ROOMS = [
@@ -82,6 +103,16 @@ export default function CourseManagement() {
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
     const [lectures, setLectures] = useState<CourseLecture[]>([]);
     const [isLecturesOpen, setIsLecturesOpen] = useState(false);
+    const [showPastCourses, setShowPastCourses] = useState(false);
+    const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+    const [organizerPopoverOpen, setOrganizerPopoverOpen] = useState(false);
+
+    // Filter out ended courses unless showPastCourses is true
+    const activeCourses = courses.filter(course => {
+        if (showPastCourses) return true;
+        if (!course.end_date) return true;
+        return new Date(course.end_date) >= new Date(new Date().toDateString());
+    });
 
     // Form State
     const [formData, setFormData] = useState({
@@ -91,6 +122,7 @@ export default function CourseManagement() {
         room: 'lab_1',
         schedule_days: [] as string[],
         schedule_time: '10:00',
+        schedule_end_time: '12:00',
         has_interview: false,
         interview_date: '',
         total_lectures: 8,
@@ -99,12 +131,24 @@ export default function CourseManagement() {
     });
 
     const [organizers, setOrganizers] = useState<CourseOrganizer[]>([]);
-    const [newOrganizerName, setNewOrganizerName] = useState('');
-    const [newOrganizerPhone, setNewOrganizerPhone] = useState('');
 
     useEffect(() => {
         fetchCourses();
+        fetchVolunteers();
     }, []);
+
+    const fetchVolunteers = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('id, full_name, full_name_ar, phone')
+                .order('full_name');
+            if (error) throw error;
+            setVolunteers(data || []);
+        } catch (error) {
+            console.error('Error fetching volunteers:', error);
+        }
+    };
 
     const fetchCourses = async () => {
         setLoading(true);
@@ -132,6 +176,7 @@ export default function CourseManagement() {
             room: 'lab_1',
             schedule_days: [],
             schedule_time: '10:00',
+            schedule_end_time: '12:00',
             has_interview: false,
             interview_date: '',
             total_lectures: 8,
@@ -141,11 +186,16 @@ export default function CourseManagement() {
         setOrganizers([]);
     };
 
-    const handleAddOrganizer = () => {
-        if (!newOrganizerName.trim()) return;
-        setOrganizers([...organizers, { name: newOrganizerName, phone: newOrganizerPhone }]);
-        setNewOrganizerName('');
-        setNewOrganizerPhone('');
+    const handleAddOrganizer = (volunteer: Volunteer) => {
+        // Check if already added
+        if (organizers.some(o => o.name === (isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name))) {
+            return;
+        }
+        setOrganizers([...organizers, {
+            name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
+            phone: volunteer.phone || ''
+        }]);
+        setOrganizerPopoverOpen(false);
     };
 
     const removeOrganizer = (index: number) => {
@@ -267,15 +317,24 @@ export default function CourseManagement() {
                 .eq('course_id', course.id)
                 .order('lecture_number');
 
+            const completedLectures = (lects || []).filter(l => l.status === 'completed').length;
+            const cancelledLectures = (lects || []).filter(l => l.status === 'cancelled').length;
+
             const courseInfo = [{
                 [isRTL ? 'اسم الكورس' : 'Course Name']: course.name,
                 [isRTL ? 'اسم المدرب' : 'Trainer Name']: course.trainer_name,
                 [isRTL ? 'رقم المدرب' : 'Trainer Phone']: course.trainer_phone || '-',
                 [isRTL ? 'القاعة' : 'Room']: ROOMS.find(r => r.value === course.room)?.label[language as 'en' | 'ar'] || course.room,
                 [isRTL ? 'الأيام' : 'Days']: course.schedule_days.map(d => DAYS.find(day => day.value === d)?.label[language as 'en' | 'ar']).join(', '),
-                [isRTL ? 'الوقت' : 'Time']: course.schedule_time,
+                [isRTL ? 'وقت البداية' : 'Start Time']: course.schedule_time,
+                [isRTL ? 'وقت الانتهاء' : 'End Time']: course.schedule_end_time || '-',
                 [isRTL ? 'عدد المحاضرات' : 'Total Lectures']: course.total_lectures,
+                [isRTL ? 'المحاضرات المكتملة' : 'Completed']: completedLectures,
+                [isRTL ? 'المحاضرات الملغية' : 'Cancelled']: cancelledLectures,
                 [isRTL ? 'تاريخ البداية' : 'Start Date']: course.start_date,
+                [isRTL ? 'تاريخ النهاية' : 'End Date']: course.end_date || '-',
+                [isRTL ? 'يوجد انترفيو' : 'Has Interview']: course.has_interview ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No'),
+                [isRTL ? 'تاريخ الانترفيو' : 'Interview Date']: course.interview_date || '-',
             }];
 
             const organizersData = (orgs || []).map(o => ({
@@ -292,7 +351,9 @@ export default function CourseManagement() {
 
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(courseInfo), isRTL ? 'معلومات الكورس' : 'Course Info');
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(organizersData), isRTL ? 'المنظمين' : 'Organizers');
+            if (organizersData.length > 0) {
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(organizersData), isRTL ? 'المنظمين' : 'Organizers');
+            }
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lecturesData), isRTL ? 'المحاضرات' : 'Lectures');
 
             XLSX.writeFile(wb, `${course.name}_Report.xlsx`);
@@ -307,11 +368,16 @@ export default function CourseManagement() {
             const allData = courses.map(c => ({
                 [isRTL ? 'اسم الكورس' : 'Course Name']: c.name,
                 [isRTL ? 'المدرب' : 'Trainer']: c.trainer_name,
+                [isRTL ? 'رقم المدرب' : 'Trainer Phone']: c.trainer_phone || '-',
                 [isRTL ? 'القاعة' : 'Room']: ROOMS.find(r => r.value === c.room)?.label[language as 'en' | 'ar'] || c.room,
                 [isRTL ? 'الأيام' : 'Days']: c.schedule_days.map(d => DAYS.find(day => day.value === d)?.label[language as 'en' | 'ar']).join(', '),
-                [isRTL ? 'الوقت' : 'Time']: c.schedule_time,
+                [isRTL ? 'وقت البداية' : 'Start Time']: c.schedule_time,
+                [isRTL ? 'وقت الانتهاء' : 'End Time']: c.schedule_end_time || '-',
                 [isRTL ? 'عدد المحاضرات' : 'Lectures']: c.total_lectures,
-                [isRTL ? 'البداية' : 'Start']: c.start_date,
+                [isRTL ? 'تاريخ البداية' : 'Start Date']: c.start_date,
+                [isRTL ? 'تاريخ النهاية' : 'End Date']: c.end_date || '-',
+                [isRTL ? 'انترفيو' : 'Interview']: c.has_interview ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No'),
+                [isRTL ? 'تاريخ الانترفيو' : 'Interview Date']: c.interview_date || '-',
             }));
 
             const ws = XLSX.utils.json_to_sheet(allData);
@@ -346,6 +412,13 @@ export default function CourseManagement() {
                     <p className="text-muted-foreground">{isRTL ? 'إدارة الكورسات والمحاضرات' : 'Manage courses and lectures'}</p>
                 </div>
                 <div className="flex gap-2">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm">
+                        <Checkbox
+                            checked={showPastCourses}
+                            onCheckedChange={(checked) => setShowPastCourses(!!checked)}
+                        />
+                        <span className="text-muted-foreground">{isRTL ? 'عرض الكورسات المنتهية' : 'Show ended courses'}</span>
+                    </label>
                     <Button variant="outline" onClick={exportAllCourses}>
                         <FileSpreadsheet className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                         {isRTL ? 'تصدير الكل' : 'Export All'}
@@ -415,10 +488,14 @@ export default function CourseManagement() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                                     <div className="space-y-2">
-                                        <Label>{isRTL ? 'الوقت' : 'Time'}</Label>
+                                        <Label>{isRTL ? 'وقت البداية' : 'Start Time'}</Label>
                                         <Input type="time" value={formData.schedule_time} onChange={e => setFormData({ ...formData, schedule_time: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>{isRTL ? 'وقت الانتهاء' : 'End Time'}</Label>
+                                        <Input type="time" value={formData.schedule_end_time} onChange={e => setFormData({ ...formData, schedule_end_time: e.target.value })} />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>{isRTL ? 'عدد المحاضرات' : 'Total Lectures'}</Label>
@@ -458,21 +535,36 @@ export default function CourseManagement() {
                                 {/* Organizers */}
                                 <div className="border-t pt-4">
                                     <h3 className="text-lg font-medium mb-4">{isRTL ? 'المنظمين' : 'Organizers'}</h3>
-                                    <div className="flex gap-2 mb-4">
-                                        <Input
-                                            placeholder={isRTL ? 'اسم المنظم' : 'Organizer Name'}
-                                            value={newOrganizerName}
-                                            onChange={e => setNewOrganizerName(e.target.value)}
-                                        />
-                                        <Input
-                                            placeholder={isRTL ? 'رقم التليفون' : 'Phone'}
-                                            value={newOrganizerPhone}
-                                            onChange={e => setNewOrganizerPhone(e.target.value)}
-                                        />
-                                        <Button onClick={handleAddOrganizer} variant="secondary" disabled={!newOrganizerName}>
-                                            <Plus className="w-4 h-4" />
-                                        </Button>
-                                    </div>
+                                    <Popover open={organizerPopoverOpen} onOpenChange={setOrganizerPopoverOpen}>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="w-full justify-start">
+                                                <Search className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'بحث عن متطوع...' : 'Search volunteers...'}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[400px] p-0" align="start" side="bottom">
+                                            <Command>
+                                                <CommandInput placeholder={isRTL ? 'اكتب اسم المتطوع...' : 'Type volunteer name...'} />
+                                                <CommandList>
+                                                    <CommandEmpty>{isRTL ? 'لا يوجد متطوعين' : 'No volunteers found'}</CommandEmpty>
+                                                    <CommandGroup heading={isRTL ? 'المتطوعين' : 'Volunteers'}>
+                                                        {volunteers.slice(0, 50).map(volunteer => (
+                                                            <CommandItem
+                                                                key={volunteer.id}
+                                                                value={`${volunteer.full_name} ${volunteer.full_name_ar || ''}`}
+                                                                onSelect={() => handleAddOrganizer(volunteer)}
+                                                            >
+                                                                <div className="flex flex-col">
+                                                                    <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
+                                                                    <span className="text-xs text-muted-foreground">{volunteer.phone || '-'}</span>
+                                                                </div>
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
 
                                     {organizers.length > 0 && (
                                         <div className="border rounded-md">
@@ -514,7 +606,7 @@ export default function CourseManagement() {
 
             {/* Course Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {courses.map(course => (
+                {activeCourses.map(course => (
                     <Card key={course.id}>
                         <CardHeader className="pb-3">
                             <div className="flex justify-between items-start">
@@ -582,8 +674,8 @@ export default function CourseManagement() {
                             <div
                                 key={lecture.id}
                                 className={`flex items-center justify-between p-3 rounded-lg border ${lecture.status === 'cancelled' ? 'bg-destructive/10 border-destructive/30' :
-                                        lecture.status === 'completed' ? 'bg-green-500/10 border-green-500/30' :
-                                            'bg-muted/50'
+                                    lecture.status === 'completed' ? 'bg-green-500/10 border-green-500/30' :
+                                        'bg-muted/50'
                                     }`}
                             >
                                 <div className="flex items-center gap-3">

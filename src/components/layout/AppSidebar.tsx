@@ -77,6 +77,7 @@ export function AppSidebar() {
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
     { title: t('nav.caravans'), url: '/caravans', icon: Bus },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
+    { title: isRTL ? 'إدارة الأنشطة' : 'Activities', url: '/supervisor/activities', icon: Settings },
   ];
 
   const adminNavItems = [

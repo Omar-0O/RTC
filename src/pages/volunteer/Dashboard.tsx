@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import { Activity, Trophy, Star, ArrowRight, Loader2, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import CourseSchedule from '@/components/courses/CourseSchedule';
 
 type RecentSubmission = {
   id: string;
@@ -31,6 +32,7 @@ export default function VolunteerDashboard() {
   const { progress, nextThreshold } = getLevelProgress(points);
   const level = profile?.level || 'under_follow_up';
   const activitiesCount = profile?.activities_count || 0;
+  const [monthlyActivities, setMonthlyActivities] = useState(0);
 
   useEffect(() => {
     if (user?.id) {
@@ -73,6 +75,16 @@ export default function VolunteerDashboard() {
       }
 
       setBadgeCount(badgesRes.count || 0);
+
+      // Fetch monthly activities count (current month)
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const { count: monthlyCount } = await supabase
+        .from('activity_submissions')
+        .select('id', { count: 'exact', head: true })
+        .eq('volunteer_id', user.id)
+        .gte('submitted_at', startOfMonth);
+      setMonthlyActivities(monthlyCount || 0);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -151,10 +163,10 @@ export default function VolunteerDashboard() {
           description={isRTL ? 'مستواك الحالي' : 'Your current tier'}
         />
         <StatsCard
-          title={t('dashboard.activitiesCompleted')}
-          value={activitiesCount}
+          title={isRTL ? 'أنشطة هذا الشهر' : 'Activities This Month'}
+          value={monthlyActivities}
           icon={Activity}
-          description={isRTL ? 'الأنشطة المكتملة' : 'Completed activities'}
+          description={isRTL ? 'مشاركاتك هذا الشهر' : 'Your participations this month'}
         />
         <StatsCard
           title={t('profile.badges')}
@@ -164,33 +176,8 @@ export default function VolunteerDashboard() {
         />
       </div>
 
-      {/* Level Progress Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>{t('profile.pointsProgress')}</CardTitle>
-              <CardDescription>{isRTL ? 'رحلتك نحو المستوى التالي' : 'Your journey to the next level'}</CardDescription>
-            </div>
-            <LevelBadge level={level} size="lg" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>{points} {isRTL ? 'نقطة' : 'points'}</span>
-              <span>{nextThreshold} {isRTL ? 'نقطة' : 'points'}</span>
-            </div>
-            <Progress value={progress} className={cn("h-3", isRTL && "rotate-180")} />
-            <p className="text-sm text-muted-foreground">
-              {isRTL
-                ? `${nextThreshold - points} نقطة للوصول للمستوى التالي`
-                : `${nextThreshold - points} more points to reach the next level`
-              }
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Course Schedule */}
+      <CourseSchedule />
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Quick Actions */}
@@ -225,12 +212,12 @@ export default function VolunteerDashboard() {
           </CardContent>
         </Card>
 
-        {/* Recent Activity */}
+        {/* Recent Participations */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>{t('dashboard.recentActivity')}</CardTitle>
-              <CardDescription>{isRTL ? 'آخر طلباتك' : 'Your latest submissions'}</CardDescription>
+              <CardTitle>{isRTL ? 'مشاركاتك الأخيرة!' : 'Your Recent Participations!'}</CardTitle>
+              <CardDescription>{isRTL ? 'آخر مشاركاتك' : 'Your latest participations'}</CardDescription>
             </div>
             <Button variant="ghost" size="sm" asChild>
               <Link to="/profile">
@@ -259,10 +246,7 @@ export default function VolunteerDashboard() {
                       <p className="text-xs text-muted-foreground">{formatDate(submission.submitted_at)}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">+{submission.points}</span>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(submission.status)}`}>
-                        {getStatusText(submission.status)}
-                      </span>
+                      <span className="text-sm font-medium text-primary">+{submission.points} {isRTL ? 'نقطة' : 'pts'}</span>
                     </div>
                   </div>
                 ))}
