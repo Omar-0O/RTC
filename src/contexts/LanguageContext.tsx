@@ -460,8 +460,8 @@ const translations: Record<Language, Record<string, string>> = {
     'leaderboard.global': 'عام',
 
     // Activity Log
-    'activityLog.title': 'تسجيل نشاط',
-    'activityLog.subtitle': 'قدم نشاطك التطوعي للموافقة',
+    'activityLog.title': 'تسجيل مشاركة',
+    'activityLog.subtitle': '',
     'activityLog.selectCommittee': 'اختر اللجنة',
     'activityLog.selectActivity': 'اختر النشاط',
     'activityLog.mode': 'الوضع',
@@ -472,7 +472,7 @@ const translations: Record<Language, Record<string, string>> = {
     'activityLog.notes': 'ملاحظات (اختياري)',
     'activityLog.notesPlaceholder': 'أضف أي ملاحظات أو تفاصيل...',
     'activityLog.proofUrl': 'رابط الإثبات (اختياري)',
-    'activityLog.submitActivity': 'تقديم النشاط',
+    'activityLog.submitActivity': 'تسجيل المشاركة',
     'activityLog.submissionHistory': 'سجل التقديمات',
     'activityLog.location': 'المكان',
     'activityLog.branch': 'الفرع',
