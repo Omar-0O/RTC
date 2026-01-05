@@ -87,7 +87,7 @@ export default function LogActivity() {
   const [guestsCount, setGuestsCount] = useState(0);
   const [guestParticipants, setGuestParticipants] = useState<GuestParticipant[]>([]);
 
-  const isLeader = primaryRole === 'committee_leader' || primaryRole === 'head_hr' || primaryRole === 'admin' || primaryRole === 'supervisor';
+  const isLeader = primaryRole === 'committee_leader' || primaryRole === 'head_hr' || primaryRole === 'admin' || primaryRole === 'supervisor' || primaryRole === 'head_caravans' || primaryRole === 'head_events';
 
   useEffect(() => {
     fetchData();
