@@ -443,7 +443,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.levelDistributionDesc': 'تفصيل المتطوعين حسب المستوى',
     'reports.committeePerformance': 'أداء اللجان',
     'reports.committeePerformanceDesc': 'الأثر المحقق حسب اللجنة',
-    'reports.topActivities': 'أفضل الأنشطة',
+    'reports.topActivities': 'أكثر أنواع المشاركات',
     'reports.topActivitiesDesc': 'أكثر أنواع الأنشطة تقديماً',
     'reports.exportData': 'تصدير البيانات',
     'reports.exportDataDesc': 'تنزيل التقارير بتنسيقات مختلفة',

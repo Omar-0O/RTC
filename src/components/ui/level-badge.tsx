@@ -26,9 +26,15 @@ const levelConfig: Record<string, { color: string; icon: string }> = {
 };
 
 const sizeClasses = {
-  sm: 'h-6 px-2 text-xs',
-  md: 'h-8 px-3 text-sm',
-  lg: 'h-10 px-4 text-base',
+  sm: 'h-6 px-2.5 text-xs gap-1',
+  md: 'h-8 px-3 text-sm gap-1.5',
+  lg: 'h-10 px-4 text-base gap-2',
+};
+
+const iconSizes = {
+  sm: 'text-xs',
+  md: 'text-sm',
+  lg: 'text-base',
 };
 
 export function LevelBadge({ level, size = 'md', showLabel = true, className }: LevelBadgeProps) {
@@ -42,14 +48,14 @@ export function LevelBadge({ level, size = 'md', showLabel = true, className }: 
   return (
     <div
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full font-medium text-white',
+        'inline-flex items-center rounded-full font-medium text-white whitespace-nowrap',
         config.color,
         sizeClasses[size],
         className
       )}
     >
-      <span>{config.icon}</span>
-      {showLabel && <span>{t(`level.${normalizedLevel}`)}</span>}
+      <span className={iconSizes[size]}>{config.icon}</span>
+      {showLabel && <span className="truncate">{t(`level.${normalizedLevel}`)}</span>}
     </div>
   );
 }

@@ -140,7 +140,7 @@ export default function UserManagement() {
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [levelFilter, setLevelFilter] = useState<string>('all');
   const [committeeFilter, setCommitteeFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -221,9 +221,9 @@ export default function UserManagement() {
     const matchesSearch =
       (user.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+    const matchesLevel = levelFilter === 'all' || user.level === levelFilter;
     const matchesCommittee = committeeFilter === 'all' || user.committee_id === committeeFilter;
-    return matchesSearch && matchesRole && matchesCommittee;
+    return matchesSearch && matchesLevel && matchesCommittee;
   });
 
   const resetForm = () => {
@@ -919,18 +919,15 @@ export default function UserManagement() {
                 className="ltr:pl-9 rtl:pr-9"
               />
             </div>
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder={t('users.filterByRole')} />
+            <Select value={levelFilter} onValueChange={setLevelFilter}>
+              <SelectTrigger className="w-full sm:w-[200px]">
+                <SelectValue placeholder={language === 'ar' ? 'حسب الدرجة التطوعية' : 'Filter by Level'} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">{t('users.allRoles')}</SelectItem>
-                <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
-                <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
-                <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
-                <SelectItem value="hr">{t('common.hr')}</SelectItem>
-                <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
-                <SelectItem value="admin">{t('common.admin')}</SelectItem>
+                <SelectItem value="all">{language === 'ar' ? 'كل الدرجات' : 'All Levels'}</SelectItem>
+                <SelectItem value="under_follow_up">{t('level.under_follow_up')}</SelectItem>
+                <SelectItem value="project_responsible">{t('level.project_responsible')}</SelectItem>
+                <SelectItem value="responsible">{t('level.responsible')}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={committeeFilter} onValueChange={setCommitteeFilter}>

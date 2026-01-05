@@ -170,29 +170,23 @@ export default function Profile({ userId }: ProfileProps) {
         setMonthlyPoints(mPoints);
       }
 
-      const [badgesRes, activitiesRes] = await Promise.all([
-        supabase
-          .from('user_badges')
-          .select(`
-            id,
-            earned_at,
-            badge:badges(id, name, name_ar, description, description_ar, icon, color)
-          `)
-          .eq('user_id', targetUserId)
-          .order('earned_at', { ascending: false }),
-        supabase
-          .from('activity_submissions')
-          .select(`
-            id,
-            points_awarded,
-            status,
-            submitted_at,
-            proof_url,
-            activity:activity_types(name, name_ar),
-            committee:committees(name, name_ar)
-          `)
-          .eq('volunteer_id', targetUserId)
-          .order('submitted_at', { ascending: false }),
+      // Fetch badges and activities in parallel
+      // Explicitly type to avoid deep type instantiation errors
+      const badgesQuery = supabase
+        .from('user_badges')
+        .select('id, earned_at, badge:badges(id, name, name_ar, description, description_ar, icon, color)')
+        .eq('user_id', targetUserId)
+        .order('earned_at', { ascending: false });
+
+      const activitiesQuery = supabase
+        .from('activity_submissions')
+        .select('id, points_awarded, status, submitted_at, proof_url, activity:activity_types(name, name_ar), committee:committees(name, name_ar)')
+        .eq('volunteer_id', targetUserId)
+        .order('submitted_at', { ascending: false });
+
+      const [badgesRes, activitiesRes]: [any, any] = await Promise.all([
+        badgesQuery,
+        activitiesQuery,
       ]);
 
       if (badgesRes.data) {
@@ -360,9 +354,16 @@ export default function Profile({ userId }: ProfileProps) {
                 </span>
               </div>
             </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary">{points}</div>
-              <div className="text-sm text-muted-foreground">{!isViewOnly ? (isRTL ? 'أثر هذا الشهر' : 'Monthly Impact') : t('dashboard.totalImpact')}</div>
+            <div className="flex gap-6 text-center">
+              <div>
+                <div className="text-4xl font-bold text-primary">{points}</div>
+                <div className="text-sm text-muted-foreground">{!isViewOnly ? (isRTL ? 'أثر هذا الشهر' : 'Monthly Impact') : t('dashboard.totalImpact')}</div>
+              </div>
+              <div className="border-r"></div>
+              <div>
+                <div className="text-4xl font-bold text-primary">{activities.filter(a => a.status === 'approved').length}</div>
+                <div className="text-sm text-muted-foreground">{isRTL ? 'عدد المشاركات' : 'Participations'}</div>
+              </div>
             </div>
           </div>
         </CardContent>

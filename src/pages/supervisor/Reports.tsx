@@ -113,23 +113,20 @@ export default function Reports() {
     }
   };
 
-  // Helper function to get localized level name
+  // Helper function to get level name in Arabic for exports
   const getLevelName = (level: string): string => {
-    if (language === 'ar') {
-      const levelMap: Record<string, string> = {
-        'under_follow_up': 'تحت المتابعة',
-        'project_responsible': 'مشروع مسئول',
-        'responsible': 'مسئول',
-        // Fallback for old data
-        'bronze': 'تحت المتابعة',
-        'silver': 'تحت المتابعة',
-        'gold': 'مشروع مسئول',
-        'platinum': 'مسئول',
-        'diamond': 'مسئول',
-      };
-      return levelMap[level] || level;
-    }
-    return t(`level.${level}`);
+    const levelMap: Record<string, string> = {
+      'under_follow_up': 'تحت المتابعة',
+      'project_responsible': 'مشروع مسئول',
+      'responsible': 'مسئول',
+      // Fallback for old data
+      'bronze': 'تحت المتابعة',
+      'silver': 'تحت المتابعة',
+      'gold': 'مشروع مسئول',
+      'platinum': 'مسئول',
+      'diamond': 'مسئول',
+    };
+    return levelMap[level] || 'تحت المتابعة';
   };
 
   // Get date range based on selection
@@ -492,8 +489,28 @@ export default function Reports() {
   // Calculate summary stats
   const totalVolunteers = profiles.length;
   const totalApprovedActivities = submissions.filter(s => s.status === 'approved').length;
-  const totalPointsAwarded = profiles.reduce((sum, p) => sum + (p.total_points || 0), 0);
-  const avgPointsPerVolunteer = totalVolunteers > 0 ? Math.round(totalPointsAwarded / totalVolunteers) : 0;
+  const totalSubmissions = submissions.length;
+
+  // Calculate submissions by level
+  const submissionsByLevel = {
+    under_follow_up: 0,
+    project_responsible: 0,
+    responsible: 0
+  };
+
+  submissions.forEach(s => {
+    const volunteer = profiles.find(p => p.id === s.volunteer_id);
+    if (volunteer) {
+      const level = volunteer.level || 'under_follow_up';
+      if (['responsible', 'platinum', 'diamond'].includes(level)) {
+        submissionsByLevel.responsible++;
+      } else if (['project_responsible', 'gold'].includes(level)) {
+        submissionsByLevel.project_responsible++;
+      } else {
+        submissionsByLevel.under_follow_up++;
+      }
+    }
+  });
 
   if (isLoading) {
     return (
@@ -531,7 +548,7 @@ export default function Reports() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
@@ -565,8 +582,25 @@ export default function Reports() {
                 <Award className="h-6 w-6 text-warning" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">{t('admin.pointsAwarded')}</p>
-                <p className="text-2xl font-bold">{totalPointsAwarded.toLocaleString()}</p>
+                <p className="text-sm text-muted-foreground">{language === 'ar' ? 'إجمالي المشاركات' : 'Total Submissions'}</p>
+                <p className="text-2xl font-bold">{totalSubmissions.toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Submissions by Level */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="rounded-full bg-slate-500/10 p-3">
+                <Activity className="h-6 w-6 text-slate-500" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">{t('level.under_follow_up')}</p>
+                <p className="text-2xl font-bold">{submissionsByLevel.under_follow_up}</p>
               </div>
             </div>
           </CardContent>
@@ -574,12 +608,25 @@ export default function Reports() {
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
-              <div className="rounded-full bg-primary/10 p-3">
-                <TrendingUp className="h-6 w-6 text-primary" />
+              <div className="rounded-full bg-blue-500/10 p-3">
+                <Activity className="h-6 w-6 text-blue-500" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">{t('reports.avgPointsPerVolunteer')}</p>
-                <p className="text-2xl font-bold">{avgPointsPerVolunteer}</p>
+                <p className="text-sm text-muted-foreground">{t('level.project_responsible')}</p>
+                <p className="text-2xl font-bold">{submissionsByLevel.project_responsible}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="rounded-full bg-purple-600/10 p-3">
+                <Activity className="h-6 w-6 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">{t('level.responsible')}</p>
+                <p className="text-2xl font-bold">{submissionsByLevel.responsible}</p>
               </div>
             </div>
           </CardContent>
@@ -669,78 +716,7 @@ export default function Reports() {
           </CardContent>
         </Card>
 
-        {/* Committee Performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('reports.committeePerformance')}</CardTitle>
-            <CardDescription>{t('reports.committeePerformanceDesc')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[350px]">
-              {committeeData.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  {language === 'ar' ? 'لا توجد بيانات' : 'No data available'}
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={committeeData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis
-                      type="number"
-                      className="text-xs"
-                      label={{
-                        value: language === 'ar' ? 'إجمالي الأثر' : 'Total Points',
-                        position: 'insideBottom',
-                        offset: -5,
-                        style: { fontSize: '12px', fill: 'hsl(var(--foreground))' }
-                      }}
-                    />
-                    <YAxis
-                      dataKey="name"
-                      type="category"
-                      className="text-xs"
-                      width={120}
-                      orientation={language === 'ar' ? 'right' : 'left'}
-                      tick={{ fontSize: 11 }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                      formatter={(value: number) => [
-                        `${value.toLocaleString()} ${language === 'ar' ? 'أثر' : 'points'}`,
-                        language === 'ar' ? 'إجمالي الأثر' : 'Total Points'
-                      ]}
-                    />
-                    <Legend
-                      wrapperStyle={{ fontSize: '12px' }}
-                      payload={[
-                        {
-                          value: language === 'ar' ? 'الأثر المحقق' : 'Points Earned',
-                          type: 'rect',
-                          color: 'hsl(var(--primary))'
-                        }
-                      ]}
-                    />
-                    <Bar
-                      dataKey="points"
-                      fill="hsl(var(--primary))"
-                      radius={language === 'ar' ? [4, 0, 0, 4] : [0, 4, 4, 0]}
-                      label={{
-                        position: language === 'ar' ? 'left' : 'right',
-                        fontSize: 11,
-                        fill: 'hsl(var(--foreground))',
-                        formatter: (value: number) => value.toLocaleString()
-                      }}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+
 
         {/* Top Activities */}
         <Card>
