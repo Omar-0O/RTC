@@ -877,7 +877,7 @@ export default function UserManagement() {
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-level">{t('users.level')}</Label>
-                <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr', 'hr'].includes(primaryRole)}>
+                <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
                   <SelectTrigger>
                     <SelectValue placeholder={t('users.level')} />
                   </SelectTrigger>

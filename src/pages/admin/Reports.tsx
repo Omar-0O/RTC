@@ -308,22 +308,8 @@ export default function Reports() {
 
       case 'full':
         // Export all data as a comprehensive report
-        const fullReportData = profiles.map(p => {
-          const volunteerSubmissions = submissions.filter(s => s.volunteer_id === p.id);
-          return {
-            [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
-            [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
-            [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-            [language === 'ar' ? 'المستوى' : 'Level']: t(`level.${p.level || 'under_follow_up'}`),
-            [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
-            [language === 'ar' ? 'عدد الأنشطة' : 'Activities Count']: p.activities_count,
-            [language === 'ar' ? 'الطلبات المعلقة' : 'Pending Submissions']: volunteerSubmissions.filter(s => s.status === 'pending').length,
-            [language === 'ar' ? 'الطلبات المعتمدة' : 'Approved Submissions']: volunteerSubmissions.filter(s => s.status === 'approved').length,
-            [language === 'ar' ? 'الطلبات المرفوضة' : 'Rejected Submissions']: volunteerSubmissions.filter(s => s.status === 'rejected').length,
-          };
-        });
-        downloadCSV(fullReportData, 'full_report');
+        // Temporarily disabled as requested
+        toast.info(language === 'ar' ? 'التقرير فارغ حالياً' : 'Report is currently empty');
         break;
     }
   };

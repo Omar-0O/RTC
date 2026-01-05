@@ -29,7 +29,7 @@ export default function VolunteerDashboard() {
   const [badgeCount, setBadgeCount] = useState(0);
 
   const points = profile?.total_points || 0;
-  const { progress, nextThreshold } = getLevelProgress(points);
+  const { nextThreshold } = getLevelProgress(points);
   const level = profile?.level || 'under_follow_up';
   const activitiesCount = profile?.activities_count || 0;
   const [monthlyActivities, setMonthlyActivities] = useState(0);
@@ -163,7 +163,7 @@ export default function VolunteerDashboard() {
           description={isRTL ? 'مستواك الحالي' : 'Your current tier'}
         />
         <StatsCard
-          title={isRTL ? 'أنشطة هذا الشهر' : 'Activities This Month'}
+          title={isRTL ? 'إجمالي مشاركاتك خلال الشهر' : 'Activities This Month'}
           value={monthlyActivities}
           icon={Activity}
           description={isRTL ? 'مشاركاتك هذا الشهر' : 'Your participations this month'}

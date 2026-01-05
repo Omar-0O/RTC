@@ -111,6 +111,19 @@ export default function CourseSchedule() {
     const getRoomBg = (room: string) => ROOMS[room]?.bg || 'bg-gray-100 border-gray-300';
     const getRoomColor = (room: string) => ROOMS[room]?.color || 'bg-gray-500';
 
+    const formatTime = (timeStr: string) => {
+        if (!timeStr) return '';
+        try {
+            // parse "HH:mm"
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            const date = new Date();
+            date.setHours(hours, minutes);
+            return format(date, 'h:mm a', { locale });
+        } catch (e) {
+            return timeStr;
+        }
+    };
+
     const downloadCSV = (data: any[], filename: string) => {
         if (data.length === 0) return;
         const headers = Object.keys(data[0]);
@@ -137,7 +150,7 @@ export default function CourseSchedule() {
             [isRTL ? 'المدرب' : 'Trainer']: c.trainer_name,
             [isRTL ? 'القاعة' : 'Room']: getRoomLabel(c.room),
             [isRTL ? 'الأيام' : 'Days']: c.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', '),
-            [isRTL ? 'الوقت' : 'Time']: c.schedule_time,
+            [isRTL ? 'الوقت' : 'Time']: formatTime(c.schedule_time),
             [isRTL ? 'المحاضرات' : 'Lectures']: c.total_lectures,
         }));
         downloadCSV(data, 'courses_report');
@@ -251,7 +264,7 @@ export default function CourseSchedule() {
                                                         <p className="font-medium truncate">{course.name}</p>
                                                         <p className="text-muted-foreground flex items-center gap-1">
                                                             <Clock className="h-3 w-3" />
-                                                            {course.schedule_time}
+                                                            {formatTime(course.schedule_time)}
                                                         </p>
                                                     </div>
                                                 ))}
@@ -324,7 +337,7 @@ export default function CourseSchedule() {
                                 <p className="text-xs text-muted-foreground">{isRTL ? 'المحاضرات' : 'Lectures'}</p>
                             </div>
                             <div>
-                                <p className="text-2xl font-bold">{selectedCourse?.schedule_time}</p>
+                                <p className="text-2xl font-bold">{selectedCourse && formatTime(selectedCourse.schedule_time)}</p>
                                 <p className="text-xs text-muted-foreground">{isRTL ? 'الوقت' : 'Time'}</p>
                             </div>
                             <div>

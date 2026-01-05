@@ -104,6 +104,8 @@ export default function Profile({ userId }: ProfileProps) {
   const [badges, setBadges] = useState<UserBadge[]>([]);
   const [activities, setActivities] = useState<ActivitySubmission[]>([]);
 
+  const [monthlyPoints, setMonthlyPoints] = useState(0);
+
   // If userId is provided and different from current user, we are in view-only mode
   const isViewOnly = userId && userId !== user?.id;
   const targetUserId = userId || user?.id;
@@ -115,7 +117,9 @@ export default function Profile({ userId }: ProfileProps) {
   const displayProfile = isViewOnly ? viewedProfile : authProfile;
   const displayAvatar = isViewOnly ? viewedAvatarUrl : (authProfile?.avatar_url || null);
 
-  const points = displayProfile?.total_points || 0;
+  // Show monthly points if viewing own profile, otherwise total
+  const points = (!isViewOnly) ? monthlyPoints : (displayProfile?.total_points || 0);
+
   // Level progress is now manual, so we don't calculate it from points
   const userInitials = displayProfile?.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U';
 
@@ -148,6 +152,22 @@ export default function Profile({ userId }: ProfileProps) {
           setViewedProfile(profileData);
           setViewedAvatarUrl(profileData.avatar_url);
         }
+      }
+
+      // If viewing own profile, calculate monthly points
+      if (!isViewOnly) {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+        const { data: monthlyData } = await supabase
+          .from('activity_submissions')
+          .select('points_awarded')
+          .eq('volunteer_id', targetUserId)
+          .eq('status', 'approved')
+          .gte('submitted_at', startOfMonth);
+
+        const mPoints = monthlyData?.reduce((sum, item) => sum + (item.points_awarded || 0), 0) || 0;
+        setMonthlyPoints(mPoints);
       }
 
       const [badgesRes, activitiesRes] = await Promise.all([
@@ -342,7 +362,7 @@ export default function Profile({ userId }: ProfileProps) {
             </div>
             <div className="text-center">
               <div className="text-4xl font-bold text-primary">{points}</div>
-              <div className="text-sm text-muted-foreground">{t('dashboard.totalPoints')}</div>
+              <div className="text-sm text-muted-foreground">{!isViewOnly ? (isRTL ? 'نقاط هذا الشهر' : 'Monthly Points') : t('dashboard.totalPoints')}</div>
             </div>
           </div>
         </CardContent>
