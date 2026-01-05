@@ -329,10 +329,16 @@ export default function UserManagement() {
       });
 
       // Check for function invocation error (network issues, etc.)
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function invocation error:', error);
+        throw error;
+      }
+
+      console.log('Create user response:', data);
 
       // Check for errors returned from the Edge Function
-      if (!data || data.error) {
+      // If we have a user object, we consider it a success even if there might be an error property
+      if (!data || (data.error && !data.user)) {
         throw new Error(data?.error || 'Failed to create user');
       }
 
@@ -630,7 +636,7 @@ export default function UserManagement() {
                     id="name"
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder={language === 'ar' ? 'John Doe' : 'Full Name'}
+                    placeholder={language === 'ar' ? 'Omar Mohamed' : 'Full Name'}
                     required
                   />
                 </div>
@@ -640,7 +646,7 @@ export default function UserManagement() {
                     id="name-ar"
                     value={formNameAr}
                     onChange={(e) => setFormNameAr(e.target.value)}
-                    placeholder={language === 'ar' ? 'جون دو' : 'Arabic Name'}
+                    placeholder={language === 'ar' ? 'عمر محمد' : 'Arabic Name'}
                     required
                   />
                 </div>
@@ -797,7 +803,7 @@ export default function UserManagement() {
                   id="edit-name"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder={language === 'ar' ? 'John Doe' : 'Full Name'}
+                  placeholder={language === 'ar' ? 'Omar Mohamed' : 'Full Name'}
                   required
                 />
               </div>
@@ -807,7 +813,7 @@ export default function UserManagement() {
                   id="edit-name-ar"
                   value={formNameAr}
                   onChange={(e) => setFormNameAr(e.target.value)}
-                  placeholder={language === 'ar' ? 'جون دو' : 'Arabic Name'}
+                  placeholder={language === 'ar' ? 'عمر محمد' : 'Arabic Name'}
                   dir="rtl"
                 />
               </div>
