@@ -144,7 +144,7 @@ export default function BadgeManagement() {
       if (badgesRes.error) throw badgesRes.error;
       if (profilesRes.error) throw profilesRes.error;
 
-      setBadges(badgesRes.data || []);
+      setBadges((badgesRes.data as any) || []);
       setProfiles(profilesRes.data || []);
     } catch (error: any) {
       toast.error(isRTL ? 'فشل في تحميل البيانات' : 'Failed to load data');
@@ -267,30 +267,41 @@ export default function BadgeManagement() {
       }
 
       // Fetch full profile data with points and activities count
+      // Fetch full profile data with points
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('total_points, activities_count')
+        .select('total_points')
         .eq('id', selectedUserId)
         .single();
 
       if (profileError) throw profileError;
 
+      // Fetch activities count separately
+      const { count: activitiesCount, error: activitiesError } = await supabase
+        .from('activity_submissions')
+        .select('*', { count: 'exact', head: true })
+        .eq('volunteer_id', selectedUserId)
+        .eq('status', 'approved');
+
+      if (activitiesError) throw activitiesError;
+
       // Check if volunteer meets the requirements
-      if (selectedBadge.points_required && profileData.total_points < selectedBadge.points_required) {
+      if (selectedBadge.points_required && (profileData.total_points || 0) < selectedBadge.points_required) {
         toast.error(
           isRTL
-            ? `المتطوع يحتاج ${selectedBadge.points_required} أثر، ولديه ${profileData.total_points} فقط`
-            : `Volunteer needs ${selectedBadge.points_required} points, but has only ${profileData.total_points}`
+            ? `المتطوع يحتاج ${selectedBadge.points_required} أثر، ولديه ${profileData.total_points || 0} فقط`
+            : `Volunteer needs ${selectedBadge.points_required} points, but has only ${profileData.total_points || 0}`
         );
         setSubmitting(false);
         return;
       }
 
-      if (selectedBadge.activities_required && profileData.activities_count < selectedBadge.activities_required) {
+      const currentActivities = activitiesCount || 0;
+      if (selectedBadge.activities_required && currentActivities < selectedBadge.activities_required) {
         toast.error(
           isRTL
-            ? `المتطوع يحتاج ${selectedBadge.activities_required} مشاركة، ولديه ${profileData.activities_count} فقط`
-            : `Volunteer needs ${selectedBadge.activities_required} activities, but has only ${profileData.activities_count}`
+            ? `المتطوع يحتاج ${selectedBadge.activities_required} مشاركة، ولديه ${currentActivities} فقط`
+            : `Volunteer needs ${selectedBadge.activities_required} activities, but has only ${currentActivities}`
         );
         setSubmitting(false);
         return;
@@ -694,6 +705,9 @@ export default function BadgeManagement() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{isRTL ? 'تعديل الشارة' : 'Edit Badge'}</DialogTitle>
+            <DialogDescription>
+              {isRTL ? 'تعديل تفاصيل الشارة' : 'Edit badge details.'}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEditBadge}>
             <div className="grid gap-4 py-4">

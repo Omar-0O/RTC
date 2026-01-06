@@ -723,24 +723,24 @@ export default function UserManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t('users.title')}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('users.title')}</h1>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
           setIsAddDialogOpen(open);
           if (!open) resetForm();
         }}>
           {['admin', 'head_hr'].includes(primaryRole) && (
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleExportUsers}>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={handleExportUsers} className="flex-1 sm:flex-none">
                 <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                {isRTL ? 'تصدير المتطوعين' : 'Export Users'}
+                <span className="text-xs sm:text-sm">{isRTL ? 'تصدير المتطوعين' : 'Export Users'}</span>
               </Button>
               <DialogTrigger asChild>
-                <Button>
+                <Button className="flex-1 sm:flex-none">
                   <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                  {t('users.addUser')}
+                  <span className="text-xs sm:text-sm">{t('users.addUser')}</span>
                 </Button>
               </DialogTrigger>
             </div>
@@ -1429,6 +1429,9 @@ export default function UserManagement() {
             <DialogTitle>
               {language === 'ar' ? 'الملف الشخصي للمتطوع' : "Volunteer Profile"}
             </DialogTitle>
+            <DialogDescription>
+              {language === 'ar' ? 'عرض تفاصيل الملف الشخصي' : "View profile details"}
+            </DialogDescription>
           </DialogHeader>
           {viewProfileUser && <Profile userId={viewProfileUser.id} />}
         </DialogContent>

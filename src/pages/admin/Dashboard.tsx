@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Activity, Award, Building2, TrendingUp, Loader2 } from 'lucide-react';
+import { Users, Activity, Award, Building2, TrendingUp } from 'lucide-react';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LevelBadge } from '@/components/ui/level-badge';
@@ -163,7 +163,7 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -222,15 +222,15 @@ export default function AdminDashboard() {
                 recentSubmissions.map((submission) => (
                   <div
                     key={submission.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border p-3"
                   >
-                    <div className="space-y-1">
-                      <p className="font-medium">{submission.volunteer_name}</p>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <p className="font-medium truncate">{submission.volunteer_name}</p>
+                      <p className="text-sm text-muted-foreground truncate">
                         {submission.activity_name} • {submission.committee_name}
                       </p>
                     </div>
-                    <span className="text-sm font-medium text-primary">+{submission.points} {t('common.points')}</span>
+                    <span className="text-sm font-medium text-primary whitespace-nowrap self-start sm:self-center">+{submission.points} {t('common.points')}</span>
                   </div>
                 ))
               )}
