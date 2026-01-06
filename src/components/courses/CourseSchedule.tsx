@@ -229,9 +229,13 @@ export default function CourseSchedule() {
                         <CardDescription>{format(currentMonth, 'MMMM yyyy', { locale })}</CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-                            {isRTL ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-                        </Button>
+                        {/* Only show back button if we're ahead of current month */}
+                        {(currentMonth.getFullYear() > new Date().getFullYear() ||
+                            (currentMonth.getFullYear() === new Date().getFullYear() && currentMonth.getMonth() > new Date().getMonth())) && (
+                                <Button variant="outline" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+                                    {isRTL ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                                </Button>
+                            )}
                         <Button variant="outline" size="sm" onClick={() => setCurrentMonth(new Date())}>
                             {isRTL ? 'اليوم' : 'Today'}
                         </Button>

@@ -12,7 +12,8 @@ import {
   Languages,
   Building2,
   Bus,
-  Calendar
+  Calendar,
+  GraduationCap
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,10 +51,12 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
 
+  // Volunteer nav items - always include My Courses
   const volunteerNavItems = [
     { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
     { title: t('nav.logActivity'), url: '/activity', icon: Activity },
     { title: t('nav.profile'), url: '/profile', icon: User },
+    { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap },
   ];
 
   const supervisorNavItems = [
@@ -64,11 +67,13 @@ export function AppSidebar() {
     { title: t('nav.committees'), url: '/supervisor/committees', icon: Settings },
     { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/supervisor/reports', icon: BarChart3 },
+    { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
     { title: t('nav.logActivity'), url: '/supervisor/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/supervisor/profile', icon: User },
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
   ];
 
+  // Leader nav items - always include My Courses
   const leaderNavItems = [
     { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
     { title: t('leader.dashboard'), url: '/leader/committee', icon: Building2 },
@@ -76,6 +81,7 @@ export function AppSidebar() {
     { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/leader/profile', icon: User },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
+    { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap },
   ];
 
   const adminNavItems = [
@@ -87,7 +93,7 @@ export function AppSidebar() {
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
     { title: t('nav.caravans'), url: '/caravans', icon: Bus },
     { title: t('nav.courses'), url: '/courses', icon: Activity },
-    { title: t('nav.events'), url: '/caravans', icon: Calendar },
+    { title: t('nav.events'), url: '/events', icon: Calendar },
   ];
 
   const hrNavItems = [
@@ -116,13 +122,19 @@ export function AppSidebar() {
       case 'head_fourth_year':
         return leaderNavItems;
       case 'head_caravans':
-        return leaderNavItems.filter(item =>
-          !['/courses', '/supervisor/activities', '/leaderboard', '/leader/committee', '/leader/members'].includes(item.url)
-        );
+        return [
+          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
+          { title: t('nav.caravans'), url: '/caravans', icon: Bus },
+          { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
+          { title: t('nav.profile'), url: '/leader/profile', icon: User },
+        ];
       case 'head_events':
-        return leaderNavItems.filter(item =>
-          !['/courses', '/supervisor/activities', '/leaderboard', '/leader/committee', '/leader/members'].includes(item.url)
-        );
+        return [
+          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
+          { title: t('nav.events'), url: '/events', icon: Calendar },
+          { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
+          { title: t('nav.profile'), url: '/leader/profile', icon: User },
+        ];
       case 'head_production':
         // Production head acts like a committee leader but without Caravan access from leaderNavItems if it was there
         // Actually leaderNavItems HAS caravans. So we need a version WITHOUT it.

@@ -68,6 +68,7 @@ interface Course {
 interface CourseOrganizer {
     id?: string;
     course_id?: string;
+    volunteer_id?: string;
     name: string;
     phone: string;
 }
@@ -262,10 +263,11 @@ export default function CourseManagement() {
 
     const handleAddOrganizer = (volunteer: Volunteer) => {
         // Check if already added
-        if (organizers.some(o => o.name === (isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name))) {
+        if (organizers.some(o => o.volunteer_id === volunteer.id)) {
             return;
         }
         setOrganizers([...organizers, {
+            volunteer_id: volunteer.id,
             name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
             phone: volunteer.phone || ''
         }]);
@@ -315,6 +317,7 @@ export default function CourseManagement() {
                     .from('course_organizers')
                     .insert(organizers.map(o => ({
                         course_id: course.id,
+                        volunteer_id: o.volunteer_id || null,
                         name: o.name,
                         phone: o.phone
                     })));
@@ -1032,10 +1035,6 @@ export default function CourseManagement() {
                                         <DropdownMenuItem onClick={() => openCourseDetails(course)}>
                                             <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                             {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => openCourseDetails(course)}>
-                                            <Calendar className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                            {isRTL ? 'المحاضرات' : 'Lectures'}
                                         </DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => exportCourseToExcel(course)}>
                                             <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />

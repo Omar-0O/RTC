@@ -348,26 +348,12 @@ export default function Reports() {
   const totalApprovedActivities = submissions.filter(s => s.status === 'approved').length;
   const totalSubmissions = submissions.length;
 
-  // Calculate submissions by level
-  const submissionsByLevel = {
-    under_follow_up: 0,
-    project_responsible: 0,
-    responsible: 0
+  // Calculate volunteers by level
+  const volunteersByLevel = {
+    under_follow_up: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length,
+    project_responsible: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length,
+    responsible: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length
   };
-
-  submissions.forEach(s => {
-    const volunteer = profiles.find(p => p.id === s.volunteer_id);
-    if (volunteer) {
-      const level = volunteer.level || 'under_follow_up';
-      if (['responsible', 'platinum', 'diamond'].includes(level)) {
-        submissionsByLevel.responsible++;
-      } else if (['project_responsible', 'gold'].includes(level)) {
-        submissionsByLevel.project_responsible++;
-      } else {
-        submissionsByLevel.under_follow_up++;
-      }
-    }
-  });
 
   if (isLoading) {
     return (
@@ -445,7 +431,7 @@ export default function Reports() {
         </Card>
       </div>
 
-      {/* Submissions by Level */}
+      {/* Volunteers by Level */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="pt-6">
@@ -455,7 +441,7 @@ export default function Reports() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">{t('level.under_follow_up')}</p>
-                <p className="text-2xl font-bold">{submissionsByLevel.under_follow_up}</p>
+                <p className="text-2xl font-bold">{volunteersByLevel.under_follow_up}</p>
               </div>
             </div>
           </CardContent>
@@ -468,7 +454,7 @@ export default function Reports() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">{t('level.project_responsible')}</p>
-                <p className="text-2xl font-bold">{submissionsByLevel.project_responsible}</p>
+                <p className="text-2xl font-bold">{volunteersByLevel.project_responsible}</p>
               </div>
             </div>
           </CardContent>
@@ -481,7 +467,7 @@ export default function Reports() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">{t('level.responsible')}</p>
-                <p className="text-2xl font-bold">{submissionsByLevel.responsible}</p>
+                <p className="text-2xl font-bold">{volunteersByLevel.responsible}</p>
               </div>
             </div>
           </CardContent>

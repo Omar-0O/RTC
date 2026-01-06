@@ -301,6 +301,19 @@ export default function CaravanManagement() {
 
         setIsDeleting(true);
         try {
+            // 1. First, delete related activity_submissions for this caravan
+            // These submissions have description like "Caravan: {caravan_name}"
+            const { error: submissionsError } = await supabase
+                .from('activity_submissions')
+                .delete()
+                .ilike('description', `Caravan: ${caravanToDelete.name}`);
+
+            if (submissionsError) {
+                console.error('Error deleting caravan submissions:', submissionsError);
+                // Continue with caravan deletion even if submissions fail
+            }
+
+            // 2. Delete the caravan (caravan_participants will be deleted via ON DELETE CASCADE)
             const { error } = await supabase
                 .from('caravans' as any) // eslint-disable-line @typescript-eslint/no-explicit-any
                 .delete()
@@ -308,7 +321,7 @@ export default function CaravanManagement() {
 
             if (error) throw error;
 
-            toast.success(isRTL ? 'تم حذف القافلة بنجاح' : 'Caravan deleted successfully');
+            toast.success(isRTL ? 'تم حذف القافلة ومشاركات المتطوعين' : 'Caravan and volunteer participations deleted');
             setIsDeleteDialogOpen(false);
             setCaravanToDelete(null);
             fetchCaravans();

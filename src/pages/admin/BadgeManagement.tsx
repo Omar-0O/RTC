@@ -367,7 +367,6 @@ export default function BadgeManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{isRTL ? 'الشارات والإنجازات' : 'Badges & Achievements'}</h1>
-          <p className="text-muted-foreground">{isRTL ? 'إدارة شارات المتطوعين ومنحها يدوياً' : 'Manage volunteer badges and award them manually'}</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={(open) => { setIsAddDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>

@@ -27,7 +27,10 @@ import CommitteeLeaderDashboard from "./pages/leader/Dashboard";
 import Members from "./pages/leader/Members";
 import Caravans from "./pages/caravans/Caravans";
 import CaravanManagement from "./pages/caravans/CaravanManagement";
+import Events from "./pages/events/Events";
+import EventManagement from "./pages/events/EventManagement";
 import CourseManagement from "./pages/courses/CourseManagement";
+import MyCourses from "./pages/courses/MyCourses";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -113,13 +116,19 @@ function AppRoutes() {
         <Route path="/leader/activity" element={<LogActivity />} />
         <Route path="/leader/profile" element={<Profile />} />
 
-        {/* Caravans Routes - Accessible by specific roles via sidebar/protection, or generic wrapper */}
+        {/* Caravans Routes */}
         <Route path="/caravans" element={<Caravans />}>
           <Route index element={<CaravanManagement />} />
         </Route>
 
+        {/* Events Routes */}
+        <Route path="/events" element={<Events />}>
+          <Route index element={<EventManagement />} />
+        </Route>
+
         {/* Course Routes */}
         <Route path="/courses" element={<CourseManagement />} />
+        <Route path="/my-courses" element={<MyCourses />} />
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />
