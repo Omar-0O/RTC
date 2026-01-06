@@ -1306,8 +1306,8 @@ export default function UserManagement() {
                             </AvatarFallback>
                           </Avatar>
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold truncate">{user.full_name || 'No name'}</p>
-                            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                            <p className="font-semibold break-words">{user.full_name || 'No name'}</p>
+                            <p className="text-xs text-muted-foreground break-all">{user.email}</p>
                           </div>
                         </div>
                         <DropdownMenu>

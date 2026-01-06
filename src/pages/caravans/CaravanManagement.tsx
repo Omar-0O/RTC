@@ -527,37 +527,66 @@ export default function CaravanManagement() {
                                         </div>
                                     </div>
 
-                                    <div className="border rounded-md">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>{t('leaderboard.name')}</TableHead>
-                                                    <TableHead>{t('users.phoneNumber')}</TableHead>
-                                                    <TableHead>{t('users.role')}</TableHead>
-                                                    <TableHead></TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {participants.length === 0 ? (
+                                    {/* Participants List - Desktop Table / Mobile Cards */}
+                                    <div className="border rounded-md overflow-hidden">
+                                        {/* Desktop View */}
+                                        <div className="hidden sm:block">
+                                            <Table>
+                                                <TableHeader>
                                                     <TableRow>
-                                                        <TableCell colSpan={4} className="text-center text-muted-foreground">{isRTL ? 'لا يوجد مشاركين' : 'No participants added'}</TableCell>
+                                                        <TableHead>{t('leaderboard.name')}</TableHead>
+                                                        <TableHead>{t('users.phoneNumber')}</TableHead>
+                                                        <TableHead>{t('users.role')}</TableHead>
+                                                        <TableHead></TableHead>
                                                     </TableRow>
-                                                ) : (
-                                                    participants.map((p, idx) => (
-                                                        <TableRow key={idx}>
-                                                            <TableCell>{p.name}</TableCell>
-                                                            <TableCell>{p.phone}</TableCell>
-                                                            <TableCell>{p.is_volunteer ? t('common.volunteer') : t('caravans.addGuest')}</TableCell>
-                                                            <TableCell>
-                                                                <Button variant="ghost" size="sm" onClick={() => removeParticipant(idx)}>
-                                                                    <Trash2 className="w-4 h-4 text-destructive" />
-                                                                </Button>
-                                                            </TableCell>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {participants.length === 0 ? (
+                                                        <TableRow>
+                                                            <TableCell colSpan={4} className="text-center text-muted-foreground">{isRTL ? 'لا يوجد مشاركين' : 'No participants added'}</TableCell>
                                                         </TableRow>
-                                                    ))
-                                                )}
-                                            </TableBody>
-                                        </Table>
+                                                    ) : (
+                                                        participants.map((p, idx) => (
+                                                            <TableRow key={idx}>
+                                                                <TableCell>{p.name}</TableCell>
+                                                                <TableCell>{p.phone}</TableCell>
+                                                                <TableCell>{p.is_volunteer ? t('common.volunteer') : t('caravans.addGuest')}</TableCell>
+                                                                <TableCell>
+                                                                    <Button variant="ghost" size="sm" onClick={() => removeParticipant(idx)}>
+                                                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                                                    </Button>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+
+                                        {/* Mobile View */}
+                                        <div className="sm:hidden divide-y">
+                                            {participants.length === 0 ? (
+                                                <div className="p-4 text-center text-muted-foreground text-sm">{isRTL ? 'لا يوجد مشاركين' : 'No participants added'}</div>
+                                            ) : (
+                                                participants.map((p, idx) => (
+                                                    <div key={idx} className="p-3 flex items-start justify-between gap-2 bg-card">
+                                                        <div className="min-w-0 flex-1 space-y-1">
+                                                            <p className="font-medium text-sm break-words">{p.name}</p>
+                                                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                                                <span>{p.phone}</span>
+                                                                <span>•</span>
+                                                                <span className={p.is_volunteer ? "text-primary" : ""}>
+                                                                    {p.is_volunteer ? t('common.volunteer') : t('caravans.addGuest')}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-destructive" onClick={() => removeParticipant(idx)}>
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </Button>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
 

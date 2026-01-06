@@ -375,37 +375,37 @@ export default function CourseSchedule() {
 
             {/* Course Details Dialog */}
             <Dialog open={!!selectedCourse} onOpenChange={() => setSelectedCourse(null)}>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-lg w-[95vw] md:w-full">
                     <DialogHeader>
                         <DialogTitle>{selectedCourse?.name}</DialogTitle>
                     </DialogHeader>
 
                     {isHead ? (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                 <div className="flex items-center gap-2">
-                                    <User className="h-4 w-4 text-muted-foreground" />
+                                    <User className="h-4 w-4 text-muted-foreground shrink-0" />
                                     <div>
                                         <p className="text-muted-foreground">{isRTL ? 'المدرب' : 'Trainer'}</p>
                                         <p className="font-medium">{selectedCourse?.trainer_name}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Phone className="h-4 w-4 text-muted-foreground" />
+                                    <Phone className="h-4 w-4 text-muted-foreground shrink-0" />
                                     <div>
                                         <p className="text-muted-foreground">{isRTL ? 'رقم المدرب' : 'Phone'}</p>
                                         <p className="font-medium">{selectedCourse?.trainer_phone || '—'}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                                    <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
                                     <div>
                                         <p className="text-muted-foreground">{isRTL ? 'القاعة' : 'Room'}</p>
                                         <p className="font-medium">{selectedCourse && getRoomLabel(selectedCourse.room)}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                                    <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                                     <div>
                                         <p className="text-muted-foreground">{isRTL ? 'الأيام' : 'Days'}</p>
                                         <p className="font-medium">{selectedCourse?.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', ')}</p>
@@ -415,15 +415,15 @@ export default function CourseSchedule() {
 
                             <div className="grid grid-cols-3 gap-3 text-center border-t pt-4">
                                 <div>
-                                    <p className="text-2xl font-bold">{selectedCourse?.total_lectures}</p>
+                                    <p className="text-xl sm:text-2xl font-bold">{selectedCourse?.total_lectures}</p>
                                     <p className="text-xs text-muted-foreground">{isRTL ? 'المحاضرات' : 'Lectures'}</p>
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-bold">{selectedCourse && formatTime(selectedCourse.schedule_time)}</p>
+                                    <p className="text-xl sm:text-2xl font-bold">{selectedCourse && formatTime(selectedCourse.schedule_time)}</p>
                                     <p className="text-xs text-muted-foreground">{isRTL ? 'الوقت' : 'Time'}</p>
                                 </div>
                                 <div>
-                                    <p className="text-2xl font-bold">{selectedCourse?.has_interview ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No')}</p>
+                                    <p className="text-xl sm:text-2xl font-bold">{selectedCourse?.has_interview ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No')}</p>
                                     <p className="text-xs text-muted-foreground">{isRTL ? 'انترفيو' : 'Interview'}</p>
                                 </div>
                             </div>

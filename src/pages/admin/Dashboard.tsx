@@ -176,7 +176,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title={t('admin.totalVolunteers')}
           value={stats.totalVolunteers}
@@ -203,7 +203,7 @@ export default function AdminDashboard() {
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Recent Participations */}
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -288,7 +288,7 @@ export default function AdminDashboard() {
               {isRTL ? 'لا توجد لجان حتى الآن' : 'No committees yet'}
             </p>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
               {committeeStats.map((committee) => (
                 <div
                   key={committee.id}
