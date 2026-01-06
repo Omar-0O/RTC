@@ -276,23 +276,25 @@ export default function CourseSchedule() {
                                                 <div className={`text-sm font-medium mb-1 ${isDayToday ? 'text-primary' : ''}`}>
                                                     {format(day, 'd')}
                                                 </div>
-                                                <div className="space-y-1">
-                                                    {dayCourses.slice(0, 3).map(course => (
+                                                <div className="space-y-1 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-muted-foreground/20">
+                                                    {dayCourses.slice(0, 10).map(course => (
                                                         <div
                                                             key={course.id}
-                                                            className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 ${getRoomBg(course.room)}`}
+                                                            className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 group transition-all ${getRoomBg(course.room)}`}
                                                             onClick={() => openCourseDetails(course)}
+                                                            title={`${course.name} - ${formatTime(course.schedule_time)}`}
                                                         >
-                                                            <p className="font-medium truncate">{course.name}</p>
-                                                            <p className="text-muted-foreground flex items-center gap-1">
-                                                                <Clock className="h-3 w-3" />
-                                                                {formatTime(course.schedule_time)}
-                                                            </p>
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span className="font-medium truncate flex-1">{course.name}</span>
+                                                                <span className="text-[10px] opacity-70 group-hover:opacity-100 whitespace-nowrap">
+                                                                    {formatTime(course.schedule_time)}
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                     ))}
-                                                    {dayCourses.length > 3 && (
-                                                        <p className="text-xs text-muted-foreground text-center">
-                                                            +{dayCourses.length - 3} {isRTL ? 'المزيد' : 'more'}
+                                                    {dayCourses.length > 10 && (
+                                                        <p className="text-[10px] text-muted-foreground text-center pt-1 font-medium">
+                                                            +{dayCourses.length - 10} {isRTL ? 'المزيد' : 'more'}
                                                         </p>
                                                     )}
                                                 </div>
