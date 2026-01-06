@@ -121,6 +121,8 @@ export default function Reports() {
         return { start: startOfMonth(now), end: endOfMonth(now) };
       case 'quarter':
         return { start: startOfQuarter(now), end: endOfQuarter(now) };
+      case 'semi':
+        return { start: subMonths(startOfMonth(now), 5), end: endOfMonth(now) };
       case 'year':
         return { start: startOfYear(now), end: endOfYear(now) };
       default:
@@ -392,6 +394,7 @@ export default function Reports() {
               <SelectItem value="week">{t('reports.thisWeek')}</SelectItem>
               <SelectItem value="month">{t('reports.thisMonth')}</SelectItem>
               <SelectItem value="quarter">{t('reports.thisQuarter')}</SelectItem>
+              <SelectItem value="semi">{language === 'ar' ? 'نصف سنة' : 'Half Year'}</SelectItem>
               <SelectItem value="year">{t('reports.thisYear')}</SelectItem>
             </SelectContent>
           </Select>

@@ -7,6 +7,16 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -69,6 +79,9 @@ export default function CaravanManagement() {
 
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [openCombobox, setOpenCombobox] = useState(false);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [caravanToDelete, setCaravanToDelete] = useState<Caravan | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Guest Input State
     const [guestName, setGuestName] = useState('');
@@ -281,6 +294,30 @@ export default function CaravanManagement() {
             return_time: ''
         });
         setParticipants([]);
+    };
+
+    const handleDeleteCaravan = async () => {
+        if (!caravanToDelete) return;
+
+        setIsDeleting(true);
+        try {
+            const { error } = await supabase
+                .from('caravans' as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+                .delete()
+                .eq('id', caravanToDelete.id);
+
+            if (error) throw error;
+
+            toast.success(isRTL ? 'تم حذف القافلة بنجاح' : 'Caravan deleted successfully');
+            setIsDeleteDialogOpen(false);
+            setCaravanToDelete(null);
+            fetchCaravans();
+        } catch (error: any) {
+            console.error('Error deleting caravan:', error);
+            toast.error(error.message || (isRTL ? 'فشل حذف القافلة' : 'Failed to delete caravan'));
+        } finally {
+            setIsDeleting(false);
+        }
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -581,9 +618,22 @@ export default function CaravanManagement() {
                                     <CardTitle>{caravan.name}</CardTitle>
                                     <CardDescription>{caravan.type}</CardDescription>
                                 </div>
-                                <Button variant="ghost" size="icon" onClick={() => exportCaravanDetails(caravan)}>
-                                    <Download className="w-4 h-4" />
-                                </Button>
+                                <div className="flex gap-1">
+                                    <Button variant="ghost" size="icon" onClick={() => exportCaravanDetails(caravan)}>
+                                        <Download className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-destructive hover:text-destructive"
+                                        onClick={() => {
+                                            setCaravanToDelete(caravan);
+                                            setIsDeleteDialogOpen(true);
+                                        }}
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                </div>
                             </div>
                         </CardHeader>
                         <CardContent>
@@ -611,6 +661,30 @@ export default function CaravanManagement() {
                     </div>
                 )}
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{isRTL ? 'تأكيد الحذف' : 'Confirm Deletion'}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {isRTL
+                                ? `هل أنت متأكد من حذف القافلة "${caravanToDelete?.name}"؟ سيتم حذف جميع المشاركين المسجلين في هذه القافلة.`
+                                : `Are you sure you want to delete the caravan "${caravanToDelete?.name}"? All registered participants will be deleted.`}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteCaravan}
+                            disabled={isDeleting}
+                            className="bg-destructive hover:bg-destructive/90"
+                        >
+                            {isDeleting ? (isRTL ? 'جاري الحذف...' : 'Deleting...') : (isRTL ? 'حذف' : 'Delete')}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

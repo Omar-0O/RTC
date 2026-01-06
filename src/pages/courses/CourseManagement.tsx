@@ -12,6 +12,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search } from 'lucide-react';
 import { format, addDays, getDay } from 'date-fns';
@@ -127,6 +137,9 @@ export default function CourseManagement() {
     const [beneficiaries, setBeneficiaries] = useState<CourseBeneficiary[]>([]);
     const [newBeneficiary, setNewBeneficiary] = useState({ name: '', phone: '' });
     const [editingBeneficiary, setEditingBeneficiary] = useState<CourseBeneficiary | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Filter out ended courses unless showPastCourses is true
     const activeCourses = courses.filter(course => {
@@ -712,6 +725,30 @@ export default function CourseManagement() {
         }
     };
 
+    const handleDeleteCourse = async () => {
+        if (!courseToDelete) return;
+
+        setIsDeleting(true);
+        try {
+            const { error } = await supabase
+                .from('courses')
+                .delete()
+                .eq('id', courseToDelete.id);
+
+            if (error) throw error;
+
+            toast.success(isRTL ? 'تم حذف الكورس بنجاح' : 'Course deleted successfully');
+            setIsDeleteDialogOpen(false);
+            setCourseToDelete(null);
+            fetchCourses();
+        } catch (error: any) {
+            console.error('Error deleting course:', error);
+            toast.error(error.message || (isRTL ? 'فشل حذف الكورس' : 'Failed to delete course'));
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -995,6 +1032,16 @@ export default function CourseManagement() {
                                         <DropdownMenuItem onClick={() => exportCourseToExcel(course)}>
                                             <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                             {isRTL ? 'تصدير Excel' : 'Export Excel'}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() => {
+                                                setCourseToDelete(course);
+                                                setIsDeleteDialogOpen(true);
+                                            }}
+                                            className="text-destructive focus:text-destructive"
+                                        >
+                                            <Trash2 className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                            {isRTL ? 'حذف' : 'Delete'}
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
@@ -1310,6 +1357,30 @@ export default function CourseManagement() {
                     </Tabs>
                 </DialogContent>
             </Dialog>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{isRTL ? 'تأكيد الحذف' : 'Confirm Deletion'}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {isRTL
+                                ? `هل أنت متأكد من حذف الكورس "${courseToDelete?.name}"؟ سيتم حذف جميع المحاضرات والحضور المسجل.`
+                                : `Are you sure you want to delete the course "${courseToDelete?.name}"? All lectures and attendance records will be deleted.`}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteCourse}
+                            disabled={isDeleting}
+                            className="bg-destructive hover:bg-destructive/90"
+                        >
+                            {isDeleting ? (isRTL ? 'جاري الحذف...' : 'Deleting...') : (isRTL ? 'حذف' : 'Delete')}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div >
     );
 }
