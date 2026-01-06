@@ -42,6 +42,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from 'react';
 
 export function AppSidebar() {
   const { user, profile, signOut, primaryRole } = useAuth();
@@ -50,14 +52,33 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
+  const [isOrganizer, setIsOrganizer] = useState(false);
 
-  // Volunteer nav items - always include My Courses
-  const volunteerNavItems = [
+  // Check if user is a course organizer
+  useEffect(() => {
+    const checkOrganizer = async () => {
+      if (!user?.id) return;
+      const { data } = await supabase
+        .from('course_organizers')
+        .select('id')
+        .eq('volunteer_id', user.id)
+        .limit(1);
+      setIsOrganizer(data && data.length > 0);
+    };
+    checkOrganizer();
+  }, [user?.id]);
+
+  // Base volunteer nav items
+  const baseVolunteerNavItems = [
     { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
     { title: t('nav.logActivity'), url: '/activity', icon: Activity },
     { title: t('nav.profile'), url: '/profile', icon: User },
-    { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap },
   ];
+
+  // Add My Courses only if user is an organizer
+  const volunteerNavItems = isOrganizer
+    ? [...baseVolunteerNavItems, { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap }]
+    : baseVolunteerNavItems;
 
   const supervisorNavItems = [
     { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/supervisor', icon: Home },
@@ -73,16 +94,20 @@ export function AppSidebar() {
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
   ];
 
-  // Leader nav items - always include My Courses
-  const leaderNavItems = [
+  // Base leader nav items
+  const baseLeaderNavItems = [
     { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
     { title: t('leader.dashboard'), url: '/leader/committee', icon: Building2 },
     { title: t('leader.members'), url: '/leader/members', icon: Users },
     { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/leader/profile', icon: User },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
-    { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap },
   ];
+
+  // Add My Courses only if user is an organizer
+  const leaderNavItems = isOrganizer
+    ? [...baseLeaderNavItems, { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap }]
+    : baseLeaderNavItems;
 
   const adminNavItems = [
     { title: t('nav.dashboard'), url: '/admin', icon: Home },

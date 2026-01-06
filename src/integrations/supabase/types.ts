@@ -367,6 +367,7 @@ export interface Database {
                     id: string
                     name: string
                     phone: string | null
+                    volunteer_id: string | null
                 }
                 Insert: {
                     course_id: string
@@ -374,6 +375,7 @@ export interface Database {
                     id?: string
                     name: string
                     phone?: string | null
+                    volunteer_id?: string | null
                 }
                 Update: {
                     course_id?: string
@@ -381,6 +383,7 @@ export interface Database {
                     id?: string
                     name?: string
                     phone?: string | null
+                    volunteer_id?: string | null
                 }
                 Relationships: [
                     {
@@ -388,6 +391,13 @@ export interface Database {
                         columns: ["course_id"]
                         isOneToOne: false
                         referencedRelation: "courses"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "course_organizers_volunteer_id_fkey"
+                        columns: ["volunteer_id"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
                         referencedColumns: ["id"]
                     }
                 ]

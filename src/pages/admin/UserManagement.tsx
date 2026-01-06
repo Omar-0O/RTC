@@ -563,21 +563,39 @@ export default function UserManagement() {
 
     setIsSubmitting(true);
     try {
-      // Delete from profiles (will cascade to user_roles)
-      const { error } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', selectedUser.id);
+      // Get the current session to pass the auth token
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Session expired. Please log in again.');
+        return;
+      }
 
-      if (error) throw error;
+      // Call delete-user edge function to completely remove the user
+      const { data, error } = await supabase.functions.invoke('delete-user', {
+        body: {
+          userId: selectedUser.id,
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
 
-      toast.success('User deleted successfully');
+      if (error) {
+        console.error('Edge function invocation error:', error);
+        throw error;
+      }
+
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
+      toast.success(language === 'ar' ? 'تم حذف المستخدم بنجاح' : 'User deleted successfully');
       setIsDeleteDialogOpen(false);
       setSelectedUser(null);
       fetchData();
     } catch (error: any) {
       console.error('Error deleting user:', error);
-      toast.error(error.message || 'Failed to delete user');
+      toast.error(error.message || (language === 'ar' ? 'فشل حذف المستخدم' : 'Failed to delete user'));
     } finally {
       setIsSubmitting(false);
     }
@@ -927,7 +945,11 @@ export default function UserManagement() {
 
               {(formLevel === 'under_follow_up' || formLevel === 'project_responsible') && (
                 <div className="border-t pt-4 mt-4 pb-4">
-                  <h4 className="text-sm font-medium mb-4">{t('users.attendance')}</h4>
+                  <h4 className="text-sm font-medium mb-4">
+                    {formLevel === 'under_follow_up'
+                      ? (language === 'ar' ? 'حضور الميني كامب' : 'Mini Camp Attendance')
+                      : (language === 'ar' ? 'حضور الكامب' : 'Camp Attendance')}
+                  </h4>
                   <div className="grid gap-4">
                     {formLevel === 'under_follow_up' && (
                       <div className="flex items-center justify-between rounded-lg border p-3">
