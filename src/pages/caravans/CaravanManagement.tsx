@@ -444,6 +444,7 @@ export default function CaravanManagement() {
                                             <SelectContent>
                                                 <SelectItem value="food_distribution">{isRTL ? 'إطعام' : 'Food Distribution'}</SelectItem>
                                                 <SelectItem value="charity_market">{isRTL ? 'سوق خيري' : 'Charity Market'}</SelectItem>
+                                                <SelectItem value="event">{isRTL ? 'ايفنت' : 'Event'}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>

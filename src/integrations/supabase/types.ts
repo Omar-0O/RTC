@@ -238,6 +238,235 @@ export interface Database {
                 }
                 Relationships: []
             }
+            course_beneficiaries: {
+                Row: {
+                    id: string
+                    course_id: string
+                    name: string
+                    phone: string
+                    created_at: string
+                    created_by: string | null
+                }
+                Insert: {
+                    id?: string
+                    course_id: string
+                    name: string
+                    phone: string
+                    created_at?: string
+                    created_by?: string | null
+                }
+                Update: {
+                    id?: string
+                    course_id?: string
+                    name?: string
+                    phone?: string
+                    created_at?: string
+                    created_by?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "course_beneficiaries_course_id_fkey"
+                        columns: ["course_id"]
+                        isOneToOne: false
+                        referencedRelation: "courses"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "course_beneficiaries_created_by_fkey"
+                        columns: ["created_by"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            course_attendance: {
+                Row: {
+                    id: string
+                    lecture_id: string
+                    student_name: string
+                    student_phone: string
+                    status: "present" | "absent" | "excused"
+                    created_at: string
+                    created_by: string | null
+                }
+                Insert: {
+                    id?: string
+                    lecture_id: string
+                    student_name: string
+                    student_phone: string
+                    status?: "present" | "absent" | "excused"
+                    created_at?: string
+                    created_by?: string | null
+                }
+                Update: {
+                    id?: string
+                    lecture_id?: string
+                    student_name?: string
+                    student_phone?: string
+                    status?: "present" | "absent" | "excused"
+                    created_at?: string
+                    created_by?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "course_attendance_lecture_id_fkey"
+                        columns: ["lecture_id"]
+                        isOneToOne: false
+                        referencedRelation: "course_lectures"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "course_attendance_created_by_fkey"
+                        columns: ["created_by"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            course_lectures: {
+                Row: {
+                    course_id: string
+                    created_at: string
+                    date: string
+                    id: string
+                    lecture_number: number
+                    status: "scheduled" | "completed" | "cancelled"
+                }
+                Insert: {
+                    course_id: string
+                    created_at?: string
+                    date: string
+                    id?: string
+                    lecture_number: number
+                    status?: "scheduled" | "completed" | "cancelled"
+                }
+                Update: {
+                    course_id?: string
+                    created_at?: string
+                    date?: string
+                    id?: string
+                    lecture_number?: number
+                    status?: "scheduled" | "completed" | "cancelled"
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "course_lectures_course_id_fkey"
+                        columns: ["course_id"]
+                        isOneToOne: false
+                        referencedRelation: "courses"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            course_organizers: {
+                Row: {
+                    course_id: string
+                    created_at: string
+                    id: string
+                    name: string
+                    phone: string | null
+                }
+                Insert: {
+                    course_id: string
+                    created_at?: string
+                    id?: string
+                    name: string
+                    phone?: string | null
+                }
+                Update: {
+                    course_id?: string
+                    created_at?: string
+                    id?: string
+                    name?: string
+                    phone?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "course_organizers_course_id_fkey"
+                        columns: ["course_id"]
+                        isOneToOne: false
+                        referencedRelation: "courses"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
+            courses: {
+                Row: {
+                    committee_id: string | null
+                    created_at: string
+                    created_by: string | null
+                    end_date: string | null
+                    has_interview: boolean | null
+                    id: string
+                    interview_date: string | null
+                    name: string
+                    room: string
+                    schedule_days: string[]
+                    schedule_end_time: string | null
+                    schedule_time: string
+                    start_date: string
+                    total_lectures: number
+                    trainer_name: string
+                    trainer_phone: string | null
+                    updated_at: string
+                }
+                Insert: {
+                    committee_id?: string | null
+                    created_at?: string
+                    created_by?: string | null
+                    end_date?: string | null
+                    has_interview?: boolean | null
+                    id?: string
+                    interview_date?: string | null
+                    name: string
+                    room: string
+                    schedule_days: string[]
+                    schedule_end_time?: string | null
+                    schedule_time: string
+                    start_date: string
+                    total_lectures: number
+                    trainer_name: string
+                    trainer_phone?: string | null
+                    updated_at?: string
+                }
+                Update: {
+                    committee_id?: string | null
+                    created_at?: string
+                    created_by?: string | null
+                    end_date?: string | null
+                    has_interview?: boolean | null
+                    id?: string
+                    interview_date?: string | null
+                    name?: string
+                    room?: string
+                    schedule_days?: string[]
+                    schedule_end_time?: string | null
+                    schedule_time?: string
+                    start_date?: string
+                    total_lectures?: number
+                    trainer_name?: string
+                    trainer_phone?: string | null
+                    updated_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "courses_committee_id_fkey"
+                        columns: ["committee_id"]
+                        isOneToOne: false
+                        referencedRelation: "committees"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "courses_created_by_fkey"
+                        columns: ["created_by"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
+                        referencedColumns: ["id"]
+                    }
+                ]
+            }
             profiles: {
                 Row: {
                     avatar_url: string | null

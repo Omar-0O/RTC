@@ -102,10 +102,19 @@ export default function Reports() {
         supabase.from('activity_types').select('*'),
       ]);
 
-      if (profilesRes.data) setProfiles(profilesRes.data);
-      if (committeesRes.data) setCommittees(committeesRes.data);
       if (submissionsRes.data) setSubmissions(submissionsRes.data);
+      if (committeesRes.data) setCommittees(committeesRes.data);
       if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
+
+      if (profilesRes.data && submissionsRes.data) {
+        const enrichedProfiles = profilesRes.data.map(profile => ({
+          ...profile,
+          level: profile.level || 'under_follow_up',
+          total_points: profile.total_points || 0,
+          activities_count: submissionsRes.data.filter(s => s.volunteer_id === profile.id).length
+        }));
+        setProfiles(enrichedProfiles);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -239,6 +248,44 @@ export default function Reports() {
       points: activity.points,
     };
   }).filter(a => a.submissions > 0).sort((a, b) => b.submissions - a.submissions);
+
+  // Activity submissions over time (last 6 months) by Level
+  const activityTrend = Array.from({ length: 6 }, (_, i) => {
+    const date = subMonths(new Date(), 5 - i);
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+
+    const monthSubmissions = submissions.filter(s => {
+      const submittedDate = new Date(s.submitted_at);
+      return submittedDate >= monthStart && submittedDate <= monthEnd;
+    });
+
+    const counts = {
+      under_follow_up: 0,
+      project_responsible: 0,
+      responsible: 0
+    };
+
+    monthSubmissions.forEach(s => {
+      const volunteer = profiles.find(p => p.id === s.volunteer_id);
+      if (volunteer) {
+        const level = volunteer.level || 'under_follow_up';
+
+        if (['responsible', 'platinum', 'diamond'].includes(level)) {
+          counts.responsible++;
+        } else if (['project_responsible', 'gold'].includes(level)) {
+          counts.project_responsible++;
+        } else {
+          counts.under_follow_up++;
+        }
+      }
+    });
+
+    return {
+      month: format(date, 'MMM'),
+      ...counts
+    };
+  });
 
   // Top activities by submissions (for the list)
   const activityStats = allActivityStats.slice(0, 5);
@@ -643,16 +690,10 @@ export default function Reports() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={allActivityStats} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <LineChart data={activityTrend}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis type="number" className="text-xs" />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    className="text-xs"
-                    width={120}
-                    orientation={language === 'ar' ? 'right' : 'left'}
-                  />
+                  <XAxis dataKey="month" className="text-xs" />
+                  <YAxis className="text-xs" />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
@@ -661,13 +702,28 @@ export default function Reports() {
                     }}
                   />
                   <Legend />
-                  <Bar
-                    dataKey="volunteers"
-                    fill="hsl(var(--primary))"
-                    radius={language === 'ar' ? [4, 0, 0, 4] : [0, 4, 4, 0]}
-                    name={language === 'ar' ? 'عدد المتطوعين' : 'Volunteers Count'}
+                  <Line
+                    type="monotone"
+                    dataKey="under_follow_up"
+                    stroke="#64748b"
+                    strokeWidth={2}
+                    name={t('level.under_follow_up')}
                   />
-                </BarChart>
+                  <Line
+                    type="monotone"
+                    dataKey="project_responsible"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    name={t('level.project_responsible')}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="responsible"
+                    stroke="#9333ea"
+                    strokeWidth={2}
+                    name={t('level.responsible')}
+                  />
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </CardContent>

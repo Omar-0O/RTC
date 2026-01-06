@@ -3,6 +3,7 @@ import { Users, Award, TrendingUp, UserPlus, UserMinus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -39,7 +40,7 @@ import {
 } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { StatsCard } from '@/components/ui/stats-card';
-import { LevelBadge } from '@/components/ui/level-badge';
+import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -52,7 +53,7 @@ interface Profile {
   email: string;
   total_points: number;
   level: string;
-  activities_count: number;
+  activities_count?: number;
   avatar_url: string | null;
   committee_id: string | null;
 }
@@ -66,12 +67,9 @@ interface Committee {
 export default function CommitteeLeaderDashboard() {
   const { profile } = useAuth();
   const { t, language } = useLanguage();
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
   const [selectedMember, setSelectedMember] = useState<Profile | null>(null);
-  const [selectedVolunteerId, setSelectedVolunteerId] = useState<string>('');
   const [members, setMembers] = useState<Profile[]>([]);
-  const [availableVolunteers, setAvailableVolunteers] = useState<Profile[]>([]);
   const [committee, setCommittee] = useState<Committee | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -92,78 +90,37 @@ export default function CommitteeLeaderDashboard() {
     // Fetch committee members
     const { data: membersData } = await supabase
       .from('profiles')
-      .select('*')
+      .select('*, activity_submissions:activity_submissions!activity_submissions_volunteer_id_fkey(id, created_at, committee_id)')
       .eq('committee_id', committeeId);
 
-    if (membersData) setMembers(membersData);
+    if (membersData) {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
 
-    // Fetch available volunteers (those without a committee)
-    const { data: volunteersData } = await supabase
-      .from('profiles')
-      .select('*')
-      .is('committee_id', null);
+      const membersWithCount: Profile[] = membersData.map((member: any) => {
+        const calculateMonthlyCount = (submissions: any[]) => {
+          if (!submissions) return 0;
+          return submissions.filter(sub => {
+            const subDate = new Date(sub.created_at);
+            return subDate.getMonth() === currentMonth &&
+              subDate.getFullYear() === currentYear &&
+              sub.committee_id === committeeId;
+          }).length;
+        };
 
-    if (volunteersData) setAvailableVolunteers(volunteersData);
+        return {
+          ...member,
+          activities_count: calculateMonthlyCount(member.activity_submissions)
+        };
+      });
+      setMembers(membersWithCount);
+    }
   };
 
   useEffect(() => {
     fetchData();
   }, [committeeId]);
-
-  // Calculate stats
-  const totalMembers = members.length;
-  const totalPoints = members.reduce((sum, m) => sum + (m.total_points || 0), 0);
-  const avgPoints = totalMembers > 0 ? Math.round(totalPoints / totalMembers) : 0;
-  const topPerformer = [...members].sort((a, b) => (b.total_points || 0) - (a.total_points || 0))[0];
-
-  // Level progress calculation
-  const getLevelProgress = (points: number) => {
-    if (points >= 5000) return 100;
-    if (points >= 2500) return ((points - 2500) / 2500) * 100;
-    if (points >= 1000) return ((points - 1000) / 1500) * 100;
-    if (points >= 500) return ((points - 500) / 500) * 100;
-    return (points / 500) * 100;
-  };
-
-  const displayLevel = (dbLevel: string) => {
-    const levelMap: Record<string, string> = {
-      bronze: 'تحت المتابعة',
-      silver: 'تحت المتابعة',
-      gold: 'مشروع مسئول',
-      platinum: 'مسؤول',
-      diamond: 'مسؤول',
-      under_follow_up: 'تحت المتابعة',
-      project_responsible: 'مشروع مسئول',
-      responsible: 'مسؤول',
-    };
-    return levelMap[dbLevel] || 'تحت المتابعة';
-  };
-
-  const handleAddMember = async () => {
-    if (!selectedVolunteerId || !committeeId) {
-      toast.error(language === 'ar' ? 'يرجى اختيار متطوع' : 'Please select a volunteer');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ committee_id: committeeId })
-        .eq('id', selectedVolunteerId);
-
-      if (error) throw error;
-
-      toast.success(language === 'ar' ? 'تم إضافة العضو بنجاح' : 'Member added successfully');
-      setIsAddDialogOpen(false);
-      setSelectedVolunteerId('');
-      fetchData();
-    } catch (error: any) {
-      toast.error(error.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleRemoveMember = async () => {
     if (!selectedMember) return;
@@ -195,64 +152,39 @@ export default function CommitteeLeaderDashboard() {
 
   const committeeName = language === 'ar' ? committee?.name_ar : committee?.name;
 
+  const totalMembers = members.length;
+  // Calculate total monthly participations across all members
+  const totalMonthlyParticipations = members.reduce((sum, member) => sum + (member.activities_count || 0), 0);
+
+  const displayLevel = (level: string) => {
+    const map: Record<string, string> = {
+      'bronze': 'under_follow_up',
+      'silver': 'under_follow_up',
+      'gold': 'project_responsible',
+      'platinum': 'responsible',
+      'diamond': 'responsible',
+      'newbie': 'under_follow_up',
+      'active': 'under_follow_up',
+      'تحت المتابعة': 'under_follow_up',
+      'مشروع مسؤول': 'project_responsible',
+      'مسؤول': 'responsible',
+    };
+    return map[level] || level || 'under_follow_up';
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t('leader.dashboard')}</h1>
-          <p className="text-muted-foreground">{committeeName} - {t('leader.overview')}</p>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {t('leader.dashboard')} - {committeeName}
+          </h1>
+          <p className="text-muted-foreground">{t('leader.overview')}</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-              {t('leader.addMember')}
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t('leader.addMember')}</DialogTitle>
-              <DialogDescription>
-                {language === 'ar' ? 'اختر متطوعاً لإضافته إلى اللجنة' : 'Select a volunteer to add to the committee'}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-              {availableVolunteers.length === 0 ? (
-                <p className="text-muted-foreground text-center py-4">
-                  {language === 'ar' ? 'لا يوجد متطوعين متاحين للإضافة' : 'No available volunteers to add'}
-                </p>
-              ) : (
-                <Select value={selectedVolunteerId} onValueChange={setSelectedVolunteerId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={language === 'ar' ? 'اختر متطوعاً' : 'Select a volunteer'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableVolunteers.map((volunteer) => (
-                      <SelectItem key={volunteer.id} value={volunteer.id}>
-                        {language === 'ar' ? volunteer.full_name_ar || volunteer.full_name : volunteer.full_name} - {volunteer.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                {t('common.cancel')}
-              </Button>
-              <Button
-                onClick={handleAddMember}
-                disabled={isLoading || !selectedVolunteerId}
-              >
-                {isLoading ? (language === 'ar' ? 'جاري الإضافة...' : 'Adding...') : t('common.add')}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2">
         <StatsCard
           title={t('leader.totalMembers')}
           value={totalMembers}
@@ -260,22 +192,10 @@ export default function CommitteeLeaderDashboard() {
           description={t('common.volunteers')}
         />
         <StatsCard
-          title={t('committees.totalPoints')}
-          value={totalPoints.toLocaleString()}
-          icon={Award}
-          description={t('common.points')}
-        />
-        <StatsCard
-          title={t('leader.avgPoints')}
-          value={avgPoints}
+          title={language === 'ar' ? 'المشاركات الشهرية' : 'Monthly Participations'}
+          value={totalMonthlyParticipations}
           icon={TrendingUp}
-          description={t('common.points')}
-        />
-        <StatsCard
-          title={t('leader.topPerformer')}
-          value={topPerformer?.full_name?.split(' ')[0] || '-'}
-          icon={Award}
-          description={`${topPerformer?.total_points || 0} ${t('common.points')}`}
+          description={language === 'ar' ? 'مشاركة هذا الشهر' : 'participations this month'}
         />
       </div>
 
@@ -298,7 +218,7 @@ export default function CommitteeLeaderDashboard() {
                 <TableRow>
                   <TableHead className="text-start">{t('users.fullName')}</TableHead>
                   <TableHead className="text-start">{t('users.level')}</TableHead>
-                  <TableHead className="text-start">{t('common.points')}</TableHead>
+                  <TableHead className="text-start">{language === 'ar' ? 'المشاركات الشهرية' : 'Monthly Participations'}</TableHead>
                   <TableHead className="text-start">{t('leader.memberProgress')}</TableHead>
                   <TableHead className="text-start">{language === 'ar' ? 'إجراءات' : 'Actions'}</TableHead>
                 </TableRow>
@@ -319,7 +239,7 @@ export default function CommitteeLeaderDashboard() {
                             {language === 'ar' ? member.full_name_ar || member.full_name : member.full_name}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {member.activities_count} {language === 'ar' ? 'نشاط' : 'activities'}
+                            {member.activities_count} {language === 'ar' ? 'مشاركة' : 'participations'}
                           </p>
                         </div>
                       </div>
@@ -328,11 +248,11 @@ export default function CommitteeLeaderDashboard() {
                       <LevelBadge level={displayLevel(member.level)} size="sm" />
                     </TableCell>
                     <TableCell>
-                      <span className="font-bold">{member.total_points}</span>
+                      <span className="font-bold">{member.activities_count || 0}</span>
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <Progress value={getLevelProgress(member.total_points)} className="h-2 w-24" />
+                        <Progress value={getLevelProgress(member.total_points).progress} className="h-2 w-24" />
                       </div>
                     </TableCell>
                     <TableCell>

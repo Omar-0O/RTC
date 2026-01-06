@@ -243,7 +243,7 @@ export default function AdminDashboard() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5" />
-              {isRTL ? 'أفضل متطوع الشهر' : 'Top Volunteers of the Month'}
+              {isRTL ? 'سباق الخير' : 'Top Volunteers of the Month'}
             </CardTitle>
           </CardHeader>
           <CardContent>

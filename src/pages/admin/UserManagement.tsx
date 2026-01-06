@@ -726,7 +726,6 @@ export default function UserManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t('users.title')}</h1>
-          <p className="text-muted-foreground">{t('users.subtitle')}</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
           setIsAddDialogOpen(open);

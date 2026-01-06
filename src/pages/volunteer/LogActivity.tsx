@@ -94,6 +94,12 @@ export default function LogActivity() {
   }, [user?.id]);
 
   useEffect(() => {
+    if (profile?.committee_id && !committeeId) {
+      setCommitteeId(profile.committee_id);
+    }
+  }, [profile?.committee_id]);
+
+  useEffect(() => {
     // Reset guests array when count changes
     setGuestParticipants(prev => {
       const newGuests = [...prev];
@@ -533,19 +539,19 @@ export default function LogActivity() {
         <h1 className="text-2xl font-bold">{t('activityLog.title')}</h1>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{isRTL ? 'تسجيل مشاركة جديدة' : 'Log New Participation'}</CardTitle>
+      <div className="grid gap-8 lg:grid-cols-2">
+        <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
+          <CardHeader className="pb-6">
+            <CardTitle className="text-2xl">{isRTL ? 'تسجيل مشاركة جديدة' : 'Log New Participation'}</CardTitle>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+          <CardContent className="space-y-8">
+            <form onSubmit={handleSubmit} className="space-y-8">
 
               {/* Leader Group Toggle */}
               {isLeader && (
-                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/20">
-                  <div className="space-y-0.5">
-                    <Label className="text-base">{isRTL ? 'مشاركة جماعية' : 'Group Submission'}</Label>
+                <div className="flex items-center justify-between p-6 border rounded-xl bg-accent/5 hover:bg-accent/10 transition-colors cursor-pointer" onClick={() => setIsGroupSubmission(!isGroupSubmission)}>
+                  <div className="space-y-1">
+                    <Label className="text-lg font-medium cursor-pointer">{isRTL ? 'مشاركة جماعية' : 'Group Submission'}</Label>
                     <p className="text-sm text-muted-foreground">
                       {isRTL ? 'تسجيل مشاركة لمجموعة من المتطوعين' : 'Log participation for a group of volunteers'}
                     </p>
@@ -553,23 +559,24 @@ export default function LogActivity() {
                   <Switch
                     checked={isGroupSubmission}
                     onCheckedChange={setIsGroupSubmission}
+                    className="scale-125"
                   />
                 </div>
               )}
 
               {/* Committee Selection */}
-              <div className="space-y-2">
-                <Label>{t('activityLog.selectCommittee')} *</Label>
+              <div className="space-y-3">
+                <Label className="text-base font-medium">{t('activityLog.selectCommittee')} <span className="text-destructive">*</span></Label>
                 <Select value={committeeId} onValueChange={(value) => {
                   setCommitteeId(value);
                   setActivityId('');
                 }}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-12 text-base px-4">
                     <SelectValue placeholder={t('activityLog.selectCommittee')} />
                   </SelectTrigger>
                   <SelectContent>
                     {committees.map((committee) => (
-                      <SelectItem key={committee.id} value={committee.id}>
+                      <SelectItem key={committee.id} value={committee.id} className="text-base py-3">
                         {isRTL ? committee.name_ar : committee.name}
                       </SelectItem>
                     ))}
@@ -578,18 +585,18 @@ export default function LogActivity() {
               </div>
 
               {/* Activity Type */}
-              <div className="space-y-2">
-                <Label>{t('activityLog.selectActivity')} *</Label>
+              <div className="space-y-3">
+                <Label className="text-base font-medium">{t('activityLog.selectActivity')} <span className="text-destructive">*</span></Label>
                 <Select value={activityId} onValueChange={setActivityId} disabled={!committeeId}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-12 text-base px-4">
                     <SelectValue placeholder={committeeId ? t('activityLog.selectActivity') : t('activityLog.selectCommittee')} />
                   </SelectTrigger>
                   <SelectContent>
                     {filteredActivities.map((activity) => (
-                      <SelectItem key={activity.id} value={activity.id}>
+                      <SelectItem key={activity.id} value={activity.id} className="py-3">
                         <div className="flex items-center justify-between w-full gap-4">
-                          <span>{isRTL ? activity.name_ar : activity.name}</span>
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-base font-medium">{isRTL ? activity.name_ar : activity.name}</span>
+                          <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
                             +{activity.points} {isRTL ? 'نقطة' : 'pts'}
                           </span>
                         </div>
@@ -598,7 +605,7 @@ export default function LogActivity() {
                   </SelectContent>
                 </Select>
                 {selectedActivity?.description && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg border border-dashed">
                     {isRTL ? selectedActivity.description_ar : selectedActivity.description}
                   </p>
                 )}
@@ -608,9 +615,9 @@ export default function LogActivity() {
               {isGroupSubmission ? (
                 <div className="space-y-6 border-t pt-4">
                   {/* Participate Self */}
-                  <div className="flex items-center space-x-2 space-x-reverse">
-                    <Switch id="include-me" checked={includeMe} onCheckedChange={setIncludeMe} />
-                    <Label htmlFor="include-me">{isRTL ? 'مشاركتي ضمن المجموعة' : 'Include my participation'}</Label>
+                  <div className="flex items-center space-x-2 space-x-reverse bg-accent/5 p-4 rounded-lg border">
+                    <Switch id="include-me" checked={includeMe} onCheckedChange={setIncludeMe} className="scale-110" />
+                    <Label htmlFor="include-me" className="text-base font-medium cursor-pointer flex-1">{isRTL ? 'مشاركتي ضمن المجموعة' : 'Include my participation'}</Label>
                   </div>
 
                   {/* Select Volunteers */}
@@ -622,7 +629,7 @@ export default function LogActivity() {
                           variant="outline"
                           role="combobox"
                           aria-expanded={openCombobox}
-                          className="w-full justify-between"
+                          className="w-full justify-between h-12 text-base px-4"
                         >
                           {selectedVolunteers.length > 0
                             ? isRTL
@@ -725,14 +732,15 @@ export default function LogActivity() {
               )}
 
               {/* Notes */}
-              <div className="space-y-2">
-                <Label>{t('activityLog.notes')}</Label>
+              <div className="space-y-3">
+                <Label className="text-base font-medium">{t('activityLog.notes')}</Label>
                 <Textarea
                   placeholder={t('activityLog.notesPlaceholder')}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={4}
                   maxLength={1000}
+                  className="resize-none text-base p-4 min-h-[120px]"
                 />
                 <p className="text-xs text-muted-foreground text-right">
                   {description.length}/1000
@@ -742,8 +750,8 @@ export default function LogActivity() {
               {/* Proof Upload */}
               {/* Proof Upload - Excluded for volunteers and HR roles */}
               {primaryRole !== 'volunteer' && primaryRole !== 'hr' && primaryRole !== 'head_hr' && (
-                <div className="space-y-2">
-                  <Label>{isRTL ? 'صورة الإثبات (اختياري)' : 'Proof Image (Optional)'}</Label>
+                <div className="space-y-3">
+                  <Label className="text-base font-medium">{isRTL ? 'صورة الإثبات (اختياري)' : 'Proof Image (Optional)'}</Label>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -753,36 +761,42 @@ export default function LogActivity() {
                   />
 
                   {proofPreview ? (
-                    <div className="relative">
+                    <div className="relative group rounded-xl overflow-hidden border-2 border-primary/20">
                       <img
                         src={proofPreview}
                         alt="Proof preview"
-                        className="w-full h-48 object-cover rounded-lg border"
+                        className="w-full h-64 object-cover transition-transform group-hover:scale-105"
                       />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-2 right-2"
-                        onClick={removeFile}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="w-12 h-12 rounded-full"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFile();
+                          }}
+                        >
+                          <X className="h-6 w-6" />
+                        </Button>
+                      </div>
                     </div>
                   ) : (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full h-32 border-dashed"
+                    <div
+                      className="w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-accent/5 hover:border-primary/50 transition-all group"
                       onClick={() => fileInputRef.current?.click()}
                     >
-                      <div className="flex flex-col items-center gap-2">
-                        <Upload className="h-8 w-8 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          {isRTL ? 'اضغط لرفع صورة (حد أقصى 5 ميجابايت)' : 'Click to upload image (max 5MB)'}
-                        </span>
+                      <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <Upload className="h-8 w-8 text-primary" />
                       </div>
-                    </Button>
+                      <span className="text-base font-medium text-foreground">
+                        {isRTL ? 'اضغط لرفع صورة' : 'Click to upload image'}
+                      </span>
+                      <span className="text-sm text-muted-foreground mt-1">
+                        {isRTL ? 'الحد الأقصى 5 ميجابايت' : 'Max size 5MB'}
+                      </span>
+                    </div>
                   )}
                 </div>
               )}
@@ -791,10 +805,19 @@ export default function LogActivity() {
               {isGroupSubmission && selectedActivity && (
                 <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-2">
                   <h4 className="font-medium text-sm">{isRTL ? 'ملخص المشاركة' : 'Submission Summary'}</h4>
-                  <div className="text-sm space-y-1">
-                    <p>{isRTL ? 'المتطوعين:' : 'Volunteers:'} {selectedVolunteers.length + (includeMe ? 1 : 0)}</p>
-                    <p>{isRTL ? 'الضيوف:' : 'Guests:'} {guestsCount}</p>
-                    <p>{isRTL ? 'إجمالي النقاط الموزعة:' : 'Total Points Distributed:'} {selectedActivity.points * (selectedVolunteers.length + (includeMe ? 1 : 0))}</p>
+                  <div className="grid grid-cols-3 gap-4 pt-2">
+                    <div className="bg-background rounded-lg p-3 text-center border">
+                      <p className="text-xs text-muted-foreground mb-1">{isRTL ? 'المتطوعين' : 'Volunteers'}</p>
+                      <p className="font-bold text-lg">{selectedVolunteers.length + (includeMe ? 1 : 0)}</p>
+                    </div>
+                    <div className="bg-background rounded-lg p-3 text-center border">
+                      <p className="text-xs text-muted-foreground mb-1">{isRTL ? 'الضيوف' : 'Guests'}</p>
+                      <p className="font-bold text-lg">{guestsCount}</p>
+                    </div>
+                    <div className="bg-background rounded-lg p-3 text-center border border-primary/20 bg-primary/5">
+                      <p className="text-xs text-primary mb-1">{isRTL ? 'إجمالي النقاط' : 'Total Points'}</p>
+                      <p className="font-bold text-lg text-primary">{selectedActivity.points * (selectedVolunteers.length + (includeMe ? 1 : 0))}</p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -802,7 +825,7 @@ export default function LogActivity() {
               {/* Submit Button */}
               <Button
                 type="submit"
-                className="w-full"
+                className="w-full h-14 text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
                 disabled={!activityId || isSubmitting || isUploading}
               >
                 {(isSubmitting || isUploading) ? (

@@ -234,7 +234,7 @@ export default function SupervisorDashboard() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <TrendingUp className="h-5 w-5" />
-                            {isRTL ? 'أفضل متطوع الشهر' : 'Top Volunteers of the Month'}
+                            {isRTL ? 'سباق الخير' : 'Top Volunteers of the Month'}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -244,21 +244,36 @@ export default function SupervisorDashboard() {
                                     {isRTL ? 'لا يوجد متطوعون هذا الشهر' : 'No volunteers this month'}
                                 </p>
                             ) : (
-                                topVolunteers.map((volunteer, index) => (
-                                    <div
-                                        key={volunteer.id}
-                                        className="flex items-center gap-3"
-                                    >
-                                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-bold">
-                                            {index + 1}
-                                        </span>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium truncate">{volunteer.full_name || (isRTL ? 'متطوع' : 'Volunteer')}</p>
-                                            <p className="text-xs text-muted-foreground">{volunteer.total_points} {t('common.points')}</p>
+                                topVolunteers.map((volunteer, index) => {
+                                    let rankStyles = "bg-muted text-muted-foreground";
+                                    let rankIcon = null; // Could add icons if needed
+
+                                    if (index === 0) rankStyles = "bg-yellow-100 text-yellow-700 ring-1 ring-yellow-200";
+                                    if (index === 1) rankStyles = "bg-slate-100 text-slate-700 ring-1 ring-slate-200";
+                                    if (index === 2) rankStyles = "bg-orange-100 text-orange-700 ring-1 ring-orange-200";
+
+                                    return (
+                                        <div
+                                            key={volunteer.id}
+                                            className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors"
+                                        >
+                                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${rankStyles}`}>
+                                                {index + 1}
+                                            </span>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium text-sm leading-snug break-words">
+                                                    {volunteer.full_name || (isRTL ? 'متطوع' : 'Volunteer')}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground mt-0.5">
+                                                    {volunteer.total_points} {t('common.points')}
+                                                </p>
+                                            </div>
+                                            <div className="shrink-0">
+                                                <LevelBadge level={volunteer.level as any} size="sm" />
+                                            </div>
                                         </div>
-                                        <LevelBadge level={volunteer.level as any} size="sm" />
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </CardContent>

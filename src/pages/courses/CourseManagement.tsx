@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -11,9 +11,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, addDays, getDay } from 'date-fns';
 import * as XLSX from 'xlsx';
 import {
     DropdownMenu,
@@ -51,6 +52,7 @@ interface Course {
     end_date: string | null;
     created_by: string;
     committee_id: string | null;
+    course_lectures?: { status: string }[];
 }
 
 interface CourseOrganizer {
@@ -73,6 +75,21 @@ interface Volunteer {
     full_name: string;
     full_name_ar: string | null;
     phone: string | null;
+}
+
+interface Attendance {
+    id: string;
+    lecture_id: string;
+    student_name: string;
+    student_phone: string;
+    status: 'present' | 'absent' | 'excused';
+}
+
+interface CourseBeneficiary {
+    id: string;
+    course_id: string;
+    name: string;
+    phone: string;
 }
 
 const ROOMS = [
@@ -102,10 +119,14 @@ export default function CourseManagement() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
     const [lectures, setLectures] = useState<CourseLecture[]>([]);
-    const [isLecturesOpen, setIsLecturesOpen] = useState(false);
+    const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [attendanceData, setAttendanceData] = useState<Record<string, Attendance[]>>({});
     const [showPastCourses, setShowPastCourses] = useState(false);
     const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
     const [organizerPopoverOpen, setOrganizerPopoverOpen] = useState(false);
+    const [beneficiaries, setBeneficiaries] = useState<CourseBeneficiary[]>([]);
+    const [newBeneficiary, setNewBeneficiary] = useState({ name: '', phone: '' });
+    const [editingBeneficiary, setEditingBeneficiary] = useState<CourseBeneficiary | null>(null);
 
     // Filter out ended courses unless showPastCourses is true
     const activeCourses = courses.filter(course => {
@@ -137,6 +158,46 @@ export default function CourseManagement() {
         fetchVolunteers();
     }, []);
 
+    // Auto-calculate end date
+    useEffect(() => {
+        if (!formData.start_date || !formData.total_lectures || formData.schedule_days.length === 0) {
+            return;
+        }
+
+        const calculateEndDate = () => {
+            const start = new Date(formData.start_date);
+            let current = start;
+            let count = 0;
+            const targetLectures = formData.total_lectures;
+
+            // Map day names to 0-6 (Sunday=0)
+            const dayMap: { [key: string]: number } = {
+                'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+                'thursday': 4, 'friday': 5, 'saturday': 6
+            };
+
+            const selectedDaysIndices = formData.schedule_days.map(d => dayMap[d]);
+
+            // Safety break to prevent infinite loops
+            let safetyCounter = 0;
+            while (count < targetLectures && safetyCounter < 365) { // Max 1 year duration
+                const dayIndex = getDay(current);
+                if (selectedDaysIndices.includes(dayIndex)) {
+                    count++;
+                }
+
+                if (count < targetLectures) {
+                    current = addDays(current, 1);
+                }
+                safetyCounter++;
+            }
+
+            setFormData(prev => ({ ...prev, end_date: format(current, 'yyyy-MM-dd') }));
+        };
+
+        calculateEndDate();
+    }, [formData.start_date, formData.total_lectures, formData.schedule_days]);
+
     const fetchVolunteers = async () => {
         try {
             const { data, error } = await supabase
@@ -155,7 +216,7 @@ export default function CourseManagement() {
         try {
             const { data, error } = await supabase
                 .from('courses')
-                .select('*')
+                .select('*, course_lectures(status)')
                 .order('start_date', { ascending: false });
 
             if (error) throw error;
@@ -269,19 +330,53 @@ export default function CourseManagement() {
         }
     };
 
-    const openLecturesDialog = async (course: Course) => {
+    const openCourseDetails = async (course: Course) => {
         setSelectedCourse(course);
+        setLectures([]);
+        setAttendanceData({});
+        setBeneficiaries([]);
+        setNewBeneficiary({ name: '', phone: '' });
+        setEditingBeneficiary(null);
         try {
-            const { data } = await supabase
+            // Fetch lectures
+            const { data: lecturesData } = await supabase
                 .from('course_lectures')
                 .select('*')
                 .eq('course_id', course.id)
                 .order('lecture_number');
 
-            setLectures(data || []);
-            setIsLecturesOpen(true);
+            // Fetch beneficiaries
+            const { data: beneficiariesData } = await supabase
+                .from('course_beneficiaries')
+                .select('*')
+                .eq('course_id', course.id)
+                .order('name');
+
+            if (beneficiariesData) {
+                setBeneficiaries(beneficiariesData);
+            }
+
+            if (lecturesData) {
+                setLectures(lecturesData);
+                // Fetch attendance for all these lectures
+                const lectureIds = lecturesData.map(l => l.id);
+                const { data: attendance } = await supabase
+                    .from('course_attendance')
+                    .select('*')
+                    .in('lecture_id', lectureIds);
+
+                if (attendance) {
+                    const grouped = attendance.reduce((acc, curr) => {
+                        if (!acc[curr.lecture_id]) acc[curr.lecture_id] = [];
+                        acc[curr.lecture_id].push(curr);
+                        return acc;
+                    }, {} as Record<string, Attendance[]>);
+                    setAttendanceData(grouped);
+                }
+            }
+            setIsDetailsOpen(true);
         } catch (error) {
-            console.error('Error fetching lectures:', error);
+            console.error('Error fetching details:', error);
         }
     };
 
@@ -317,6 +412,20 @@ export default function CourseManagement() {
                 .eq('course_id', course.id)
                 .order('lecture_number');
 
+            // Fetch beneficiaries
+            const { data: beneficiariesData } = await supabase
+                .from('course_beneficiaries')
+                .select('*')
+                .eq('course_id', course.id)
+                .order('name') as { data: CourseBeneficiary[] | null };
+
+            // Fetch attendance
+            const lectureIds = (lects || []).map(l => l.id);
+            const { data: attendance } = await supabase
+                .from('course_attendance')
+                .select('*')
+                .in('lecture_id', lectureIds);
+
             const completedLectures = (lects || []).filter(l => l.status === 'completed').length;
             const cancelledLectures = (lects || []).filter(l => l.status === 'cancelled').length;
 
@@ -335,6 +444,7 @@ export default function CourseManagement() {
                 [isRTL ? 'تاريخ النهاية' : 'End Date']: course.end_date || '-',
                 [isRTL ? 'يوجد انترفيو' : 'Has Interview']: course.has_interview ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No'),
                 [isRTL ? 'تاريخ الانترفيو' : 'Interview Date']: course.interview_date || '-',
+                [isRTL ? 'عدد المستفيدين' : 'Beneficiaries Count']: beneficiariesData?.length || 0,
             }];
 
             const organizersData = (orgs || []).map(o => ({
@@ -349,12 +459,50 @@ export default function CourseManagement() {
                     l.status === 'cancelled' ? (isRTL ? 'ملغية' : 'Cancelled') : (isRTL ? 'مجدولة' : 'Scheduled')
             }));
 
+            // Create attendance lookup
+            const attendanceByLecture: Record<string, Record<string, string>> = {};
+            (attendance || []).forEach((att: any) => {
+                if (!attendanceByLecture[att.lecture_id]) {
+                    attendanceByLecture[att.lecture_id] = {};
+                }
+                attendanceByLecture[att.lecture_id][att.student_phone] = att.status;
+            });
+
+            // Create attendance sheet from beneficiaries
+            const attendanceSheetValues = (beneficiariesData || []).map(beneficiary => {
+                const row: any = {
+                    [isRTL ? 'الاسم' : 'Name']: beneficiary.name,
+                    [isRTL ? 'الرقم' : 'Phone']: beneficiary.phone
+                };
+                let attended = 0;
+                let missed = 0;
+                (lects || []).forEach(l => {
+                    const status = attendanceByLecture[l.id]?.[beneficiary.phone];
+                    const colName = isRTL ? `م${l.lecture_number}` : `L${l.lecture_number}`;
+                    if (status === 'present') {
+                        row[colName] = isRTL ? 'حضر' : 'Present';
+                        attended++;
+                    } else if (l.status === 'completed') {
+                        row[colName] = isRTL ? 'غائب' : 'Absent';
+                        missed++;
+                    } else {
+                        row[colName] = '-';
+                    }
+                });
+                row[isRTL ? 'عدد الحضور' : 'Total Attended'] = attended;
+                row[isRTL ? 'عدد الغياب' : 'Total Missed'] = missed;
+                return row;
+            });
+
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(courseInfo), isRTL ? 'معلومات الكورس' : 'Course Info');
             if (organizersData.length > 0) {
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(organizersData), isRTL ? 'المنظمين' : 'Organizers');
             }
             XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lecturesData), isRTL ? 'المحاضرات' : 'Lectures');
+            if (attendanceSheetValues.length > 0) {
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attendanceSheetValues), isRTL ? 'شيت الحضور' : 'Attendance Sheet');
+            }
 
             XLSX.writeFile(wb, `${course.name}_Report.xlsx`);
         } catch (error) {
@@ -399,9 +547,169 @@ export default function CourseManagement() {
         return days.map(d => DAYS.find(day => day.value === d)?.label[language as 'en' | 'ar']).join(', ');
     };
 
+    const isLectureOpen = (dateStr: string) => {
+        const lectureDate = new Date(dateStr);
+        const now = new Date();
+        lectureDate.setHours(0, 0, 0, 0);
+        now.setHours(0, 0, 0, 0);
+        return now >= lectureDate;
+    };
+
+    const registerAttendance = async (lectureId: string, name: string, phone: string) => {
+        try {
+            const { error } = await supabase.from('course_attendance').insert({
+                lecture_id: lectureId,
+                student_name: name,
+                student_phone: phone,
+                status: 'present',
+                created_by: user?.id
+            });
+
+            if (error) throw error;
+
+            // Update local state
+            const newRecord: Attendance = {
+                id: crypto.randomUUID(),
+                lecture_id: lectureId,
+                student_name: name,
+                student_phone: phone,
+                status: 'present'
+            };
+
+            setAttendanceData(prev => ({
+                ...prev,
+                [lectureId]: [...(prev[lectureId] || []), newRecord]
+            }));
+
+            toast.success(isRTL ? 'تم تسجيل الحضور' : 'Attendance registered');
+            return true;
+        } catch (error) {
+            console.error('Error registering attendance:', error);
+            toast.error(isRTL ? 'فشل تسجيل الحضور' : 'Failed to register attendance');
+            return false;
+        }
+    };
+
     const getCompletedLectures = (courseId: string) => {
         // This would need async fetch, for now return placeholder
         return 0;
+    };
+
+    // Beneficiary Management Functions
+    const addBeneficiary = async () => {
+        if (!selectedCourse || !newBeneficiary.name || !newBeneficiary.phone) {
+            toast.error(isRTL ? 'يرجى إدخال الاسم والرقم' : 'Please enter name and phone');
+            return;
+        }
+
+        try {
+            const { data, error } = await supabase
+                .from('course_beneficiaries')
+                .insert({
+                    course_id: selectedCourse.id,
+                    name: newBeneficiary.name,
+                    phone: newBeneficiary.phone,
+                    created_by: user?.id
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setBeneficiaries([...beneficiaries, data]);
+            setNewBeneficiary({ name: '', phone: '' });
+            toast.success(isRTL ? 'تم إضافة المستفيد' : 'Beneficiary added');
+        } catch (error: any) {
+            console.error('Error adding beneficiary:', error);
+            if (error.code === '23505') {
+                toast.error(isRTL ? 'هذا الرقم مسجل بالفعل' : 'This phone is already registered');
+            } else {
+                toast.error(isRTL ? 'فشل إضافة المستفيد' : 'Failed to add beneficiary');
+            }
+        }
+    };
+
+    const updateBeneficiary = async () => {
+        if (!editingBeneficiary) return;
+
+        try {
+            const { error } = await supabase
+                .from('course_beneficiaries')
+                .update({ name: editingBeneficiary.name, phone: editingBeneficiary.phone })
+                .eq('id', editingBeneficiary.id);
+
+            if (error) throw error;
+
+            setBeneficiaries(beneficiaries.map(b =>
+                b.id === editingBeneficiary.id ? editingBeneficiary : b
+            ));
+            setEditingBeneficiary(null);
+            toast.success(isRTL ? 'تم تحديث البيانات' : 'Beneficiary updated');
+        } catch (error) {
+            console.error('Error updating beneficiary:', error);
+            toast.error(isRTL ? 'فشل التحديث' : 'Failed to update');
+        }
+    };
+
+    const deleteBeneficiary = async (id: string) => {
+        try {
+            const { error } = await supabase
+                .from('course_beneficiaries')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            setBeneficiaries(beneficiaries.filter(b => b.id !== id));
+            toast.success(isRTL ? 'تم حذف المستفيد' : 'Beneficiary deleted');
+        } catch (error) {
+            console.error('Error deleting beneficiary:', error);
+            toast.error(isRTL ? 'فشل الحذف' : 'Failed to delete');
+        }
+    };
+
+    const toggleBeneficiaryAttendance = async (lectureId: string, beneficiary: CourseBeneficiary) => {
+        const existingAttendance = attendanceData[lectureId]?.find(a => a.student_phone === beneficiary.phone);
+
+        try {
+            if (existingAttendance) {
+                // Remove attendance
+                const { error } = await supabase
+                    .from('course_attendance')
+                    .delete()
+                    .eq('id', existingAttendance.id);
+
+                if (error) throw error;
+
+                setAttendanceData(prev => ({
+                    ...prev,
+                    [lectureId]: (prev[lectureId] || []).filter(a => a.id !== existingAttendance.id)
+                }));
+            } else {
+                // Add attendance
+                const { data, error } = await supabase
+                    .from('course_attendance')
+                    .insert({
+                        lecture_id: lectureId,
+                        student_name: beneficiary.name,
+                        student_phone: beneficiary.phone,
+                        status: 'present',
+                        created_by: user?.id
+                    })
+                    .select()
+                    .single();
+
+                if (error) throw error;
+
+                setAttendanceData(prev => ({
+                    ...prev,
+                    [lectureId]: [...(prev[lectureId] || []), data]
+                }));
+            }
+        } catch (error) {
+            console.error('Error toggling attendance:', error);
+            toast.error(isRTL ? 'فشل تحديث الحضور' : 'Failed to update attendance');
+        }
     };
 
     return (
@@ -432,26 +740,31 @@ export default function CourseManagement() {
                         </DialogTrigger>
                         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
-                                <DialogTitle>{isRTL ? 'إضافة كورس جديد' : 'Add New Course'}</DialogTitle>
+                                <DialogTitle className="text-2xl font-bold">{isRTL ? 'إضافة كورس جديد' : 'Add New Course'}</DialogTitle>
                                 <DialogDescription>{isRTL ? 'أضف تفاصيل الكورس' : 'Add course details'}</DialogDescription>
                             </DialogHeader>
 
                             <div className="grid gap-6 py-4">
-                                {/* Course Name */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>{isRTL ? 'اسم الكورس *' : 'Course Name *'}</Label>
-                                        <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                                {/* Course Name & Room */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-3">
+                                        <Label className="text-base">{isRTL ? 'اسم الكورس *' : 'Course Name *'}</Label>
+                                        <Input
+                                            value={formData.name}
+                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                            className="h-12"
+                                            placeholder={isRTL ? 'مثال: كورس الإسعافات الأولية' : 'e.g., First Aid Course'}
+                                        />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>{isRTL ? 'القاعة *' : 'Room *'}</Label>
+                                    <div className="space-y-3">
+                                        <Label className="text-base">{isRTL ? 'القاعة *' : 'Room *'}</Label>
                                         <Select value={formData.room} onValueChange={val => setFormData({ ...formData, room: val })}>
-                                            <SelectTrigger>
+                                            <SelectTrigger className="h-12">
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {ROOMS.map(room => (
-                                                    <SelectItem key={room.value} value={room.value}>
+                                                    <SelectItem key={room.value} value={room.value} className="py-3">
                                                         {room.label[language as 'en' | 'ar']}
                                                     </SelectItem>
                                                 ))}
@@ -461,72 +774,122 @@ export default function CourseManagement() {
                                 </div>
 
                                 {/* Trainer Info */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>{isRTL ? 'اسم المدرب *' : 'Trainer Name *'}</Label>
-                                        <Input value={formData.trainer_name} onChange={e => setFormData({ ...formData, trainer_name: e.target.value })} />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-3">
+                                        <Label className="text-base">{isRTL ? 'اسم المدرب *' : 'Trainer Name *'}</Label>
+                                        <Input
+                                            value={formData.trainer_name}
+                                            onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
+                                            className="h-12"
+                                        />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>{isRTL ? 'رقم المدرب' : 'Trainer Phone'}</Label>
-                                        <Input value={formData.trainer_phone} onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })} />
+                                    <div className="space-y-3">
+                                        <Label className="text-base">{isRTL ? 'رقم المدرب' : 'Trainer Phone'}</Label>
+                                        <Input
+                                            value={formData.trainer_phone}
+                                            onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
+                                            className="h-12"
+                                        />
                                     </div>
                                 </div>
 
                                 {/* Schedule */}
-                                <div className="space-y-2">
-                                    <Label>{isRTL ? 'أيام الكورس *' : 'Course Days *'}</Label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {DAYS.map(day => (
-                                            <label key={day.value} className="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-muted">
-                                                <Checkbox
-                                                    checked={formData.schedule_days.includes(day.value)}
-                                                    onCheckedChange={() => toggleDay(day.value)}
-                                                />
-                                                <span className="text-sm">{day.label[language as 'en' | 'ar']}</span>
-                                            </label>
-                                        ))}
+                                <div className="space-y-3">
+                                    <Label className="text-base">{isRTL ? 'أيام الكورس *' : 'Course Days *'}</Label>
+                                    <div className="flex flex-wrap gap-3">
+                                        {DAYS.map(day => {
+                                            const isSelected = formData.schedule_days.includes(day.value);
+                                            return (
+                                                <div
+                                                    key={day.value}
+                                                    onClick={() => toggleDay(day.value)}
+                                                    className={`
+                                                        flex items-center gap-2 px-4 py-3 border rounded-lg cursor-pointer transition-all
+                                                        ${isSelected
+                                                            ? 'bg-primary text-primary-foreground border-primary'
+                                                            : 'hover:bg-accent hover:border-accent-foreground/50 bg-background'
+                                                        }
+                                                    `}
+                                                >
+                                                    <span className="font-medium">{day.label[language as 'en' | 'ar']}</span>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>{isRTL ? 'وقت البداية' : 'Start Time'}</Label>
-                                        <Input type="time" value={formData.schedule_time} onChange={e => setFormData({ ...formData, schedule_time: e.target.value })} />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <div className="space-y-3">
+                                        <Label className="text-base">{isRTL ? 'وقت البداية' : 'Start Time'}</Label>
+                                        <Input
+                                            type="time"
+                                            value={formData.schedule_time}
+                                            onChange={e => setFormData({ ...formData, schedule_time: e.target.value })}
+                                            className="h-12"
+                                        />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>{isRTL ? 'وقت الانتهاء' : 'End Time'}</Label>
-                                        <Input type="time" value={formData.schedule_end_time} onChange={e => setFormData({ ...formData, schedule_end_time: e.target.value })} />
+                                    <div className="space-y-3">
+                                        <Label className="text-base">{isRTL ? 'وقت الانتهاء' : 'End Time'}</Label>
+                                        <Input
+                                            type="time"
+                                            value={formData.schedule_end_time}
+                                            onChange={e => setFormData({ ...formData, schedule_end_time: e.target.value })}
+                                            className="h-12"
+                                        />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>{isRTL ? 'عدد المحاضرات' : 'Total Lectures'}</Label>
-                                        <Input type="number" min={1} value={formData.total_lectures} onChange={e => setFormData({ ...formData, total_lectures: parseInt(e.target.value) || 1 })} />
+                                    <div className="space-y-3">
+                                        <Label className="text-base">{isRTL ? 'عدد المحاضرات' : 'Total Lectures'}</Label>
+                                        <Input
+                                            type="number"
+                                            min={1}
+                                            value={formData.total_lectures}
+                                            onChange={e => setFormData({ ...formData, total_lectures: parseInt(e.target.value) || 1 })}
+                                            className="h-12"
+                                        />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>{isRTL ? 'تاريخ البداية' : 'Start Date'}</Label>
-                                        <Input type="date" value={formData.start_date} onChange={e => setFormData({ ...formData, start_date: e.target.value })} />
+                                    <div className="space-y-3">
+                                        <Label className="text-base">{isRTL ? 'تاريخ البداية' : 'Start Date'}</Label>
+                                        <Input
+                                            type="date"
+                                            value={formData.start_date}
+                                            onChange={e => setFormData({ ...formData, start_date: e.target.value })}
+                                            className="h-12"
+                                        />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>{isRTL ? 'تاريخ النهاية' : 'End Date'}</Label>
-                                        <Input type="date" value={formData.end_date} onChange={e => setFormData({ ...formData, end_date: e.target.value })} />
+                                </div>
+
+                                {/* End Date (Read Only) */}
+                                <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-dashed">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-base text-muted-foreground">{isRTL ? 'تاريخ النهاية المتوقع' : 'Expected End Date'}</Label>
+                                        <Badge variant="outline" className="text-base px-3 py-1">
+                                            {formData.end_date || '-'}
+                                        </Badge>
                                     </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        {isRTL
+                                            ? 'يتم حساب تاريخ النهاية تلقائياً بناءً على تاريخ البداية وعدد المحاضرات والأيام المختارة.'
+                                            : 'End date is calculated automatically based on start date, lectures count, and selected days.'}
+                                    </p>
                                 </div>
 
                                 {/* Interview */}
-                                <div className="flex items-center gap-4">
-                                    <label className="flex items-center gap-2 cursor-pointer">
+                                <div className="flex items-center gap-4 p-4 border rounded-lg bg-card">
+                                    <label className="flex items-center gap-3 cursor-pointer flex-1">
                                         <Checkbox
                                             checked={formData.has_interview}
                                             onCheckedChange={(checked) => setFormData({ ...formData, has_interview: !!checked })}
+                                            className="h-5 w-5"
                                         />
-                                        <span>{isRTL ? 'يوجد انترفيو' : 'Has Interview'}</span>
+                                        <span className="text-base font-medium">{isRTL ? 'يوجد انترفيو لهذا الكورس' : 'This course has an interview'}</span>
                                     </label>
                                     {formData.has_interview && (
-                                        <div className="flex-1">
+                                        <div className="w-1/3 min-w-[200px]">
                                             <Input
                                                 type="date"
                                                 value={formData.interview_date}
                                                 onChange={e => setFormData({ ...formData, interview_date: e.target.value })}
-                                                placeholder={isRTL ? 'تاريخ الانترفيو' : 'Interview Date'}
+                                                className="h-10"
                                             />
                                         </div>
                                     )}
@@ -596,8 +959,8 @@ export default function CourseManagement() {
                             </div>
 
                             <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsCreateOpen(false)}>{isRTL ? 'إلغاء' : 'Cancel'}</Button>
-                                <Button onClick={handleCreateCourse}>{isRTL ? 'إنشاء الكورس' : 'Create Course'}</Button>
+                                <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-12 px-6">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
+                                <Button onClick={handleCreateCourse} className="h-12 px-6">{isRTL ? 'إنشاء الكورس' : 'Create Course'}</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
@@ -621,7 +984,11 @@ export default function CourseManagement() {
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => openLecturesDialog(course)}>
+                                        <DropdownMenuItem onClick={() => openCourseDetails(course)}>
+                                            <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                            {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => openCourseDetails(course)}>
                                             <Calendar className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                             {isRTL ? 'المحاضرات' : 'Lectures'}
                                         </DropdownMenuItem>
@@ -651,6 +1018,13 @@ export default function CourseManagement() {
                                     <BookOpen className="w-4 h-4" />
                                     <span>{course.total_lectures} {isRTL ? 'محاضرة' : 'lectures'}</span>
                                 </div>
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                    <Clock className="w-4 h-4" />
+                                    <span>
+                                        {isRTL ? 'متبقي: ' : 'Remaining: '}
+                                        {Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0))}
+                                    </span>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -663,53 +1037,341 @@ export default function CourseManagement() {
                 )}
             </div>
 
-            {/* Lectures Dialog */}
-            <Dialog open={isLecturesOpen} onOpenChange={setIsLecturesOpen}>
-                <DialogContent className="max-w-2xl">
+            {/* Course Details Dialog */}
+            <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle>{selectedCourse?.name} - {isRTL ? 'المحاضرات' : 'Lectures'}</DialogTitle>
+                        <DialogTitle className="text-2xl">{selectedCourse?.name}</DialogTitle>
+                        <DialogDescription>
+                            {isRTL ? 'تفاصيل الكورس والحضور' : 'Course details and attendance'}
+
+
+                        </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {lectures.map(lecture => (
-                            <div
-                                key={lecture.id}
-                                className={`flex items-center justify-between p-3 rounded-lg border ${lecture.status === 'cancelled' ? 'bg-destructive/10 border-destructive/30' :
-                                    lecture.status === 'completed' ? 'bg-green-500/10 border-green-500/30' :
-                                        'bg-muted/50'
-                                    }`}
-                            >
-                                <div className="flex items-center gap-3">
-                                    <span className="font-medium">{isRTL ? 'محاضرة' : 'Lecture'} {lecture.lecture_number}</span>
-                                    <Badge variant={
-                                        lecture.status === 'cancelled' ? 'destructive' :
-                                            lecture.status === 'completed' ? 'default' : 'secondary'
-                                    }>
-                                        {lecture.status === 'completed' ? (isRTL ? 'تمت' : 'Completed') :
-                                            lecture.status === 'cancelled' ? (isRTL ? 'ملغية' : 'Cancelled') :
-                                                (isRTL ? 'مجدولة' : 'Scheduled')}
-                                    </Badge>
-                                </div>
-                                <div className="flex gap-1">
-                                    <Button
-                                        size="sm"
-                                        variant={lecture.status === 'completed' ? 'default' : 'outline'}
-                                        onClick={() => updateLectureStatus(lecture.id, 'completed')}
-                                    >
-                                        <Check className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                        size="sm"
-                                        variant={lecture.status === 'cancelled' ? 'destructive' : 'outline'}
-                                        onClick={() => updateLectureStatus(lecture.id, 'cancelled')}
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </Button>
-                                </div>
+
+                    <Tabs defaultValue="beneficiaries" className="w-full">
+                        <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="beneficiaries">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
+                            <TabsTrigger value="lectures">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
+                            <TabsTrigger value="sheet">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                        </TabsList>
+
+                        {/* Beneficiaries Tab */}
+                        <TabsContent value="beneficiaries" className="space-y-4 py-4">
+                            {/* Add Beneficiary Form */}
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base">{isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary'}</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            placeholder={isRTL ? 'الاسم' : 'Name'}
+                                            value={newBeneficiary.name}
+                                            onChange={e => setNewBeneficiary({ ...newBeneficiary, name: e.target.value })}
+                                            className="flex-1"
+                                        />
+                                        <Input
+                                            placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
+                                            value={newBeneficiary.phone}
+                                            onChange={e => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
+                                            className="flex-1"
+                                        />
+                                        <Button onClick={addBeneficiary}>
+                                            <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                            {isRTL ? 'إضافة' : 'Add'}
+                                        </Button>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Beneficiaries List */}
+                            <div className="border rounded-lg">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                            <TableHead>{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                            <TableHead className="w-24"></TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {beneficiaries.map(b => (
+                                            <TableRow key={b.id}>
+                                                <TableCell>
+                                                    {editingBeneficiary?.id === b.id ? (
+                                                        <Input
+                                                            value={editingBeneficiary.name}
+                                                            onChange={e => setEditingBeneficiary({ ...editingBeneficiary, name: e.target.value })}
+                                                            className="h-8"
+                                                        />
+                                                    ) : (
+                                                        b.name
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {editingBeneficiary?.id === b.id ? (
+                                                        <Input
+                                                            value={editingBeneficiary.phone}
+                                                            onChange={e => setEditingBeneficiary({ ...editingBeneficiary, phone: e.target.value })}
+                                                            className="h-8"
+                                                        />
+                                                    ) : (
+                                                        b.phone
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {editingBeneficiary?.id === b.id ? (
+                                                        <div className="flex gap-1">
+                                                            <Button size="sm" variant="ghost" onClick={updateBeneficiary}>
+                                                                <Check className="w-4 h-4 text-green-600" />
+                                                            </Button>
+                                                            <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(null)}>
+                                                                <X className="w-4 h-4 text-red-600" />
+                                                            </Button>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex gap-1">
+                                                            <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(b)}>
+                                                                <Pencil className="w-4 h-4" />
+                                                            </Button>
+                                                            <Button size="sm" variant="ghost" onClick={() => deleteBeneficiary(b.id)}>
+                                                                <Trash2 className="w-4 h-4 text-destructive" />
+                                                            </Button>
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {beneficiaries.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                                                    {isRTL ? 'لا يوجد مستفيدين بعد' : 'No beneficiaries yet'}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
                             </div>
-                        ))}
-                    </div>
+                            <div className="text-sm text-muted-foreground">
+                                {isRTL ? `إجمالي المستفيدين: ${beneficiaries.length}` : `Total beneficiaries: ${beneficiaries.length}`}
+                            </div>
+                        </TabsContent>
+
+                        {/* Lectures Tab */}
+                        <TabsContent value="lectures" className="space-y-4 py-4">
+                            {lectures.map(lecture => (
+                                <Card key={lecture.id}>
+                                    <CardHeader className="pb-2">
+                                        <div className="flex justify-between items-center">
+                                            <CardTitle className="text-base">
+                                                {isRTL ? 'محاضرة' : 'Lecture'} {lecture.lecture_number}
+                                            </CardTitle>
+                                            <Badge variant={
+                                                lecture.status === 'cancelled' ? 'destructive' :
+                                                    lecture.status === 'completed' ? 'default' : 'secondary'
+                                            }>
+                                                {lecture.status === 'completed' ? (isRTL ? 'تمت' : 'Completed') :
+                                                    lecture.status === 'cancelled' ? (isRTL ? 'ملغية' : 'Cancelled') :
+                                                        (isRTL ? 'مجدولة' : 'Scheduled')}
+                                            </Badge>
+                                        </div>
+                                        <CardDescription>
+                                            {lecture.date}
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="flex justify-between items-center mb-3">
+                                            <div className="text-sm text-muted-foreground">
+                                                {attendanceData[lecture.id]?.length || 0} / {beneficiaries.length} {isRTL ? 'حضور' : 'attendees'}
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    size="sm"
+                                                    variant={lecture.status === 'completed' ? 'outline' : 'secondary'}
+                                                    onClick={() => updateLectureStatus(lecture.id, 'completed')}
+                                                >
+                                                    <Check className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                    {isRTL ? 'إتمام' : 'Complete'}
+                                                </Button>
+                                                <Button
+                                                    size="sm"
+                                                    variant={lecture.status === 'cancelled' ? 'outline' : 'destructive'}
+                                                    onClick={() => updateLectureStatus(lecture.id, 'cancelled')}
+                                                >
+                                                    <X className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                    {isRTL ? 'إلغاء' : 'Cancel'}
+                                                </Button>
+                                            </div>
+                                        </div>
+
+                                        {/* Quick Attendance Checkboxes */}
+                                        {isLectureOpen(lecture.date) && lecture.status !== 'cancelled' && beneficiaries.length > 0 && (
+                                            <div className="border rounded-lg p-3 bg-muted/20">
+                                                <p className="text-sm font-medium mb-2">{isRTL ? 'تسجيل الحضور:' : 'Mark Attendance:'}</p>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                    {beneficiaries.map(b => {
+                                                        const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === b.phone);
+                                                        return (
+                                                            <label
+                                                                key={b.id}
+                                                                className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${isPresent ? 'bg-green-100 dark:bg-green-900/30' : 'hover:bg-accent'}`}
+                                                            >
+                                                                <Checkbox
+                                                                    checked={isPresent}
+                                                                    onCheckedChange={() => toggleBeneficiaryAttendance(lecture.id, b)}
+                                                                />
+                                                                <span className="text-sm truncate">{b.name}</span>
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {beneficiaries.length === 0 && isLectureOpen(lecture.date) && lecture.status !== 'cancelled' && (
+                                            <p className="text-sm text-muted-foreground text-center py-3 border rounded-lg border-dashed">
+                                                {isRTL ? 'أضف مستفيدين أولاً من تبويب "المستفيدين"' : 'Add beneficiaries first from the "Beneficiaries" tab'}
+                                            </p>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            ))}</TabsContent>
+
+                        <TabsContent value="sheet" className="py-4">
+                            <div className="border rounded-lg overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                            <TableHead>{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                            {lectures.map(l => (
+                                                <TableHead key={l.id} className="text-center w-12">
+                                                    L{l.lecture_number}
+                                                </TableHead>
+                                            ))}
+                                            <TableHead className="text-center">{isRTL ? 'حضر' : 'Attended'}</TableHead>
+                                            <TableHead className="text-center">{isRTL ? 'غاب' : 'Missed'}</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {beneficiaries.map(beneficiary => {
+                                            const studentAttendance = lectures.map(l =>
+                                                attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
+                                            );
+                                            const attendedCount = studentAttendance.filter(a => a && a.status === 'present').length;
+                                            const completedLectures = lectures.filter(l => l.status === 'completed');
+                                            const missedCount = completedLectures.filter(l =>
+                                                !attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
+                                            ).length;
+
+                                            return (
+                                                <TableRow key={beneficiary.id}>
+                                                    <TableCell className="font-medium">{beneficiary.name}</TableCell>
+                                                    <TableCell>{beneficiary.phone}</TableCell>
+                                                    {lectures.map((lecture, idx) => {
+                                                        const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone);
+                                                        const isCancelled = lecture.status === 'cancelled';
+                                                        const isCompleted = lecture.status === 'completed';
+                                                        const isOpen = isLectureOpen(lecture.date);
+                                                        const canMarkAttendance = isCompleted || isOpen;
+                                                        return (
+                                                            <TableCell key={idx} className="text-center">
+                                                                {isCancelled ? (
+                                                                    <span className="text-muted-foreground text-xs">-</span>
+                                                                ) : canMarkAttendance ? (
+                                                                    <Checkbox
+                                                                        checked={isPresent}
+                                                                        onCheckedChange={() => toggleBeneficiaryAttendance(lecture.id, beneficiary)}
+                                                                        className="mx-auto"
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-muted-foreground text-xs">-</span>
+                                                                )}
+                                                            </TableCell>
+                                                        );
+                                                    })}
+                                                    <TableCell className="text-center font-bold text-green-600">{attendedCount}</TableCell>
+                                                    <TableCell className="text-center font-bold text-red-600">{missedCount}</TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                        {beneficiaries.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={lectures.length + 4} className="text-center py-8 text-muted-foreground">
+                                                    {isRTL ? 'لا يوجد مستفيدين - أضف مستفيدين من تبويب المستفيدين أولاً' : 'No beneficiaries - Add beneficiaries from the Beneficiaries tab first'}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </TabsContent>
+                    </Tabs>
                 </DialogContent>
             </Dialog>
-        </div>
+        </div >
+    );
+}
+
+function AttendanceRegisterDialog({ lectureId, onRegister, isRTL, attendees }: { lectureId: string, onRegister: (id: string, name: string, phone: string) => Promise<boolean>, isRTL: boolean, attendees: Attendance[] }) {
+    const [open, setOpen] = useState(false);
+    const [name, setName] = useState('');
+    const [phone, setPhone] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async () => {
+        if (!name || !phone) {
+            toast.error(isRTL ? 'يرجى إدخال الاسم والرقم' : 'Enter name and phone');
+            return;
+        }
+        setLoading(true);
+        const success = await onRegister(lectureId, name, phone);
+        setLoading(false);
+        if (success) {
+            setOpen(false);
+            setName('');
+            setPhone('');
+        }
+    };
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button size="sm">
+                    <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                    {isRTL ? 'تسجيل حضور' : 'Register'}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="end">
+                <div className="space-y-4">
+                    <h4 className="font-medium leading-none">{isRTL ? 'تسجيل حضور جديد' : 'Register New Attendance'}</h4>
+                    <div className="space-y-2">
+                        <Label>{isRTL ? 'الاسم' : 'Name'}</Label>
+                        <Input value={name} onChange={e => setName(e.target.value)} placeholder={isRTL ? 'اسم الطالب' : 'Student Name'} />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>{isRTL ? 'الرقم' : 'Phone'}</Label>
+                        <Input value={phone} onChange={e => setPhone(e.target.value)} placeholder="01xxxxxxxxx" />
+                    </div>
+
+                    {attendees.length > 0 && (
+                        <div className="max-h-32 overflow-y-auto border p-2 rounded text-xs bg-muted/20">
+                            <p className="text-muted-foreground font-semibold mb-1">{isRTL ? 'المسجلين (' + attendees.length + ')' : 'Registered (' + attendees.length + ')'}</p>
+                            {attendees.map(a => (
+                                <div key={a.id} className="flex justify-between py-1 border-b last:border-0 border-dashed">
+                                    <span>{a.student_name}</span>
+                                    <span className="text-muted-foreground">{a.student_phone}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <Button onClick={handleSubmit} disabled={loading} className="w-full">
+                        {loading ? '...' : (isRTL ? 'تسجيل' : 'Register')}
+                    </Button>
+                </div>
+            </PopoverContent>
+        </Popover>
     );
 }

@@ -11,7 +11,8 @@ import {
   ChevronDown,
   Languages,
   Building2,
-  Bus
+  Bus,
+  Calendar
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -74,10 +75,7 @@ export function AppSidebar() {
     { title: t('leader.members'), url: '/leader/members', icon: Users },
     { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/leader/profile', icon: User },
-    { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
-    { title: t('nav.caravans'), url: '/caravans', icon: Bus },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
-    { title: isRTL ? 'إدارة الأنشطة' : 'Activities', url: '/supervisor/activities', icon: Settings },
   ];
 
   const adminNavItems = [
@@ -87,6 +85,9 @@ export function AppSidebar() {
     { title: t('nav.activities'), url: '/admin/activities', icon: Activity },
     { title: t('nav.badges'), url: '/admin/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
+    { title: t('nav.caravans'), url: '/caravans', icon: Bus },
+    { title: t('nav.courses'), url: '/courses', icon: Activity },
+    { title: t('nav.events'), url: '/caravans', icon: Calendar },
   ];
 
   const hrNavItems = [
@@ -120,7 +121,7 @@ export function AppSidebar() {
         );
       case 'head_events':
         return leaderNavItems.filter(item =>
-          !['/caravans', '/courses', '/supervisor/activities', '/leaderboard', '/leader/committee', '/leader/members'].includes(item.url)
+          !['/courses', '/supervisor/activities', '/leaderboard', '/leader/committee', '/leader/members'].includes(item.url)
         );
       case 'head_production':
         // Production head acts like a committee leader but without Caravan access from leaderNavItems if it was there

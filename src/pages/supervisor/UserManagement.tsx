@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Search, User } from 'lucide-react';
+import { Search, User, Pencil, Save, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
     Table,
     TableBody,
@@ -23,6 +25,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogFooter,
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
@@ -37,12 +40,13 @@ interface Committee {
     name_ar: string;
 }
 
-type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr' | 'head_production' | 'head_fourth_year' | 'head_caravans';
+type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr' | 'head_production' | 'head_fourth_year' | 'head_caravans' | 'head_events';
 
 interface UserWithDetails {
     id: string;
     email: string;
     full_name: string | null;
+    full_name_ar: string | null;
     avatar_url: string | null;
     role: AppRole;
     committee_id: string | null;
@@ -51,6 +55,8 @@ interface UserWithDetails {
     level: string;
     join_date: string;
     phone?: string;
+    attended_mini_camp?: boolean;
+    attended_camp?: boolean;
 }
 
 export default function SupervisorUserManagement() {
@@ -62,6 +68,20 @@ export default function SupervisorUserManagement() {
     const [roleFilter, setRoleFilter] = useState<string>('all');
     const [committeeFilter, setCommitteeFilter] = useState<string>('all');
     const [viewProfileUser, setViewProfileUser] = useState<UserWithDetails | null>(null);
+
+    // Edit State
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [selectedUser, setSelectedUser] = useState<UserWithDetails | null>(null);
+    const [formName, setFormName] = useState('');
+    const [formNameAr, setFormNameAr] = useState('');
+    const [formEmail, setFormEmail] = useState('');
+    const [formPhone, setFormPhone] = useState('');
+    const [formRole, setFormRole] = useState<string>('volunteer');
+    const [formCommitteeId, setFormCommitteeId] = useState<string>('');
+    const [formLevel, setFormLevel] = useState<string>('under_follow_up');
+    const [formAttendedMiniCamp, setFormAttendedMiniCamp] = useState(false);
+    const [formAttendedCamp, setFormAttendedCamp] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const fetchData = async () => {
         setIsLoading(true);
@@ -91,14 +111,17 @@ export default function SupervisorUserManagement() {
                 id: profile.id,
                 email: profile.email,
                 full_name: profile.full_name,
+                full_name_ar: profile.full_name_ar,
                 avatar_url: profile.avatar_url,
                 role: (rolesMap.get(profile.id) as any) || 'volunteer',
                 committee_id: profile.committee_id,
                 committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
                 total_points: profile.total_points || 0,
                 level: profile.level || 'under_follow_up',
-                join_date: profile.join_date,
+                join_date: profile.created_at,
                 phone: profile.phone,
+                attended_mini_camp: profile.attended_mini_camp || false,
+                attended_camp: profile.attended_camp || false
             }));
 
             setUsers(usersWithDetails);
@@ -113,6 +136,64 @@ export default function SupervisorUserManagement() {
     useEffect(() => {
         fetchData();
     }, [language]);
+
+    const handleEditUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedUser) return;
+
+        setIsSubmitting(true);
+        try {
+            const updates: any = {
+                full_name: formName,
+                full_name_ar: formNameAr,
+                phone: formPhone,
+                committee_id: formCommitteeId || null,
+                level: formLevel,
+                updated_at: new Date().toISOString(),
+            };
+
+            // Only update attendance if applicable
+            if (formLevel === 'under_follow_up') {
+                updates.attended_mini_camp = formAttendedMiniCamp;
+            } else if (formLevel === 'project_responsible') {
+                updates.attended_camp = formAttendedCamp;
+            }
+
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .update(updates)
+                .eq('id', selectedUser.id);
+
+            if (profileError) throw profileError;
+
+            // Note: Supervisors cannot change user ROLES (app_role), only admin/HR generally.
+            // Keeping role update disabled or restricted for now as per usual hierarchy.
+            // Assuming supervisors just edit profile details (committee, level, name, phone).
+
+            toast.success(language === 'ar' ? 'تم تحديث البيانات بنجاح' : 'User updated successfully');
+            setIsEditDialogOpen(false);
+            fetchData();
+        } catch (error: any) {
+            console.error('Error updating user:', error);
+            toast.error(error.message);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const openEditDialog = (user: UserWithDetails) => {
+        setSelectedUser(user);
+        setFormName(user.full_name || '');
+        setFormNameAr(user.full_name_ar || '');
+        setFormEmail(user.email);
+        setFormPhone(user.phone || '');
+        setFormRole(user.role);
+        setFormCommitteeId(user.committee_id || '');
+        setFormLevel(user.level || 'under_follow_up');
+        setFormAttendedMiniCamp(user.attended_mini_camp || false);
+        setFormAttendedCamp(user.attended_camp || false);
+        setIsEditDialogOpen(true);
+    };
 
     const filteredUsers = users.filter(user => {
         const matchesSearch =
@@ -133,6 +214,8 @@ export default function SupervisorUserManagement() {
                 return 'bg-success/10 text-success';
             case 'head_production':
             case 'head_fourth_year':
+            case 'head_events':
+            case 'head_caravans':
                 return 'bg-blue-100 text-blue-700';
             default:
                 return 'bg-muted text-muted-foreground';
@@ -146,6 +229,8 @@ export default function SupervisorUserManagement() {
             case 'committee_leader': return t('common.committeeLeader');
             case 'head_production': return t('common.head_production');
             case 'head_fourth_year': return t('common.head_fourth_year');
+            case 'head_events': return t('common.head_events');
+            case 'head_caravans': return t('common.head_caravans');
             default: return t('common.volunteer');
         }
     };
@@ -192,6 +277,7 @@ export default function SupervisorUserManagement() {
                                 <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
                                 <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
                                 <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
+                                <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
                                 <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
                                 <SelectItem value="admin">{t('common.admin')}</SelectItem>
                             </SelectContent>
@@ -243,9 +329,14 @@ export default function SupervisorUserManagement() {
                                                         <p className="text-sm text-muted-foreground">{user.email}</p>
                                                     </div>
                                                 </div>
-                                                <Button variant="ghost" size="icon" onClick={() => setViewProfileUser(user)} className="-mr-2">
-                                                    <User className="h-4 w-4" />
-                                                </Button>
+                                                <div className="flex gap-1 -mr-2">
+                                                    <Button variant="ghost" size="icon" onClick={() => openEditDialog(user)}>
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="icon" onClick={() => setViewProfileUser(user)}>
+                                                        <User className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
                                             </div>
 
                                             <div className="mt-4 grid gap-2 text-sm">
@@ -288,7 +379,7 @@ export default function SupervisorUserManagement() {
                                             <TableHead className="text-start">{t('users.level')}</TableHead>
                                             <TableHead className="text-start">{t('common.points')}</TableHead>
                                             <TableHead className="text-start">{t('users.joined')}</TableHead>
-                                            <TableHead className="w-[50px]"></TableHead>
+                                            <TableHead className="w-[100px]"></TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -328,9 +419,14 @@ export default function SupervisorUserManagement() {
                                                     </span>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Button variant="ghost" size="icon" onClick={() => setViewProfileUser(user)}>
-                                                        <User className="h-4 w-4" />
-                                                    </Button>
+                                                    <div className="flex items-center justify-end gap-1">
+                                                        <Button variant="ghost" size="icon" onClick={() => openEditDialog(user)}>
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button variant="ghost" size="icon" onClick={() => setViewProfileUser(user)}>
+                                                            <User className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -341,6 +437,153 @@ export default function SupervisorUserManagement() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* Edit Dialog */}
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{t('common.edit')}</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleEditUser}>
+                        <div className="grid gap-4 py-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="edit-name">{t('users.fullName')}</Label>
+                                    <Input
+                                        id="edit-name"
+                                        value={formName}
+                                        onChange={(e) => setFormName(e.target.value)}
+                                        placeholder={t('users.fullName')}
+                                        required
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="edit-name-ar">{language === 'ar' ? 'الاسم بالعربي' : 'Full Name (Arabic)'}</Label>
+                                    <Input
+                                        id="edit-name-ar"
+                                        value={formNameAr}
+                                        onChange={(e) => setFormNameAr(e.target.value)}
+                                        placeholder={language === 'ar' ? 'عمر محمد' : 'Arabic Name'}
+                                        dir="rtl"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="edit-email">{t('auth.email')} *</Label>
+                                    <Input
+                                        id="edit-email"
+                                        type="email"
+                                        value={formEmail}
+                                        onChange={(e) => setFormEmail(e.target.value)}
+                                        placeholder={t('auth.email')}
+                                        required
+                                        disabled
+                                        className="opacity-60"
+                                    />
+                                    <p className="text-xs text-muted-foreground">{language === 'ar' ? 'لا يمكن تعديل البريد الإلكتروني' : 'Email cannot be changed'}</p>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="edit-phone">{t('users.phoneNumber')}</Label>
+                                    <Input
+                                        id="edit-phone"
+                                        type="tel"
+                                        value={formPhone}
+                                        onChange={(e) => setFormPhone(e.target.value)}
+                                        placeholder="+20 123 456 7890"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {/* Role Selection Disabled for Supervisors usually, but showing as disabled */}
+                                <div className="grid gap-2">
+                                    <Label htmlFor="edit-role">{t('users.role')}</Label>
+                                    <Select value={formRole} onValueChange={setFormRole} disabled>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={t('users.role')} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
+                                            <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
+                                            <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">{language === 'ar' ? 'المشرف لا يملك صلاحية تغيير الأدوار' : 'Supervisor cannot change roles'}</p>
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="edit-level">{t('users.level')}</Label>
+                                    <Select value={formLevel} onValueChange={setFormLevel}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={t('users.level')} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="under_follow_up">{t('level.under_follow_up')}</SelectItem>
+                                            <SelectItem value="project_responsible">{t('level.project_responsible')}</SelectItem>
+                                            <SelectItem value="responsible">{t('level.responsible')}</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-committee">{t('users.committee')}</Label>
+                                <Select value={formCommitteeId || 'none'} onValueChange={(val) => setFormCommitteeId(val === 'none' ? '' : val)}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={t('users.committee')} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">{language === 'ar' ? 'بدون لجنة' : 'No Committee'}</SelectItem>
+                                        {committees.map(committee => (
+                                            <SelectItem key={committee.id} value={committee.id}>
+                                                {language === 'ar' ? committee.name_ar : committee.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {(formLevel === 'under_follow_up' || formLevel === 'project_responsible') && (
+                                <div className="border-t pt-4 mt-4 pb-4">
+                                    <h4 className="text-sm font-medium mb-4">{t('users.attendance')}</h4>
+                                    <div className="grid gap-4">
+                                        {formLevel === 'under_follow_up' && (
+                                            <div className="flex items-center justify-between rounded-lg border p-3">
+                                                <div className="space-y-0.5">
+                                                    <Label htmlFor="mini-camp-attendance">{language === 'ar' ? 'حضور الميني كامب' : 'Mini Camp Attendance'}</Label>
+                                                </div>
+                                                <Switch
+                                                    id="mini-camp-attendance"
+                                                    checked={formAttendedMiniCamp}
+                                                    onCheckedChange={setFormAttendedMiniCamp}
+                                                />
+                                            </div>
+                                        )}
+                                        {formLevel === 'project_responsible' && (
+                                            <div className="flex items-center justify-between rounded-lg border p-3">
+                                                <div className="space-y-0.5">
+                                                    <Label htmlFor="camp-attendance">{language === 'ar' ? 'حضور الكامب' : 'Camp Attendance'}</Label>
+                                                </div>
+                                                <Switch
+                                                    id="camp-attendance"
+                                                    checked={formAttendedCamp}
+                                                    onCheckedChange={setFormAttendedCamp}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                                {t('common.cancel')}
+                            </Button>
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...') : t('common.save')}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* View Profile Dialog */}
             <Dialog open={!!viewProfileUser} onOpenChange={(open) => !open && setViewProfileUser(null)}>

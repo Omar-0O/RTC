@@ -61,7 +61,44 @@ export function LevelBadge({ level, size = 'md', showLabel = true, className }: 
 }
 
 export function getLevelProgress(points: number): { level: VolunteerLevel; progress: number; nextThreshold: number } {
-  // Levels are now manually assigned by HR, so points don't automatically determine level.
-  // Returning dummy data regarding level.
-  return { level: 'under_follow_up', progress: 0, nextThreshold: 0 };
+  const thresholds = [
+    { level: 'bronze', max: 100 },
+    { level: 'silver', max: 300 },
+    { level: 'gold', max: 600 },
+    { level: 'platinum', max: 1000 },
+    { level: 'diamond', max: Infinity },
+  ];
+
+  let currentLevel = thresholds[0];
+  let previousMax = 0;
+
+  for (const threshold of thresholds) {
+    if (points < threshold.max) {
+      currentLevel = threshold;
+      break;
+    }
+    previousMax = threshold.max;
+    if (threshold.max === Infinity) {
+      currentLevel = threshold;
+    }
+  }
+
+  const nextThreshold = currentLevel.max === Infinity ? points : currentLevel.max;
+  const range = nextThreshold - previousMax;
+  const progressPoints = points - previousMax;
+
+  // Calculate percentage, capped at 100
+  let progress = 0;
+  if (range > 0) {
+    progress = Math.min(100, Math.max(0, (progressPoints / range) * 100));
+  } else if (currentLevel.max === Infinity) {
+    // For the highest level, maybe just show 100% or some other logic
+    progress = 100;
+  }
+
+  return {
+    level: currentLevel.level as VolunteerLevel,
+    progress,
+    nextThreshold
+  };
 }

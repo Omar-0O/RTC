@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -96,7 +97,10 @@ const compressImage = async (file: File): Promise<File> => {
   });
 };
 
-export default function Profile({ userId }: ProfileProps) {
+export default function Profile({ userId: propUserId }: ProfileProps) {
+  const { id: paramUserId } = useParams();
+  const userId = propUserId || paramUserId;
+
   const { user, profile: authProfile, refreshProfile, primaryRole } = useAuth();
   const { t, isRTL } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);

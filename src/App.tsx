@@ -24,6 +24,7 @@ import SupervisorCommitteeManagement from "./pages/supervisor/CommitteeManagemen
 import SupervisorBadgeManagement from "./pages/supervisor/BadgeManagement";
 import SupervisorReports from "./pages/supervisor/Reports";
 import CommitteeLeaderDashboard from "./pages/leader/Dashboard";
+import Members from "./pages/leader/Members";
 import Caravans from "./pages/caravans/Caravans";
 import CaravanManagement from "./pages/caravans/CaravanManagement";
 import CourseManagement from "./pages/courses/CourseManagement";
@@ -107,7 +108,8 @@ function AppRoutes() {
         {/* Committee Leader Routes */}
         <Route path="/leader" element={<VolunteerDashboard />} />
         <Route path="/leader/committee" element={<CommitteeLeaderDashboard />} />
-        <Route path="/leader/members" element={<CommitteeLeaderDashboard />} />
+        <Route path="/leader/members" element={<Members />} />
+        <Route path="/leader/members/:id" element={<Profile />} />
         <Route path="/leader/activity" element={<LogActivity />} />
         <Route path="/leader/profile" element={<Profile />} />
 
