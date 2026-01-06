@@ -719,25 +719,26 @@ export default function CourseManagement() {
                     <h1 className="text-3xl font-bold">{isRTL ? 'إدارة الكورسات' : 'Course Management'}</h1>
                     <p className="text-muted-foreground">{isRTL ? 'إدارة الكورسات والمحاضرات' : 'Manage courses and lectures'}</p>
                 </div>
-                <div className="flex gap-2">
-                    <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <div className="flex flex-col sm:items-end gap-3 w-full sm:w-auto">
+                    <label className="flex items-center gap-2 cursor-pointer text-sm px-1">
                         <Checkbox
                             checked={showPastCourses}
                             onCheckedChange={(checked) => setShowPastCourses(!!checked)}
                         />
                         <span className="text-muted-foreground">{isRTL ? 'عرض الكورسات المنتهية' : 'Show ended courses'}</span>
                     </label>
-                    <Button variant="outline" onClick={exportAllCourses}>
-                        <FileSpreadsheet className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                        {isRTL ? 'تصدير الكل' : 'Export All'}
-                    </Button>
-                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                        <DialogTrigger asChild>
-                            <Button>
-                                <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                {isRTL ? 'إضافة كورس' : 'Add Course'}
-                            </Button>
-                        </DialogTrigger>
+                    <div className="flex gap-2 w-full sm:w-auto">
+                        <Button variant="outline" onClick={exportAllCourses} className="flex-1 sm:flex-none">
+                            <FileSpreadsheet className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                            {isRTL ? 'تصدير الكل' : 'Export All'}
+                        </Button>
+                        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                            <DialogTrigger asChild>
+                                <Button className="flex-1 sm:flex-none">
+                                    <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                    {isRTL ? 'إضافة كورس' : 'Add Course'}
+                                </Button>
+                            </DialogTrigger>
                         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle className="text-2xl font-bold">{isRTL ? 'إضافة كورس جديد' : 'Add New Course'}</DialogTitle>
@@ -958,12 +959,13 @@ export default function CourseManagement() {
                                 </div>
                             </div>
 
-                            <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-12 px-6">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
-                                <Button onClick={handleCreateCourse} className="h-12 px-6">{isRTL ? 'إنشاء الكورس' : 'Create Course'}</Button>
+                            <DialogFooter className="flex-col sm:flex-row gap-2">
+                                <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
+                                <Button onClick={handleCreateCourse} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'إنشاء الكورس' : 'Create Course'}</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
+                    </div>
                 </div>
             </div>
 
@@ -1064,20 +1066,20 @@ export default function CourseManagement() {
                                     <CardTitle className="text-base">{isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary'}</CardTitle>
                                 </CardHeader>
                                 <CardContent>
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-col sm:flex-row gap-2">
                                         <Input
                                             placeholder={isRTL ? 'الاسم' : 'Name'}
                                             value={newBeneficiary.name}
                                             onChange={e => setNewBeneficiary({ ...newBeneficiary, name: e.target.value })}
-                                            className="flex-1"
+                                            className="w-full sm:flex-1"
                                         />
                                         <Input
                                             placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
                                             value={newBeneficiary.phone}
                                             onChange={e => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
-                                            className="flex-1"
+                                            className="w-full sm:flex-1"
                                         />
-                                        <Button onClick={addBeneficiary}>
+                                        <Button onClick={addBeneficiary} className="w-full sm:w-auto">
                                             <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                             {isRTL ? 'إضافة' : 'Add'}
                                         </Button>
