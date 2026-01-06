@@ -98,6 +98,7 @@ export default function CommitteeManagement() {
 
           return {
             ...committee,
+            committee_type: committee.committee_type as 'production' | 'fourth_year',
             volunteerCount,
             totalPoints,
           };
@@ -428,6 +429,9 @@ export default function CommitteeManagement() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('common.edit')}</DialogTitle>
+            <DialogDescription>
+              {t('committees.editDescription') || 'Update committee details'}
+            </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEditCommittee}>
             <div className="grid gap-4 py-4">

@@ -278,13 +278,19 @@ export default function CourseManagement() {
         }
 
         try {
+            // Prepare data - convert empty strings to null for date fields
+            const courseData = {
+                ...formData,
+                interview_date: formData.interview_date || null,
+                start_date: formData.start_date || null,
+                end_date: formData.end_date || null,
+                created_by: user?.id
+            };
+
             // Create course
             const { data: course, error: courseError } = await supabase
                 .from('courses')
-                .insert({
-                    ...formData,
-                    created_by: user?.id
-                })
+                .insert(courseData)
                 .select()
                 .single();
 
@@ -739,232 +745,232 @@ export default function CourseManagement() {
                                     {isRTL ? 'إضافة كورس' : 'Add Course'}
                                 </Button>
                             </DialogTrigger>
-                        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                            <DialogHeader>
-                                <DialogTitle className="text-2xl font-bold">{isRTL ? 'إضافة كورس جديد' : 'Add New Course'}</DialogTitle>
-                                <DialogDescription>{isRTL ? 'أضف تفاصيل الكورس' : 'Add course details'}</DialogDescription>
-                            </DialogHeader>
+                            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                                <DialogHeader>
+                                    <DialogTitle className="text-2xl font-bold">{isRTL ? 'إضافة كورس جديد' : 'Add New Course'}</DialogTitle>
+                                    <DialogDescription>{isRTL ? 'أضف تفاصيل الكورس' : 'Add course details'}</DialogDescription>
+                                </DialogHeader>
 
-                            <div className="grid gap-6 py-4">
-                                {/* Course Name & Room */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{isRTL ? 'اسم الكورس *' : 'Course Name *'}</Label>
-                                        <Input
-                                            value={formData.name}
-                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                            className="h-12"
-                                            placeholder={isRTL ? 'مثال: كورس الإسعافات الأولية' : 'e.g., First Aid Course'}
-                                        />
-                                    </div>
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{isRTL ? 'القاعة *' : 'Room *'}</Label>
-                                        <Select value={formData.room} onValueChange={val => setFormData({ ...formData, room: val })}>
-                                            <SelectTrigger className="h-12">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {ROOMS.map(room => (
-                                                    <SelectItem key={room.value} value={room.value} className="py-3">
-                                                        {room.label[language as 'en' | 'ar']}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-
-                                {/* Trainer Info */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{isRTL ? 'اسم المدرب *' : 'Trainer Name *'}</Label>
-                                        <Input
-                                            value={formData.trainer_name}
-                                            onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
-                                            className="h-12"
-                                        />
-                                    </div>
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{isRTL ? 'رقم المدرب' : 'Trainer Phone'}</Label>
-                                        <Input
-                                            value={formData.trainer_phone}
-                                            onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
-                                            className="h-12"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Schedule */}
-                                <div className="space-y-3">
-                                    <Label className="text-base">{isRTL ? 'أيام الكورس *' : 'Course Days *'}</Label>
-                                    <div className="flex flex-wrap gap-3">
-                                        {DAYS.map(day => {
-                                            const isSelected = formData.schedule_days.includes(day.value);
-                                            return (
-                                                <div
-                                                    key={day.value}
-                                                    onClick={() => toggleDay(day.value)}
-                                                    className={`
-                                                        flex items-center gap-2 px-4 py-3 border rounded-lg cursor-pointer transition-all
-                                                        ${isSelected
-                                                            ? 'bg-primary text-primary-foreground border-primary'
-                                                            : 'hover:bg-accent hover:border-accent-foreground/50 bg-background'
-                                                        }
-                                                    `}
-                                                >
-                                                    <span className="font-medium">{day.label[language as 'en' | 'ar']}</span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{isRTL ? 'وقت البداية' : 'Start Time'}</Label>
-                                        <Input
-                                            type="time"
-                                            value={formData.schedule_time}
-                                            onChange={e => setFormData({ ...formData, schedule_time: e.target.value })}
-                                            className="h-12"
-                                        />
-                                    </div>
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{isRTL ? 'وقت الانتهاء' : 'End Time'}</Label>
-                                        <Input
-                                            type="time"
-                                            value={formData.schedule_end_time}
-                                            onChange={e => setFormData({ ...formData, schedule_end_time: e.target.value })}
-                                            className="h-12"
-                                        />
-                                    </div>
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{isRTL ? 'عدد المحاضرات' : 'Total Lectures'}</Label>
-                                        <Input
-                                            type="number"
-                                            min={1}
-                                            value={formData.total_lectures}
-                                            onChange={e => setFormData({ ...formData, total_lectures: parseInt(e.target.value) || 1 })}
-                                            className="h-12"
-                                        />
-                                    </div>
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{isRTL ? 'تاريخ البداية' : 'Start Date'}</Label>
-                                        <Input
-                                            type="date"
-                                            value={formData.start_date}
-                                            onChange={e => setFormData({ ...formData, start_date: e.target.value })}
-                                            className="h-12"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* End Date (Read Only) */}
-                                <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-dashed">
-                                    <div className="flex items-center justify-between">
-                                        <Label className="text-base text-muted-foreground">{isRTL ? 'تاريخ النهاية المتوقع' : 'Expected End Date'}</Label>
-                                        <Badge variant="outline" className="text-base px-3 py-1">
-                                            {formData.end_date || '-'}
-                                        </Badge>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">
-                                        {isRTL
-                                            ? 'يتم حساب تاريخ النهاية تلقائياً بناءً على تاريخ البداية وعدد المحاضرات والأيام المختارة.'
-                                            : 'End date is calculated automatically based on start date, lectures count, and selected days.'}
-                                    </p>
-                                </div>
-
-                                {/* Interview */}
-                                <div className="flex items-center gap-4 p-4 border rounded-lg bg-card">
-                                    <label className="flex items-center gap-3 cursor-pointer flex-1">
-                                        <Checkbox
-                                            checked={formData.has_interview}
-                                            onCheckedChange={(checked) => setFormData({ ...formData, has_interview: !!checked })}
-                                            className="h-5 w-5"
-                                        />
-                                        <span className="text-base font-medium">{isRTL ? 'يوجد انترفيو لهذا الكورس' : 'This course has an interview'}</span>
-                                    </label>
-                                    {formData.has_interview && (
-                                        <div className="w-1/3 min-w-[200px]">
+                                <div className="grid gap-6 py-4">
+                                    {/* Course Name & Room */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-3">
+                                            <Label className="text-base">{isRTL ? 'اسم الكورس *' : 'Course Name *'}</Label>
                                             <Input
-                                                type="date"
-                                                value={formData.interview_date}
-                                                onChange={e => setFormData({ ...formData, interview_date: e.target.value })}
-                                                className="h-10"
+                                                value={formData.name}
+                                                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                                className="h-12"
+                                                placeholder={isRTL ? 'مثال: كورس الإسعافات الأولية' : 'e.g., First Aid Course'}
                                             />
                                         </div>
-                                    )}
-                                </div>
-
-                                {/* Organizers */}
-                                <div className="border-t pt-4">
-                                    <h3 className="text-lg font-medium mb-4">{isRTL ? 'المنظمين' : 'Organizers'}</h3>
-                                    <Popover open={organizerPopoverOpen} onOpenChange={setOrganizerPopoverOpen}>
-                                        <PopoverTrigger asChild>
-                                            <Button variant="outline" className="w-full justify-start">
-                                                <Search className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                {isRTL ? 'بحث عن متطوع...' : 'Search volunteers...'}
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-[400px] p-0" align="start" side="bottom">
-                                            <Command>
-                                                <CommandInput placeholder={isRTL ? 'اكتب اسم المتطوع...' : 'Type volunteer name...'} />
-                                                <CommandList>
-                                                    <CommandEmpty>{isRTL ? 'لا يوجد متطوعين' : 'No volunteers found'}</CommandEmpty>
-                                                    <CommandGroup heading={isRTL ? 'المتطوعين' : 'Volunteers'}>
-                                                        {volunteers.slice(0, 50).map(volunteer => (
-                                                            <CommandItem
-                                                                key={volunteer.id}
-                                                                value={`${volunteer.full_name} ${volunteer.full_name_ar || ''}`}
-                                                                onSelect={() => handleAddOrganizer(volunteer)}
-                                                            >
-                                                                <div className="flex flex-col">
-                                                                    <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
-                                                                    <span className="text-xs text-muted-foreground">{volunteer.phone || '-'}</span>
-                                                                </div>
-                                                            </CommandItem>
-                                                        ))}
-                                                    </CommandGroup>
-                                                </CommandList>
-                                            </Command>
-                                        </PopoverContent>
-                                    </Popover>
-
-                                    {organizers.length > 0 && (
-                                        <div className="border rounded-md">
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                        <TableHead>{isRTL ? 'الرقم' : 'Phone'}</TableHead>
-                                                        <TableHead></TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {organizers.map((org, idx) => (
-                                                        <TableRow key={idx}>
-                                                            <TableCell>{org.name}</TableCell>
-                                                            <TableCell>{org.phone || '-'}</TableCell>
-                                                            <TableCell>
-                                                                <Button variant="ghost" size="sm" onClick={() => removeOrganizer(idx)}>
-                                                                    <Trash2 className="w-4 h-4 text-destructive" />
-                                                                </Button>
-                                                            </TableCell>
-                                                        </TableRow>
+                                        <div className="space-y-3">
+                                            <Label className="text-base">{isRTL ? 'القاعة *' : 'Room *'}</Label>
+                                            <Select value={formData.room} onValueChange={val => setFormData({ ...formData, room: val })}>
+                                                <SelectTrigger className="h-12">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {ROOMS.map(room => (
+                                                        <SelectItem key={room.value} value={room.value} className="py-3">
+                                                            {room.label[language as 'en' | 'ar']}
+                                                        </SelectItem>
                                                     ))}
-                                                </TableBody>
-                                            </Table>
+                                                </SelectContent>
+                                            </Select>
                                         </div>
-                                    )}
-                                </div>
-                            </div>
+                                    </div>
 
-                            <DialogFooter className="flex-col sm:flex-row gap-2">
-                                <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
-                                <Button onClick={handleCreateCourse} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'إنشاء الكورس' : 'Create Course'}</Button>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                                    {/* Trainer Info */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-3">
+                                            <Label className="text-base">{isRTL ? 'اسم المدرب *' : 'Trainer Name *'}</Label>
+                                            <Input
+                                                value={formData.trainer_name}
+                                                onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
+                                                className="h-12"
+                                            />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <Label className="text-base">{isRTL ? 'رقم المدرب' : 'Trainer Phone'}</Label>
+                                            <Input
+                                                value={formData.trainer_phone}
+                                                onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
+                                                className="h-12"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Schedule */}
+                                    <div className="space-y-3">
+                                        <Label className="text-base">{isRTL ? 'أيام الكورس *' : 'Course Days *'}</Label>
+                                        <div className="flex flex-wrap gap-3">
+                                            {DAYS.map(day => {
+                                                const isSelected = formData.schedule_days.includes(day.value);
+                                                return (
+                                                    <div
+                                                        key={day.value}
+                                                        onClick={() => toggleDay(day.value)}
+                                                        className={`
+                                                        flex items-center gap-2 px-4 py-3 border rounded-lg cursor-pointer transition-all
+                                                        ${isSelected
+                                                                ? 'bg-primary text-primary-foreground border-primary'
+                                                                : 'hover:bg-accent hover:border-accent-foreground/50 bg-background'
+                                                            }
+                                                    `}
+                                                    >
+                                                        <span className="font-medium">{day.label[language as 'en' | 'ar']}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                        <div className="space-y-3">
+                                            <Label className="text-base">{isRTL ? 'وقت البداية' : 'Start Time'}</Label>
+                                            <Input
+                                                type="time"
+                                                value={formData.schedule_time}
+                                                onChange={e => setFormData({ ...formData, schedule_time: e.target.value })}
+                                                className="h-12"
+                                            />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <Label className="text-base">{isRTL ? 'وقت الانتهاء' : 'End Time'}</Label>
+                                            <Input
+                                                type="time"
+                                                value={formData.schedule_end_time}
+                                                onChange={e => setFormData({ ...formData, schedule_end_time: e.target.value })}
+                                                className="h-12"
+                                            />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <Label className="text-base">{isRTL ? 'عدد المحاضرات' : 'Total Lectures'}</Label>
+                                            <Input
+                                                type="number"
+                                                min={1}
+                                                value={formData.total_lectures}
+                                                onChange={e => setFormData({ ...formData, total_lectures: parseInt(e.target.value) || 1 })}
+                                                className="h-12"
+                                            />
+                                        </div>
+                                        <div className="space-y-3">
+                                            <Label className="text-base">{isRTL ? 'تاريخ البداية' : 'Start Date'}</Label>
+                                            <Input
+                                                type="date"
+                                                value={formData.start_date}
+                                                onChange={e => setFormData({ ...formData, start_date: e.target.value })}
+                                                className="h-12"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* End Date (Read Only) */}
+                                    <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-dashed">
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-base text-muted-foreground">{isRTL ? 'تاريخ النهاية المتوقع' : 'Expected End Date'}</Label>
+                                            <Badge variant="outline" className="text-base px-3 py-1">
+                                                {formData.end_date || '-'}
+                                            </Badge>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            {isRTL
+                                                ? 'يتم حساب تاريخ النهاية تلقائياً بناءً على تاريخ البداية وعدد المحاضرات والأيام المختارة.'
+                                                : 'End date is calculated automatically based on start date, lectures count, and selected days.'}
+                                        </p>
+                                    </div>
+
+                                    {/* Interview */}
+                                    <div className="flex items-center gap-4 p-4 border rounded-lg bg-card">
+                                        <label className="flex items-center gap-3 cursor-pointer flex-1">
+                                            <Checkbox
+                                                checked={formData.has_interview}
+                                                onCheckedChange={(checked) => setFormData({ ...formData, has_interview: !!checked })}
+                                                className="h-5 w-5"
+                                            />
+                                            <span className="text-base font-medium">{isRTL ? 'يوجد انترفيو لهذا الكورس' : 'This course has an interview'}</span>
+                                        </label>
+                                        {formData.has_interview && (
+                                            <div className="w-1/3 min-w-[200px]">
+                                                <Input
+                                                    type="date"
+                                                    value={formData.interview_date}
+                                                    onChange={e => setFormData({ ...formData, interview_date: e.target.value })}
+                                                    className="h-10"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Organizers */}
+                                    <div className="border-t pt-4">
+                                        <h3 className="text-base sm:text-lg font-medium mb-3">{isRTL ? 'المنظمين' : 'Organizers'}</h3>
+                                        <Popover open={organizerPopoverOpen} onOpenChange={setOrganizerPopoverOpen}>
+                                            <PopoverTrigger asChild>
+                                                <Button variant="outline" className="w-full justify-start text-sm">
+                                                    <Search className="w-4 h-4 ltr:mr-2 rtl:ml-2 shrink-0" />
+                                                    <span className="truncate">{isRTL ? 'بحث عن متطوع...' : 'Search volunteers...'}</span>
+                                                </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0" align="start" side="bottom">
+                                                <Command>
+                                                    <CommandInput placeholder={isRTL ? 'اكتب اسم المتطوع...' : 'Type volunteer name...'} />
+                                                    <CommandList className="max-h-[200px]">
+                                                        <CommandEmpty>{isRTL ? 'لا يوجد متطوعين' : 'No volunteers found'}</CommandEmpty>
+                                                        <CommandGroup heading={isRTL ? 'المتطوعين' : 'Volunteers'}>
+                                                            {volunteers.slice(0, 50).map(volunteer => (
+                                                                <CommandItem
+                                                                    key={volunteer.id}
+                                                                    value={`${volunteer.full_name} ${volunteer.full_name_ar || ''}`}
+                                                                    onSelect={() => handleAddOrganizer(volunteer)}
+                                                                >
+                                                                    <div className="flex flex-col min-w-0">
+                                                                        <span className="truncate">{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
+                                                                        <span className="text-xs text-muted-foreground">{volunteer.phone || '-'}</span>
+                                                                    </div>
+                                                                </CommandItem>
+                                                            ))}
+                                                        </CommandGroup>
+                                                    </CommandList>
+                                                </Command>
+                                            </PopoverContent>
+                                        </Popover>
+
+                                        {organizers.length > 0 && (
+                                            <div className="border rounded-md mt-3 overflow-x-auto">
+                                                <Table className="min-w-[280px]">
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead className="text-xs sm:text-sm">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                            <TableHead className="text-xs sm:text-sm">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                                            <TableHead className="w-10"></TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {organizers.map((org, idx) => (
+                                                            <TableRow key={idx}>
+                                                                <TableCell className="text-xs sm:text-sm truncate max-w-[120px]">{org.name}</TableCell>
+                                                                <TableCell className="text-xs sm:text-sm">{org.phone || '-'}</TableCell>
+                                                                <TableCell>
+                                                                    <Button variant="ghost" size="sm" onClick={() => removeOrganizer(idx)}>
+                                                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                                                    </Button>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <DialogFooter className="flex-col sm:flex-row gap-2">
+                                    <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
+                                    <Button onClick={handleCreateCourse} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'إنشاء الكورس' : 'Create Course'}</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
                     </div>
                 </div>
             </div>
@@ -1041,7 +1047,7 @@ export default function CourseManagement() {
 
             {/* Course Details Dialog */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="text-2xl">{selectedCourse?.name}</DialogTitle>
                         <DialogDescription>
@@ -1052,11 +1058,13 @@ export default function CourseManagement() {
                     </DialogHeader>
 
                     <Tabs defaultValue="beneficiaries" className="w-full">
-                        <TabsList className="grid w-full grid-cols-3">
-                            <TabsTrigger value="beneficiaries">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
-                            <TabsTrigger value="lectures">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
-                            <TabsTrigger value="sheet">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
-                        </TabsList>
+                        <div className="overflow-x-auto -mx-2 px-2">
+                            <TabsList className="grid w-full min-w-[300px] grid-cols-3">
+                                <TabsTrigger value="beneficiaries" className="text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
+                                <TabsTrigger value="lectures" className="text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
+                                <TabsTrigger value="sheet" className="text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                            </TabsList>
+                        </div>
 
                         {/* Beneficiaries Tab */}
                         <TabsContent value="beneficiaries" className="space-y-4 py-4">
@@ -1183,26 +1191,28 @@ export default function CourseManagement() {
                                         </CardDescription>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="flex justify-between items-center mb-3">
+                                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3">
                                             <div className="text-sm text-muted-foreground">
                                                 {attendanceData[lecture.id]?.length || 0} / {beneficiaries.length} {isRTL ? 'حضور' : 'attendees'}
                                             </div>
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-2 flex-wrap">
                                                 <Button
                                                     size="sm"
                                                     variant={lecture.status === 'completed' ? 'outline' : 'secondary'}
                                                     onClick={() => updateLectureStatus(lecture.id, 'completed')}
+                                                    className="flex-1 sm:flex-none"
                                                 >
-                                                    <Check className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                    {isRTL ? 'إتمام' : 'Complete'}
+                                                    <Check className="w-4 h-4 ltr:mr-1 rtl:ml-1 sm:ltr:mr-2 sm:rtl:ml-2" />
+                                                    <span className="text-xs sm:text-sm">{isRTL ? 'إتمام' : 'Complete'}</span>
                                                 </Button>
                                                 <Button
                                                     size="sm"
                                                     variant={lecture.status === 'cancelled' ? 'outline' : 'destructive'}
                                                     onClick={() => updateLectureStatus(lecture.id, 'cancelled')}
+                                                    className="flex-1 sm:flex-none"
                                                 >
-                                                    <X className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                    {isRTL ? 'إلغاء' : 'Cancel'}
+                                                    <X className="w-4 h-4 ltr:mr-1 rtl:ml-1 sm:ltr:mr-2 sm:rtl:ml-2" />
+                                                    <span className="text-xs sm:text-sm">{isRTL ? 'إلغاء' : 'Cancel'}</span>
                                                 </Button>
                                             </div>
                                         </div>

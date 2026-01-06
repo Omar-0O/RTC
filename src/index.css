@@ -172,4 +172,26 @@
   [dir="rtl"] .space-x-4> :not([hidden])~ :not([hidden]) {
     --tw-space-x-reverse: 1;
   }
+
+  /* Mobile responsive table wrapper */
+  .table-responsive {
+    @apply overflow-x-auto -mx-4 px-4;
+  }
+
+  @screen sm {
+    .table-responsive {
+      @apply mx-0 px-0;
+    }
+  }
+
+  /* Ensure dialogs respect mobile viewport */
+  .dialog-mobile-safe {
+    @apply max-w-[95vw];
+  }
+
+  @screen sm {
+    .dialog-mobile-safe {
+      @apply max-w-lg;
+    }
+  }
 }
