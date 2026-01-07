@@ -72,6 +72,12 @@ export default function CommitteeLeaderDashboard() {
   const [members, setMembers] = useState<Profile[]>([]);
   const [committee, setCommittee] = useState<Committee | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [monthlyCaravansCount, setMonthlyCaravansCount] = useState(0);
+  const [monthlyEventsCount, setMonthlyEventsCount] = useState(0);
+
+  // Committee IDs for special handling
+  const CARAVANS_COMMITTEE_ID = 'e3517d42-3140-4323-bf79-5a6728fc45ef';
+  const EVENTS_COMMITTEE_ID = 'c82bc5e2-49b1-4951-9f1e-249afeaafeb8';
 
   const committeeId = profile?.committee_id;
 
@@ -115,6 +121,29 @@ export default function CommitteeLeaderDashboard() {
         };
       });
       setMembers(membersWithCount);
+    }
+
+    // Fetch monthly caravans/events count for special committees
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
+
+    if (committeeId === CARAVANS_COMMITTEE_ID) {
+      const { count } = await supabase
+        .from('caravans' as any)
+        .select('*', { count: 'exact', head: true })
+        .gte('date', startOfMonth.split('T')[0])
+        .lte('date', endOfMonth.split('T')[0]);
+      setMonthlyCaravansCount(count || 0);
+    }
+
+    if (committeeId === EVENTS_COMMITTEE_ID) {
+      const { count } = await supabase
+        .from('events' as any)
+        .select('*', { count: 'exact', head: true })
+        .gte('date', startOfMonth.split('T')[0])
+        .lte('date', endOfMonth.split('T')[0]);
+      setMonthlyEventsCount(count || 0);
     }
   };
 
@@ -191,12 +220,28 @@ export default function CommitteeLeaderDashboard() {
           icon={Users}
           description={t('common.volunteers')}
         />
-        <StatsCard
-          title={language === 'ar' ? 'المشاركات الشهرية' : 'Monthly Participations'}
-          value={totalMonthlyParticipations}
-          icon={TrendingUp}
-          description={language === 'ar' ? 'مشاركة هذا الشهر' : 'participations this month'}
-        />
+        {committeeId === CARAVANS_COMMITTEE_ID ? (
+          <StatsCard
+            title={language === 'ar' ? 'عدد القوافل هذا الشهر' : 'Caravans This Month'}
+            value={monthlyCaravansCount}
+            icon={TrendingUp}
+            description={language === 'ar' ? 'قافلة' : 'caravans'}
+          />
+        ) : committeeId === EVENTS_COMMITTEE_ID ? (
+          <StatsCard
+            title={language === 'ar' ? 'عدد الايفنتات هذا الشهر' : 'Events This Month'}
+            value={monthlyEventsCount}
+            icon={TrendingUp}
+            description={language === 'ar' ? 'ايفنت' : 'events'}
+          />
+        ) : (
+          <StatsCard
+            title={language === 'ar' ? 'المشاركات الشهرية' : 'Monthly Participations'}
+            value={totalMonthlyParticipations}
+            icon={TrendingUp}
+            description={language === 'ar' ? 'مشاركة هذا الشهر' : 'participations this month'}
+          />
+        )}
       </div>
 
       {/* Members Table */}

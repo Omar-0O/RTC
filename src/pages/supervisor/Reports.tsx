@@ -10,17 +10,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import {
   BarChart,
   Bar,
   XAxis,
@@ -50,6 +39,9 @@ interface Profile {
   level: string;
   activities_count: number;
   committee_id: string | null;
+  attended_mini_camp?: boolean;
+  attended_camp?: boolean;
+  roles?: string[];
 }
 
 interface Committee {
@@ -67,6 +59,14 @@ interface ActivitySubmission {
   activity_type_id: string;
   location?: string;
   committee_id: string | null;
+  description?: string | null;
+  proof_url?: string | null;
+  hours_spent?: number | null;
+  participants_count?: number | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  rejection_reason?: string | null;
+  created_at?: string;
 }
 
 interface ActivityType {
@@ -84,9 +84,6 @@ export default function Reports() {
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
-  const [exportType, setExportType] = useState('all');
-  const [exportPeriod, setExportPeriod] = useState('year');
 
   useEffect(() => {
     fetchData();
@@ -95,47 +92,40 @@ export default function Reports() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [profilesRes, committeesRes, submissionsRes, activityTypesRes] = await Promise.all([
+      const [profilesRes, committeesRes, submissionsRes, activityTypesRes, userRolesRes] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('committees').select('*'),
         supabase.from('activity_submissions').select('*'),
         supabase.from('activity_types').select('*'),
+        supabase.from('user_roles').select('*'),
       ]);
 
-      if (submissionsRes.data) setSubmissions(submissionsRes.data);
-      if (committeesRes.data) setCommittees(committeesRes.data);
-      if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
+      const profilesData = profilesRes.data || [];
+      const submissionsData = submissionsRes.data || [];
+      const userRolesData = userRolesRes.data || [];
 
-      if (profilesRes.data && submissionsRes.data) {
-        const enrichedProfiles = profilesRes.data.map(profile => ({
-          ...profile,
-          level: profile.level || 'under_follow_up',
-          total_points: profile.total_points || 0,
-          activities_count: submissionsRes.data.filter(s => s.volunteer_id === profile.id).length
-        }));
+      if (profilesData) {
+        const enrichedProfiles: Profile[] = profilesData.map(profile => {
+          const userRoles = userRolesData.filter(r => r.user_id === profile.id).map(r => r.role);
+          return {
+            ...profile,
+            total_points: profile.total_points ?? 0,
+            level: profile.level ?? 'under_follow_up',
+            activities_count: submissionsData.filter(s => s.volunteer_id === profile.id).length,
+            roles: userRoles
+          };
+        });
         setProfiles(enrichedProfiles);
       }
+
+      if (committeesRes.data) setCommittees(committeesRes.data);
+      if (submissionsRes.data) setSubmissions(submissionsRes.data);
+      if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Helper function to get level name in Arabic for exports
-  const getLevelName = (level: string): string => {
-    const levelMap: Record<string, string> = {
-      'under_follow_up': 'تحت المتابعة',
-      'project_responsible': 'مشروع مسئول',
-      'responsible': 'مسئول',
-      // Fallback for old data
-      'bronze': 'تحت المتابعة',
-      'silver': 'تحت المتابعة',
-      'gold': 'مشروع مسئول',
-      'platinum': 'مسئول',
-      'diamond': 'مسئول',
-    };
-    return levelMap[level] || 'تحت المتابعة';
   };
 
   // Get date range based on selection
@@ -155,6 +145,38 @@ export default function Reports() {
       default:
         return { start: startOfMonth(now), end: endOfMonth(now) };
     }
+  };
+
+  // Helper function to get level name in Arabic for exports
+  const getLevelName = (level: string): string => {
+    const levelMap: Record<string, string> = {
+      'under_follow_up': 'تحت المتابعة',
+      'project_responsible': 'مشروع مسئول',
+      'responsible': 'مسئول',
+      'bronze': 'تحت المتابعة',
+      'silver': 'تحت المتابعة',
+      'gold': 'مشروع مسئول',
+      'platinum': 'مسئول',
+      'diamond': 'مسئول',
+    };
+    return levelMap[level] || 'تحت المتابعة';
+  };
+
+  // Helper function to get role name in Arabic
+  const getRoleName = (role: string): string => {
+    const roleMap: Record<string, string> = {
+      'admin': 'مدير',
+      'supervisor': 'مشرف',
+      'committee_leader': 'قائد لجنة',
+      'volunteer': 'متطوع',
+      'hr': 'موارد بشرية',
+      'head_hr': 'رئيس الموارد البشرية',
+      'head_caravans': 'رئيس القوافل',
+      'head_events': 'رئيس الفعاليات',
+      'head_production': 'رئيس الإنتاج',
+      'head_fourth_year': 'رئيس السنة الرابعة',
+    };
+    return roleMap[role] || 'متطوع';
   };
 
   // Filter submissions by date range
@@ -210,47 +232,6 @@ export default function Reports() {
     );
   };
 
-  // Monthly activity statistics for export
-  const monthlyActivityStats = (() => {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-
-    return Array.from({ length: currentMonth + 1 }, (_, i) => {
-      const date = new Date(now.getFullYear(), i, 1);
-      const monthStart = startOfMonth(date);
-      const monthEnd = endOfMonth(date);
-
-      const monthSubmissions = submissions.filter(s => {
-        const submittedDate = new Date(s.submitted_at);
-        return submittedDate >= monthStart && submittedDate <= monthEnd;
-      });
-
-      const stats: any = {
-        month: format(date, 'MMM'),
-        total: monthSubmissions.length,
-      };
-
-      // Count per activity type
-      activityTypes.forEach(activity => {
-        stats[activity.id] = monthSubmissions.filter(s => s.activity_type_id === activity.id).length;
-      });
-
-      return stats;
-    });
-  })();
-
-  // Activity distribution data
-  const allActivityStats = activityTypes.map(activity => {
-    const activitySubmissions = submissions.filter(s => s.activity_type_id === activity.id);
-    const uniqueVolunteers = new Set(activitySubmissions.map(s => s.volunteer_id)).size;
-    return {
-      name: language === 'ar' ? activity.name_ar : activity.name,
-      submissions: activitySubmissions.length,
-      volunteers: uniqueVolunteers,
-      points: activity.points,
-    };
-  }).filter(a => a.submissions > 0).sort((a, b) => b.submissions - a.submissions);
-
   // Activity submissions over time (last 6 months) by Level
   const activityTrend = Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
@@ -278,6 +259,7 @@ export default function Reports() {
         } else if (['project_responsible', 'gold'].includes(level)) {
           counts.project_responsible++;
         } else {
+          // Default to under_follow_up for others (bronze, silver, newbie, active, etc)
           counts.under_follow_up++;
         }
       }
@@ -289,8 +271,15 @@ export default function Reports() {
     };
   });
 
-  // Top activities by submissions (for the list)
-  const activityStats = allActivityStats.slice(0, 5);
+  // Top activities by submissions
+  const activityStats = activityTypes.map(activity => {
+    const activitySubmissions = submissions.filter(s => s.activity_type_id === activity.id);
+    return {
+      name: language === 'ar' ? activity.name_ar : activity.name,
+      count: activitySubmissions.length,
+      points: activity.points,
+    };
+  }).filter(a => a.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
 
   // CSV Export functions
   const downloadCSV = (data: any[], filename: string) => {
@@ -322,92 +311,44 @@ export default function Reports() {
     toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
   };
 
-  // Get date range for selected period
-  const getPeriodDateRange = (period: string) => {
-    const now = new Date();
-    switch (period) {
-      case 'month':
-        return { start: startOfMonth(now), end: endOfMonth(now) };
-      case 'quarter':
-        return { start: startOfQuarter(now), end: endOfQuarter(now) };
-      case 'semi':
-        return { start: subMonths(startOfMonth(now), 5), end: endOfMonth(now) };
-      case 'year':
-        return { start: startOfYear(now), end: endOfYear(now) };
-      default:
-        return { start: startOfYear(now), end: endOfYear(now) };
-    }
-  };
-
-  // Handle detailed export
-  const handleDetailedExport = () => {
-    const { start, end } = getPeriodDateRange(exportPeriod);
-    const periodLabel = {
-      month: language === 'ar' ? 'شهري' : 'monthly',
-      quarter: language === 'ar' ? 'ربع_سنوي' : 'quarterly',
-      semi: language === 'ar' ? 'نصف_سنوي' : 'semi_annual',
-      year: language === 'ar' ? 'سنوي' : 'annual',
-    }[exportPeriod];
-
-    const periodSubmissions = submissions.filter(s => {
-      const date = new Date(s.submitted_at);
-      return date >= start && date <= end;
-    });
-
-    switch (exportType) {
+  const handleExport = (type: string) => {
+    switch (type) {
       case 'volunteers':
         const volunteersData = profiles.map(p => {
-          const userSubmissions = periodSubmissions.filter(s => s.volunteer_id === p.id);
+          const level = p.level || 'under_follow_up';
+          const isResponsible = ['responsible', 'platinum', 'diamond'].includes(level);
+
+          // Determine camp attendance status
+          let campAttendance = '';
+          if (!isResponsible) {
+            if (p.attended_mini_camp || p.attended_camp) {
+              campAttendance = language === 'ar' ? 'نعم' : 'Yes';
+            } else {
+              campAttendance = language === 'ar' ? 'لا' : 'No';
+            }
+          }
+
+          // Get primary role (first non-volunteer role, or volunteer if that's all they have)
+          const primaryRole = p.roles?.find(r => r !== 'volunteer') || p.roles?.[0] || 'volunteer';
+          const roleDisplay = language === 'ar' ? getRoleName(primaryRole) : primaryRole;
+
           return {
-            [language === 'ar' ? 'الاسم (عربي)' : 'Name (Arabic)']: p.full_name_ar || '',
-            [language === 'ar' ? 'الاسم (إنجليزي)' : 'Name (English)']: p.full_name || '',
+            [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
             [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
             [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
-            [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Level']: getLevelName(p.level),
-            [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
-            [language === 'ar' ? 'النقاط في الفترة' : 'Period Points']: userSubmissions.reduce((sum, s) => sum + (s.points_awarded || 0), 0),
-            [language === 'ar' ? 'عدد المشاركات' : 'Submissions Count']: userSubmissions.length,
+            [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Degree']: getLevelName(level),
+            [language === 'ar' ? 'الدور' : 'Role']: roleDisplay,
+            [language === 'ar' ? 'حضر الكامب' : 'Attended Camp']: campAttendance,
+            [language === 'ar' ? 'الأثر' : 'Impact']: p.total_points,
+            [language === 'ar' ? 'عدد المشاركات' : 'Participations Count']: p.activities_count,
             [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
           };
         });
-        downloadCSV(volunteersData, `volunteers_${periodLabel}`);
-        break;
-
-      case 'committees':
-        const committeesData = committees.map(committee => {
-          const committeeVolunteers = profiles.filter(p => p.committee_id === committee.id);
-          const committeeSubmissions = periodSubmissions.filter(s => {
-            const volunteer = profiles.find(p => p.id === s.volunteer_id);
-            return volunteer?.committee_id === committee.id;
-          });
-          return {
-            [language === 'ar' ? 'اللجنة (عربي)' : 'Committee (Arabic)']: committee.name_ar,
-            [language === 'ar' ? 'اللجنة (إنجليزي)' : 'Committee (English)']: committee.name,
-            [language === 'ar' ? 'عدد المتطوعين' : 'Volunteers Count']: committeeVolunteers.length,
-            [language === 'ar' ? 'إجمالي الأثر' : 'Total Points']: committeeVolunteers.reduce((sum, v) => sum + v.total_points, 0),
-            [language === 'ar' ? 'الأثر في الفترة' : 'Period Points']: committeeSubmissions.reduce((sum, s) => sum + (s.points_awarded || 0), 0),
-            [language === 'ar' ? 'عدد المشاركات' : 'Submissions Count']: committeeSubmissions.length,
-          };
-        });
-        downloadCSV(committeesData, `committees_${periodLabel}`);
+        downloadCSV(volunteersData, 'volunteers');
         break;
 
       case 'activities':
-        const activitiesData = activityTypes.map(activity => {
-          const activitySubmissions = periodSubmissions.filter(s => s.activity_type_id === activity.id);
-          return {
-            [language === 'ar' ? 'النشاط (عربي)' : 'Activity (Arabic)']: activity.name_ar,
-            [language === 'ar' ? 'النشاط (إنجليزي)' : 'Activity (English)']: activity.name,
-            [language === 'ar' ? 'قيمة الأثر' : 'Points Value']: activity.points,
-            [language === 'ar' ? 'عدد المشاركات' : 'Submissions Count']: activitySubmissions.length,
-            [language === 'ar' ? 'إجمالي الأثر المحقق' : 'Total Points Earned']: activitySubmissions.reduce((sum, s) => sum + (s.points_awarded || 0), 0),
-          };
-        }).filter(a => (a[language === 'ar' ? 'عدد المشاركات' : 'Submissions Count'] as number) > 0);
-        downloadCSV(activitiesData, `activities_${periodLabel}`);
-        break;
-
-      case 'activity_log':
-        const activityLogData = periodSubmissions.map(s => {
+        const reportData = filteredSubmissions.map(s => {
           const volunteer = profiles.find(p => p.id === s.volunteer_id);
           const activityType = activityTypes.find(a => a.id === s.activity_type_id);
           const committee = committees.find(c => c.id === (volunteer?.committee_id || s.committee_id));
@@ -416,121 +357,36 @@ export default function Reports() {
           if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
           else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
 
-          // User requested Order: Activity, Committee, Volunteer, Phone, Participation Type, Date
           return {
             [language === 'ar' ? 'النشاط' : 'Activity']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-            [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.[language === 'ar' ? 'full_name_ar' : 'full_name'] || volunteer?.full_name || '',
+            [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
             [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
             [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
             [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+            [language === 'ar' ? 'الملاحظات' : 'Notes']: s.description || '',
+            [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
           };
         });
-        downloadCSV(activityLogData, `activity_log_${periodLabel}`);
-        break;
-
-      case 'all':
-        const allData = profiles.map(p => {
-          const userSubmissions = periodSubmissions.filter(s => s.volunteer_id === p.id);
-          return {
-            [language === 'ar' ? 'الاسم (عربي)' : 'Name (Arabic)']: p.full_name_ar || '',
-            [language === 'ar' ? 'الاسم (إنجليزي)' : 'Name (English)']: p.full_name || '',
-            [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
-            [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-            [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Level']: getLevelName(p.level),
-            [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
-            [language === 'ar' ? 'النقاط في الفترة' : 'Period Points']: userSubmissions.reduce((sum, s) => sum + (s.points_awarded || 0), 0),
-            [language === 'ar' ? 'عدد الأنشطة الكلي' : 'Total Activities']: p.activities_count,
-            [language === 'ar' ? 'المشاركات في الفترة' : 'Period Submissions']: userSubmissions.length,
-          };
-        });
-        downloadCSV(allData, `complete_report_${periodLabel}`);
-        break;
-    }
-
-    setIsExportDialogOpen(false);
-    toast.success(language === 'ar' ? 'تم تصدير التقرير بنجاح' : 'Report exported successfully');
-  };
-
-  const handleExport = (type: string) => {
-    switch (type) {
-      case 'volunteers':
-        const volunteersData = profiles.map(p => ({
-          [language === 'ar' ? 'الاسم (عربي)' : 'Name (Arabic)']: p.full_name_ar || '',
-          [language === 'ar' ? 'الاسم (إنجليزي)' : 'Name (English)']: p.full_name || '',
-          [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-          [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
-          [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Level']: getLevelName(p.level),
-          [language === 'ar' ? 'النقاط' : 'Points']: p.total_points,
-          [language === 'ar' ? 'عدد الأنشطة' : 'Activities Count']: p.activities_count,
-          [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-        }));
-        downloadCSV(volunteersData, 'volunteers');
-        break;
-
-      case 'activities':
-        const activitiesData = submissions.map(s => {
-          const volunteer = profiles.find(p => p.id === s.volunteer_id);
-          const activityType = activityTypes.find(a => a.id === s.activity_type_id);
-          return {
-            [language === 'ar' ? 'المتطوع' : 'Volunteer']: volunteer?.full_name || '',
-            [language === 'ar' ? 'نوع النشاط' : 'Activity Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-            [language === 'ar' ? 'الحالة' : 'Status']: s.status,
-            [language === 'ar' ? 'النقاط' : 'Points']: s.points_awarded || 0,
-            [language === 'ar' ? 'تاريخ التقديم' : 'Submitted At']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
-          };
-        });
-        downloadCSV(activitiesData, 'activities');
+        // Use 'participation_log' filename, filtered by current month
+        downloadCSV(reportData, `participation_log_${dateRange}`);
         break;
 
       case 'points':
         const pointsData = profiles.map(p => ({
-          [language === 'ar' ? 'الاسم (عربي)' : 'Name (Arabic)']: p.full_name_ar || '',
-          [language === 'ar' ? 'الاسم (إنجليزي)' : 'Name (English)']: p.full_name || '',
+          [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
           [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-          [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
-          [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
-          [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Level']: getLevelName(p.level),
-        })).sort((a, b) => (b[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number) - (a[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number));
+          [language === 'ar' ? 'إجمالي الأثر' : 'Total Impact']: p.total_points,
+          [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Degree']: getLevelName(p.level || 'under_follow_up'),
+        })).sort((a, b) => (b[language === 'ar' ? 'إجمالي الأثر' : 'Total Impact'] as number) - (a[language === 'ar' ? 'إجمالي الأثر' : 'Total Impact'] as number));
         downloadCSV(pointsData, 'points_summary');
         break;
 
 
-
-      case 'monthly':
-        const monthlyData = monthlyActivityStats.map(stat => {
-          const row: any = {
-            [language === 'ar' ? 'الشهر' : 'Month']: stat.month,
-            [language === 'ar' ? 'إجمالي المشاركات' : 'Total Submissions']: stat.total,
-          };
-
-          activityTypes.forEach(activity => {
-            const activityName = language === 'ar' ? activity.name_ar : activity.name;
-            row[activityName] = stat[activity.id] || 0;
-          });
-
-          return row;
-        });
-        downloadCSV(monthlyData, 'monthly_activity_report');
-        break;
-
       case 'full':
         // Export all data as a comprehensive report
-        const fullReportData = profiles.map(p => {
-          const volunteerSubmissions = submissions.filter(s => s.volunteer_id === p.id);
-          return {
-            [language === 'ar' ? 'الاسم (عربي)' : 'Name (Arabic)']: p.full_name_ar || '',
-            [language === 'ar' ? 'الاسم (إنجليزي)' : 'Name (English)']: p.full_name || '',
-            [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
-            [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-            [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Level']: getLevelName(p.level),
-            [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
-            [language === 'ar' ? 'عدد الأنشطة' : 'Activities Count']: p.activities_count,
-          };
-        });
-        downloadCSV(fullReportData, 'full_report');
+        // Temporarily disabled as requested
+        toast.info(language === 'ar' ? 'التقرير فارغ حالياً' : 'Report is currently empty');
         break;
     }
   };
@@ -576,10 +432,7 @@ export default function Reports() {
               <SelectItem value="year">{t('reports.thisYear')}</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline" onClick={() => handleExport('full')}>
-            <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-            {t('reports.exportReport')}
-          </Button>
+
         </div>
       </div>
 
@@ -784,12 +637,13 @@ export default function Reports() {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{activity.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {activity.submissions} {language === 'ar' ? 'مشاركة' : 'submissions'} • {activity.points} {t('common.points')}
+                        {activity.count} {language === 'ar' ? 'مشاركة' : 'submissions'} • {activity.points} {t('common.points')}
                       </p>
                     </div>
                     <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
                       <div
-                        style={{ width: `${(activity.submissions / activityStats[0].submissions) * 100}%` }}
+                        className="h-full bg-primary rounded-full"
+                        style={{ width: `${(activity.count / activityStats[0].count) * 100}%` }}
                       />
                     </div>
                   </div>
@@ -800,87 +654,23 @@ export default function Reports() {
         </Card>
       </div>
 
-
-      {/* Export Dialog */}
+      {/* Export Options */}
       <Card>
         <CardHeader>
-          <CardTitle>{language === 'ar' ? 'تصدير التقارير' : 'Export Reports'}</CardTitle>
-          <CardDescription>{language === 'ar' ? 'تصدير تقارير مفصلة حسب النوع والفترة الزمنية' : 'Export detailed reports by type and time period'}</CardDescription>
+          <CardTitle>{t('reports.exportData')}</CardTitle>
+          <CardDescription>{t('reports.exportDataDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="w-full">
-                <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                {language === 'ar' ? 'تصدير تقرير مفصل' : 'Export Detailed Report'}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>{language === 'ar' ? 'تصدير تقرير مفصل' : 'Export Detailed Report'}</DialogTitle>
-                <DialogDescription>
-                  {language === 'ar' ? 'اختر نوع التقرير والفترة الزمنية للتصدير' : 'Select report type and time period to export'}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-6 py-4">
-                <div className="grid gap-3">
-                  <Label className="text-base font-semibold">{language === 'ar' ? 'نوع التقرير' : 'Report Type'}</Label>
-                  <RadioGroup value={exportType} onValueChange={setExportType}>
-                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                      <RadioGroupItem value="all" id="all" />
-                      <Label htmlFor="all" className="font-normal cursor-pointer">{language === 'ar' ? 'تقرير شامل (كل البيانات)' : 'Complete Report (All Data)'}</Label>
-                    </div>
-                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                      <RadioGroupItem value="volunteers" id="volunteers" />
-                      <Label htmlFor="volunteers" className="font-normal cursor-pointer">{language === 'ar' ? 'المتطوعين' : 'Volunteers'}</Label>
-                    </div>
-                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                      <RadioGroupItem value="committees" id="committees" />
-                      <Label htmlFor="committees" className="font-normal cursor-pointer">{language === 'ar' ? 'اللجان' : 'Committees'}</Label>
-                    </div>
-                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                      <RadioGroupItem value="activities" id="activities" />
-                      <Label htmlFor="activities" className="font-normal cursor-pointer">{language === 'ar' ? 'إحصائيات الأنشطة' : 'Activities Stats'}</Label>
-                    </div>
-                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                      <RadioGroupItem value="activity_log" id="activity_log" />
-                      <Label htmlFor="activity_log" className="font-normal cursor-pointer">{language === 'ar' ? 'سجل المشاركات' : 'Activity Log'}</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-                <div className="grid gap-3">
-                  <Label className="text-base font-semibold">{language === 'ar' ? 'الفترة الزمنية' : 'Time Period'}</Label>
-                  <RadioGroup value={exportPeriod} onValueChange={setExportPeriod}>
-                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                      <RadioGroupItem value="month" id="month" />
-                      <Label htmlFor="month" className="font-normal cursor-pointer">{language === 'ar' ? 'الشهر الحالي' : 'Current Month'}</Label>
-                    </div>
-                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                      <RadioGroupItem value="quarter" id="quarter" />
-                      <Label htmlFor="quarter" className="font-normal cursor-pointer">{language === 'ar' ? 'الربع الحالي' : 'Current Quarter'}</Label>
-                    </div>
-                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                      <RadioGroupItem value="semi" id="semi" />
-                      <Label htmlFor="semi" className="font-normal cursor-pointer">{language === 'ar' ? 'آخر 6 أشهر' : 'Last 6 Months'}</Label>
-                    </div>
-                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                      <RadioGroupItem value="year" id="year" />
-                      <Label htmlFor="year" className="font-normal cursor-pointer">{language === 'ar' ? 'السنة الحالية' : 'Current Year'}</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
-                  {language === 'ar' ? 'إلغاء' : 'Cancel'}
-                </Button>
-                <Button onClick={handleDetailedExport}>
-                  <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                  {language === 'ar' ? 'تصدير' : 'Export'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2">
+            <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('volunteers')}>
+              <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
+              <span className="truncate">{t('reports.volunteerList')}</span>
+            </Button>
+            <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('activities')}>
+              <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
+              <span className="truncate">{t('reports.activityLog')}</span>
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

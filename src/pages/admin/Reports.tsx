@@ -39,6 +39,9 @@ interface Profile {
   level: string;
   activities_count: number;
   committee_id: string | null;
+  attended_mini_camp?: boolean;
+  attended_camp?: boolean;
+  roles?: string[];
 }
 
 interface Committee {
@@ -56,6 +59,14 @@ interface ActivitySubmission {
   activity_type_id: string;
   location?: string;
   committee_id: string | null;
+  description?: string | null;
+  proof_url?: string | null;
+  hours_spent?: number | null;
+  participants_count?: number | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  rejection_reason?: string | null;
+  created_at?: string;
 }
 
 interface ActivityType {
@@ -81,23 +92,29 @@ export default function Reports() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [profilesRes, committeesRes, submissionsRes, activityTypesRes] = await Promise.all([
+      const [profilesRes, committeesRes, submissionsRes, activityTypesRes, userRolesRes] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('committees').select('*'),
         supabase.from('activity_submissions').select('*'),
         supabase.from('activity_types').select('*'),
+        supabase.from('user_roles').select('*'),
       ]);
 
       const profilesData = profilesRes.data || [];
       const submissionsData = submissionsRes.data || [];
+      const userRolesData = userRolesRes.data || [];
 
       if (profilesData) {
-        const enrichedProfiles: Profile[] = profilesData.map(profile => ({
-          ...profile,
-          total_points: profile.total_points ?? 0,
-          level: profile.level ?? 'under_follow_up',
-          activities_count: submissionsData.filter(s => s.volunteer_id === profile.id).length
-        }));
+        const enrichedProfiles: Profile[] = profilesData.map(profile => {
+          const userRoles = userRolesData.filter(r => r.user_id === profile.id).map(r => r.role);
+          return {
+            ...profile,
+            total_points: profile.total_points ?? 0,
+            level: profile.level ?? 'under_follow_up',
+            activities_count: submissionsData.filter(s => s.volunteer_id === profile.id).length,
+            roles: userRoles
+          };
+        });
         setProfiles(enrichedProfiles);
       }
 
@@ -143,6 +160,23 @@ export default function Reports() {
       'diamond': 'مسئول',
     };
     return levelMap[level] || 'تحت المتابعة';
+  };
+
+  // Helper function to get role name in Arabic
+  const getRoleName = (role: string): string => {
+    const roleMap: Record<string, string> = {
+      'admin': 'مدير',
+      'supervisor': 'مشرف',
+      'committee_leader': 'قائد لجنة',
+      'volunteer': 'متطوع',
+      'hr': 'موارد بشرية',
+      'head_hr': 'رئيس الموارد البشرية',
+      'head_caravans': 'رئيس القوافل',
+      'head_events': 'رئيس الفعاليات',
+      'head_production': 'رئيس الإنتاج',
+      'head_fourth_year': 'رئيس السنة الرابعة',
+    };
+    return roleMap[role] || 'متطوع';
   };
 
   // Filter submissions by date range
@@ -280,15 +314,36 @@ export default function Reports() {
   const handleExport = (type: string) => {
     switch (type) {
       case 'volunteers':
-        const volunteersData = profiles.map(p => ({
-          [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
-          [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-          [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
-          [language === 'ar' ? 'المستوى' : 'Level']: getLevelName(p.level || 'under_follow_up'),
-          [language === 'ar' ? 'النقاط' : 'Points']: p.total_points,
-          [language === 'ar' ? 'عدد الأنشطة' : 'Activities Count']: p.activities_count,
-          [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-        }));
+        const volunteersData = profiles.map(p => {
+          const level = p.level || 'under_follow_up';
+          const isResponsible = ['responsible', 'platinum', 'diamond'].includes(level);
+
+          // Determine camp attendance status
+          let campAttendance = '';
+          if (!isResponsible) {
+            if (p.attended_mini_camp || p.attended_camp) {
+              campAttendance = language === 'ar' ? 'نعم' : 'Yes';
+            } else {
+              campAttendance = language === 'ar' ? 'لا' : 'No';
+            }
+          }
+
+          // Get primary role (first non-volunteer role, or volunteer if that's all they have)
+          const primaryRole = p.roles?.find(r => r !== 'volunteer') || p.roles?.[0] || 'volunteer';
+          const roleDisplay = language === 'ar' ? getRoleName(primaryRole) : primaryRole;
+
+          return {
+            [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
+            [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
+            [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Degree']: getLevelName(level),
+            [language === 'ar' ? 'الدور' : 'Role']: roleDisplay,
+            [language === 'ar' ? 'حضر الكامب' : 'Attended Camp']: campAttendance,
+            [language === 'ar' ? 'الأثر' : 'Impact']: p.total_points,
+            [language === 'ar' ? 'عدد المشاركات' : 'Participations Count']: p.activities_count,
+            [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+          };
+        });
         downloadCSV(volunteersData, 'volunteers');
         break;
 
@@ -309,6 +364,8 @@ export default function Reports() {
             [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
             [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
             [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+            [language === 'ar' ? 'الملاحظات' : 'Notes']: s.description || '',
+            [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
           };
         });
         // Use 'participation_log' filename, filtered by current month
@@ -319,21 +376,12 @@ export default function Reports() {
         const pointsData = profiles.map(p => ({
           [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
           [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-          [language === 'ar' ? 'إجمالي النقاط' : 'Total Points']: p.total_points,
-          [language === 'ar' ? 'المستوى' : 'Level']: getLevelName(p.level || 'under_follow_up'),
-        })).sort((a, b) => (b[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number) - (a[language === 'ar' ? 'إجمالي النقاط' : 'Total Points'] as number));
+          [language === 'ar' ? 'إجمالي الأثر' : 'Total Impact']: p.total_points,
+          [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Degree']: getLevelName(p.level || 'under_follow_up'),
+        })).sort((a, b) => (b[language === 'ar' ? 'إجمالي الأثر' : 'Total Impact'] as number) - (a[language === 'ar' ? 'إجمالي الأثر' : 'Total Impact'] as number));
         downloadCSV(pointsData, 'points_summary');
         break;
 
-      case 'monthly':
-        const monthlyData = activityTrend.map(m => ({
-          [language === 'ar' ? 'الشهر' : 'Month']: m.month,
-          [t('level.under_follow_up')]: m.under_follow_up,
-          [t('level.project_responsible')]: m.project_responsible,
-          [t('level.responsible')]: m.responsible,
-        }));
-        downloadCSV(monthlyData, 'monthly_report');
-        break;
 
       case 'full':
         // Export all data as a comprehensive report
@@ -613,7 +661,7 @@ export default function Reports() {
           <CardDescription>{t('reports.exportDataDesc')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2">
             <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('volunteers')}>
               <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
               <span className="truncate">{t('reports.volunteerList')}</span>
@@ -621,11 +669,6 @@ export default function Reports() {
             <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('activities')}>
               <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
               <span className="truncate">{t('reports.activityLog')}</span>
-            </Button>
-
-            <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('monthly')}>
-              <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
-              <span className="truncate">{t('reports.monthlyReport')}</span>
             </Button>
           </div>
         </CardContent>
