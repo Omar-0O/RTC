@@ -301,7 +301,8 @@ export default function UserManagement() {
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesLevel = levelFilter === 'all' || user.level === levelFilter;
     const matchesCommittee = committeeFilter === 'all' || user.committee_id === committeeFilter;
-    return matchesSearch && matchesLevel && matchesCommittee;
+    const isNotAdmin = user.role !== 'admin';
+    return matchesSearch && matchesLevel && matchesCommittee && isNotAdmin;
   });
 
   const resetForm = () => {
