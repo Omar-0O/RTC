@@ -144,8 +144,6 @@ export function AppSidebar() {
       case 'hr':
       case 'head_hr':
         return hrNavItems;
-      case 'head_fourth_year':
-        return leaderNavItems;
       case 'head_caravans':
         return [
           { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
@@ -160,10 +158,6 @@ export function AppSidebar() {
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },
         ];
-      case 'head_production':
-        // Production head acts like a committee leader but without Caravan access from leaderNavItems if it was there
-        // Actually leaderNavItems HAS caravans. So we need a version WITHOUT it.
-        return leaderNavItems.filter(item => item.url !== '/caravans');
       default:
         return volunteerNavItems;
     }

@@ -238,8 +238,6 @@ export default function UserManagement() {
         if (roles.includes('hr')) return 'hr';
         if (roles.includes('supervisor')) return 'supervisor';
         if (roles.includes('committee_leader')) return 'committee_leader';
-        if (roles.includes('head_production')) return 'head_production';
-        if (roles.includes('head_fourth_year')) return 'head_fourth_year';
         if (roles.includes('head_caravans')) return 'head_caravans';
         if (roles.includes('head_events')) return 'head_events';
         return 'volunteer';
@@ -629,8 +627,8 @@ export default function UserManagement() {
       case 'hr':
       case 'head_hr':
         return 'bg-purple-100 text-purple-700';
-      case 'head_production':
-      case 'head_fourth_year':
+      case 'head_production': // Keep existing style if needed or map to default, but removing case as per plan. 
+      // Actually if existing users have it they will be migrated. But to avoid runtime error if data is stale:
       case 'head_caravans':
       case 'head_events':
         return 'bg-blue-100 text-blue-700';
@@ -646,8 +644,6 @@ export default function UserManagement() {
       case 'committee_leader': return t('common.committeeLeader');
       case 'hr': return t('common.hr');
       case 'head_hr': return t('common.head_hr');
-      case 'head_production': return t('common.head_production');
-      case 'head_fourth_year': return t('common.head_fourth_year');
       case 'head_caravans': return t('common.head_caravans');
       case 'head_events': return t('common.head_events');
       default: return t('common.volunteer');
@@ -854,11 +850,8 @@ export default function UserManagement() {
                         <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
                         <SelectItem value="hr">{t('common.hr')}</SelectItem>
                         <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
-                        <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
-                        <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
                         <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
                         <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
-                        <SelectItem value="admin">{t('common.admin')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1065,13 +1058,10 @@ export default function UserManagement() {
                       <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
                       <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
                       <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
-                      <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
-                      <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
                       <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
                       <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
                       <SelectItem value="hr">{t('common.hr')}</SelectItem>
                       <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
-                      <SelectItem value="admin">{t('common.admin')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1108,7 +1098,7 @@ export default function UserManagement() {
 
               {(formLevel === 'under_follow_up' || formLevel === 'project_responsible') && (
                 <div className="border-t pt-4 mt-4 pb-4">
-                  <h4 className="text-sm font-medium mb-4">{t('users.attendance')}</h4>
+                  <h4 className="text-sm font-medium mb-4">{language === 'ar' ? 'حضور الكامب' : 'Camp Attendance'}</h4>
                   <div className="grid gap-4">
                     {formLevel === 'under_follow_up' && (
                       <div className="flex items-center justify-between rounded-lg border p-3">

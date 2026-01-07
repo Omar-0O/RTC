@@ -269,7 +269,7 @@ export default function SupervisorDashboard() {
                                                 </p>
                                             </div>
                                             <div className="shrink-0">
-                                                <LevelBadge level={volunteer.level as any} size="sm" />
+                                                {/* <LevelBadge level={volunteer.level as any} size="sm" /> */}
                                             </div>
                                         </div>
                                     );

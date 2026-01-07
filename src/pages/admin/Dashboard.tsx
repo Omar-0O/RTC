@@ -265,7 +265,7 @@ export default function AdminDashboard() {
                       <p className="font-medium truncate">{volunteer.full_name || (isRTL ? 'متطوع' : 'Volunteer')}</p>
                       <p className="text-xs text-muted-foreground">{volunteer.total_points} {t('common.points')}</p>
                     </div>
-                    <LevelBadge level={volunteer.level as any} size="sm" />
+                    {/* <LevelBadge level={volunteer.level as any} size="sm" /> */}
                   </div>
                 ))
               )}
