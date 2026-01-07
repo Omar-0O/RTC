@@ -73,6 +73,8 @@ type Badge = {
   color: string;
   points_required: number | null;
   activities_required: number | null;
+  months_required: number | null;
+  caravans_required: number | null;
 };
 
 type Profile = {
@@ -127,6 +129,8 @@ export default function BadgeManagement() {
     color: '#F59E0B',
     points_required: '',
     activities_required: '',
+    months_required: '',
+    caravans_required: '',
   });
 
   useEffect(() => {
@@ -171,6 +175,8 @@ export default function BadgeManagement() {
       color: '#F59E0B',
       points_required: '',
       activities_required: '',
+      months_required: '',
+      caravans_required: '',
     });
   };
 
@@ -187,6 +193,8 @@ export default function BadgeManagement() {
         color: formData.color,
         points_required: formData.points_required ? parseInt(formData.points_required) : null,
         activities_required: formData.activities_required ? parseInt(formData.activities_required) : null,
+        months_required: formData.months_required ? parseInt(formData.months_required) : null,
+        caravans_required: formData.caravans_required ? parseInt(formData.caravans_required) : null,
       });
 
       if (error) throw error;
@@ -217,6 +225,8 @@ export default function BadgeManagement() {
         color: formData.color,
         points_required: formData.points_required ? parseInt(formData.points_required) : null,
         activities_required: formData.activities_required ? parseInt(formData.activities_required) : null,
+        months_required: formData.months_required ? parseInt(formData.months_required) : null,
+        caravans_required: formData.caravans_required ? parseInt(formData.caravans_required) : null,
       }).eq('id', selectedBadge.id);
 
       if (error) throw error;
@@ -344,6 +354,8 @@ export default function BadgeManagement() {
       color: badge.color,
       points_required: badge.points_required?.toString() || '',
       activities_required: badge.activities_required?.toString() || '',
+      months_required: badge.months_required?.toString() || '',
+      caravans_required: badge.caravans_required?.toString() || '',
     });
     setIsEditDialogOpen(true);
   };
@@ -461,6 +473,28 @@ export default function BadgeManagement() {
                       min="0"
                       value={formData.activities_required}
                       onChange={(e) => setFormData({ ...formData, activities_required: e.target.value })}
+                      placeholder={isRTL ? 'اختياري' : 'Optional'}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label>{isRTL ? 'المدة بالأشهر' : 'Months Required'}</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={formData.months_required}
+                      onChange={(e) => setFormData({ ...formData, months_required: e.target.value })}
+                      placeholder={isRTL ? 'اختياري' : 'Optional'}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>{isRTL ? 'القوافل المطلوبة' : 'Caravans Required'}</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={formData.caravans_required}
+                      onChange={(e) => setFormData({ ...formData, caravans_required: e.target.value })}
                       placeholder={isRTL ? 'اختياري' : 'Optional'}
                     />
                   </div>
@@ -598,6 +632,22 @@ export default function BadgeManagement() {
                             <span className="text-muted-foreground">-</span>
                           )}
                         </div>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-muted-foreground">{isRTL ? 'المدة بالأشهر' : 'Months Req.'}</span>
+                          {badge.months_required ? (
+                            <span className="font-medium">{badge.months_required}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-muted-foreground">{isRTL ? 'القوافل المطلوبة' : 'Caravans Req.'}</span>
+                          {badge.caravans_required ? (
+                            <span className="font-medium">{badge.caravans_required}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -614,6 +664,8 @@ export default function BadgeManagement() {
                     <TableHead className="text-start">{isRTL ? 'الوصف' : 'Description'}</TableHead>
                     <TableHead className="text-start">{isRTL ? 'النقاط المطلوبة' : 'Points Req.'}</TableHead>
                     <TableHead className="text-start">{isRTL ? 'الأنشطة المطلوبة' : 'Activities Req.'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'المدة بالأشهر' : 'Months Req.'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'القوافل المطلوبة' : 'Caravans Req.'}</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -653,6 +705,20 @@ export default function BadgeManagement() {
                         <TableCell>
                           {badge.activities_required ? (
                             <span className="font-medium">{badge.activities_required}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {badge.months_required ? (
+                            <span className="font-medium">{badge.months_required}</span>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {badge.caravans_required ? (
+                            <span className="font-medium">{badge.caravans_required}</span>
                           ) : (
                             <span className="text-muted-foreground">-</span>
                           )}
@@ -784,6 +850,28 @@ export default function BadgeManagement() {
                     min="0"
                     value={formData.activities_required}
                     onChange={(e) => setFormData({ ...formData, activities_required: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>{isRTL ? 'المدة بالأشهر' : 'Months Required'}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={formData.months_required}
+                    onChange={(e) => setFormData({ ...formData, months_required: e.target.value })}
+                    placeholder={isRTL ? 'اختياري' : 'Optional'}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>{isRTL ? 'القوافل المطلوبة' : 'Caravans Required'}</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={formData.caravans_required}
+                    onChange={(e) => setFormData({ ...formData, caravans_required: e.target.value })}
+                    placeholder={isRTL ? 'اختياري' : 'Optional'}
                   />
                 </div>
               </div>

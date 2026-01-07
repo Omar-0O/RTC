@@ -577,7 +577,12 @@ export default function MyCourses() {
                                         <Input
                                             placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
                                             value={newBeneficiary.phone}
-                                            onChange={e => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                if (/^[0-9+]*$/.test(val)) {
+                                                    setNewBeneficiary({ ...newBeneficiary, phone: val });
+                                                }
+                                            }}
                                             className="w-full sm:flex-1"
                                         />
                                         <Button onClick={addBeneficiary} className="w-full sm:w-auto">
@@ -616,7 +621,12 @@ export default function MyCourses() {
                                                     {editingBeneficiary?.id === b.id ? (
                                                         <Input
                                                             value={editingBeneficiary.phone}
-                                                            onChange={e => setEditingBeneficiary({ ...editingBeneficiary, phone: e.target.value })}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                if (/^[0-9+]*$/.test(val)) {
+                                                                    setEditingBeneficiary({ ...editingBeneficiary, phone: val });
+                                                                }
+                                                            }}
                                                             className="h-8"
                                                         />
                                                     ) : (

@@ -122,7 +122,7 @@ const DAYS = [
 ];
 
 export default function CourseManagement() {
-    const { user } = useAuth();
+    const { user, hasRole } = useAuth();
     const { t, language, isRTL } = useLanguage();
 
     const [courses, setCourses] = useState<Course[]>([]);
@@ -140,6 +140,7 @@ export default function CourseManagement() {
     const [editingBeneficiary, setEditingBeneficiary] = useState<CourseBeneficiary | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
+    const [detailsOrganizers, setDetailsOrganizers] = useState<CourseOrganizer[]>([]);
     const [isDeleting, setIsDeleting] = useState(false);
 
     // Filter out ended courses unless showPastCourses is true
@@ -292,13 +293,49 @@ export default function CourseManagement() {
             return;
         }
 
+        if (organizers.length < 2) {
+            toast.error(isRTL ? 'يجب اختيار 2 منظمين على الأقل' : 'Must select at least 2 organizers');
+            return;
+        }
+
         try {
-            // Prepare data - convert empty strings to null for date fields
+            // Smart Date Calculation
+            const start = new Date(formData.start_date);
+            let current = start;
+            let lectureDates: Date[] = [];
+            const targetLectures = formData.total_lectures;
+
+            // Map day names to 0-6 (Sunday=0)
+            const dayMap: { [key: string]: number } = {
+                'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
+                'thursday': 4, 'friday': 5, 'saturday': 6
+            };
+
+            const selectedDaysIndices = formData.schedule_days.map(d => dayMap[d]);
+
+            // Safety break
+            let safetyCounter = 0;
+            // First, find the valid start date (first lecture)
+            while (lectureDates.length < targetLectures && safetyCounter < 365) {
+                const dayIndex = getDay(current);
+                if (selectedDaysIndices.includes(dayIndex)) {
+                    lectureDates.push(current);
+                }
+                if (lectureDates.length < targetLectures) {
+                    current = addDays(current, 1);
+                }
+                safetyCounter++;
+            }
+
+            const actualStartDate = lectureDates.length > 0 ? format(lectureDates[0], 'yyyy-MM-dd') : formData.start_date;
+            const actualEndDate = lectureDates.length > 0 ? format(lectureDates[lectureDates.length - 1], 'yyyy-MM-dd') : null;
+
+            // Prepare data
             const courseData = {
                 ...formData,
+                start_date: actualStartDate,
+                end_date: actualEndDate,
                 interview_date: formData.interview_date || null,
-                start_date: formData.start_date || null,
-                end_date: formData.end_date || null,
                 created_by: user?.id
             };
 
@@ -326,15 +363,12 @@ export default function CourseManagement() {
             }
 
             // Create lecture entries
-            const lectureEntries = [];
-            for (let i = 1; i <= formData.total_lectures; i++) {
-                lectureEntries.push({
-                    course_id: course.id,
-                    lecture_number: i,
-                    date: formData.start_date, // Can be updated individually later
-                    status: 'scheduled'
-                });
-            }
+            const lectureEntries = lectureDates.map((date, index) => ({
+                course_id: course.id,
+                lecture_number: index + 1,
+                date: format(date, 'yyyy-MM-dd'),
+                status: 'scheduled' as 'scheduled' | 'completed' | 'cancelled'
+            }));
 
             const { error: lectError } = await supabase
                 .from('course_lectures')
@@ -396,6 +430,16 @@ export default function CourseManagement() {
                     setAttendanceData(grouped);
                 }
             }
+            // Fetch organizers
+            const { data: organizersData } = await supabase
+                .from('course_organizers')
+                .select('*')
+                .eq('course_id', course.id);
+
+            if (organizersData) {
+                setDetailsOrganizers(organizersData);
+            }
+
             setIsDetailsOpen(true);
         } catch (error) {
             console.error('Error fetching details:', error);
@@ -758,6 +802,58 @@ export default function CourseManagement() {
         }
     };
 
+    const handleAddOrganizerToDetails = async (volunteer: Volunteer) => {
+        if (!selectedCourse) return;
+
+        // Check if already added
+        if (detailsOrganizers.some(o => o.volunteer_id === volunteer.id)) {
+            toast.error(isRTL ? 'هذا المنظم مضاف بالفعل' : 'This organizer is already added');
+            return;
+        }
+
+        try {
+            const newOrganizer = {
+                course_id: selectedCourse.id,
+                volunteer_id: volunteer.id,
+                name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
+                phone: volunteer.phone || ''
+            };
+
+            const { data, error } = await supabase
+                .from('course_organizers')
+                .insert(newOrganizer)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setDetailsOrganizers([...detailsOrganizers, data]);
+            toast.success(isRTL ? 'تم إضافة المنظم' : 'Organizer added');
+        } catch (error) {
+            console.error('Error adding organizer:', error);
+            toast.error(isRTL ? 'فشل إضافة المنظم' : 'Failed to add organizer');
+        }
+    };
+
+    const handleRemoveOrganizerFromDetails = async (organizerId: string) => {
+        if (!organizerId) return;
+
+        try {
+            const { error } = await supabase
+                .from('course_organizers')
+                .delete()
+                .eq('id', organizerId);
+
+            if (error) throw error;
+
+            setDetailsOrganizers(detailsOrganizers.filter(o => o.id !== organizerId));
+            toast.success(isRTL ? 'تم حذف المنظم' : 'Organizer removed');
+        } catch (error) {
+            console.error('Error removing organizer:', error);
+            toast.error(isRTL ? 'فشل حذف المنظم' : 'Failed to remove organizer');
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -1105,10 +1201,13 @@ export default function CourseManagement() {
 
                     <Tabs defaultValue="beneficiaries" className="w-full">
                         <div className="overflow-x-auto -mx-2 px-2">
-                            <TabsList className="grid w-full min-w-[300px] grid-cols-3">
+                            <TabsList className={`grid w-full min-w-[300px] ${(hasRole('admin') || hasRole('committee_leader')) ? 'grid-cols-4' : 'grid-cols-3'}`}>
                                 <TabsTrigger value="beneficiaries" className="text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
                                 <TabsTrigger value="lectures" className="text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
                                 <TabsTrigger value="sheet" className="text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                                {(hasRole('admin') || hasRole('committee_leader')) && (
+                                    <TabsTrigger value="organizers" className="text-xs sm:text-sm">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
+                                )}
                             </TabsList>
                         </div>
 
@@ -1130,7 +1229,12 @@ export default function CourseManagement() {
                                         <Input
                                             placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
                                             value={newBeneficiary.phone}
-                                            onChange={e => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                if (/^[0-9+]*$/.test(val)) {
+                                                    setNewBeneficiary({ ...newBeneficiary, phone: val });
+                                                }
+                                            }}
                                             className="w-full sm:flex-1"
                                         />
                                         <Button onClick={addBeneficiary} className="w-full sm:w-auto">
@@ -1169,7 +1273,12 @@ export default function CourseManagement() {
                                                     {editingBeneficiary?.id === b.id ? (
                                                         <Input
                                                             value={editingBeneficiary.phone}
-                                                            onChange={e => setEditingBeneficiary({ ...editingBeneficiary, phone: e.target.value })}
+                                                            onChange={e => {
+                                                                const val = e.target.value;
+                                                                if (/^[0-9+]*$/.test(val)) {
+                                                                    setEditingBeneficiary({ ...editingBeneficiary, phone: val });
+                                                                }
+                                                            }}
                                                             className="h-8"
                                                         />
                                                     ) : (
@@ -1365,6 +1474,81 @@ export default function CourseManagement() {
                                 </Table>
                             </div>
                         </TabsContent>
+                        {(hasRole('admin') || hasRole('committee_leader')) && (
+                            <TabsContent value="organizers" className="space-y-4 py-4">
+                                <Card>
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-base">{isRTL ? 'إدارة المنظمين' : 'Manage Organizers'}</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <div className="space-y-4">
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button variant="outline" className="w-full justify-start text-sm">
+                                                        <Search className="w-4 h-4 ltr:mr-2 rtl:ml-2 shrink-0" />
+                                                        <span className="truncate">{isRTL ? 'إضافة منظم...' : 'Add organizer...'}</span>
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-[calc(100vw-4rem)] sm:w-[400px] p-0" align="start">
+                                                    <Command>
+                                                        <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
+                                                        <CommandList>
+                                                            <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results found'}</CommandEmpty>
+                                                            <CommandGroup>
+                                                                {volunteers.slice(0, 50).map(volunteer => (
+                                                                    <CommandItem
+                                                                        key={volunteer.id}
+                                                                        value={`${volunteer.full_name} ${volunteer.full_name_ar || ''}`}
+                                                                        onSelect={() => handleAddOrganizerToDetails(volunteer)}
+                                                                    >
+                                                                        <div className="flex flex-col">
+                                                                            <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
+                                                                            <span className="text-xs text-muted-foreground">{volunteer.phone}</span>
+                                                                        </div>
+                                                                    </CommandItem>
+                                                                ))}
+                                                            </CommandGroup>
+                                                        </CommandList>
+                                                    </Command>
+                                                </PopoverContent>
+                                            </Popover>
+
+                                            <div className="border rounded-lg">
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                            <TableHead>{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                                            <TableHead className="w-16"></TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {detailsOrganizers.map(org => (
+                                                            <TableRow key={org.id}>
+                                                                <TableCell>{org.name}</TableCell>
+                                                                <TableCell>{org.phone}</TableCell>
+                                                                <TableCell>
+                                                                    <Button size="sm" variant="ghost" onClick={() => handleRemoveOrganizerFromDetails(org.id!)}>
+                                                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                                                    </Button>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                        {detailsOrganizers.length === 0 && (
+                                                            <TableRow>
+                                                                <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">
+                                                                    {isRTL ? 'لا يوجد منظمين' : 'No organizers'}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </TabsContent>
+                        )}
                     </Tabs>
                 </DialogContent>
             </Dialog>
