@@ -48,22 +48,27 @@ interface Participant {
     phone: string;
     is_volunteer: boolean;
     role?: string;
+    committee_id?: string | null;
 }
 
 interface Volunteer {
     id: string;
     full_name: string;
     phone: string | null;
+    committee_id?: string | null;
 }
 
+const CARAVANS_COMMITTEE_NAME = 'Caravans'; // Must match DB migration name
+
 export default function CaravanManagement() {
-    const { user } = useAuth();
+    const { user, profile: userProfile } = useAuth();
     const { t, language, isRTL } = useLanguage();
 
     const [caravans, setCaravans] = useState<Caravan[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+    const [caravansCommitteeId, setCaravansCommitteeId] = useState<string | null>(null);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -90,6 +95,7 @@ export default function CaravanManagement() {
     useEffect(() => {
         fetchCaravans();
         fetchVolunteers();
+        fetchCaravansCommittee();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -118,9 +124,19 @@ export default function CaravanManagement() {
     const fetchVolunteers = async () => {
         const { data } = await supabase
             .from('profiles')
-            .select('id, full_name, phone')
+            .select('id, full_name, phone, committee_id')
             .order('full_name');
         if (data) setVolunteers(data);
+    };
+
+    const fetchCaravansCommittee = async () => {
+        const { data } = await supabase
+            .from('committees')
+            .select('id')
+            .ilike('name', 'Caravans') // Match name used in migration
+            .maybeSingle();
+        console.log('Fetched Caravans Committee:', data);
+        if (data) setCaravansCommitteeId(data.id);
     };
 
     const handleAddVolunteer = (volunteerId: string) => {
@@ -136,7 +152,8 @@ export default function CaravanManagement() {
             volunteer_id: volunteer.id,
             name: volunteer.full_name || '',
             phone: volunteer.phone || '',
-            is_volunteer: true
+            is_volunteer: true,
+            committee_id: volunteer.committee_id
         }]);
         setOpenCombobox(false);
     };
@@ -189,7 +206,8 @@ export default function CaravanManagement() {
                 description: 'Participation in a caravan',
                 description_ar: 'المشاركة في قافلة',
                 points: 5,
-                mode: 'group'
+                mode: 'group',
+                committee_id: caravansCommitteeId, // Assign to Caravans committee
             })
             .select()
             .single();
@@ -240,36 +258,7 @@ export default function CaravanManagement() {
                     })));
 
                 if (partsError) throw partsError;
-
-                // Award Points for Volunteers
-                const volunteers = participants.filter(p => p.is_volunteer && p.volunteer_id);
-                if (volunteers.length > 0) {
-                    const activityTypeId = await ensureCaravanActivityType();
-
-                    if (activityTypeId) {
-                        const submissions = volunteers.map(p => ({
-                            volunteer_id: p.volunteer_id,
-                            activity_type_id: activityTypeId,
-                            status: 'approved',
-                            points_awarded: 5,
-                            submitted_at: new Date().toISOString(),
-                            description: `Caravan: ${formData.name}`,
-                            // Link to caravan if possible, but schema might not support direct link in activity_submissions yet
-                            // unless we add it to metadata or description.
-                        }));
-
-                        const { error: pointsError } = await supabase
-                            .from('activity_submissions')
-                            .insert(submissions);
-
-                        if (pointsError) {
-                            console.error('Error awarding points:', pointsError);
-                            toast.error(isRTL ? 'تم إنشاء القافلة ولكن فشل تسجيل النقاط' : 'Caravan created but failed to award points');
-                        } else {
-                            toast.success(isRTL ? 'تم تسجيل 5 نقاط للمتطوعين' : 'Awarded 5 points to volunteers');
-                        }
-                    }
-                }
+                // Note: Points are now automatically awarded by the database trigger 'on_caravan_participant_added'
             }
 
             toast.success(isRTL ? 'تم إنشاء القافلة بنجاح' : 'Caravan created successfully');
@@ -494,7 +483,6 @@ export default function CaravanManagement() {
                                             <SelectContent>
                                                 <SelectItem value="food_distribution">{isRTL ? 'إطعام' : 'Food Distribution'}</SelectItem>
                                                 <SelectItem value="charity_market">{isRTL ? 'سوق خيري' : 'Charity Market'}</SelectItem>
-                                                <SelectItem value="event">{isRTL ? 'ايفنت' : 'Event'}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>

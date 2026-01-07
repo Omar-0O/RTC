@@ -1201,11 +1201,11 @@ export default function CourseManagement() {
 
                     <Tabs defaultValue="beneficiaries" className="w-full">
                         <div className="overflow-x-auto -mx-2 px-2">
-                            <TabsList className={`grid w-full min-w-[300px] ${(hasRole('admin') || hasRole('committee_leader')) ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                            <TabsList className={`grid w-full min-w-[300px] ${(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor')) ? 'grid-cols-4' : 'grid-cols-3'}`}>
                                 <TabsTrigger value="beneficiaries" className="text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
                                 <TabsTrigger value="lectures" className="text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
                                 <TabsTrigger value="sheet" className="text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
-                                {(hasRole('admin') || hasRole('committee_leader')) && (
+                                {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor')) && (
                                     <TabsTrigger value="organizers" className="text-xs sm:text-sm">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
                                 )}
                             </TabsList>
@@ -1474,7 +1474,7 @@ export default function CourseManagement() {
                                 </Table>
                             </div>
                         </TabsContent>
-                        {(hasRole('admin') || hasRole('committee_leader')) && (
+                        {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor')) && (
                             <TabsContent value="organizers" className="space-y-4 py-4">
                                 <Card>
                                     <CardHeader className="pb-3">
