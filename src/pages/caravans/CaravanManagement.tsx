@@ -23,9 +23,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X } from 'lucide-react';
-import { format } from 'date-fns';
+import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X, Activity } from 'lucide-react';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, isWithinInterval, parseISO, lastDayOfMonth } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { StatsCard } from '@/components/ui/stats-card';
 
 
 interface Caravan {
@@ -67,6 +68,7 @@ export default function CaravanManagement() {
     const { t, language, isRTL } = useLanguage();
 
     const [caravans, setCaravans] = useState<Caravan[]>([]);
+    const [timeFilter, setTimeFilter] = useState('all');
     const [loading, setLoading] = useState(true);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
@@ -94,6 +96,64 @@ export default function CaravanManagement() {
     const [guestName, setGuestName] = useState('');
     const [guestPhone, setGuestPhone] = useState('');
     const [woreVest, setWoreVest] = useState(true);
+
+    const filteredCaravans = caravans.filter(caravan => {
+        if (timeFilter === 'all') return true;
+
+        if (!caravan.date) return false;
+        const date = parseISO(caravan.date);
+        const now = new Date();
+
+        try {
+            switch (timeFilter) {
+                case 'weekly':
+                    return isWithinInterval(date, {
+                        start: startOfWeek(now, { weekStartsOn: 6 }),
+                        end: endOfWeek(now, { weekStartsOn: 6 })
+                    });
+                case 'monthly':
+                    return isWithinInterval(date, {
+                        start: startOfMonth(now),
+                        end: endOfMonth(now)
+                    });
+                case 'quarterly': // 3 months
+                    return isWithinInterval(date, {
+                        start: startOfQuarter(now),
+                        end: endOfQuarter(now)
+                    });
+                case 'trimester': // 4 months (Third of year)
+                    {
+                        const currentMonth = now.getMonth();
+                        const currentYear = now.getFullYear();
+                        // 0-3 (Jan-Apr), 4-7 (May-Aug), 8-11 (Sep-Dec)
+                        const startMonth = Math.floor(currentMonth / 4) * 4;
+                        const start = new Date(currentYear, startMonth, 1);
+                        const end = lastDayOfMonth(new Date(currentYear, startMonth + 3));
+                        return isWithinInterval(date, { start, end });
+                    }
+                case 'semi_annual': // 6 months
+                    {
+                        const currentMonth = now.getMonth();
+                        const currentYear = now.getFullYear();
+                        // 0-5 (Jan-Jun), 6-11 (Jul-Dec)
+                        const startMonth = Math.floor(currentMonth / 6) * 6;
+                        const start = new Date(currentYear, startMonth, 1);
+                        const end = lastDayOfMonth(new Date(currentYear, startMonth + 5));
+                        return isWithinInterval(date, { start, end });
+                    }
+                case 'annual':
+                    return isWithinInterval(date, {
+                        start: startOfYear(now),
+                        end: endOfYear(now)
+                    });
+                default:
+                    return true;
+            }
+        } catch (e) {
+            console.error('Date filtering error', e);
+            return false;
+        }
+    });
 
     useEffect(() => {
         fetchCaravans();
@@ -454,12 +514,37 @@ export default function CaravanManagement() {
 
     return (
         <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <StatsCard
+                    title={isRTL ? 'إجمالي القوافل' : 'Total Caravans'}
+                    value={filteredCaravans.length}
+                    icon={Bus}
+                    description={isRTL ? 'قافلة في الفترة المحددة' : 'Caravans in selected period'}
+                    className="md:col-span-1"
+                />
+            </div>
+
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold">{t('caravans.title')}</h1>
                     <p className="text-muted-foreground text-sm sm:text-base">{t('admin.overview')}</p>
                 </div>
-                <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center">
+                     <Select value={timeFilter} onValueChange={setTimeFilter}>
+                        <SelectTrigger className="w-[180px] h-10">
+                            <SelectValue placeholder={isRTL ? 'اختر الفترة' : 'Select Period'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">{isRTL ? 'الكل' : 'All'}</SelectItem>
+                            <SelectItem value="weekly">{isRTL ? 'أسبوعي' : 'Weekly'}</SelectItem>
+                            <SelectItem value="monthly">{isRTL ? 'شهري' : 'Monthly'}</SelectItem>
+                            <SelectItem value="quarterly">{isRTL ? 'ربع سنوي' : 'Quarterly'}</SelectItem>
+                            <SelectItem value="trimester">{isRTL ? 'ثلث سنوي' : 'Trimester'}</SelectItem>
+                            <SelectItem value="semi_annual">{isRTL ? 'نصف سنوي' : 'Semi-Annual'}</SelectItem>
+                            <SelectItem value="annual">{isRTL ? 'سنوي' : 'Annual'}</SelectItem>
+                        </SelectContent>
+                    </Select>
+
                     <Button variant="outline" onClick={exportAllCaravans} className="flex-1 sm:flex-none">
                         <FileSpreadsheet className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                         <span className="text-xs sm:text-sm">{t('caravans.exportAll')}</span>
@@ -660,7 +745,7 @@ export default function CaravanManagement() {
             </div>
 
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {caravans.map(caravan => (
+                {filteredCaravans.map(caravan => (
                     <Card key={caravan.id}>
                         <CardHeader className="pb-3">
                             <div className="flex justify-between items-start">
@@ -704,7 +789,7 @@ export default function CaravanManagement() {
                         </CardContent>
                     </Card>
                 ))}
-                {caravans.length === 0 && !loading && (
+                {filteredCaravans.length === 0 && !loading && (
                     <div className="col-span-full flex flex-col items-center justify-center p-8 border rounded-lg border-dashed text-muted-foreground">
                         <Bus className="w-12 h-12 mb-2 opacity-20" />
                         <p>{t('caravans.noCaravans')}</p>
