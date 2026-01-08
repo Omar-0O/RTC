@@ -52,6 +52,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
+import { Database } from '@/integrations/supabase/types';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 
@@ -518,7 +519,7 @@ export default function UserManagement() {
           email: formEmail.trim(),
           phone: formPhone.trim() || null,
           committee_id: formCommitteeId || null,
-          level: formLevel,
+          level: formLevel as Database["public"]["Enums"]["volunteer_level"],
           attended_mini_camp: formLevel === 'under_follow_up' ? formAttendedMiniCamp : null,
           attended_camp: formLevel === 'project_responsible' ? formAttendedCamp : null,
         })
@@ -583,8 +584,8 @@ export default function UserManagement() {
       }
 
       // Check if the RPC function returned an error
-      if (data?.error) {
-        throw new Error(data.error);
+      if ((data as { error?: string })?.error) {
+        throw new Error((data as { error: string }).error);
       }
 
       toast.success(language === 'ar' ? 'تم حذف المستخدم بنجاح' : 'User deleted successfully');
@@ -712,8 +713,13 @@ export default function UserManagement() {
           'Full Name (English)': u.full_name,
           'Full Name (Arabic)': u.full_name_ar,
           'Email': u.email,
-          'Phone': u.phone,
-          'Role': rolesMap.get(u.id) || 'volunteer',
+          'Phone': u.phone ? `'${u.phone}` : '',
+          'Role': (() => {
+            const role = rolesMap.get(u.id);
+            if (role === 'hr') return 'HR';
+            if (role === 'head_hr') return 'Head HR';
+            return role || 'volunteer';
+          })(),
           'Password': passwordsMap.get(u.id) || '',
           'Joined At': new Date(u.created_at).toLocaleDateString(),
           'Mini Camp Attendance': u.level === 'under_follow_up' ? (u.attended_mini_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A',

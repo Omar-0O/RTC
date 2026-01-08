@@ -104,7 +104,7 @@ function AppRoutes() {
         <Route path="/supervisor/activities" element={<SupervisorActivityManagement />} />
         <Route path="/supervisor/committees" element={<SupervisorCommitteeManagement />} />
         <Route path="/supervisor/badges" element={<SupervisorBadgeManagement />} />
-        <Route path="/supervisor/reports" element={<SupervisorReports />} />
+        <Route path="/supervisor/reports" element={<Reports />} />
         <Route path="/supervisor/activity" element={<LogActivity />} />
         <Route path="/supervisor/profile" element={<Profile />} />
 

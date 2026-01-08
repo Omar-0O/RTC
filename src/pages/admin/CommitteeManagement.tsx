@@ -56,6 +56,7 @@ interface Committee {
 interface CommitteeWithStats extends Committee {
   volunteerCount: number;
   totalPoints: number;
+  participationCount: number;
 }
 
 export default function CommitteeManagement() {
@@ -79,6 +80,70 @@ export default function CommitteeManagement() {
   const [formColor, setFormColor] = useState('#3B82F6');
   const [formType, setFormType] = useState<'production' | 'fourth_year'>('production');
 
+  const getFilterDisplayLabel = (filter: string) => {
+    switch (filter) {
+      case 'weekly': return language === 'ar' ? 'أسبوعي' : 'Weekly';
+      case 'monthly': return language === 'ar' ? 'شهري' : 'Monthly';
+      case 'quarterly': return language === 'ar' ? 'ربع سنوي' : 'Quarterly';
+      case 'trimester': return language === 'ar' ? 'ثلث سنوي' : 'Trimester';
+      case 'semi_annual': return language === 'ar' ? 'نصف سنوي' : 'Semi-Annual';
+      case 'annual': return language === 'ar' ? 'سنوي' : 'Annual';
+      default: return language === 'ar' ? 'الكل' : 'All';
+    }
+  };
+
+  const getDateRange = (filter: string) => {
+    const now = new Date();
+    let startDate: Date | null = null;
+    let endDate: Date | null = null;
+    let label = 'All Time';
+
+    switch (filter) {
+      case 'weekly':
+        startDate = startOfWeek(now, { weekStartsOn: 6 });
+        endDate = endOfWeek(now, { weekStartsOn: 6 });
+        label = 'Weekly';
+        break;
+      case 'monthly':
+        startDate = startOfMonth(now);
+        endDate = endOfMonth(now);
+        label = 'Monthly';
+        break;
+      case 'quarterly':
+        startDate = startOfQuarter(now);
+        endDate = endOfQuarter(now);
+        label = 'Quarterly';
+        break;
+      case 'trimester':
+        {
+          const currentMonth = now.getMonth();
+          const currentYear = now.getFullYear();
+          const startMonth = Math.floor(currentMonth / 4) * 4;
+          startDate = new Date(currentYear, startMonth, 1);
+          endDate = endOfMonth(new Date(currentYear, startMonth + 3));
+          label = 'Trimester';
+        }
+        break;
+      case 'semi_annual':
+        const month = now.getMonth();
+        if (month < 6) {
+          startDate = new Date(now.getFullYear(), 0, 1);
+          endDate = endOfMonth(new Date(now.getFullYear(), 5, 1));
+        } else {
+          startDate = new Date(now.getFullYear(), 6, 1);
+          endDate = endOfMonth(new Date(now.getFullYear(), 11, 1));
+        }
+        label = 'Semi-Annual';
+        break;
+      case 'annual':
+        startDate = startOfYear(now);
+        endDate = endOfYear(now);
+        label = 'Annual';
+        break;
+    }
+    return { startDate, endDate, label };
+  };
+
   const fetchCommittees = async () => {
     setIsLoading(true);
     try {
@@ -89,22 +154,41 @@ export default function CommitteeManagement() {
 
       if (error) throw error;
 
+      const { startDate, endDate } = getDateRange(timeFilter);
+
       // Get stats for each committee
       const committeesWithStats: CommitteeWithStats[] = await Promise.all(
         (committeesData || []).map(async (committee) => {
-          const { data: profiles } = await supabase
+          // 1. Volunteer Count (Always total currently joined)
+          const { count: volunteerCount } = await supabase
             .from('profiles')
-            .select('total_points')
+            .select('*', { count: 'exact', head: true })
             .eq('committee_id', committee.id);
 
-          const volunteerCount = profiles?.length || 0;
-          const totalPoints = profiles?.reduce((sum, p) => sum + (p.total_points || 0), 0) || 0;
+          // 2. Stats from Activities (Points & Participations) - Filtered by Time
+          let query = supabase
+            .from('activity_submissions')
+            .select('points_awarded')
+            .eq('committee_id', committee.id)
+            .eq('status', 'approved'); // Only approved points count
+
+          if (startDate && endDate) {
+            query = query
+              .gte('submitted_at', startDate.toISOString())
+              .lte('submitted_at', endDate.toISOString());
+          }
+
+          const { data: participationData } = await query;
+
+          const participationCount = participationData?.length || 0;
+          const totalPoints = participationData?.reduce((sum, p) => sum + (p.points_awarded || 0), 0) || 0;
 
           return {
             ...committee,
             committee_type: committee.committee_type as 'production' | 'fourth_year',
-            volunteerCount,
+            volunteerCount: volunteerCount || 0,
             totalPoints,
+            participationCount
           };
         })
       );
@@ -120,7 +204,7 @@ export default function CommitteeManagement() {
 
   useEffect(() => {
     fetchCommittees();
-  }, []);
+  }, [timeFilter]);
 
   const resetForm = () => {
     setFormName('');
@@ -224,40 +308,7 @@ export default function CommitteeManagement() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const now = new Date();
-      let startDate: Date | null = null;
-      let endDate: Date | null = null;
-
-      // Determine date range
-      switch (timeFilter) {
-        case 'weekly':
-          startDate = startOfWeek(now, { weekStartsOn: 6 });
-          endDate = endOfWeek(now, { weekStartsOn: 6 });
-          break;
-        case 'monthly':
-          startDate = startOfMonth(now);
-          endDate = endOfMonth(now);
-          break;
-        case 'quarterly':
-          startDate = startOfQuarter(now);
-          endDate = endOfQuarter(now);
-          break;
-        case 'semi_annual':
-           // Simplification: Either first half or second half of year
-           const month = now.getMonth();
-           if (month < 6) {
-             startDate = new Date(now.getFullYear(), 0, 1);
-             endDate = endOfMonth(new Date(now.getFullYear(), 5, 1));
-           } else {
-             startDate = new Date(now.getFullYear(), 6, 1);
-             endDate = endOfMonth(new Date(now.getFullYear(), 11, 1));
-           }
-           break;
-        case 'annual':
-          startDate = startOfYear(now);
-          endDate = endOfYear(now);
-          break;
-      }
+      const { startDate, endDate, label } = getDateRange(timeFilter);
 
       // Fetch fresh data for export
       const { data: allCommittees } = await supabase.from('committees').select('*');
@@ -274,7 +325,8 @@ export default function CommitteeManagement() {
         let participationQuery = supabase
           .from('activity_submissions')
           .select('*', { count: 'exact', head: true })
-          .eq('committee_id', committee.id);
+          .eq('committee_id', committee.id)
+          .eq('status', 'approved'); // Consistency: only approved
 
         if (startDate && endDate) {
           participationQuery = participationQuery
@@ -305,7 +357,9 @@ export default function CommitteeManagement() {
       utils.book_append_sheet(wb, ws, "Committees Report");
 
       // Save File
-      writeFile(wb, `Committees_Report_${format(now, 'yyyy-MM-dd')}.xlsx`);
+      // Format filename: Committees_Report_Label_YYYY-MM-DD.xlsx
+      const filenameLabel = label.replace(/\s+/g, '_');
+      writeFile(wb, `Committees_Report_${filenameLabel}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
       toast.success(language === 'ar' ? 'تم تصدير التقرير بنجاح' : 'Report exported successfully');
 
     } catch (error) {
@@ -352,121 +406,125 @@ export default function CommitteeManagement() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-           <Select value={timeFilter} onValueChange={setTimeFilter}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder={language === 'ar' ? 'اختر الفترة' : 'Select Period'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
-                <SelectItem value="weekly">{language === 'ar' ? 'أسبوعي' : 'Weekly'}</SelectItem>
-                <SelectItem value="monthly">{language === 'ar' ? 'شهري' : 'Monthly'}</SelectItem>
-                <SelectItem value="quarterly">{language === 'ar' ? 'ربع سنوي' : 'Quarterly'}</SelectItem>
-                <SelectItem value="semi_annual">{language === 'ar' ? 'نصف سنوي' : 'Semi-Annual'}</SelectItem>
-                <SelectItem value="annual">{language === 'ar' ? 'سنوي' : 'Annual'}</SelectItem>
-              </SelectContent>
-            </Select>
+          <Select value={timeFilter} onValueChange={setTimeFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder={language === 'ar' ? 'اختر الفترة' : 'Select Period'} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
+              <SelectItem value="weekly">{language === 'ar' ? 'أسبوعي' : 'Weekly'}</SelectItem>
+              <SelectItem value="monthly">{language === 'ar' ? 'شهري' : 'Monthly'}</SelectItem>
+              <SelectItem value="quarterly">{language === 'ar' ? 'ربع سنوي' : 'Quarterly'}</SelectItem>
+              <SelectItem value="trimester">{language === 'ar' ? 'ثلث سنوي' : 'Trimester'}</SelectItem>
+              <SelectItem value="semi_annual">{language === 'ar' ? 'نصف سنوي' : 'Semi-Annual'}</SelectItem>
+              <SelectItem value="annual">{language === 'ar' ? 'سنوي' : 'Annual'}</SelectItem>
+            </SelectContent>
+          </Select>
 
-            <Button variant="outline" onClick={handleExport} disabled={isExporting}>
-              <FileSpreadsheet className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-              {isExporting ? (language === 'ar' ? 'جاري التصدير...' : 'Exporting...') : (language === 'ar' ? 'تصدير' : 'Export')}
-            </Button>
+          <Button variant="outline" onClick={handleExport} disabled={isExporting}>
+            <FileSpreadsheet className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+            {isExporting
+              ? (language === 'ar' ? 'جاري التصدير...' : 'Exporting...')
+              : (language === 'ar' ? `تصدير (${getFilterDisplayLabel(timeFilter)})` : `Export (${getFilterDisplayLabel(timeFilter)})`)
+            }
+          </Button>
 
-            <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
-              setIsAddDialogOpen(open);
-              if (!open) resetForm();
-            }}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                  {t('committees.addCommittee')}
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{t('committees.createNew')}</DialogTitle>
-                  <DialogDescription>{t('committees.createDescription')}</DialogDescription>
-                </DialogHeader>
-                <form onSubmit={handleAddCommittee}>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="name">Name (English) *</Label>
-                      <Input
-                        id="name"
-                        value={formName}
-                        onChange={(e) => setFormName(e.target.value)}
-                        placeholder="Committee name in English"
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="name-ar">الاسم (عربي) *</Label>
-                      <Input
-                        id="name-ar"
-                        value={formNameAr}
-                        onChange={(e) => setFormNameAr(e.target.value)}
-                        placeholder="اسم اللجنة بالعربي"
-                        dir="rtl"
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="description">Description (English)</Label>
-                      <Textarea
-                        id="description"
-                        value={formDescription}
-                        onChange={(e) => setFormDescription(e.target.value)}
-                        placeholder="Committee description"
-                        rows={2}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="description-ar">الوصف (عربي)</Label>
-                      <Textarea
-                        id="description-ar"
-                        value={formDescriptionAr}
-                        onChange={(e) => setFormDescriptionAr(e.target.value)}
-                        placeholder="وصف اللجنة"
-                        dir="rtl"
-                        rows={2}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="type">Type</Label>
-                      <Select
-                        value={formType}
-                        onValueChange={(val: 'production' | 'fourth_year') => setFormType(val)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select Type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="production">Production Committee / لجنة انتاج</SelectItem>
-                          <SelectItem value="fourth_year">Fourth Year Committee / لجنة سنة رابعة</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="color">Color</Label>
-                      <Input
-                        id="color"
-                        type="color"
-                        value={formColor}
-                        onChange={(e) => setFormColor(e.target.value)}
-                        className="h-10 w-20"
-                      />
-                    </div>
+          <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+            setIsAddDialogOpen(open);
+            if (!open) resetForm();
+          }}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                {t('committees.addCommittee')}
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{t('committees.createNew')}</DialogTitle>
+                <DialogDescription>{t('committees.createDescription')}</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleAddCommittee}>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="name">Name (English) *</Label>
+                    <Input
+                      id="name"
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                      placeholder="Committee name in English"
+                      required
+                    />
                   </div>
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                      {t('common.cancel')}
-                    </Button>
-                    <Button type="submit" disabled={isSubmitting}>
-                      {isSubmitting ? 'Adding...' : t('common.add')}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              </DialogContent>
-            </Dialog>
+                  <div className="grid gap-2">
+                    <Label htmlFor="name-ar">الاسم (عربي) *</Label>
+                    <Input
+                      id="name-ar"
+                      value={formNameAr}
+                      onChange={(e) => setFormNameAr(e.target.value)}
+                      placeholder="اسم اللجنة بالعربي"
+                      dir="rtl"
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="description">Description (English)</Label>
+                    <Textarea
+                      id="description"
+                      value={formDescription}
+                      onChange={(e) => setFormDescription(e.target.value)}
+                      placeholder="Committee description"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="description-ar">الوصف (عربي)</Label>
+                    <Textarea
+                      id="description-ar"
+                      value={formDescriptionAr}
+                      onChange={(e) => setFormDescriptionAr(e.target.value)}
+                      placeholder="وصف اللجنة"
+                      dir="rtl"
+                      rows={2}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="type">Type</Label>
+                    <Select
+                      value={formType}
+                      onValueChange={(val: 'production' | 'fourth_year') => setFormType(val)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="production">Production Committee / لجنة انتاج</SelectItem>
+                        <SelectItem value="fourth_year">Fourth Year Committee / لجنة سنة رابعة</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="color">Color</Label>
+                    <Input
+                      id="color"
+                      type="color"
+                      value={formColor}
+                      onChange={(e) => setFormColor(e.target.value)}
+                      className="h-10 w-20"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                    {t('common.cancel')}
+                  </Button>
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? 'Adding...' : t('common.add')}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -517,7 +575,7 @@ export default function CommitteeManagement() {
                 </p>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-center">
+                <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
                     <div className="flex items-center justify-center gap-1 text-muted-foreground">
                       <Users className="h-4 w-4" />
@@ -531,6 +589,13 @@ export default function CommitteeManagement() {
                     </div>
                     <p className="text-2xl font-bold">{committee.totalPoints.toLocaleString()}</p>
                     <p className="text-xs text-muted-foreground">{t('common.points')}</p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-center gap-1 text-muted-foreground">
+                      <FileSpreadsheet className="h-4 w-4" />
+                    </div>
+                    <p className="text-2xl font-bold">{committee.participationCount || 0}</p>
+                    <p className="text-xs text-muted-foreground">{language === 'ar' ? 'المشاركات' : 'Participations'}</p>
                   </div>
                 </div>
               </CardContent>

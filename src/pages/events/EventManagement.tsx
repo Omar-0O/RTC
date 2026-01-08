@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toast } from 'sonner';
-import { Plus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, Sparkles } from 'lucide-react';
+import { Plus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, Sparkles, Download, Pencil } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -61,6 +62,10 @@ export default function EventManagement() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
 
+    // Filter State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterDate, setFilterDate] = useState('');
+
     // Form State
     const [formData, setFormData] = useState({
         name: '',
@@ -81,28 +86,50 @@ export default function EventManagement() {
     const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
+    const [eventsCommitteeId, setEventsCommitteeId] = useState<string | null>(null);
+
     useEffect(() => {
         fetchEvents();
         fetchVolunteers();
+        fetchEventsCommittee();
     }, []);
 
+    const filteredEvents = events.filter(event => {
+        const matchesSearch = event.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesDate = filterDate ? event.date === filterDate : true;
+        return matchesSearch && matchesDate;
+    });
+
+    const fetchEventsCommittee = async () => {
+        const { data } = await supabase
+            .from('committees')
+            .select('id')
+            .ilike('name', 'Events') // Match name or adjust if different
+            .maybeSingle();
+        if (data) setEventsCommitteeId(data.id);
+    };
+
     const fetchEvents = async () => {
-        setLoading(true);
         try {
             const { data, error } = await supabase
-                .from('events' as any)
-                .select('*, participants_count:event_participants(count)')
+                .from('events')
+                .select(`
+                    *,
+                    event_participants (count)
+                `)
                 .order('date', { ascending: false });
 
             if (error) throw error;
 
-            setEvents((data || []).map((e: any) => ({
-                ...e,
-                participants_count: e.participants_count?.[0]?.count || 0
-            } as Event)));
+            const eventsData = data?.map((event: any) => ({
+                ...event,
+                participants_count: event.event_participants?.[0]?.count || 0
+            })) || [];
+
+            setEvents(eventsData);
         } catch (error) {
             console.error('Error fetching events:', error);
-            toast.error(isRTL ? 'فشل في تحميل الإيفينتات' : 'Failed to fetch events');
+            toast.error(isRTL ? 'فشل تحميل الإيفينتات' : 'Failed to load events');
         } finally {
             setLoading(false);
         }
@@ -112,9 +139,25 @@ export default function EventManagement() {
         const { data } = await supabase
             .from('profiles')
             .select('id, full_name, phone')
-            .neq('full_name', 'RTC Admin')
             .order('full_name');
-        if (data) setVolunteers(data);
+
+        if (data) {
+            setVolunteers(data.map((p: any) => ({
+                id: p.id,
+                full_name: p.full_name || 'Unknown',
+                phone: p.phone
+            })));
+        }
+    };
+
+    const ensureEventActivityType = async () => {
+        const { data } = await supabase
+            .from('activity_types')
+            .select('id')
+            .ilike('name', 'Event')
+            .maybeSingle();
+
+        return data?.id;
     };
 
     const handleAddVolunteer = (volunteerId: string) => {
@@ -128,7 +171,7 @@ export default function EventManagement() {
 
         setParticipants([...participants, {
             volunteer_id: volunteer.id,
-            name: volunteer.full_name || '',
+            name: volunteer.full_name,
             phone: volunteer.phone || '',
             is_volunteer: true
         }]);
@@ -137,12 +180,6 @@ export default function EventManagement() {
 
     const handleAddGuest = () => {
         if (!guestName) return;
-
-        const nameParts = guestName.trim().split(/\s+/);
-        if (nameParts.length < 3) {
-            toast.error(isRTL ? 'يجب إدخال الاسم ثلاثي على الأقل' : 'Please enter at least a tripartite name');
-            return;
-        }
 
         setParticipants([...participants, {
             name: guestName,
@@ -159,36 +196,46 @@ export default function EventManagement() {
         setParticipants(newParticipants);
     };
 
-    // Helper to get or create 'Event' activity type
-    const ensureEventActivityType = async () => {
-        const { data: existing } = await supabase
-            .from('activity_types')
-            .select('id')
-            .ilike('name', 'Event')
-            .maybeSingle();
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
-        if (existing) return existing.id;
+    const handleEditEvent = async (event: Event) => {
+        setLoading(true);
+        try {
+            // Fetch full participant details for this event
+            const { data: parts, error } = await supabase
+                .from('event_participants')
+                .select('*')
+                .eq('event_id', event.id);
 
-        const { data: newActivity, error } = await supabase
-            .from('activity_types')
-            .insert({
-                name: 'Event',
-                name_ar: 'إيفينت',
-                category: 'community_service',
-                description: 'Participation in an event',
-                description_ar: 'المشاركة في إيفينت',
-                points: 5,
-                mode: 'group'
-            })
-            .select()
-            .single();
+            if (error) throw error;
 
-        if (error) {
-            console.error('Error creating event activity type:', error);
-            return null;
+            setFormData({
+                name: event.name,
+                type: event.type,
+                location: event.location,
+                date: event.date,
+                time: event.time || '',
+                description: event.description || ''
+            });
+
+            setParticipants((parts || []).map((p: any) => ({
+                id: p.id, // Keep ID to track existing
+                volunteer_id: p.volunteer_id,
+                name: p.name,
+                phone: p.phone,
+                is_volunteer: p.is_volunteer
+            })));
+
+            setSelectedEventId(event.id);
+            setIsEditMode(true);
+            setIsCreateOpen(true);
+        } catch (error) {
+            console.error('Error fetching event details:', error);
+            toast.error(isRTL ? 'فشل تحميل تفاصيل الإيفينت' : 'Failed to load event details');
+        } finally {
+            setLoading(false);
         }
-
-        return (newActivity as any).id;
     };
 
     const handleCreateEvent = async () => {
@@ -200,9 +247,14 @@ export default function EventManagement() {
         try {
             // 1. Create Event
             const { data: event, error: eventError } = await supabase
-                .from('events' as any)
+                .from('events')
                 .insert({
-                    ...formData,
+                    name: formData.name,
+                    type: formData.type,
+                    location: formData.location,
+                    date: formData.date,
+                    time: formData.time || null,
+                    description: formData.description || null,
                     created_by: user?.id
                 })
                 .select()
@@ -230,12 +282,20 @@ export default function EventManagement() {
                 const volunteerParticipants = participants.filter(p => p.is_volunteer && p.volunteer_id);
                 if (volunteerParticipants.length > 0) {
                     const activityTypeId = await ensureEventActivityType();
+                    // Fallback to first available committee if 'Events' not found, or user's committee?
+                    // Ideally should be 'Events' committee. If not found, using first one as fallback to avoid crash, 
+                    // requires better handling but for now assuming it exists or preventing insert if critical.
+                    // Using Optional Chaining or default to avoid hard crash, but DB will reject if null.
+                    // Let's rely on eventCommitteeId being present.
 
-                    if (activityTypeId) {
+                    const targetCommitteeId = eventsCommitteeId || (await supabase.from('committees').select('id').limit(1).single()).data?.id;
+
+                    if (activityTypeId && targetCommitteeId) {
                         const submissions = volunteerParticipants.map(p => ({
                             volunteer_id: p.volunteer_id,
                             activity_type_id: activityTypeId,
-                            status: 'approved',
+                            committee_id: targetCommitteeId,
+                            status: 'approved' as const,
                             points_awarded: 5,
                             submitted_at: new Date().toISOString(),
                             description: `Event: ${formData.name}`,
@@ -251,6 +311,8 @@ export default function EventManagement() {
                         } else {
                             toast.success(isRTL ? 'تم تسجيل 5 نقاط للمتطوعين' : 'Awarded 5 points to volunteers');
                         }
+                    } else {
+                        console.warn('Could not award points: Missing activity type or committee ID');
                     }
                 }
             }
@@ -265,6 +327,132 @@ export default function EventManagement() {
         }
     };
 
+    const handleUpdateEvent = async () => {
+        if (!selectedEventId || !formData.name || !formData.date || !formData.location) {
+            toast.error(isRTL ? 'يرجى ملء البيانات الأساسية' : 'Please fill basic details');
+            return;
+        }
+
+        try {
+            // 1. Update Event Details
+            const { error: updateError } = await supabase
+                .from('events')
+                .update({
+                    name: formData.name,
+                    type: formData.type,
+                    location: formData.location,
+                    date: formData.date,
+                    time: formData.time || null,
+                    description: formData.description || null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', selectedEventId);
+
+            if (updateError) throw updateError;
+
+            // 2. Manage Participants
+            // Fetch existing to compare
+            const { data: existingPartsType } = await supabase
+                .from('event_participants')
+                .select('id, volunteer_id, is_volunteer')
+                .eq('event_id', selectedEventId);
+
+            const existingParts = existingPartsType as any[] || [];
+
+            // Identify Added, Removed, Kept
+            const currentParticipantIds = participants.filter(p => p.id).map(p => p.id); // IDs of those still in the list
+            const existingIds = existingParts.map(p => p.id);
+
+            const toRemove = existingParts.filter(p => !currentParticipantIds.includes(p.id));
+            const toAdd = participants.filter(p => !p.id); // No ID means new
+
+            // Remove deleted participants
+            if (toRemove.length > 0) {
+                const removeIds = toRemove.map(p => p.id);
+                await supabase.from('event_participants').delete().in('id', removeIds);
+
+                // Remove points (activity_submissions) for removed volunteers
+                const volIdsToRemove = toRemove
+                    .filter(p => p.is_volunteer && p.volunteer_id)
+                    .map(p => p.volunteer_id);
+
+                if (volIdsToRemove.length > 0) {
+                    // Use the original event name to find submissions to delete
+                    const originalEvent = events.find(e => e.id === selectedEventId);
+                    const originalEventName = originalEvent?.name || formData.name;
+
+                    // Cleanup based on standard description format "Event: <EventName>"
+                    const { error: deletePointsError } = await supabase
+                        .from('activity_submissions')
+                        .delete()
+                        .in('volunteer_id', volIdsToRemove)
+                        .eq('description', `Event: ${originalEventName}`);
+
+                    if (deletePointsError) {
+                        console.error('Error removing points for removed participants:', deletePointsError);
+                    }
+                }
+            }
+
+            // Add new participants
+            if (toAdd.length > 0) {
+                const { data: newParts, error: addError } = await supabase
+                    .from('event_participants')
+                    .insert(toAdd.map(p => ({
+                        event_id: selectedEventId,
+                        volunteer_id: p.volunteer_id || null,
+                        name: p.name,
+                        phone: p.phone,
+                        is_volunteer: p.is_volunteer
+                    })))
+                    .select();
+
+                if (addError) throw addError;
+
+                // Award points for NEW volunteers
+                const newVolunteers = toAdd.filter(p => p.is_volunteer && p.volunteer_id);
+                if (newVolunteers.length > 0) {
+                    const activityTypeId = await ensureEventActivityType();
+                    // Use stored committee ID or fallback
+                    const targetCommitteeId = eventsCommitteeId || (await supabase.from('committees').select('id').limit(1).single()).data?.id;
+
+                    if (activityTypeId && targetCommitteeId) {
+                        const submissions = newVolunteers.map(p => ({
+                            volunteer_id: p.volunteer_id,
+                            activity_type_id: activityTypeId,
+                            committee_id: targetCommitteeId,
+                            status: 'approved' as const,
+                            points_awarded: 5,
+                            submitted_at: new Date().toISOString(),
+                            description: `Event: ${formData.name}`,
+                        }));
+                        await supabase.from('activity_submissions').insert(submissions);
+                        toast.success(isRTL ? `تم إضافة ${newVolunteers.length} نقاط جديدة` : `Awarded points to ${newVolunteers.length} new volunteers`);
+                    }
+                }
+            }
+
+            toast.success(isRTL ? 'تم تحديث الإيفينت بنجاح' : 'Event updated successfully');
+            setIsCreateOpen(false);
+            setIsEditMode(false);
+            setSelectedEventId(null);
+            resetForm();
+            fetchEvents();
+
+        } catch (error) {
+            console.error('Error updating event:', error);
+            toast.error(isRTL ? 'فشل تحديث الإيفينت' : 'Failed to update event');
+        }
+    };
+
+    const handleSave = () => {
+        if (isEditMode) {
+            handleUpdateEvent();
+        } else {
+            handleCreateEvent();
+        }
+    };
+
     const resetForm = () => {
         setFormData({
             name: '',
@@ -275,6 +463,78 @@ export default function EventManagement() {
             description: ''
         });
         setParticipants([]);
+        setIsEditMode(false);
+        setSelectedEventId(null);
+    };
+
+    const handleExportAllEvents = () => {
+        if (events.length === 0) {
+            toast.error(isRTL ? 'لا توجد بيانات للتصدير' : 'No data to export');
+            return;
+        }
+
+        const data = events.map(e => ({
+            [isRTL ? 'الاسم' : 'Event Name']: e.name,
+            [isRTL ? 'النوع' : 'Type']: e.type,
+            [isRTL ? 'التاريخ' : 'Date']: e.date,
+            [isRTL ? 'الوقت' : 'Time']: formatTime(e.time),
+            [isRTL ? 'المكان' : 'Location']: e.location,
+            [isRTL ? 'عدد المشاركين' : 'Participants Count']: e.participants_count,
+            [isRTL ? 'الوصف' : 'Description']: e.description || ''
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Events");
+        XLSX.writeFile(wb, `Events_List_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+        toast.success(isRTL ? 'تم تصدير كل الايفينتات بنجاح' : 'All events exported successfully');
+    };
+
+    const handleExportSingleEvent = async (event: Event) => {
+        try {
+            // Fetch participants
+            const { data: participantsData, error } = await supabase
+                .from('event_participants')
+                .select('*')
+                .eq('event_id', event.id);
+
+            if (error) throw error;
+
+            // Prepare Data for Sheet
+            // 1. Event Info Header
+            const eventInfo = [
+                [isRTL ? 'اسم الايفينت' : 'Event Name', event.name],
+                [isRTL ? 'التاريخ' : 'Date', event.date],
+                [isRTL ? 'الوقت' : 'Time', formatTime(event.time)],
+                [isRTL ? 'المكان' : 'Location', event.location],
+                [isRTL ? 'النوع' : 'Type', event.type],
+                [], // Empty row
+                [isRTL ? 'قائمة المشاركين' : 'Participants List']
+            ];
+
+            // 2. Participants Table
+            const participantsList = (participantsData || []).map(p => ({
+                [isRTL ? 'الاسم' : 'Name']: p.name,
+                [isRTL ? 'الهاتف' : 'Phone']: p.phone ? `'${p.phone}` : '', // Force string format
+                [isRTL ? 'النوع' : 'Type']: p.is_volunteer ? (isRTL ? 'متطوع' : 'Volunteer') : (isRTL ? 'ضيف' : 'Guest'),
+                [isRTL ? 'كود التطوع' : 'Volunteer ID']: p.volunteer_id || ''
+            }));
+
+            // Create Worksheet
+            const ws = XLSX.utils.aoa_to_sheet(eventInfo);
+
+            // Append participants starting from row 8 (index 7)
+            XLSX.utils.sheet_add_json(ws, participantsList, { origin: "A8" });
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Event Details");
+            XLSX.writeFile(wb, `${event.name.replace(/[^a-z0-9]/gi, '_')}_Details.xlsx`);
+            toast.success(isRTL ? 'تم تصدير تفاصيل الايفينت بنجاح' : 'Event details exported successfully');
+
+        } catch (error) {
+            console.error('Error exporting event:', error);
+            toast.error(isRTL ? 'فشل تصدير تفاصيل الايفينت' : 'Failed to export event details');
+        }
     };
 
     const handleDeleteEvent = async () => {
@@ -294,7 +554,7 @@ export default function EventManagement() {
 
             // 2. Delete the event (event_participants will be deleted via CASCADE)
             const { error } = await supabase
-                .from('events' as any)
+                .from('events')
                 .delete()
                 .eq('id', eventToDelete.id);
 
@@ -351,9 +611,14 @@ export default function EventManagement() {
                             {isRTL ? 'إيفينت جديد' : 'New Event'}
                         </Button>
                     </DialogTrigger>
+
+                    <Button variant="outline" onClick={handleExportAllEvents}>
+                        <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                        {isRTL ? 'تصدير الكل' : 'Export All'}
+                    </Button>
                     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
-                            <DialogTitle>{isRTL ? 'إنشاء إيفينت جديد' : 'Create New Event'}</DialogTitle>
+                            <DialogTitle>{isEditMode ? (isRTL ? 'تعديل الإيفينت' : 'Edit Event') : (isRTL ? 'إنشاء إيفينت جديد' : 'Create New Event')}</DialogTitle>
                             <DialogDescription>{isRTL ? 'أضف تفاصيل الإيفينت والمشاركين' : 'Add event details and participants'}</DialogDescription>
                         </DialogHeader>
 
@@ -516,25 +781,44 @@ export default function EventManagement() {
                             <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                                 {isRTL ? 'إلغاء' : 'Cancel'}
                             </Button>
-                            <Button onClick={handleCreateEvent}>
-                                {isRTL ? 'إنشاء الإيفينت' : 'Create Event'}
+                            <Button onClick={handleSave}>
+                                {isEditMode ? (isRTL ? 'حفظ التغييرات' : 'Save Changes') : (isRTL ? 'إنشاء الإيفينت' : 'Create Event')}
                             </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
             </div>
 
+            {/* Filters */}
+            <div className="flex gap-4 items-center">
+                <div className="relative flex-1 max-w-sm">
+                    <Users className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground rtl:right-2.5 rtl:left-auto" />
+                    <Input
+                        placeholder={isRTL ? 'بحث باسم الإيفينت...' : 'Search event name...'}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 rtl:pr-9 rtl:pl-4"
+                    />
+                </div>
+                <Input
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="w-auto"
+                />
+            </div>
+
             {/* Events Grid */}
-            {events.length === 0 ? (
+            {filteredEvents.length === 0 ? (
                 <Card>
                     <CardContent className="flex flex-col items-center justify-center py-12">
                         <Sparkles className="h-12 w-12 text-muted-foreground mb-4" />
-                        <p className="text-muted-foreground">{isRTL ? 'لا توجد إيفينتات حتى الآن' : 'No events yet'}</p>
+                        <p className="text-muted-foreground">{isRTL ? 'لا توجد إيفينتات تطابق بحثك' : 'No events match your search'}</p>
                     </CardContent>
                 </Card>
             ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {events.map(event => (
+                    {filteredEvents.map(event => (
                         <Card key={event.id} className="relative group">
                             <CardHeader className="pb-3">
                                 <div className="flex justify-between items-start">
@@ -542,6 +826,24 @@ export default function EventManagement() {
                                         <CardTitle className="text-lg">{event.name}</CardTitle>
                                         <CardDescription>{event.type}</CardDescription>
                                     </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary"
+                                        onClick={() => handleEditEvent(event)}
+                                        title={isRTL ? 'تعديل' : 'Edit'}
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="opacity-0 group-hover:opacity-100 transition-opacity text-primary hover:text-primary"
+                                        onClick={() => handleExportSingleEvent(event)}
+                                        title={isRTL ? 'تصدير التفاصيل' : 'Export Details'}
+                                    >
+                                        <Download className="h-4 w-4" />
+                                    </Button>
                                     <Button
                                         variant="ghost"
                                         size="icon"

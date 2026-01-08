@@ -86,7 +86,7 @@ export function AppSidebar() {
     { title: t('nav.activities'), url: '/supervisor/activities', icon: Activity },
     { title: t('nav.committees'), url: '/supervisor/committees', icon: Settings },
     { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
-    { title: t('nav.reports'), url: '/supervisor/reports', icon: BarChart3 },
+    { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
     { title: t('nav.logActivity'), url: '/supervisor/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/supervisor/profile', icon: User },
@@ -122,6 +122,7 @@ export function AppSidebar() {
 
   const hrNavItems = [
     { title: t('nav.dashboard'), url: '/dashboard', icon: Home }, // Or a specific dashboard if needed
+    { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 }, // Reuse admin reports
     { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/profile', icon: User },
@@ -140,8 +141,15 @@ export function AppSidebar() {
       case 'committee_leader':
         return leaderNavItems;
       case 'hr':
-      case 'head_hr':
         return hrNavItems;
+      case 'head_hr':
+        return [
+          { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
+          { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
+          { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
+          { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
+          { title: t('nav.profile'), url: '/profile', icon: User },
+        ];
       case 'head_caravans':
         return [
           { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },

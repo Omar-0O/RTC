@@ -23,7 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X } from 'lucide-react';
+import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X, Search, Pencil } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { StatsCard } from '@/components/ui/stats-card';
@@ -69,6 +69,11 @@ export default function CaravanManagement() {
 
     const [caravans, setCaravans] = useState<Caravan[]>([]);
     const [timeFilter, setTimeFilter] = useState('all');
+
+    // New Filters
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterDate, setFilterDate] = useState('');
+
     const [loading, setLoading] = useState(true);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
@@ -97,7 +102,157 @@ export default function CaravanManagement() {
     const [guestPhone, setGuestPhone] = useState('');
     const [woreVest, setWoreVest] = useState(true);
 
+    // Edit State
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [selectedCaravanId, setSelectedCaravanId] = useState<string | null>(null);
+
+    const handleEditCaravan = async (caravan: Caravan) => {
+        setIsEditMode(true);
+        setSelectedCaravanId(caravan.id);
+        setFormData({
+            name: caravan.name,
+            type: caravan.type,
+            location: caravan.location,
+            date: caravan.date,
+            move_time: caravan.move_time || '',
+            actual_move_time: caravan.actual_move_time || '',
+            bus_arrival_time: caravan.bus_arrival_time || '',
+            return_time: caravan.return_time || ''
+        });
+
+        // Fetch participants
+        const { data: participantsData } = await supabase
+            .from('caravan_participants')
+            .select('*')
+            .eq('caravan_id', caravan.id);
+
+        if (participantsData) {
+            setParticipants(participantsData.map(p => ({
+                id: p.id,
+                volunteer_id: p.volunteer_id,
+                name: p.name,
+                phone: p.phone,
+                is_volunteer: p.is_volunteer,
+                committee_id: null,
+                wore_vest: p.wore_vest ?? true
+            })));
+        }
+
+        setIsCreateOpen(true);
+    };
+
+    const handleUpdateCaravan = async () => {
+        if (!formData.name || !formData.date || !formData.location || !selectedCaravanId) {
+            toast.error(isRTL ? 'يرجى ملء البيانات الأساسية' : 'Please fill basic details');
+            return;
+        }
+
+        try {
+            // 1. Update Caravan Details
+            const { error: updateError } = await supabase
+                .from('caravans')
+                .update({
+                    name: formData.name,
+                    type: formData.type,
+                    location: formData.location,
+                    date: formData.date,
+                    move_time: formData.move_time || null,
+                    actual_move_time: formData.actual_move_time || null,
+                    bus_arrival_time: formData.bus_arrival_time || null,
+                    return_time: formData.return_time || null
+                })
+                .eq('id', selectedCaravanId);
+
+            if (updateError) throw updateError;
+
+            // 2. Manage Participants
+            const { data: existingParticipants } = await supabase
+                .from('caravan_participants')
+                .select('*')
+                .eq('caravan_id', selectedCaravanId);
+
+            const existingIds = existingParticipants?.map(p => p.id) || [];
+            const currentIds = participants.filter(p => p.id).map(p => p.id);
+
+            // Identify Removed Participants
+            const toRemove = existingParticipants?.filter(p => !currentIds.includes(p.id)) || [];
+
+            if (toRemove.length > 0) {
+                const removeIds = toRemove.map(p => p.id);
+                await supabase.from('caravan_participants').delete().in('id', removeIds);
+
+                // POINTS CLEANUP
+                const volIdsToRemove = toRemove
+                    .filter(p => p.is_volunteer && p.volunteer_id)
+                    .map(p => p.volunteer_id);
+
+                if (volIdsToRemove.length > 0) {
+                    const originalCaravan = caravans.find(c => c.id === selectedCaravanId);
+                    const originalName = originalCaravan?.name || formData.name;
+
+                    const { error: deletePointsError } = await supabase
+                        .from('activity_submissions')
+                        .delete()
+                        .in('volunteer_id', volIdsToRemove)
+                        .eq('description', `Caravan: ${originalName}`);
+
+                    if (deletePointsError) console.error('Error removing points', deletePointsError);
+                }
+            }
+
+            // Identify New/Updated Participants
+            const toInsert = participants.filter(p => !p.id);
+            const toUpdate = participants.filter(p => p.id);
+
+            if (toInsert.length > 0) {
+                await supabase.from('caravan_participants').insert(toInsert.map(p => ({
+                    caravan_id: selectedCaravanId,
+                    volunteer_id: p.volunteer_id || null,
+                    name: p.name,
+                    phone: p.phone,
+                    is_volunteer: p.is_volunteer,
+                    wore_vest: p.wore_vest
+                })));
+            }
+
+            if (toUpdate.length > 0) {
+                await supabase.from('caravan_participants').upsert(toUpdate.map(p => ({
+                    id: p.id,
+                    caravan_id: selectedCaravanId,
+                    volunteer_id: p.volunteer_id || null,
+                    name: p.name,
+                    phone: p.phone,
+                    is_volunteer: p.is_volunteer,
+                    wore_vest: p.wore_vest
+                })));
+            }
+
+            toast.success(isRTL ? 'تم تحديث القافلة بنجاح' : 'Caravan updated successfully');
+            setIsCreateOpen(false);
+            resetForm();
+            fetchCaravans();
+
+        } catch (error) {
+            console.error('Error updating caravan:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء تحديث القافلة' : 'Error updating caravan');
+        }
+    };
+
     const filteredCaravans = caravans.filter(caravan => {
+        // 1. Search Query
+        if (searchQuery && !caravan.name.toLowerCase().includes(searchQuery.toLowerCase())) {
+            return false;
+        }
+
+        // 2. Specific Date Filter
+        if (filterDate && caravan.date !== filterDate) {
+            return false;
+        }
+
+        // 3. Time Period Filter (Only if specific date is NOT set)
+        // If filterDate is set, we ignore timeFilter
+        if (filterDate) return true;
+
         if (timeFilter === 'all') return true;
 
         if (!caravan.date) return false;
@@ -166,7 +321,7 @@ export default function CaravanManagement() {
         setLoading(true);
         try {
             const { data, error } = await supabase
-                .from('caravans' as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+                .from('caravans')
                 .select('*, participants_count:caravan_participants(count)')
                 .order('date', { ascending: false });
 
@@ -352,6 +507,8 @@ export default function CaravanManagement() {
         });
         setParticipants([]);
         setWoreVest(true); // Reset vest status
+        setIsEditMode(false);
+        setSelectedCaravanId(null);
     };
 
     const handleDeleteCaravan = async () => {
@@ -515,7 +672,7 @@ export default function CaravanManagement() {
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                 <StatsCard
+                <StatsCard
                     title={isRTL ? 'إجمالي القوافل' : 'Total Caravans'}
                     value={filteredCaravans.length}
                     icon={Bus}
@@ -530,7 +687,23 @@ export default function CaravanManagement() {
                     <p className="text-muted-foreground text-sm sm:text-base">{t('admin.overview')}</p>
                 </div>
                 <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center">
-                     <Select value={timeFilter} onValueChange={setTimeFilter}>
+                    <div className="relative w-full sm:w-64">
+                        <Search className="absolute ltr:left-2.5 rtl:right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                            type="search"
+                            placeholder={isRTL ? 'بحث باسم القافلة...' : 'Search by caravan name...'}
+                            className="ltr:pl-8 rtl:pr-8 w-full"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
+                    <Input
+                        type="date"
+                        className="w-full sm:w-auto"
+                        value={filterDate}
+                        onChange={(e) => setFilterDate(e.target.value)}
+                    />
+                    <Select value={timeFilter} onValueChange={setTimeFilter}>
                         <SelectTrigger className="w-[180px] h-10">
                             <SelectValue placeholder={isRTL ? 'اختر الفترة' : 'Select Period'} />
                         </SelectTrigger>
@@ -551,15 +724,15 @@ export default function CaravanManagement() {
                     </Button>
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
-                            <Button className="flex-1 sm:flex-none">
+                            <Button className="flex-1 sm:flex-none" onClick={() => { resetForm(); setIsCreateOpen(true); }}>
                                 <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                 <span className="text-xs sm:text-sm">{t('caravans.add')}</span>
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                             <DialogHeader className="pb-4">
-                                <DialogTitle className="text-xl">{t('caravans.add')}</DialogTitle>
-                                <DialogDescription>{isRTL ? 'أضف تفاصيل القافلة الجديدة' : 'Add new caravan details'}</DialogDescription>
+                                <DialogTitle className="text-xl">{isEditMode ? (isRTL ? 'تعديل القافلة' : 'Edit Caravan') : t('caravans.add')}</DialogTitle>
+                                <DialogDescription>{isEditMode ? (isRTL ? 'تعديل تفاصيل القافلة' : 'Edit caravan details') : (isRTL ? 'أضف تفاصيل القافلة الجديدة' : 'Add new caravan details')}</DialogDescription>
                             </DialogHeader>
 
                             <div className="space-y-6">
@@ -580,6 +753,7 @@ export default function CaravanManagement() {
                                             <SelectContent>
                                                 <SelectItem value="food_distribution">{isRTL ? 'إطعام' : 'Food Distribution'}</SelectItem>
                                                 <SelectItem value="charity_market">{isRTL ? 'سوق خيري' : 'Charity Market'}</SelectItem>
+                                                <SelectItem value="eid_carnival">{isRTL ? 'كرنفال العيد' : 'Eid Carnival'}</SelectItem>
                                                 <SelectItem value="other">{isRTL ? 'أخرى' : 'Other'}</SelectItem>
                                             </SelectContent>
                                         </Select>
@@ -737,7 +911,7 @@ export default function CaravanManagement() {
 
                             <DialogFooter className="flex-col sm:flex-row gap-3 pt-4">
                                 <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-12 w-full sm:w-auto">{t('common.cancel')}</Button>
-                                <Button onClick={handleCreateCaravan} className="h-12 w-full sm:w-auto">{t('common.save')}</Button>
+                                <Button onClick={isEditMode ? handleUpdateCaravan : handleCreateCaravan} className="h-12 w-full sm:w-auto">{isEditMode ? (isRTL ? 'تحديث' : 'Update') : t('common.save')}</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
@@ -756,6 +930,13 @@ export default function CaravanManagement() {
                                 <div className="flex gap-1">
                                     <Button variant="ghost" size="icon" onClick={() => exportCaravanDetails(caravan)}>
                                         <Download className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => handleEditCaravan(caravan)}
+                                    >
+                                        <Pencil className="w-4 h-4" />
                                     </Button>
                                     <Button
                                         variant="ghost"
