@@ -148,6 +148,7 @@ export function AppSidebar() {
         return [
           { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
           { title: t('nav.caravans'), url: '/caravans', icon: Bus },
+          { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },
         ];
@@ -155,6 +156,17 @@ export function AppSidebar() {
         return [
           { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
           { title: t('nav.events'), url: '/events', icon: Calendar },
+          { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
+          { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
+          { title: t('nav.profile'), url: '/leader/profile', icon: User },
+        ];
+      case 'head_production':
+      case 'head_fourth_year':
+        return [
+          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
+          { title: t('leader.dashboard'), url: '/leader/committee', icon: Building2 },
+          { title: t('leader.members'), url: '/leader/members', icon: Users },
+          { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },
         ];
