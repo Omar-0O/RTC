@@ -116,7 +116,7 @@ export default function Reports() {
             activities_count: submissionsData.filter(s => s.volunteer_id === profile.id).length,
             roles: userRoles
           };
-        });
+        }).filter(p => !p.roles?.includes('admin'));
         setProfiles(enrichedProfiles);
       }
 
