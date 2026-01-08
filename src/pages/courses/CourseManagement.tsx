@@ -149,8 +149,8 @@ export default function CourseManagement() {
     const activeCourses = courses.filter(course => {
         if (showPastCourses) return true;
 
-        // Show if course has certificates and they are NOT delivered yet
-        if (course.has_certificates && course.certificate_status !== 'delivered') return true;
+        // Show if course has certificates (or has a status set) and they are NOT delivered yet
+        if ((course.has_certificates || course.certificate_status) && course.certificate_status !== 'delivered') return true;
 
         if (!course.end_date) return true;
         return new Date(course.end_date) >= new Date(new Date().toDateString());
@@ -179,6 +179,8 @@ export default function CourseManagement() {
         fetchCourses();
         fetchVolunteers();
     }, []);
+
+
 
     // Auto-calculate end date
     useEffect(() => {
@@ -522,6 +524,13 @@ export default function CourseManagement() {
                 [isRTL ? 'يوجد انترفيو' : 'Has Interview']: course.has_interview ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No'),
                 [isRTL ? 'تاريخ الانترفيو' : 'Interview Date']: course.interview_date || '-',
                 [isRTL ? 'عدد المستفيدين' : 'Beneficiaries Count']: beneficiariesData?.length || 0,
+                [isRTL ? 'حالة الشهادات' : 'Certificates Status']: course.has_certificates
+                    ? (isRTL
+                        ? (course.certificate_status === 'printing' ? 'جاري الطباعة' :
+                            course.certificate_status === 'ready' ? 'جاهزة للتسليم' :
+                                course.certificate_status === 'delivered' ? 'تم التسليم' : 'انتظار')
+                        : (course.certificate_status || 'Pending'))
+                    : (isRTL ? 'لا يوجد شهادات' : 'No Certificates'),
             }];
 
             const organizersData = (orgs || []).map(o => ({
@@ -1163,7 +1172,7 @@ export default function CourseManagement() {
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <CardTitle className="text-lg">{course.name}</CardTitle>
-                                        {course.has_certificates && course.certificate_status !== 'pending' && (
+                                        {(course.has_certificates || course.certificate_status) && (
                                             <Badge variant={
                                                 course.certificate_status === 'delivered' ? 'default' :
                                                     course.certificate_status === 'ready' ? 'secondary' :
@@ -1171,8 +1180,9 @@ export default function CourseManagement() {
                                             } className="text-[10px] h-5">
                                                 {isRTL ?
                                                     (course.certificate_status === 'printing' ? 'جاري الطباعة' :
-                                                        course.certificate_status === 'ready' ? 'جاهزة للتسليم' : 'تم التسليم')
-                                                    : course.certificate_status
+                                                        course.certificate_status === 'ready' ? 'جاهزة للتسليم' :
+                                                            course.certificate_status === 'delivered' ? 'تم التسليم' : 'انتظار')
+                                                    : (course.certificate_status || 'Pending')
                                                 }
                                             </Badge>
                                         )}
