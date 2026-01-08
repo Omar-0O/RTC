@@ -13,13 +13,13 @@ type LeaderboardEntry = {
   volunteer_id: string; // Changed from id to match RPC
   full_name: string;
   full_name_ar: string | null;
-  avatar_url: string | null;
+  avatar_url?: string | null;
   total_points: number;
-  activities_count: number;
+  activities_count?: number;
   level: string;
-  committee_id: string | null;
-  committee_name: string | null;
-  committee_name_ar: string | null;
+  committee_id?: string | null;
+  committee_name?: string | null;
+  committee_name_ar?: string | null;
 };
 
 type Committee = {
@@ -61,7 +61,7 @@ export default function Leaderboard() {
       });
 
       if (error) throw error;
-      setLeaderboard(data || []);
+      setLeaderboard((data as LeaderboardEntry[]) || []);
 
     } catch (error) {
       console.error('Error fetching leaderboard:', error);

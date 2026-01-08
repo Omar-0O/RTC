@@ -30,6 +30,8 @@ interface ActivityType {
   description: string | null;
   description_ar: string | null;
   points: number;
+  points_with_vest: number | null; // Points if wore vest
+  points_without_vest: number | null; // Points if didn't wear vest
   mode: 'individual' | 'group';
   committee_id: string | null;
   category: string;
@@ -71,6 +73,7 @@ export default function LogActivity() {
   const [activityId, setActivityId] = useState('');
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('branch');
+  const [woreVest, setWoreVest] = useState(false); // Track if volunteer wore vest
   const [participantsCount, setParticipantsCount] = useState('1');
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
@@ -313,12 +316,20 @@ export default function LogActivity() {
         proofUrl = await uploadProof();
       }
 
+      // Calculate points based on vest wearing
+      const pointsAwarded = location === 'branch' && woreVest
+        ? (selectedActivity.points_with_vest ?? selectedActivity.points)
+        : location === 'branch' && !woreVest
+          ? (selectedActivity.points_without_vest ?? selectedActivity.points)
+          : selectedActivity.points; // Home activities get default points
+
       const submissionData = {
         activity_type_id: activityId,
         committee_id: committeeId,
         description: description.trim(),
         location: location,
-        points_awarded: selectedActivity.points,
+        wore_vest: location === 'branch' ? woreVest : false, // Only track vest for branch activities
+        points_awarded: pointsAwarded,
         status: 'approved', // Auto-approved? usually committee leader submissions are trustworthy? 
         // Or maybe pending if configured. Let's stick to 'approved' for now as per leader logic usually.
         // But wait, user role logic: 
@@ -437,6 +448,7 @@ export default function LogActivity() {
     setActivityId('');
     setDescription('');
     setLocation('branch');
+    setWoreVest(false);
     setParticipantsCount('1');
     setProofFile(null);
     setProofPreview(null);
@@ -701,31 +713,61 @@ export default function LogActivity() {
                 </div>
               ) : (
                 /* Individual Fields */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Location Selection */}
-                  <div className="space-y-3">
-                    <Label>{t('activityLog.location')}</Label>
-                    <RadioGroup value={location} onValueChange={setLocation} className="flex gap-4">
-                      <div className="flex items-center space-x-2 space-x-reverse">
-                        <RadioGroupItem value="branch" id="branch" />
-                        <Label htmlFor="branch" className="cursor-pointer">{t('activityLog.branch')}</Label>
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Location Selection */}
+                    <div className="space-y-3">
+                      <Label>{t('activityLog.location')}</Label>
+                      <RadioGroup value={location} onValueChange={(val) => {
+                        setLocation(val);
+                        if (val !== 'branch') setWoreVest(false); // Reset vest if not branch
+                      }} className="flex gap-4">
+                        <div className="flex items-center space-x-2 space-x-reverse">
+                          <RadioGroupItem value="branch" id="branch" />
+                          <Label htmlFor="branch" className="cursor-pointer">{t('activityLog.branch')}</Label>
+                        </div>
+                        <div className="flex items-center space-x-2 space-x-reverse">
+                          <RadioGroupItem value="home" id="home" />
+                          <Label htmlFor="home" className="cursor-pointer">{t('activityLog.home')}</Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+
+                    {selectedActivity?.mode === 'group' && (
+                      <div className="space-y-2">
+                        <Label>{isRTL ? 'عدد المشاركين' : 'Participants'}</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={participantsCount}
+                          onChange={(e) => setParticipantsCount(e.target.value)}
+                        />
                       </div>
-                      <div className="flex items-center space-x-2 space-x-reverse">
-                        <RadioGroupItem value="home" id="home" />
-                        <Label htmlFor="home" className="cursor-pointer">{t('activityLog.home')}</Label>
-                      </div>
-                    </RadioGroup>
+                    )}
                   </div>
 
-                  {selectedActivity?.mode === 'group' && (
-                    <div className="space-y-2">
-                      <Label>{isRTL ? 'عدد المشاركين' : 'Participants'}</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        value={participantsCount}
-                        onChange={(e) => setParticipantsCount(e.target.value)}
-                      />
+                  {/* Vest Checkbox - Only for branch activities */}
+                  {location === 'branch' && (
+                    <div className="space-y-3 p-4 border rounded-lg bg-warning/5 border-warning/20">
+                      <div className="flex items-center space-x-2 space-x-reverse">
+                        <Switch
+                          id="wore-vest"
+                          checked={woreVest}
+                          onCheckedChange={setWoreVest}
+                          className="scale-110"
+                        />
+                        <Label htmlFor="wore-vest" className="text-base font-medium cursor-pointer flex-1">
+                          {isRTL ? 'كنت أرتدي الـ Vest' : 'I wore the vest'}
+                        </Label>
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/30 rounded-lg">
+                        <span className="text-lg">⚠️</span>
+                        <p className="text-sm text-foreground">
+                          {isRTL
+                            ? 'يجب إرسال صورتك بالـ Vest للـ HR المسؤول وإلا ستكون المشاركة غير مقبولة!'
+                            : 'You must send your photo wearing the vest to the responsible HR, otherwise your participation will be rejected!'}
+                        </p>
+                      </div>
                     </div>
                   )}
                 </div>

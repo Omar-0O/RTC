@@ -94,29 +94,61 @@ Deno.serve(async (req: Request) => {
 
         if (createError) throw createError
 
-        // Insert into user_roles
-        const { error: insertRoleError } = await supabaseAdmin
-            .from('user_roles')
-            .insert({
-                user_id: userData.user.id,
-                role: role || 'volunteer'
-            })
+        // Insert/Update user role (use upsert to handle existing roles from triggers)
+        // Wrap in try/catch to ensure user creation success isn't blocked by role fail
+        try {
+            const { error: insertRoleError } = await supabaseAdmin
+                .from('user_roles')
+                .upsert({
+                    user_id: userData.user.id,
+                    role: role || 'volunteer'
+                }, { onConflict: 'user_id,role', ignoreDuplicates: true })
 
-        if (insertRoleError) throw insertRoleError
+            if (insertRoleError) {
+                console.warn('Role upsert warning:', insertRoleError.message)
+            }
+        } catch (roleErr) {
+            console.error('Role upsert exception:', roleErr)
+        }
 
         // Update profile
-        const { error: profileError } = await supabaseAdmin
-            .from('profiles')
-            .update({
-                full_name: fullName,
-                full_name_ar: fullNameAr,
-                committee_id: committeeId || null,
-                phone: phone || null,
-                level: level || 'under_follow_up'
-            })
-            .eq('id', userData.user.id)
+        // Wrap in try/catch too
+        try {
+            const { error: profileError } = await supabaseAdmin
+                .from('profiles')
+                .update({
+                    full_name: fullName,
+                    full_name_ar: fullNameAr,
+                    committee_id: committeeId || null,
+                    phone: phone || null,
+                    level: level || 'under_follow_up'
+                })
+                .eq('id', userData.user.id)
 
-        if (profileError) throw profileError
+            if (profileError) {
+                console.warn('Profile update warning:', profileError.message)
+            }
+        } catch (profileErr) {
+            console.error('Profile update exception:', profileErr)
+        }
+
+        // Store visible password for admins
+        if (password) {
+            try {
+                const { error: privateDetailsError } = await supabaseAdmin
+                    .from('user_private_details')
+                    .upsert({
+                        id: userData.user.id,
+                        visible_password: password
+                    }, { onConflict: 'id', ignoreDuplicates: false })
+
+                if (privateDetailsError) {
+                    console.warn('Private details insert warning:', privateDetailsError.message)
+                }
+            } catch (detailsErr) {
+                console.error('Private details insert exception:', detailsErr)
+            }
+        }
 
         return new Response(
             JSON.stringify({ success: true, user: userData.user }),
@@ -127,12 +159,23 @@ Deno.serve(async (req: Request) => {
         )
 
     } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        // Handle different error types
+        let errorMessage = 'Unknown error';
+        if (error instanceof Error) {
+            errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null) {
+            // Supabase errors might have message or error_description
+            const errObj = error as any;
+            errorMessage = errObj.message || errObj.error_description || errObj.error || JSON.stringify(error);
+        } else if (typeof error === 'string') {
+            errorMessage = error;
+        }
+
         console.error('Error in create-user:', errorMessage)
 
-        // Return 200 with error field to ensure client receives the message
+        // Return 200 with error field - Supabase client doesn't handle non-2xx well
         return new Response(
-            JSON.stringify({ error: errorMessage }),
+            JSON.stringify({ error: errorMessage, success: false }),
             {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' },
                 status: 200

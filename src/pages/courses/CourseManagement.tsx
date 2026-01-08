@@ -63,6 +63,8 @@ interface Course {
     created_by: string;
     committee_id: string | null;
     course_lectures?: { status: string }[];
+    has_certificates: boolean;
+    certificate_status: 'pending' | 'printing' | 'ready' | 'delivered';
 }
 
 interface CourseOrganizer {
@@ -146,6 +148,10 @@ export default function CourseManagement() {
     // Filter out ended courses unless showPastCourses is true
     const activeCourses = courses.filter(course => {
         if (showPastCourses) return true;
+
+        // Show if course has certificates and they are NOT delivered yet
+        if (course.has_certificates && course.certificate_status !== 'delivered') return true;
+
         if (!course.end_date) return true;
         return new Date(course.end_date) >= new Date(new Date().toDateString());
     });
@@ -164,6 +170,7 @@ export default function CourseManagement() {
         total_lectures: 8,
         start_date: format(new Date(), 'yyyy-MM-dd'),
         end_date: '',
+        has_certificates: false,
     });
 
     const [organizers, setOrganizers] = useState<CourseOrganizer[]>([]);
@@ -218,6 +225,7 @@ export default function CourseManagement() {
             const { data, error } = await supabase
                 .from('profiles')
                 .select('id, full_name, full_name_ar, phone')
+                .neq('full_name', 'RTC Admin')
                 .order('full_name');
             if (error) throw error;
             setVolunteers(data || []);
@@ -258,6 +266,7 @@ export default function CourseManagement() {
             total_lectures: 8,
             start_date: format(new Date(), 'yyyy-MM-dd'),
             end_date: '',
+            has_certificates: false,
         });
         setOrganizers([]);
     };
@@ -336,6 +345,8 @@ export default function CourseManagement() {
                 start_date: actualStartDate,
                 end_date: actualEndDate,
                 interview_date: formData.interview_date || null,
+                has_certificates: formData.has_certificates,
+                certificate_status: 'pending',
                 created_by: user?.id
             };
 
@@ -802,6 +813,26 @@ export default function CourseManagement() {
         }
     };
 
+    const updateCertificateStatus = async (courseId: string, status: string) => {
+        try {
+            const { error } = await supabase
+                .from('courses')
+                .update({ certificate_status: status })
+                .eq('id', courseId);
+
+            if (error) throw error;
+
+            setCourses(courses.map(c => c.id === courseId ? { ...c, certificate_status: status as any } : c));
+            if (selectedCourse?.id === courseId) {
+                setSelectedCourse({ ...selectedCourse, certificate_status: status as any });
+            }
+            toast.success(isRTL ? 'تم تحديث حالة الشهادات' : 'Certificates status updated');
+        } catch (error) {
+            console.error('Error updating certificate status:', error);
+            toast.error(isRTL ? 'فشل تحديث الحالة' : 'Failed to update status');
+        }
+    };
+
     const handleAddOrganizerToDetails = async (volunteer: Volunteer) => {
         if (!selectedCourse) return;
 
@@ -1038,6 +1069,18 @@ export default function CourseManagement() {
                                         )}
                                     </div>
 
+                                    {/* Certificates */}
+                                    <div className="flex items-center gap-4 p-4 border rounded-lg bg-card mb-6">
+                                        <label className="flex items-center gap-3 cursor-pointer flex-1">
+                                            <Checkbox
+                                                checked={formData.has_certificates}
+                                                onCheckedChange={(checked) => setFormData({ ...formData, has_certificates: !!checked })}
+                                                className="h-5 w-5"
+                                            />
+                                            <span className="text-base font-medium">{isRTL ? 'يوجد شهادات لهذا الكورس؟' : 'Does this course have certificates?'}</span>
+                                        </label>
+                                    </div>
+
                                     {/* Organizers */}
                                     <div className="border-t pt-4">
                                         <h3 className="text-base sm:text-lg font-medium mb-3">{isRTL ? 'المنظمين' : 'Organizers'}</h3>
@@ -1118,7 +1161,22 @@ export default function CourseManagement() {
                         <CardHeader className="pb-3">
                             <div className="flex justify-between items-start">
                                 <div>
-                                    <CardTitle className="text-lg">{course.name}</CardTitle>
+                                    <div className="flex items-center gap-2">
+                                        <CardTitle className="text-lg">{course.name}</CardTitle>
+                                        {course.has_certificates && course.certificate_status !== 'pending' && (
+                                            <Badge variant={
+                                                course.certificate_status === 'delivered' ? 'default' :
+                                                    course.certificate_status === 'ready' ? 'secondary' :
+                                                        'outline'
+                                            } className="text-[10px] h-5">
+                                                {isRTL ?
+                                                    (course.certificate_status === 'printing' ? 'جاري الطباعة' :
+                                                        course.certificate_status === 'ready' ? 'جاهزة للتسليم' : 'تم التسليم')
+                                                    : course.certificate_status
+                                                }
+                                            </Badge>
+                                        )}
+                                    </div>
                                     <CardDescription>{course.trainer_name}</CardDescription>
                                 </div>
                                 <DropdownMenu>
@@ -1191,13 +1249,66 @@ export default function CourseManagement() {
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
                 <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                        <DialogTitle className="text-2xl">{selectedCourse?.name}</DialogTitle>
-                        <DialogDescription>
-                            {isRTL ? 'تفاصيل الكورس والحضور' : 'Course details and attendance'}
-
-
+                        <DialogTitle className="text-2xl flex items-center gap-2">
+                            {selectedCourse?.name}
+                            {selectedCourse?.has_certificates && (
+                                <Badge variant="outline">
+                                    {isRTL ? 'شهادات: ' : 'Certificates: '}
+                                    {isRTL ?
+                                        (selectedCourse.certificate_status === 'pending' ? 'انتظار' :
+                                            selectedCourse.certificate_status === 'printing' ? 'طباعة' :
+                                                selectedCourse.certificate_status === 'ready' ? 'جاهزة' : 'تم التسليم')
+                                        : selectedCourse.certificate_status
+                                    }
+                                </Badge>
+                            )}
+                        </DialogTitle>
+                        <DialogDescription className="flex flex-col gap-1">
+                            <span>{selectedCourse?.trainer_name} - {selectedCourse?.room && getRoomLabel(selectedCourse.room)}</span>
+                            {detailsOrganizers.length > 0 && (
+                                <span className="text-xs text-muted-foreground">
+                                    {isRTL ? 'المنظمين: ' : 'Organizers: '}
+                                    {detailsOrganizers.map(o => o.name).join(', ')}
+                                </span>
+                            )}
                         </DialogDescription>
                     </DialogHeader>
+
+                    {selectedCourse?.has_certificates && (hasRole('admin') || hasRole('committee_leader') || detailsOrganizers.some(o => o.volunteer_id === user?.id)) && (
+                        <div className="bg-muted/10 p-4 rounded-lg border mb-4">
+                            <h3 className="font-semibold mb-3 flex items-center gap-2">
+                                <FileSpreadsheet className="w-4 h-4" />
+                                {isRTL ? 'إدارة الشهادات' : 'Certificates Management'}
+                            </h3>
+                            <div className="flex items-center gap-4">
+                                <div className="flex-1">
+                                    <Label className="text-xs text-muted-foreground mb-1.5 block">
+                                        {isRTL ? 'حالة الشهادات' : 'Certificates Status'}
+                                    </Label>
+                                    <Select
+                                        value={selectedCourse.certificate_status}
+                                        onValueChange={(val) => updateCertificateStatus(selectedCourse.id, val)}
+                                        disabled={!selectedCourse.end_date || new Date(selectedCourse.end_date) > new Date()}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="pending">{isRTL ? 'الكورس لسة مخلصش 3> ' : 'Pending (Ongoing)'}</SelectItem>
+                                            <SelectItem value="printing">{isRTL ? 'جاري الطباعة' : 'Printing'}</SelectItem>
+                                            <SelectItem value="ready">{isRTL ? 'جاهزة للتسليم' : 'Ready'}</SelectItem>
+                                            <SelectItem value="delivered">{isRTL ? 'تم التسليم' : 'Delivered'}</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    {(!selectedCourse.end_date || new Date(selectedCourse.end_date) > new Date()) && (
+                                        <p className="text-[10px] text-muted-foreground mt-1 text-red-500">
+                                            {isRTL ? '* لا يمكن تغيير الحالة قبل انتهاء الكورس' : '* Cannot change status before course ends'}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <Tabs defaultValue="beneficiaries" className="w-full">
                         <div className="overflow-x-auto -mx-2 px-2">

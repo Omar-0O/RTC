@@ -69,6 +69,7 @@ interface UserWithDetails {
   id: string;
   email: string;
   full_name: string | null;
+  full_name_ar?: string | null;
   avatar_url: string | null;
   role: AppRole;
   committee_id: string | null;
@@ -268,6 +269,7 @@ export default function UserManagement() {
           id: profile.id,
           email: profile.email,
           full_name: profile.full_name,
+          full_name_ar: profile.full_name_ar,
           avatar_url: profile.avatar_url,
           role: getPrimaryRole(uniqueRoles as AppRole[]),
           committee_id: profile.committee_id,
@@ -393,7 +395,7 @@ export default function UserManagement() {
         return;
       }
 
-      // Call create-user edge function with explicit auth header
+      // Call create-user edge function
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: {
           email: formEmail.trim(),
@@ -404,9 +406,6 @@ export default function UserManagement() {
           committeeId: formCommitteeId || null,
           phone: formPhone.trim() || null,
           level: formLevel,
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
         },
       });
 
@@ -419,37 +418,29 @@ export default function UserManagement() {
       console.log('Create user response:', data);
 
       // Check for errors returned from the Edge Function
-      // If we have a user object, we consider it a success even if there might be an error property
-      if (!data || (data.error && !data.user)) {
-        throw new Error(data?.error || 'Failed to create user');
+      if (!data?.user) {
+        const errorMsg = data?.error || 'Failed to create user - no user returned';
+        console.error('Create user failed:', errorMsg);
+        throw new Error(errorMsg);
       }
+
+      console.log('User created successfully:', data.user.id);
 
       // Upload avatar if provided
       if (formAvatarFile && data.user) {
-        const avatarUrl = await uploadAvatar(data.user.id);
-        if (avatarUrl) {
-          await supabase
-            .from('profiles')
-            .update({ avatar_url: avatarUrl })
-            .eq('id', data.user.id);
+        try {
+          const avatarUrl = await uploadAvatar(data.user.id);
+          if (avatarUrl) {
+            await supabase
+              .from('profiles')
+              .update({ avatar_url: avatarUrl })
+              .eq('id', data.user.id);
+          }
+        } catch (avatarError) {
+          console.error('Avatar upload failed:', avatarError);
+          // Don't throw - user was created successfully
         }
       }
-
-      // Save visible password to private details (Admin only)
-      // TODO: Add user_private_details table to database or regenerate types
-      /* if (data.user) {
-        const { error: privateError } = await supabase
-          .from('user_private_details')
-          .insert({
-            id: data.user.id,
-            visible_password: formPassword
-          });
-
-        if (privateError) {
-          console.error('Failed to save visible password:', privateError);
-          // access silent fail or warn?
-        }
-      } */
 
       // Update attendance status if applicable
       if (data.user) {
@@ -464,7 +455,6 @@ export default function UserManagement() {
         }
 
         if (Object.keys(updates).length > 0) {
-          // Include level in updates as a fallback/confirmation
           updates.level = formLevel;
 
           const { error: updateError } = await supabase
@@ -474,7 +464,7 @@ export default function UserManagement() {
 
           if (updateError) {
             console.error('Failed to update attendance:', updateError);
-            toast.error('User created but failed to save attendance status');
+            // Don't throw - user was created successfully
           }
         }
       }
@@ -486,7 +476,8 @@ export default function UserManagement() {
 
     } catch (error: any) {
       console.error('Error adding user:', error);
-      toast.error(error.message || 'Failed to add user');
+      const message = error?.message || error?.error || 'Failed to add user';
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -495,7 +486,8 @@ export default function UserManagement() {
   const openEditDialog = (user: UserWithDetails) => {
     setSelectedUser(user);
     setFormName(user.full_name || '');
-    setFormNameAr('');
+    setFormNameAr(user.full_name_ar || '');
+    setFormPassword(''); // Reset password field for edit mode
     setFormEmail(user.email);
     setFormPhone(user.phone || '');
     setFormRole(user.role);
@@ -544,6 +536,24 @@ export default function UserManagement() {
         if (roleError) throw roleError;
       }
 
+      // Update password if provided
+      if (formPassword.trim()) {
+        if (formPassword.length < 6) {
+          toast.error('Password must be at least 6 characters');
+          return;
+        }
+
+        const { data: passwordData, error: passwordError } = await supabase.functions.invoke('update-user-password', {
+          body: {
+            userId: selectedUser.id,
+            newPassword: formPassword.trim()
+          }
+        });
+
+        if (passwordError) throw passwordError;
+        if (passwordData?.error) throw new Error(passwordData.error);
+      }
+
       toast.success('User updated successfully');
       setIsEditDialogOpen(false);
       setSelectedUser(null);
@@ -562,28 +572,17 @@ export default function UserManagement() {
 
     setIsSubmitting(true);
     try {
-      // Get the current session to pass the auth token
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error('Session expired. Please log in again.');
-        return;
-      }
-
-      // Call delete-user edge function to completely remove the user
-      const { data, error } = await supabase.functions.invoke('delete-user', {
-        body: {
-          userId: selectedUser.id,
-        },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+      // Call RPC function to delete the user
+      const { data, error } = await supabase.rpc('delete_user_account', {
+        target_user_id: selectedUser.id,
       });
 
       if (error) {
-        console.error('Edge function invocation error:', error);
+        console.error('RPC function error:', error);
         throw error;
       }
 
+      // Check if the RPC function returned an error
       if (data?.error) {
         throw new Error(data.error);
       }
@@ -695,8 +694,7 @@ export default function UserManagement() {
       if (rolesError) throw rolesError;
 
       let passwordsMap = new Map<string, string>();
-      // TODO: Add user_private_details table to database or regenerate types
-      /* if (['admin', 'head_hr', 'hr'].includes(primaryRole)) {
+      if (['admin', 'head_hr', 'hr'].includes(primaryRole)) {
         const { data: passwordsData, error: passwordsError } = await supabase
           .from('user_private_details')
           .select('id, visible_password');
@@ -704,21 +702,23 @@ export default function UserManagement() {
         if (!passwordsError && passwordsData) {
           passwordsMap = new Map(passwordsData.map(p => [p.id, p.visible_password]));
         }
-      } */
+      }
 
       const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role]) || []);
 
-      const exportData = profilesData.map(u => ({
-        'Full Name (English)': u.full_name,
-        'Full Name (Arabic)': u.full_name_ar,
-        'Email': u.email,
-        'Phone': u.phone,
-        'Role': rolesMap.get(u.id) || 'volunteer',
-        'Password': passwordsMap.get(u.id) || '',
-        'Joined At': new Date(u.created_at).toLocaleDateString(),
-        'Mini Camp Attendance': u.level === 'under_follow_up' ? (u.attended_mini_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A',
-        'Camp Attendance': u.level === 'project_responsible' ? (u.attended_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A'
-      }));
+      const exportData = profilesData
+        .filter(u => u.full_name !== 'RTC Admin')
+        .map(u => ({
+          'Full Name (English)': u.full_name,
+          'Full Name (Arabic)': u.full_name_ar,
+          'Email': u.email,
+          'Phone': u.phone,
+          'Role': rolesMap.get(u.id) || 'volunteer',
+          'Password': passwordsMap.get(u.id) || '',
+          'Joined At': new Date(u.created_at).toLocaleDateString(),
+          'Mini Camp Attendance': u.level === 'under_follow_up' ? (u.attended_mini_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A',
+          'Camp Attendance': u.level === 'project_responsible' ? (u.attended_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A'
+        }));
 
       downloadCSV(exportData, 'Users_Export');
 
@@ -1047,6 +1047,34 @@ export default function UserManagement() {
                     placeholder="+20 123 456 7890"
                   />
                 </div>
+              </div>
+              <div className="grid gap-2 mb-4">
+                <Label htmlFor="edit-password">{t('password')} ({language === 'ar' ? 'اختياري' : 'Optional'})</Label>
+                <div className="relative">
+                  <Input
+                    id="edit-password"
+                    type={showPassword ? "text" : "password"}
+                    value={formPassword}
+                    onChange={(e) => setFormPassword(e.target.value)}
+                    placeholder={language === 'ar' ? 'اترك فارغاً للاحتفاظ بكلمة المرور الحالية' : 'Leave empty to keep current password'}
+                    minLength={6}
+                    className="ltr:pr-10 rtl:pl-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {language === 'ar' ? 'أدخل كلمة مرور جديدة فقط إذا كنت تريد تغييرها' : 'Enter a new password only if you want to change it'}
+                </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">

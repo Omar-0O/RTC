@@ -56,6 +56,8 @@ type ActivityType = {
   description: string | null;
   description_ar: string | null;
   points: number;
+  points_with_vest: number | null;
+  points_without_vest: number | null;
   mode: 'individual' | 'group';
   committee_id: string | null;
 };
@@ -86,6 +88,8 @@ export default function ActivityManagement() {
     description: '',
     description_ar: '',
     points: 10,
+    points_with_vest: 0,
+    points_without_vest: 0,
     mode: 'individual' as 'individual' | 'group',
     committee_id: '',
   });
@@ -138,6 +142,8 @@ export default function ActivityManagement() {
       description: '',
       description_ar: '',
       points: 10,
+      points_with_vest: 10,
+      points_without_vest: 5,
       mode: 'individual',
       committee_id: '',
     });
@@ -153,6 +159,8 @@ export default function ActivityManagement() {
         description: formData.description || null,
         description_ar: formData.description_ar || null,
         points: formData.points,
+        points_with_vest: formData.points_with_vest,
+        points_without_vest: formData.points_without_vest,
         mode: formData.mode,
         committee_id: formData.committee_id || null,
       });
@@ -182,6 +190,8 @@ export default function ActivityManagement() {
         description: formData.description || null,
         description_ar: formData.description_ar || null,
         points: formData.points,
+        points_with_vest: formData.points_with_vest,
+        points_without_vest: formData.points_without_vest,
         mode: formData.mode,
         committee_id: formData.committee_id || null,
       }).eq('id', selectedActivity.id);
@@ -229,6 +239,8 @@ export default function ActivityManagement() {
       description: activity.description || '',
       description_ar: activity.description_ar || '',
       points: activity.points,
+      points_with_vest: activity.points_with_vest ?? activity.points,
+      points_without_vest: activity.points_without_vest ?? activity.points,
       mode: activity.mode,
       committee_id: activity.committee_id || '',
     });
@@ -257,7 +269,7 @@ export default function ActivityManagement() {
               {isRTL ? 'إضافة نوع نشاط' : 'Add Activity Type'}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{isRTL ? 'إنشاء نوع نشاط' : 'Create Activity Type'}</DialogTitle>
               <DialogDescription>
@@ -309,17 +321,45 @@ export default function ActivityManagement() {
                   </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="points">{isRTL ? 'النقاط' : 'Points Value'}</Label>
-                    <Input
-                      id="points"
-                      type="number"
-                      min="1"
-                      max="1000"
-                      value={formData.points}
-                      onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 10 })}
-                      required
-                    />
+                  <div className="col-span-2 p-3 border rounded-md bg-muted/20 space-y-3">
+                    <p className="text-sm font-medium">{isRTL ? 'إعدادات الأثر' : 'Impact Settings'}</p>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="grid gap-2">
+                        <Label htmlFor="points" className="text-xs">{isRTL ? 'الأساسي' : 'Base'}</Label>
+                        <Input
+                          id="points"
+                          type="number"
+                          min="1"
+                          value={formData.points}
+                          onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
+                          required
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="points_vest" className="text-xs">{isRTL ? 'مع Vest' : 'With Vest'}</Label>
+                        <Input
+                          id="points_vest"
+                          type="number"
+                          min="1"
+                          value={formData.points_with_vest}
+                          onChange={(e) => setFormData({ ...formData, points_with_vest: parseInt(e.target.value) || 0 })}
+                          required
+                          className="border-green-200 focus-visible:ring-green-500"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="points_no_vest" className="text-xs">{isRTL ? 'بدون Vest' : 'No Vest'}</Label>
+                        <Input
+                          id="points_no_vest"
+                          type="number"
+                          min="1"
+                          value={formData.points_without_vest}
+                          onChange={(e) => setFormData({ ...formData, points_without_vest: parseInt(e.target.value) || 0 })}
+                          required
+                          className="border-orange-200 focus-visible:ring-orange-500"
+                        />
+                      </div>
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="mode">{isRTL ? 'النوع' : 'Mode'}</Label>
@@ -464,8 +504,15 @@ export default function ActivityManagement() {
                           </span>
                         </div>
                         <div className="flex justify-between items-center py-1 border-b">
-                          <span className="text-muted-foreground">{isRTL ? 'النقاط' : 'Points'}</span>
-                          <span className="font-bold text-primary">{activity.points} {isRTL ? 'نقطة' : 'pts'}</span>
+                          <span className="text-muted-foreground">{isRTL ? 'الأثر' : 'Impact'}</span>
+                          <div className="flex flex-col items-end">
+                            <span className="font-bold text-primary">{activity.points}</span>
+                            {(activity.points_with_vest || activity.points_without_vest) && (
+                              <span className="text-xs text-muted-foreground">
+                                V: {activity.points_with_vest} | NV: {activity.points_without_vest}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="flex justify-between items-center py-1">
                           <span className="text-muted-foreground">{isRTL ? 'النوع' : 'Mode'}</span>
@@ -488,7 +535,7 @@ export default function ActivityManagement() {
                   <TableRow>
                     <TableHead className="text-start">{isRTL ? 'اسم النشاط' : 'Activity Name'}</TableHead>
                     <TableHead className="text-start">{isRTL ? 'اللجنة' : 'Committee'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'النقاط' : 'Points'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'الأثر' : 'Impact'}</TableHead>
                     <TableHead className="text-start">{isRTL ? 'النوع' : 'Mode'}</TableHead>
                     <TableHead className="max-w-[200px] text-start">{isRTL ? 'الوصف' : 'Description'}</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
@@ -513,7 +560,14 @@ export default function ActivityManagement() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          <span className="font-bold text-primary">{activity.points} {isRTL ? 'نقطة' : 'pts'}</span>
+                          <div className="flex flex-col">
+                            <span className="font-bold text-primary">{activity.points} {isRTL ? 'أثر' : 'pts'}</span>
+                            {(activity.points_with_vest != null && activity.points_without_vest != null) && (
+                              <span className="text-[10px] text-muted-foreground">
+                                With Vest: {activity.points_with_vest} | No Vest: {activity.points_without_vest}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${activity.mode === 'group' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
@@ -563,7 +617,7 @@ export default function ActivityManagement() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) { setSelectedActivity(null); resetForm(); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isRTL ? 'تعديل نوع النشاط' : 'Edit Activity Type'}</DialogTitle>
             <DialogDescription>
@@ -613,16 +667,45 @@ export default function ActivityManagement() {
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label>{isRTL ? 'النقاط' : 'Points Value'}</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="1000"
-                    value={formData.points}
-                    onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 10 })}
-                    required
-                  />
+                <div className="p-3 border rounded-md bg-muted/20 space-y-3 mb-4">
+                  <p className="text-sm font-medium">{isRTL ? 'إعدادات الأثر' : 'Impact Settings'}</p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="grid gap-2">
+                      <Label htmlFor="edit-points" className="text-xs">{isRTL ? 'الأساسي' : 'Base'}</Label>
+                      <Input
+                        id="edit-points"
+                        type="number"
+                        min="1"
+                        value={formData.points}
+                        onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="edit-points_vest" className="text-xs">{isRTL ? 'مع Vest' : 'With Vest'}</Label>
+                      <Input
+                        id="edit-points_vest"
+                        type="number"
+                        min="1"
+                        value={formData.points_with_vest}
+                        onChange={(e) => setFormData({ ...formData, points_with_vest: parseInt(e.target.value) || 0 })}
+                        required
+                        className="border-green-200 focus-visible:ring-green-500"
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="edit-points_no_vest" className="text-xs">{isRTL ? 'بدون Vest' : 'No Vest'}</Label>
+                      <Input
+                        id="edit-points_no_vest"
+                        type="number"
+                        min="1"
+                        value={formData.points_without_vest}
+                        onChange={(e) => setFormData({ ...formData, points_without_vest: parseInt(e.target.value) || 0 })}
+                        required
+                        className="border-orange-200 focus-visible:ring-orange-500"
+                      />
+                    </div>
+                  </div>
                 </div>
                 <div className="grid gap-2">
                   <Label>{isRTL ? 'النوع' : 'Mode'}</Label>

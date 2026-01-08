@@ -441,7 +441,7 @@ export default function BadgeManagement() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label>{isRTL ? 'النقاط المطلوبة' : 'Points Required'}</Label>
+                    <Label>{isRTL ? 'الأثر المطلوب' : 'Points Required'}</Label>
                     <Input
                       type="number"
                       min="0"
@@ -451,7 +451,7 @@ export default function BadgeManagement() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label>{isRTL ? 'الأنشطة المطلوبة' : 'Activities Required'}</Label>
+                    <Label>{isRTL ? 'المشاركات المطلوبة' : 'Activities Required'}</Label>
                     <Input
                       type="number"
                       min="0"
@@ -589,7 +589,7 @@ export default function BadgeManagement() {
 
                       <div className="mt-4 grid gap-2 text-sm">
                         <div className="flex justify-between items-center py-1 border-b">
-                          <span className="text-muted-foreground">{isRTL ? 'النقاط المطلوبة' : 'Points Req.'}</span>
+                          <span className="text-muted-foreground">{isRTL ? 'الأثر المطلوب' : 'Points Req.'}</span>
                           {badge.points_required ? (
                             <span className="font-medium">{badge.points_required}</span>
                           ) : (
@@ -597,7 +597,7 @@ export default function BadgeManagement() {
                           )}
                         </div>
                         <div className="flex justify-between items-center py-1">
-                          <span className="text-muted-foreground">{isRTL ? 'الأنشطة المطلوبة' : 'Activities Req.'}</span>
+                          <span className="text-muted-foreground">{isRTL ? 'المشاركات المطلوبة' : 'Activities Req.'}</span>
                           {badge.activities_required ? (
                             <span className="font-medium">{badge.activities_required}</span>
                           ) : (
@@ -618,8 +618,8 @@ export default function BadgeManagement() {
                   <TableRow>
                     <TableHead className="text-start">{isRTL ? 'الشارة' : 'Badge'}</TableHead>
                     <TableHead className="text-start">{isRTL ? 'الوصف' : 'Description'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'النقاط المطلوبة' : 'Points Req.'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'الأنشطة المطلوبة' : 'Activities Req.'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'الأثر المطلوب' : 'Points Req.'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'المشاركات المطلوبة' : 'Activities Req.'}</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -772,7 +772,7 @@ export default function BadgeManagement() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label>{isRTL ? 'النقاط المطلوبة' : 'Points Required'}</Label>
+                  <Label>{isRTL ? 'الأثر المطلوب' : 'Points Required'}</Label>
                   <Input
                     type="number"
                     min="0"
@@ -781,7 +781,7 @@ export default function BadgeManagement() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>{isRTL ? 'الأنشطة المطلوبة' : 'Activities Required'}</Label>
+                  <Label>{isRTL ? 'المشاركات المطلوبة' : 'Activities Required'}</Label>
                   <Input
                     type="number"
                     min="0"

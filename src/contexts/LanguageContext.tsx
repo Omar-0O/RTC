@@ -191,6 +191,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.exportReport': 'Export Report',
     'reports.thisWeek': 'This Week',
     'reports.thisMonth': 'This Month',
+    'reports.thirdYear': 'Third of Year',
     'reports.thisQuarter': 'This Quarter',
     'reports.thisYear': 'This Year',
     'reports.avgPointsPerVolunteer': 'Avg Points/Volunteer',
@@ -205,7 +206,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.exportData': 'Export Data',
     'reports.exportDataDesc': 'Download reports in various formats',
     'reports.volunteerList': 'Volunteer List (CSV)',
-    'reports.activityLog': 'Monthly Participation Log (CSV)',
+    'reports.activityLog': 'Participation Log (CSV)',
     'reports.pointsSummary': 'Points Summary (CSV)',
     'reports.monthlyReport': 'Monthly Report (CSV)',
 
@@ -437,11 +438,12 @@ const translations: Record<Language, Record<string, string>> = {
     'activities.deleteWarning': 'هل أنت متأكد من حذف نوع النشاط هذا؟ لا يمكن التراجع عن هذا الإجراء.',
 
     // Reports
-    'reports.title': 'التقارير والتحليلات',
+    'reports.title': 'التقارير',
     'reports.subtitle': 'رؤى حول مشاركة المتطوعين والنشاط',
     'reports.exportReport': 'تصدير التقرير',
     'reports.thisWeek': 'هذا الأسبوع',
     'reports.thisMonth': 'هذا الشهر',
+    'reports.thirdYear': 'الثلث السنوي',
     'reports.thisQuarter': 'هذا الربع',
     'reports.thisYear': 'هذا العام',
     'reports.avgPointsPerVolunteer': 'متوسط الأثر/متطوع',
@@ -456,7 +458,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.exportData': 'تصدير البيانات',
     'reports.exportDataDesc': 'تنزيل التقارير بتنسيقات مختلفة',
     'reports.volunteerList': 'قائمة المتطوعين (CSV)',
-    'reports.activityLog': 'تقرير المشاركات الشهري (CSV)',
+    'reports.activityLog': 'تقرير المشاركات (CSV)',
     'reports.pointsSummary': 'ملخص الأثر (CSV)',
     'reports.monthlyReport': 'التقرير الشهري (CSV)',
 

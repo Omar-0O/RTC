@@ -658,7 +658,7 @@ export default function Reports() {
       <Card>
         <CardHeader>
           <CardTitle>{t('reports.exportData')}</CardTitle>
-          <CardDescription>{t('reports.exportDataDesc')}</CardDescription>
+
         </CardHeader>
         <CardContent>
           <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2">

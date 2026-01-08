@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BarChart,
   Bar,
@@ -58,6 +59,7 @@ interface ActivitySubmission {
   submitted_at: string;
   activity_type_id: string;
   location?: string;
+  wore_vest?: boolean; // Track if volunteer wore vest during activity
   committee_id: string | null;
   description?: string | null;
   proof_url?: string | null;
@@ -77,7 +79,7 @@ interface ActivityType {
 }
 
 export default function Reports() {
-  const { t, language } = useLanguage();
+  const { t, language, isRTL } = useLanguage();
   const [dateRange, setDateRange] = useState('month');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
@@ -93,7 +95,7 @@ export default function Reports() {
     setIsLoading(true);
     try {
       const [profilesRes, committeesRes, submissionsRes, activityTypesRes, userRolesRes] = await Promise.all([
-        supabase.from('profiles').select('*'),
+        supabase.from('profiles').select('*').neq('full_name', 'RTC Admin'),
         supabase.from('committees').select('*'),
         supabase.from('activity_submissions').select('*'),
         supabase.from('activity_types').select('*'),
@@ -138,6 +140,8 @@ export default function Reports() {
         return { start: startOfMonth(now), end: endOfMonth(now) };
       case 'quarter':
         return { start: startOfQuarter(now), end: endOfQuarter(now) };
+      case 'thirdYear':
+        return { start: subMonths(startOfMonth(now), 3), end: endOfMonth(now) };
       case 'semi':
         return { start: subMonths(startOfMonth(now), 5), end: endOfMonth(now) };
       case 'year':
@@ -273,7 +277,7 @@ export default function Reports() {
 
   // Top activities by submissions
   const activityStats = activityTypes.map(activity => {
-    const activitySubmissions = submissions.filter(s => s.activity_type_id === activity.id);
+    const activitySubmissions = filteredSubmissions.filter(s => s.activity_type_id === activity.id);
     return {
       name: language === 'ar' ? activity.name_ar : activity.name,
       count: activitySubmissions.length,
@@ -357,30 +361,31 @@ export default function Reports() {
           if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
           else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
 
+          // Vest status for branch activities
+          const vestStatus = s.location === 'branch'
+            ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
+            : '';
+
           return {
             [language === 'ar' ? 'النشاط' : 'Activity']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
             [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
             [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
+            [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
+            [language === 'ar' ? 'الأثر' : 'Impact']: s.points_awarded || 0,
             [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
             [language === 'ar' ? 'الملاحظات' : 'Notes']: s.description || '',
             [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
           };
         });
-        // Use 'participation_log' filename, filtered by current month
-        downloadCSV(reportData, `participation_log_${dateRange}`);
+        // Use 'participation_log' filename with dynamic date range
+        const { start, end } = getDateRange();
+        const dateStr = `${format(start, 'yyyy-MM-dd')}_to_${format(end, 'yyyy-MM-dd')}`;
+        downloadCSV(reportData, `participation_log_${dateStr}`);
         break;
 
-      case 'points':
-        const pointsData = profiles.map(p => ({
-          [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
-          [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-          [language === 'ar' ? 'إجمالي الأثر' : 'Total Impact']: p.total_points,
-          [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Degree']: getLevelName(p.level || 'under_follow_up'),
-        })).sort((a, b) => (b[language === 'ar' ? 'إجمالي الأثر' : 'Total Impact'] as number) - (a[language === 'ar' ? 'إجمالي الأثر' : 'Total Impact'] as number));
-        downloadCSV(pointsData, 'points_summary');
-        break;
+
 
 
       case 'full':
@@ -393,8 +398,8 @@ export default function Reports() {
 
   // Calculate summary stats
   const totalVolunteers = profiles.length;
-  const totalApprovedActivities = submissions.filter(s => s.status === 'approved').length;
-  const totalSubmissions = submissions.length;
+  const totalApprovedActivities = filteredSubmissions.filter(s => s.status === 'approved').length;
+  const totalSubmissions = filteredSubmissions.length;
 
   // Calculate volunteers by level
   const volunteersByLevel = {
@@ -418,261 +423,365 @@ export default function Reports() {
           <h1 className="text-3xl font-bold tracking-tight">{t('reports.title')}</h1>
           <p className="text-muted-foreground">{t('reports.subtitle')}</p>
         </div>
-        <div className="flex gap-2">
-          <Select value={dateRange} onValueChange={setDateRange}>
-            <SelectTrigger className="w-[150px]">
-              <Calendar className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="week">{t('reports.thisWeek')}</SelectItem>
-              <SelectItem value="month">{t('reports.thisMonth')}</SelectItem>
-              <SelectItem value="quarter">{t('reports.thisQuarter')}</SelectItem>
-              <SelectItem value="semi">{language === 'ar' ? 'نصف سنة' : 'Half Year'}</SelectItem>
-              <SelectItem value="year">{t('reports.thisYear')}</SelectItem>
-            </SelectContent>
-          </Select>
 
-        </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-primary/10 p-3">
-                <Users className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('admin.totalVolunteers')}</p>
-                <p className="text-2xl font-bold">{totalVolunteers}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-success/10 p-3">
-                <Activity className="h-6 w-6 text-success" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('admin.totalActivities')}</p>
-                <p className="text-2xl font-bold">{totalApprovedActivities}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-warning/10 p-3">
-                <Award className="h-6 w-6 text-warning" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{language === 'ar' ? 'إجمالي المشاركات' : 'Total Submissions'}</p>
-                <p className="text-2xl font-bold">{totalSubmissions.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs defaultValue="reports" className="w-full space-y-4">
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="reports">{t('reports.title')}</TabsTrigger>
+            <TabsTrigger value="archive">{language === 'ar' ? 'الأرشيف' : 'Archive'}</TabsTrigger>
+          </TabsList>
 
-      {/* Volunteers by Level */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-slate-500/10 p-3">
-                <Activity className="h-6 w-6 text-slate-500" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('level.under_follow_up')}</p>
-                <p className="text-2xl font-bold">{volunteersByLevel.under_follow_up}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-blue-500/10 p-3">
-                <Activity className="h-6 w-6 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('level.project_responsible')}</p>
-                <p className="text-2xl font-bold">{volunteersByLevel.project_responsible}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-purple-600/10 p-3">
-                <Activity className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('level.responsible')}</p>
-                <p className="text-2xl font-bold">{volunteersByLevel.responsible}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Activity Trend */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('reports.activityTrend')}</CardTitle>
-            <CardDescription>{t('reports.activityTrendDesc')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={activityTrend}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="month" className="text-xs" />
-                  <YAxis className="text-xs" />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--card))',
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }}
-                  />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="under_follow_up"
-                    stroke="#64748b"
-                    strokeWidth={2}
-                    name={t('level.under_follow_up')}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="project_responsible"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    name={t('level.project_responsible')}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="responsible"
-                    stroke="#9333ea"
-                    strokeWidth={2}
-                    name={t('level.responsible')}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Level Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('reports.levelDistribution')}</CardTitle>
-            <CardDescription>{t('reports.levelDistributionDesc')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              {levelData.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  {language === 'ar' ? 'لا توجد بيانات' : 'No data available'}
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={levelData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={5}
-                      dataKey="value"
-                      label={renderCustomLabel}
-                    >
-                      {levelData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-
-
-        {/* Top Activities */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('reports.topActivities')}</CardTitle>
-            <CardDescription>{t('reports.topActivitiesDesc')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {activityStats.length === 0 ? (
-                <div className="flex items-center justify-center h-32 text-muted-foreground">
-                  {language === 'ar' ? 'لا توجد أنشطة بعد' : 'No activities yet'}
-                </div>
-              ) : (
-                activityStats.map((activity, index) => (
-                  <div key={activity.name} className="flex items-center gap-4">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-bold">
-                      {index + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{activity.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {activity.count} {language === 'ar' ? 'مشاركة' : 'submissions'} • {activity.points} {t('common.points')}
-                      </p>
-                    </div>
-                    <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full"
-                        style={{ width: `${(activity.count / activityStats[0].count) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Export Options */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('reports.exportData')}</CardTitle>
-          <CardDescription>{t('reports.exportDataDesc')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2">
-            <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('volunteers')}>
-              <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
-              <span className="truncate">{t('reports.volunteerList')}</span>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('activities')}>
-              <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
-              <span className="truncate">{t('reports.activityLog')}</span>
-            </Button>
+          {/* Date Picker - Only show for Reports tab */}
+          <div className="flex items-center gap-2">
+            <Select value={dateRange} onValueChange={setDateRange}>
+              <SelectTrigger className="w-[150px]">
+                <Calendar className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="week">{t('reports.thisWeek')}</SelectItem>
+                <SelectItem value="month">{t('reports.thisMonth')}</SelectItem>
+                <SelectItem value="thirdYear">{t('reports.thirdYear')}</SelectItem>
+                <SelectItem value="quarter">{t('reports.thisQuarter')}</SelectItem>
+                <SelectItem value="semi">{language === 'ar' ? 'نصف سنة' : 'Half Year'}</SelectItem>
+                <SelectItem value="year">{t('reports.thisYear')}</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        <TabsContent value="reports" className="space-y-6">
+          {/* Summary Stats */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-full bg-primary/10 p-3">
+                    <Users className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">{t('admin.totalVolunteers')}</p>
+                    <p className="text-2xl font-bold">{totalVolunteers}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-full bg-success/10 p-3">
+                    <Activity className="h-6 w-6 text-success" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">{t('admin.totalActivities')}</p>
+                    <p className="text-2xl font-bold">{totalApprovedActivities}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-full bg-warning/10 p-3">
+                    <Award className="h-6 w-6 text-warning" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">{language === 'ar' ? 'إجمالي المشاركات' : 'Total Submissions'}</p>
+                    <p className="text-2xl font-bold">{totalSubmissions.toLocaleString()}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Volunteers by Level */}
+          <div className="grid gap-4 md:grid-cols-3">
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-full bg-slate-500/10 p-3">
+                    <Activity className="h-6 w-6 text-slate-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">{t('level.under_follow_up')}</p>
+                    <p className="text-2xl font-bold">{volunteersByLevel.under_follow_up}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-full bg-blue-500/10 p-3">
+                    <Activity className="h-6 w-6 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">{t('level.project_responsible')}</p>
+                    <p className="text-2xl font-bold">{volunteersByLevel.project_responsible}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-4">
+                  <div className="rounded-full bg-purple-600/10 p-3">
+                    <Activity className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">{t('level.responsible')}</p>
+                    <p className="text-2xl font-bold">{volunteersByLevel.responsible}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            {/* Level Distribution */}
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('reports.levelDistribution')}</CardTitle>
+                <CardDescription>{t('reports.levelDistributionDesc')}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  {levelData.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-muted-foreground">
+                      {language === 'ar' ? 'لا توجد بيانات' : 'No data available'}
+                    </div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={levelData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={100}
+                          paddingAngle={5}
+                          dataKey="value"
+                          label={renderCustomLabel}
+                        >
+                          {levelData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: 'hsl(var(--card))',
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px'
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Activity Trend */}
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('reports.activityTrend')}</CardTitle>
+                <CardDescription>{t('reports.activityTrendDesc')}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={activityTrend}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="month" className="text-xs" />
+                      <YAxis className="text-xs" />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }}
+                      />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="under_follow_up"
+                        stroke="#64748b"
+                        strokeWidth={2}
+                        name={t('level.under_follow_up')}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="project_responsible"
+                        stroke="#3b82f6"
+                        strokeWidth={2}
+                        name={t('level.project_responsible')}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="responsible"
+                        stroke="#9333ea"
+                        strokeWidth={2}
+                        name={t('level.responsible')}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Activities */}
+            <Card>
+              <CardHeader>
+                <CardTitle>{t('reports.topActivities')}</CardTitle>
+                <CardDescription>{t('reports.topActivitiesDesc')}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {activityStats.length === 0 ? (
+                    <div className="flex items-center justify-center h-32 text-muted-foreground">
+                      {language === 'ar' ? 'لا توجد أنشطة بعد' : 'No activities yet'}
+                    </div>
+                  ) : (
+                    activityStats.map((activity, index) => (
+                      <div key={activity.name} className="flex items-center gap-4">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-bold">
+                          {index + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{activity.name}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {activity.count} {language === 'ar' ? 'مشاركة' : 'submissions'} • {activity.points} {t('common.points')}
+                          </p>
+                        </div>
+                        <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full bg-primary rounded-full"
+                            style={{ width: `${(activity.count / activityStats[0].count) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Export Options */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('reports.exportData')}</CardTitle>
+
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2">
+                <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('volunteers')}>
+                  <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
+                  <span className="truncate">{t('reports.volunteerList')}</span>
+                </Button>
+                <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('activities')}>
+                  <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
+                  <span className="truncate">
+                    {t('reports.activityLog')}
+                    <span className="text-xs opacity-70 ml-2 mr-2">
+                      (
+                      {(() => {
+                        const { start, end } = getDateRange();
+                        return `${format(start, 'yyyy/MM/dd')} - ${format(end, 'yyyy/MM/dd')}`;
+                      })()}
+                      )
+                    </span>
+                  </span>
+                </Button>
+
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="archive" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>{language === 'ar' ? 'أرشيف التقارير' : 'Reports Archive'}</CardTitle>
+              <CardDescription>{language === 'ar' ? 'تنزيل تقارير الشهور السابقة' : 'Download reports from previous months'}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(() => {
+                    const months = [];
+                    const startDate = new Date(2026, 0, 1); // Jan 1, 2026
+                    const now = new Date();
+                    let currentDate = now;
+
+                    while (currentDate >= startDate) {
+                      months.push(new Date(currentDate));
+                      currentDate = subMonths(currentDate, 1);
+                    }
+
+                    return months.map((date, i) => {
+                      const monthStart = startOfMonth(date);
+                      const monthEnd = endOfMonth(date);
+                      const monthName = format(date, 'MMMM yyyy');
+
+                      // Calculate stats for this month
+                      const monthSubmissions = submissions.filter(s => {
+                        const sDate = new Date(s.submitted_at);
+                        return sDate >= monthStart && sDate <= monthEnd;
+                      });
+
+                      return (
+                        <div key={i} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                          <div>
+                            <p className="font-medium">{language === 'ar' ? new Intl.DateTimeFormat('ar-EG', { month: 'long', year: 'numeric' }).format(date) : monthName}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {monthSubmissions.length} {language === 'ar' ? 'مشاركة' : 'submissions'}
+                            </p>
+                          </div>
+                          <Button variant="outline" size="sm" onClick={() => {
+                            const archiveData = monthSubmissions.map(s => {
+                              const volunteer = profiles.find(p => p.id === s.volunteer_id);
+                              const activityType = activityTypes.find(a => a.id === s.activity_type_id);
+                              const committee = committees.find(c => c.id === (volunteer?.committee_id || s.committee_id));
+
+                              let locationStr = s.location || 'branch';
+                              if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
+                              else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
+
+                              const vestStatus = s.location === 'branch'
+                                ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
+                                : '';
+
+                              return {
+                                [language === 'ar' ? 'النشاط' : 'Activity']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+                                [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+                                [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
+                                [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
+                                [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
+                                [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
+                                [language === 'ar' ? 'الأثر' : 'Impact']: s.points_awarded || 0,
+                                [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+                                [language === 'ar' ? 'الملاحظات' : 'Notes']: s.description || '',
+                                [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
+                              };
+                            });
+                            downloadCSV(archiveData, `archive_report_${format(date, 'yyyy_MM')}`);
+                          }}>
+                            <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                            {isRTL ? 'تحميل' : 'Download'}
+                          </Button>
+                        </div>
+                      );
+                    })
+                  })()}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

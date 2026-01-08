@@ -112,6 +112,7 @@ export default function EventManagement() {
         const { data } = await supabase
             .from('profiles')
             .select('id, full_name, phone')
+            .neq('full_name', 'RTC Admin')
             .order('full_name');
         if (data) setVolunteers(data);
     };

@@ -22,7 +22,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toast } from 'sonner';
-import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -49,6 +50,7 @@ interface Participant {
     is_volunteer: boolean;
     role?: string;
     committee_id?: string | null;
+    wore_vest?: boolean;
 }
 
 interface Volunteer {
@@ -91,6 +93,7 @@ export default function CaravanManagement() {
     // Guest Input State
     const [guestName, setGuestName] = useState('');
     const [guestPhone, setGuestPhone] = useState('');
+    const [woreVest, setWoreVest] = useState(true);
 
     useEffect(() => {
         fetchCaravans();
@@ -125,6 +128,7 @@ export default function CaravanManagement() {
         const { data } = await supabase
             .from('profiles')
             .select('id, full_name, phone, committee_id')
+            .neq('full_name', 'RTC Admin')
             .order('full_name');
         if (data) setVolunteers(data);
     };
@@ -153,9 +157,11 @@ export default function CaravanManagement() {
             name: volunteer.full_name || '',
             phone: volunteer.phone || '',
             is_volunteer: true,
-            committee_id: volunteer.committee_id
+            committee_id: volunteer.committee_id,
+            wore_vest: woreVest
         }]);
         setOpenCombobox(false);
+        setWoreVest(true); // Reset to default
     };
 
     const handleAddGuest = () => {
@@ -171,7 +177,8 @@ export default function CaravanManagement() {
         setParticipants([...participants, {
             name: guestName,
             phone: guestPhone,
-            is_volunteer: false
+            is_volunteer: false,
+            wore_vest: false // Guests don't get points/vest tracking usually, but keep schema consistent
         }]);
         setGuestName('');
         setGuestPhone('');
@@ -254,7 +261,8 @@ export default function CaravanManagement() {
                         volunteer_id: p.volunteer_id || null,
                         name: p.name,
                         phone: p.phone,
-                        is_volunteer: p.is_volunteer
+                        is_volunteer: p.is_volunteer,
+                        wore_vest: p.wore_vest // Pass wore_vest status
                     })));
 
                 if (partsError) throw partsError;
@@ -283,6 +291,7 @@ export default function CaravanManagement() {
             return_time: ''
         });
         setParticipants([]);
+        setWoreVest(true); // Reset vest status
     };
 
     const handleDeleteCaravan = async () => {
@@ -364,7 +373,8 @@ export default function CaravanManagement() {
             const exportData = ((parts as any[]) || []).map(p => ({
                 [t('leaderboard.name')]: p.name,
                 [t('users.phoneNumber')]: p.phone,
-                [t('users.role')]: p.is_volunteer ? t('common.volunteer') : t('caravans.addGuest'),
+                [isRTL ? 'متطوع/ضيف' : 'Volunteer/Guest']: p.is_volunteer ? t('common.volunteer') : (isRTL ? 'ضيف' : 'Guest'),
+                [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: p.is_volunteer ? (p.wore_vest ? 'Yes' : 'No') : 'N/A', // Added vest status
                 [t('caravans.name')]: caravan.name,
                 [t('caravans.date')]: caravan.date,
                 [t('caravans.location')]: caravan.location
@@ -409,7 +419,8 @@ export default function CaravanManagement() {
                             [t('caravans.returnTime')]: c.return_time,
                             [t('leaderboard.name')]: p.name,
                             [t('users.phoneNumber')]: p.phone,
-                            [t('users.role')]: p.is_volunteer ? 'Volunteer' : 'Guest'
+                            [isRTL ? 'متطوع/ضيف' : 'Volunteer/Guest']: p.is_volunteer ? 'Volunteer' : 'Guest',
+                            [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: p.is_volunteer ? (p.wore_vest ? 'Yes' : 'No') : 'N/A' // Added vest status
                         });
                     });
                 } else {
@@ -427,7 +438,8 @@ export default function CaravanManagement() {
                         [t('caravans.returnTime')]: c.return_time,
                         [t('leaderboard.name')]: '-',
                         [t('users.phoneNumber')]: '-',
-                        [t('users.role')]: '-'
+                        [isRTL ? 'متطوع/ضيف' : 'Volunteer/Guest']: '-',
+                        [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: 'N/A' // Added vest status
                     });
                 }
             });
@@ -483,6 +495,7 @@ export default function CaravanManagement() {
                                             <SelectContent>
                                                 <SelectItem value="food_distribution">{isRTL ? 'إطعام' : 'Food Distribution'}</SelectItem>
                                                 <SelectItem value="charity_market">{isRTL ? 'سوق خيري' : 'Charity Market'}</SelectItem>
+                                                <SelectItem value="other">{isRTL ? 'أخرى' : 'Other'}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -524,34 +537,47 @@ export default function CaravanManagement() {
                                     <div className="space-y-6">
                                         <div className="space-y-3">
                                             <Label className="text-sm text-muted-foreground">{t('caravans.addVolunteer')}</Label>
-                                            <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                                                <PopoverTrigger asChild>
-                                                    <Button variant="outline" role="combobox" className="w-full justify-between h-12">
-                                                        <span className="truncate">{t('caravans.addVolunteer')}</span>
-                                                        <ChevronsUpDown className="ltr:ml-2 rtl:mr-2 h-4 w-4 shrink-0 opacity-50" />
-                                                    </Button>
-                                                </PopoverTrigger>
-                                                <PopoverContent className="p-0 w-[calc(100vw-2rem)] sm:w-[400px]" side="bottom" align="start">
-                                                    <Command>
-                                                        <CommandInput placeholder={t('common.search')} />
-                                                        <CommandList className="max-h-[200px]">
-                                                            <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results'}</CommandEmpty>
-                                                            <CommandGroup>
-                                                                {volunteers.map((volunteer) => (
-                                                                    <CommandItem
-                                                                        key={volunteer.id}
-                                                                        value={volunteer.full_name}
-                                                                        onSelect={() => handleAddVolunteer(volunteer.id)}
-                                                                    >
-                                                                        <Check className={cn("ltr:mr-2 rtl:ml-2 h-4 w-4", "opacity-0")} />
-                                                                        <span className="truncate">{volunteer.full_name}</span>
-                                                                    </CommandItem>
-                                                                ))}
-                                                            </CommandGroup>
-                                                        </CommandList>
-                                                    </Command>
-                                                </PopoverContent>
-                                            </Popover>
+                                            <div className="flex gap-4 items-end">
+                                                <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                                                    <PopoverTrigger asChild>
+                                                        <Button variant="outline" role="combobox" className="flex-1 justify-between h-12">
+                                                            <span className="truncate">{t('caravans.addVolunteer')}</span>
+                                                            <ChevronsUpDown className="ltr:ml-2 rtl:mr-2 h-4 w-4 shrink-0 opacity-50" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="p-0 w-[calc(100vw-2rem)] sm:w-[400px]" side="bottom" align="start">
+                                                        <Command>
+                                                            <CommandInput placeholder={t('common.search')} />
+                                                            <CommandList className="max-h-[200px]">
+                                                                <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results'}</CommandEmpty>
+                                                                <CommandGroup>
+                                                                    {volunteers.map((volunteer) => (
+                                                                        <CommandItem
+                                                                            key={volunteer.id}
+                                                                            value={volunteer.full_name}
+                                                                            onSelect={() => handleAddVolunteer(volunteer.id)}
+                                                                        >
+                                                                            <Check className={cn("ltr:mr-2 rtl:ml-2 h-4 w-4", "opacity-0")} />
+                                                                            <span className="truncate">{volunteer.full_name}</span>
+                                                                        </CommandItem>
+                                                                    ))}
+                                                                </CommandGroup>
+                                                            </CommandList>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
+
+                                                <div className="flex items-center space-x-2 rtl:space-x-reverse h-12 border rounded-md px-3 bg-card/50">
+                                                    <Switch
+                                                        id="vest-toggle"
+                                                        checked={woreVest}
+                                                        onCheckedChange={setWoreVest}
+                                                    />
+                                                    <Label htmlFor="vest-toggle" className="cursor-pointer text-sm whitespace-nowrap">
+                                                        {isRTL ? 'ارتدى الـ Vest' : 'Wore Vest'}
+                                                    </Label>
+                                                </div>
+                                            </div>
                                         </div>
                                         <div className="space-y-3">
                                             <Label className="text-sm text-muted-foreground">{t('caravans.addGuest')}</Label>
@@ -564,9 +590,13 @@ export default function CaravanManagement() {
                                                 />
                                                 <Input
                                                     value={guestPhone}
-                                                    onChange={e => setGuestPhone(e.target.value)}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        if (/^\d*$/.test(val)) setGuestPhone(val);
+                                                    }}
                                                     placeholder={t('users.phoneNumber')}
                                                     className="h-12"
+                                                    dir="ltr"
                                                 />
                                                 <Button onClick={handleAddGuest} variant="secondary" disabled={!guestName} className="h-12">
                                                     <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
@@ -583,13 +613,14 @@ export default function CaravanManagement() {
                                                     <TableHead className="text-xs sm:text-sm">{t('leaderboard.name')}</TableHead>
                                                     <TableHead className="text-xs sm:text-sm">{t('users.phoneNumber')}</TableHead>
                                                     <TableHead className="text-xs sm:text-sm">{t('users.role')}</TableHead>
+                                                    <TableHead className="text-xs sm:text-sm w-20 text-center">{isRTL ? 'Vest' : 'Vest'}</TableHead>
                                                     <TableHead className="w-10"></TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
                                                 {participants.length === 0 ? (
                                                     <TableRow>
-                                                        <TableCell colSpan={4} className="text-center text-muted-foreground text-sm">{isRTL ? 'لا يوجد مشاركين' : 'No participants added'}</TableCell>
+                                                        <TableCell colSpan={5} className="text-center text-muted-foreground text-sm">{isRTL ? 'لا يوجد مشاركين' : 'No participants added'}</TableCell>
                                                     </TableRow>
                                                 ) : (
                                                     participants.map((p, idx) => (
@@ -597,6 +628,13 @@ export default function CaravanManagement() {
                                                             <TableCell className="text-xs sm:text-sm truncate max-w-[120px]">{p.name}</TableCell>
                                                             <TableCell className="text-xs sm:text-sm">{p.phone}</TableCell>
                                                             <TableCell className="text-xs sm:text-sm">{p.is_volunteer ? t('common.volunteer') : t('caravans.addGuest')}</TableCell>
+                                                            <TableCell className="text-center">
+                                                                {p.is_volunteer && (
+                                                                    p.wore_vest ?
+                                                                        <Check className="w-4 h-4 text-green-500 mx-auto" /> :
+                                                                        <X className="w-4 h-4 text-muted-foreground mx-auto opacity-50" />
+                                                                )}
+                                                            </TableCell>
                                                             <TableCell>
                                                                 <Button variant="ghost" size="sm" onClick={() => removeParticipant(idx)}>
                                                                     <Trash2 className="w-4 h-4 text-destructive" />
