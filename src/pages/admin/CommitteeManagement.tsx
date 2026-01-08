@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, MoreHorizontal, Users, Award, Pencil, Trash2 } from 'lucide-react';
+import { Plus, MoreHorizontal, Users, Award, Pencil, Trash2, FileSpreadsheet } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,8 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
+import { utils, writeFile } from 'xlsx';
+import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, format } from 'date-fns';
 
 interface Committee {
   id: string;
@@ -60,6 +62,8 @@ export default function CommitteeManagement() {
   const { t, language } = useLanguage();
   const [committees, setCommittees] = useState<CommitteeWithStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  const [timeFilter, setTimeFilter] = useState('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -217,6 +221,101 @@ export default function CommitteeManagement() {
     }
   };
 
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const now = new Date();
+      let startDate: Date | null = null;
+      let endDate: Date | null = null;
+
+      // Determine date range
+      switch (timeFilter) {
+        case 'weekly':
+          startDate = startOfWeek(now, { weekStartsOn: 6 });
+          endDate = endOfWeek(now, { weekStartsOn: 6 });
+          break;
+        case 'monthly':
+          startDate = startOfMonth(now);
+          endDate = endOfMonth(now);
+          break;
+        case 'quarterly':
+          startDate = startOfQuarter(now);
+          endDate = endOfQuarter(now);
+          break;
+        case 'semi_annual':
+           // Simplification: Either first half or second half of year
+           const month = now.getMonth();
+           if (month < 6) {
+             startDate = new Date(now.getFullYear(), 0, 1);
+             endDate = new Date(now.getFullYear(), 5, 30); // Approx end of June
+           } else {
+             startDate = new Date(now.getFullYear(), 6, 1);
+             endDate = new Date(now.getFullYear(), 11, 31);
+           }
+           break;
+        case 'annual':
+          startDate = startOfYear(now);
+          endDate = endOfYear(now);
+          break;
+      }
+
+      // Fetch fresh data for export
+      const { data: allCommittees } = await supabase.from('committees').select('*');
+      if (!allCommittees) return;
+
+      const reportData = await Promise.all(allCommittees.map(async (committee) => {
+        // 1. Volunteer Count (Total joined)
+        const { count: volCount } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('committee_id', committee.id);
+
+        // 2. Participation Count (Filtered by time)
+        let participationQuery = supabase
+          .from('activity_submissions')
+          .select('*', { count: 'exact', head: true })
+          .eq('committee_id', committee.id);
+
+        if (startDate && endDate) {
+          participationQuery = participationQuery
+            .gte('submitted_at', startDate.toISOString())
+            .lte('submitted_at', endDate.toISOString());
+        }
+
+        const { count: partCount } = await participationQuery;
+
+        return {
+          id: committee.id,
+          name: language === 'ar' ? committee.name_ar : committee.name,
+          volunteers: volCount || 0,
+          participations: partCount || 0
+        };
+      }));
+
+      // Format for Excel
+      const excelRows = reportData.map(item => ({
+        [language === 'ar' ? 'اسم اللجنة' : 'Committee Name']: item.name,
+        [language === 'ar' ? 'عدد المتطوعين' : 'Volunteers Count']: item.volunteers,
+        [language === 'ar' ? 'عدد المشاركات' : 'Participations Count']: item.participations,
+      }));
+
+      // Create Workbook
+      const ws = utils.json_to_sheet(excelRows);
+      const wb = utils.book_new();
+      utils.book_append_sheet(wb, ws, "Committees Report");
+
+      // Save File
+      writeFile(wb, `Committees_Report_${format(now, 'yyyy-MM-dd')}.xlsx`);
+      toast.success(language === 'ar' ? 'تم تصدير التقرير بنجاح' : 'Report exported successfully');
+
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Failed to export report');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const openEditDialog = (committee: CommitteeWithStats) => {
     setSelectedCommittee(committee);
     setFormName(committee.name);
@@ -246,107 +345,129 @@ export default function CommitteeManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t('committees.title')}</h1>
           <p className="text-muted-foreground">{t('committees.subtitle')}</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
-          setIsAddDialogOpen(open);
-          if (!open) resetForm();
-        }}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-              {t('committees.addCommittee')}
+
+        <div className="flex flex-wrap items-center gap-2">
+           <Select value={timeFilter} onValueChange={setTimeFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder={language === 'ar' ? 'اختر الفترة' : 'Select Period'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{language === 'ar' ? 'الكل' : 'All'}</SelectItem>
+                <SelectItem value="weekly">{language === 'ar' ? 'أسبوعي' : 'Weekly'}</SelectItem>
+                <SelectItem value="monthly">{language === 'ar' ? 'شهري' : 'Monthly'}</SelectItem>
+                <SelectItem value="quarterly">{language === 'ar' ? 'ربع سنوي' : 'Quarterly'}</SelectItem>
+                <SelectItem value="semi_annual">{language === 'ar' ? 'نصف سنوي' : 'Semi-Annual'}</SelectItem>
+                <SelectItem value="annual">{language === 'ar' ? 'سنوي' : 'Annual'}</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" onClick={handleExport} disabled={isExporting}>
+              <FileSpreadsheet className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {isExporting ? (language === 'ar' ? 'جاري التصدير...' : 'Exporting...') : (language === 'ar' ? 'تصدير' : 'Export')}
             </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{t('committees.createNew')}</DialogTitle>
-              <DialogDescription>{t('committees.createDescription')}</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleAddCommittee}>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="name">Name (English) *</Label>
-                  <Input
-                    id="name"
-                    value={formName}
-                    onChange={(e) => setFormName(e.target.value)}
-                    placeholder="Committee name in English"
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="name-ar">الاسم (عربي) *</Label>
-                  <Input
-                    id="name-ar"
-                    value={formNameAr}
-                    onChange={(e) => setFormNameAr(e.target.value)}
-                    placeholder="اسم اللجنة بالعربي"
-                    dir="rtl"
-                    required
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="description">Description (English)</Label>
-                  <Textarea
-                    id="description"
-                    value={formDescription}
-                    onChange={(e) => setFormDescription(e.target.value)}
-                    placeholder="Committee description"
-                    rows={2}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="description-ar">الوصف (عربي)</Label>
-                  <Textarea
-                    id="description-ar"
-                    value={formDescriptionAr}
-                    onChange={(e) => setFormDescriptionAr(e.target.value)}
-                    placeholder="وصف اللجنة"
-                    dir="rtl"
-                    rows={2}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="type">Type</Label>
-                  <Select
-                    value={formType}
-                    onValueChange={(val: 'production' | 'fourth_year') => setFormType(val)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="production">Production Committee / لجنة انتاج</SelectItem>
-                      <SelectItem value="fourth_year">Fourth Year Committee / لجنة سنة رابعة</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="color">Color</Label>
-                  <Input
-                    id="color"
-                    type="color"
-                    value={formColor}
-                    onChange={(e) => setFormColor(e.target.value)}
-                    className="h-10 w-20"
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
-                  {t('common.cancel')}
+
+            <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+              setIsAddDialogOpen(open);
+              if (!open) resetForm();
+            }}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                  {t('committees.addCommittee')}
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Adding...' : t('common.add')}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{t('committees.createNew')}</DialogTitle>
+                  <DialogDescription>{t('committees.createDescription')}</DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleAddCommittee}>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="name">Name (English) *</Label>
+                      <Input
+                        id="name"
+                        value={formName}
+                        onChange={(e) => setFormName(e.target.value)}
+                        placeholder="Committee name in English"
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="name-ar">الاسم (عربي) *</Label>
+                      <Input
+                        id="name-ar"
+                        value={formNameAr}
+                        onChange={(e) => setFormNameAr(e.target.value)}
+                        placeholder="اسم اللجنة بالعربي"
+                        dir="rtl"
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="description">Description (English)</Label>
+                      <Textarea
+                        id="description"
+                        value={formDescription}
+                        onChange={(e) => setFormDescription(e.target.value)}
+                        placeholder="Committee description"
+                        rows={2}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="description-ar">الوصف (عربي)</Label>
+                      <Textarea
+                        id="description-ar"
+                        value={formDescriptionAr}
+                        onChange={(e) => setFormDescriptionAr(e.target.value)}
+                        placeholder="وصف اللجنة"
+                        dir="rtl"
+                        rows={2}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="type">Type</Label>
+                      <Select
+                        value={formType}
+                        onValueChange={(val: 'production' | 'fourth_year') => setFormType(val)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="production">Production Committee / لجنة انتاج</SelectItem>
+                          <SelectItem value="fourth_year">Fourth Year Committee / لجنة سنة رابعة</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="color">Color</Label>
+                      <Input
+                        id="color"
+                        type="color"
+                        value={formColor}
+                        onChange={(e) => setFormColor(e.target.value)}
+                        className="h-10 w-20"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                      {t('common.cancel')}
+                    </Button>
+                    <Button type="submit" disabled={isSubmitting}>
+                      {isSubmitting ? 'Adding...' : t('common.add')}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+        </div>
       </div>
 
       {/* Committee Grid */}
