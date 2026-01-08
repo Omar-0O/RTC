@@ -247,10 +247,10 @@ export default function CommitteeManagement() {
            const month = now.getMonth();
            if (month < 6) {
              startDate = new Date(now.getFullYear(), 0, 1);
-             endDate = new Date(now.getFullYear(), 5, 30); // Approx end of June
+             endDate = endOfMonth(new Date(now.getFullYear(), 5, 1));
            } else {
              startDate = new Date(now.getFullYear(), 6, 1);
-             endDate = new Date(now.getFullYear(), 11, 31);
+             endDate = endOfMonth(new Date(now.getFullYear(), 11, 1));
            }
            break;
         case 'annual':

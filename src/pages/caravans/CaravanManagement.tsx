@@ -23,8 +23,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X, Activity } from 'lucide-react';
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, isWithinInterval, parseISO, lastDayOfMonth } from 'date-fns';
+import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X } from 'lucide-react';
+import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { StatsCard } from '@/components/ui/stats-card';
 
@@ -128,7 +128,7 @@ export default function CaravanManagement() {
                         // 0-3 (Jan-Apr), 4-7 (May-Aug), 8-11 (Sep-Dec)
                         const startMonth = Math.floor(currentMonth / 4) * 4;
                         const start = new Date(currentYear, startMonth, 1);
-                        const end = lastDayOfMonth(new Date(currentYear, startMonth + 3));
+                        const end = endOfMonth(new Date(currentYear, startMonth + 3));
                         return isWithinInterval(date, { start, end });
                     }
                 case 'semi_annual': // 6 months
@@ -138,7 +138,7 @@ export default function CaravanManagement() {
                         // 0-5 (Jan-Jun), 6-11 (Jul-Dec)
                         const startMonth = Math.floor(currentMonth / 6) * 6;
                         const start = new Date(currentYear, startMonth, 1);
-                        const end = lastDayOfMonth(new Date(currentYear, startMonth + 5));
+                        const end = endOfMonth(new Date(currentYear, startMonth + 5));
                         return isWithinInterval(date, { start, end });
                     }
                 case 'annual':

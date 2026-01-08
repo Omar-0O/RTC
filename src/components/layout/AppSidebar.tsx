@@ -83,7 +83,6 @@ export function AppSidebar() {
   const supervisorNavItems = [
     { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/supervisor', icon: Home },
     { title: isRTL ? 'نظرة عامة' : 'Overview', url: '/supervisor/dashboard', icon: BarChart3 },
-    { title: t('nav.userManagement'), url: '/supervisor/users', icon: Users },
     { title: t('nav.activities'), url: '/supervisor/activities', icon: Activity },
     { title: t('nav.committees'), url: '/supervisor/committees', icon: Settings },
     { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
@@ -123,7 +122,6 @@ export function AppSidebar() {
 
   const hrNavItems = [
     { title: t('nav.dashboard'), url: '/dashboard', icon: Home }, // Or a specific dashboard if needed
-    { title: t('nav.userManagement'), url: '/admin/users', icon: Users }, // Reuse admin user management for now
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 }, // Reuse admin reports
     { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/profile', icon: User },
