@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -51,6 +52,7 @@ interface Volunteer {
     id: string;
     full_name: string;
     phone: string | null;
+    avatar_url?: string | null;
 }
 
 export default function EventManagement() {
@@ -138,14 +140,15 @@ export default function EventManagement() {
     const fetchVolunteers = async () => {
         const { data } = await supabase
             .from('profiles')
-            .select('id, full_name, phone')
+            .select('id, full_name, phone, avatar_url')
             .order('full_name');
 
         if (data) {
             setVolunteers(data.map((p: any) => ({
                 id: p.id,
                 full_name: p.full_name || 'Unknown',
-                phone: p.phone
+                phone: p.phone,
+                avatar_url: p.avatar_url
             })));
         }
     };
@@ -711,8 +714,14 @@ export default function EventManagement() {
                                                                 value={v.full_name || v.id}
                                                                 onSelect={() => handleAddVolunteer(v.id)}
                                                             >
-                                                                <Check className={cn("mr-2 h-4 w-4", participants.some(p => p.volunteer_id === v.id) ? "opacity-100" : "opacity-0")} />
-                                                                {v.full_name}
+                                                                <div className="flex items-center gap-2">
+                                                                    <Check className={cn("mr-2 h-4 w-4", participants.some(p => p.volunteer_id === v.id) ? "opacity-100" : "opacity-0")} />
+                                                                    <Avatar className="h-6 w-6">
+                                                                        <AvatarImage src={v.avatar_url || undefined} />
+                                                                        <AvatarFallback className="text-[10px]">{v.full_name?.charAt(0)}</AvatarFallback>
+                                                                    </Avatar>
+                                                                    {v.full_name}
+                                                                </div>
                                                             </CommandItem>
                                                         ))}
                                                     </CommandGroup>

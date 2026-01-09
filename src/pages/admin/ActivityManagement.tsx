@@ -217,15 +217,18 @@ export default function ActivityManagement() {
     try {
       const { error } = await supabase.from('activity_types').delete().eq('id', selectedActivity.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Delete error:', error);
+        throw error;
+      }
 
       toast.success(isRTL ? 'تم حذف نوع النشاط بنجاح' : 'Activity type deleted successfully');
       setIsDeleteDialogOpen(false);
       setSelectedActivity(null);
       fetchData();
     } catch (error: any) {
-      toast.error(isRTL ? 'فشل في حذف نوع النشاط' : 'Failed to delete activity type');
-      console.error(error);
+      console.error('Failed to delete activity:', error);
+      toast.error(isRTL ? 'فشل في حذف نوع النشاط. قد يكون هناك مشاركات مرتبطة به.' : 'Failed to delete activity type. There might be submissions linked to it.');
     } finally {
       setSubmitting(false);
     }

@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,6 +66,7 @@ interface Volunteer {
     full_name: string;
     phone: string | null;
     committee_id?: string | null;
+    avatar_url?: string | null;
 }
 
 const CARAVANS_COMMITTEE_NAME = 'Caravans'; // Must match DB migration name
@@ -360,7 +362,7 @@ export default function CaravanManagement() {
     const fetchVolunteers = async () => {
         const { data } = await supabase
             .from('profiles')
-            .select('id, full_name, phone, committee_id')
+            .select('id, full_name, phone, committee_id, avatar_url')
             .neq('full_name', 'RTC Admin')
             .order('full_name');
         if (data) setVolunteers(data);
@@ -888,7 +890,13 @@ export default function CaravanManagement() {
                                                                             onSelect={() => handleAddVolunteer(volunteer.id)}
                                                                         >
                                                                             <Check className={cn("ltr:mr-2 rtl:ml-2 h-4 w-4", "opacity-0")} />
-                                                                            <span className="truncate">{volunteer.full_name}</span>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <Avatar className="h-6 w-6">
+                                                                                    <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                                    <AvatarFallback className="text-[10px]">{volunteer.full_name?.charAt(0)}</AvatarFallback>
+                                                                                </Avatar>
+                                                                                <span className="truncate">{volunteer.full_name}</span>
+                                                                            </div>
                                                                         </CommandItem>
                                                                     ))}
                                                                 </CommandGroup>

@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { CheckCircle2, Loader2, History, Upload, X, Image as ImageIcon, Check, ChevronsUpDown, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { generateGroupSubmissionCSV } from '@/utils/excel';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface Committee {
   id: string;
@@ -34,7 +35,6 @@ interface ActivityType {
   points_without_vest: number | null; // Points if didn't wear vest
   mode: 'individual' | 'group';
   committee_id: string | null;
-  category: string;
   created_at: string;
 }
 
@@ -52,12 +52,10 @@ interface Volunteer {
   id: string;
   full_name: string;
   phone?: string;
+  avatar_url?: string | null;
 }
 
-interface GuestParticipant {
-  name: string;
-  phone: string;
-}
+
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
@@ -87,8 +85,6 @@ export default function LogActivity() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [selectedVolunteers, setSelectedVolunteers] = useState<string[]>([]);
   const [openCombobox, setOpenCombobox] = useState(false);
-  const [guestsCount, setGuestsCount] = useState(0);
-  const [guestParticipants, setGuestParticipants] = useState<GuestParticipant[]>([]);
 
   const isLeader = primaryRole === 'committee_leader' || primaryRole === 'head_hr' || primaryRole === 'admin' || primaryRole === 'supervisor' || primaryRole === 'head_caravans' || primaryRole === 'head_events';
 
@@ -100,42 +96,45 @@ export default function LogActivity() {
     if (profile?.committee_id && !committeeId) {
       setCommitteeId(profile.committee_id);
     }
-  }, [profile?.committee_id]);
+  }, [profile?.committee_id, committeeId]);
 
   useEffect(() => {
-    // Reset guests array when count changes
-    setGuestParticipants(prev => {
-      const newGuests = [...prev];
-      if (guestsCount > newGuests.length) {
-        // Add empty slots
-        for (let i = newGuests.length; i < guestsCount; i++) {
-          newGuests.push({ name: '', phone: '' });
-        }
-      } else if (guestsCount < newGuests.length) {
-        // Remove excess
-        newGuests.splice(guestsCount);
-      }
-      return newGuests;
-    });
-  }, [guestsCount]);
-
-  useEffect(() => {
-    if (isGroupSubmission && committeeId) {
+    if (isGroupSubmission) {
       fetchVolunteers();
     }
-  }, [isGroupSubmission, committeeId]);
+  }, [isGroupSubmission]);
 
   const fetchVolunteers = async () => {
     try {
-      const { data, error } = await supabase
+      // First, get all volunteers
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, full_name, phone')
-        .eq('committee_id', committeeId)
-        .neq('id', user?.id) // Exclude self (leader is auto-added or handled separately)
+        .select('id, full_name, phone, avatar_url')
         .order('full_name');
 
-      if (error) throw error;
-      setVolunteers(data || []);
+      if (profilesError) throw profilesError;
+
+      // Then, get admin user IDs
+      const { data: adminRoles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+
+      if (rolesError) throw rolesError;
+
+      // Filter out admins
+      const adminIds = new Set((adminRoles || []).map(r => r.user_id));
+      const filteredProfiles = (profilesData || []).filter(v => !adminIds.has(v.id));
+
+      // Sanitize data to prevent crashes if full_name is null
+      const sanitizedData = filteredProfiles.map(v => ({
+        id: v.id,
+        full_name: v.full_name || 'Unknown Volunteer', // Fallback for null names
+        phone: v.phone || undefined,
+        avatar_url: v.avatar_url
+      }));
+
+      setVolunteers(sanitizedData);
     } catch (error) {
       console.error('Error fetching volunteers:', error);
     }
@@ -277,11 +276,7 @@ export default function LogActivity() {
     }
   };
 
-  const handleGuestChange = (index: number, field: keyof GuestParticipant, value: string) => {
-    const newGuests = [...guestParticipants];
-    newGuests[index] = { ...newGuests[index], [field]: value };
-    setGuestParticipants(newGuests);
-  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -293,19 +288,10 @@ export default function LogActivity() {
     }
 
     if (isGroupSubmission) {
-      if (selectedVolunteers.length === 0 && guestsCount === 0) {
+      if (selectedVolunteers.length === 0) {
         toast.error(isRTL ? 'يرجى اختيار مشاركين' : 'Please select participants');
         return;
       }
-      // Check if including self
-      // Actually "Include Self" is essentially selecting yourself or logging normally.
-      // For simplicity, let's assume the Leader is submitting FOR the group.
-      // If the leader wants credit, they should select themselves or we add a toggle "Include me".
-      // Let's add the leader to the list implicitly or explicitly? 
-      // The requirement says: "record group participations with or without his participation".
-      // We will add a logic to handle "Include Me" later if needed, but for now let's assume he can select himself if he appeared in list (but I filtered him out).
-      // Let's assume he needs a separate "Include me" checkbox or simple logic.
-      // Wait, let's look at requirements again: "with or without his participation".
     }
 
     setIsSubmitting(true);
@@ -330,7 +316,7 @@ export default function LogActivity() {
         location: location,
         wore_vest: location === 'branch' ? woreVest : false, // Only track vest for branch activities
         points_awarded: pointsAwarded,
-        status: 'approved', // Auto-approved? usually committee leader submissions are trustworthy? 
+        status: 'approved' as "pending" | "approved" | "rejected", // Auto-approved? usually committee leader submissions are trustworthy? 
         // Or maybe pending if configured. Let's stick to 'approved' for now as per leader logic usually.
         // But wait, user role logic: 
         // If leader -> 'approved' (since they are leader)
@@ -343,7 +329,6 @@ export default function LogActivity() {
       };
 
       if (isGroupSubmission) {
-        // Prepare participants list for Excel and DB
         const participantsForExcel = [
           // Selected Volunteers
           ...selectedVolunteers.map(id => {
@@ -362,14 +347,7 @@ export default function LogActivity() {
             type: 'volunteer' as const,
             points: selectedActivity.points,
             role: 'Leader'
-          }] : []),
-          // Guests
-          ...guestParticipants.filter(g => g.name).map(g => ({
-            name: g.name,
-            phone: g.phone,
-            type: 'guest' as const,
-            points: 0
-          }))
+          }] : [])
         ];
 
         const excelBlob = generateGroupSubmissionCSV({
@@ -389,7 +367,7 @@ export default function LogActivity() {
             leader_id: user.id,
             activity_type_id: activityId,
             committee_id: committeeId,
-            guest_participants: guestParticipants.filter(g => g.name) as any,
+            guest_participants: null,
             excel_sheet_url: excelUrl,
             submitted_at: new Date().toISOString()
           })
@@ -425,7 +403,7 @@ export default function LogActivity() {
         const { error } = await supabase.from('activity_submissions').insert({
           volunteer_id: user.id,
           participants_count: selectedActivity.mode === 'group' ? parseInt(participantsCount) || 1 : 1,
-          status: isLeader ? 'approved' : 'pending', // Auto-approve if leader
+          status: (isLeader ? 'approved' : 'pending') as "pending" | "approved" | "rejected", // Auto-approve if leader
           ...submissionData
         });
 
@@ -454,8 +432,6 @@ export default function LogActivity() {
     setProofPreview(null);
     setIsSubmitted(false);
     setSelectedVolunteers([]);
-    setGuestsCount(0);
-    setGuestParticipants([]);
     setIsGroupSubmission(false);
   };
 
@@ -561,14 +537,15 @@ export default function LogActivity() {
 
               {/* Leader Group Toggle */}
               {isLeader && (
-                <div className="flex items-center justify-between p-6 border rounded-xl bg-accent/5 hover:bg-accent/10 transition-colors cursor-pointer" onClick={() => setIsGroupSubmission(!isGroupSubmission)}>
+                <div className="flex items-center justify-between p-6 border rounded-xl bg-accent/5 hover:bg-accent/10 transition-colors">
                   <div className="space-y-1">
-                    <Label className="text-lg font-medium cursor-pointer">{isRTL ? 'مشاركة جماعية' : 'Group Submission'}</Label>
+                    <Label htmlFor="group-toggle" className="text-lg font-medium cursor-pointer">{isRTL ? 'مشاركة جماعية' : 'Group Submission'}</Label>
                     <p className="text-sm text-muted-foreground">
                       {isRTL ? 'تسجيل مشاركة لمجموعة من المتطوعين' : 'Log participation for a group of volunteers'}
                     </p>
                   </div>
                   <Switch
+                    id="group-toggle"
                     checked={isGroupSubmission}
                     onCheckedChange={setIsGroupSubmission}
                     className="scale-125"
@@ -660,8 +637,9 @@ export default function LogActivity() {
                               {volunteers.map((volunteer) => (
                                 <CommandItem
                                   key={volunteer.id}
-                                  value={volunteer.full_name}
+                                  value={`${volunteer.full_name}-${volunteer.id}`} // Ensure unique value
                                   onSelect={() => toggleVolunteer(volunteer.id)}
+                                  className="cursor-pointer"
                                 >
                                   <Check
                                     className={cn(
@@ -669,7 +647,17 @@ export default function LogActivity() {
                                       selectedVolunteers.includes(volunteer.id) ? "opacity-100" : "opacity-0"
                                     )}
                                   />
-                                  {volunteer.full_name}
+                                  <div className="flex items-center gap-2">
+                                    <Avatar className="h-6 w-6">
+                                      <AvatarImage src={volunteer.avatar_url || undefined} />
+                                      <AvatarFallback className="text-[10px]">
+                                        {(volunteer.full_name && volunteer.full_name.length > 0)
+                                          ? volunteer.full_name.charAt(0).toUpperCase()
+                                          : '?'}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="truncate">{volunteer.full_name}</span>
+                                  </div>
                                 </CommandItem>
                               ))}
                             </CommandGroup>
@@ -677,38 +665,6 @@ export default function LogActivity() {
                         </Command>
                       </PopoverContent>
                     </Popover>
-                  </div>
-
-                  {/* Guests */}
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>{isRTL ? 'عدد المشاركين الغير متطوعين (ضيوف)' : 'Number of Guest Participants'}</Label>
-                      <Input
-                        type="number"
-                        min="0"
-                        value={guestsCount}
-                        onChange={(e) => setGuestsCount(parseInt(e.target.value) || 0)}
-                      />
-                    </div>
-
-                    {guestParticipants.length > 0 && (
-                      <div className="space-y-4 pl-4 border-l-2">
-                        {guestParticipants.map((guest, idx) => (
-                          <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            <Input
-                              placeholder={isRTL ? `اسم الضيف ${idx + 1}` : `Guest ${idx + 1} Name`}
-                              value={guest.name}
-                              onChange={(e) => handleGuestChange(idx, 'name', e.target.value)}
-                            />
-                            <Input
-                              placeholder={isRTL ? 'رقم الهاتف' : 'Phone Number'}
-                              value={guest.phone}
-                              onChange={(e) => handleGuestChange(idx, 'phone', e.target.value)}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               ) : (
@@ -847,14 +803,10 @@ export default function LogActivity() {
               {isGroupSubmission && selectedActivity && (
                 <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-2">
                   <h4 className="font-medium text-sm">{isRTL ? 'ملخص المشاركة' : 'Submission Summary'}</h4>
-                  <div className="grid grid-cols-3 gap-4 pt-2">
+                  <div className="grid grid-cols-2 gap-4 pt-2">
                     <div className="bg-background rounded-lg p-3 text-center border">
                       <p className="text-xs text-muted-foreground mb-1">{isRTL ? 'المتطوعين' : 'Volunteers'}</p>
                       <p className="font-bold text-lg">{selectedVolunteers.length + (includeMe ? 1 : 0)}</p>
-                    </div>
-                    <div className="bg-background rounded-lg p-3 text-center border">
-                      <p className="text-xs text-muted-foreground mb-1">{isRTL ? 'الضيوف' : 'Guests'}</p>
-                      <p className="font-bold text-lg">{guestsCount}</p>
                     </div>
                     <div className="bg-background rounded-lg p-3 text-center border border-primary/20 bg-primary/5">
                       <p className="text-xs text-primary mb-1">{isRTL ? 'إجمالي النقاط' : 'Total Points'}</p>
