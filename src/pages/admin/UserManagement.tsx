@@ -141,6 +141,103 @@ const compressImage = async (file: File): Promise<File> => {
   });
 };
 
+import Cropper from 'react-easy-crop';
+import { Slider } from '@/components/ui/slider';
+
+const createImage = (url: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const image = new Image()
+    image.addEventListener('load', () => resolve(image))
+    image.addEventListener('error', (error) => reject(error))
+    image.setAttribute('crossOrigin', 'anonymous') // needed to avoid cross-origin issues on CodeSandbox
+    image.src = url
+  })
+
+function getRadianAngle(degreeValue: number) {
+  return (degreeValue * Math.PI) / 180
+}
+
+/**
+ * Returns the new bounding area of a rotated rectangle.
+ */
+function rotateSize(width: number, height: number, rotation: number) {
+  const rotRad = getRadianAngle(rotation)
+
+  return {
+    width:
+      Math.abs(Math.cos(rotRad) * width) + Math.abs(Math.sin(rotRad) * height),
+    height:
+      Math.abs(Math.sin(rotRad) * width) + Math.abs(Math.cos(rotRad) * height),
+  }
+}
+
+/**
+ * This function was adapted from the one in the Readme of https://github.com/DominicTobias/react-image-crop
+ */
+async function getCroppedImg(
+  imageSrc: string,
+  pixelCrop: { x: number; y: number; width: number; height: number },
+  rotation = 0,
+  flip = { horizontal: false, vertical: false }
+): Promise<File | null> {
+  const image = await createImage(imageSrc)
+  const canvas = document.createElement('canvas')
+  const ctx = canvas.getContext('2d')
+
+  if (!ctx) {
+    return null
+  }
+
+  const rotRad = getRadianAngle(rotation)
+
+  // calculate bounding box of the rotated image
+  const { width: bBoxWidth, height: bBoxHeight } = rotateSize(
+    image.width,
+    image.height,
+    rotation
+  )
+
+  // set canvas size to match the bounding box
+  canvas.width = bBoxWidth
+  canvas.height = bBoxHeight
+
+  // translate canvas context to a central location to allow rotating and flipping around the center
+  ctx.translate(bBoxWidth / 2, bBoxHeight / 2)
+  ctx.rotate(rotRad)
+  ctx.scale(flip.horizontal ? -1 : 1, flip.vertical ? -1 : 1)
+  ctx.translate(-image.width / 2, -image.height / 2)
+
+  // draw rotated image
+  ctx.drawImage(image, 0, 0)
+
+  // croppedAreaPixels values are bounding box relative
+  // extract the cropped image using these values
+  const data = ctx.getImageData(
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height
+  )
+
+  // set canvas width to final desired crop size - this will clear existing context
+  canvas.width = pixelCrop.width
+  canvas.height = pixelCrop.height
+
+  // paste generated rotate image at the top left corner
+  ctx.putImageData(data, 0, 0)
+
+  // As a blob
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        resolve(null);
+        return;
+      }
+      resolve(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }))
+    }, 'image/jpeg')
+  })
+}
+
 export default function UserManagement() {
   const { t, language, isRTL } = useLanguage();
   const { primaryRole } = useAuth();
@@ -173,6 +270,13 @@ export default function UserManagement() {
   const [formAttendedMiniCamp, setFormAttendedMiniCamp] = useState(false);
   const [formAttendedCamp, setFormAttendedCamp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Crop state
+  const [crop, setCrop] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(1)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null)
+  const [isCropping, setIsCropping] = useState(false)
+  const [tempImageSrc, setTempImageSrc] = useState<string | null>(null)
 
   const fetchData = async () => {
     setIsLoading(true);
@@ -333,25 +437,45 @@ export default function UserManagement() {
       return;
     }
 
-    let processedFile = file;
-    if (file.size > 2 * 1024 * 1024) {
-      toast.info(language === 'ar' ? 'جاري ضغط الصورة لتناسب الحجم المسموح...' : 'Compressing image to fit size limit...');
-      try {
-        processedFile = await compressImage(file);
-      } catch (error) {
-        console.error('Compression error:', error);
-        toast.error(language === 'ar' ? 'فشل ضغط الصورة' : 'Failed to compress image');
-        return;
-      }
-    }
-
-    setFormAvatarFile(processedFile);
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormAvatarPreview(reader.result as string);
+    reader.onload = () => {
+      setTempImageSrc(reader.result as string);
+      setIsCropping(true);
     };
-    reader.readAsDataURL(processedFile);
+    reader.readAsDataURL(file);
+
+    // Reset inputs
+    e.target.value = '';
   };
+
+  const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
+    setCroppedAreaPixels(croppedAreaPixels)
+  }
+
+  const showCroppedImage = async () => {
+    try {
+      if (!tempImageSrc || !croppedAreaPixels) return
+
+      const croppedFile = await getCroppedImg(
+        tempImageSrc,
+        croppedAreaPixels
+      )
+
+      if (croppedFile) {
+        setFormAvatarFile(croppedFile);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFormAvatarPreview(reader.result as string);
+        };
+        reader.readAsDataURL(croppedFile);
+        setIsCropping(false);
+        setTempImageSrc(null);
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to crop image')
+    }
+  }
 
   const uploadAvatar = async (userId: string): Promise<string | null> => {
     if (!formAvatarFile) return null;
@@ -496,6 +620,10 @@ export default function UserManagement() {
     setFormCommitteeId(user.committee_id || '');
     setFormAttendedMiniCamp(user.attended_mini_camp || false);
     setFormAttendedCamp(user.attended_camp || false);
+    setIsCropping(false);
+    setTempImageSrc(null);
+    setFormAvatarFile(null);
+    setFormAvatarPreview(user.avatar_url);
     setIsEditDialogOpen(true);
   };
 
@@ -526,6 +654,22 @@ export default function UserManagement() {
         .eq('id', selectedUser.id);
 
       if (profileError) throw profileError;
+
+      // Upload avatar if changed
+      if (formAvatarFile) {
+        try {
+          const avatarUrl = await uploadAvatar(selectedUser.id);
+          if (avatarUrl) {
+            await supabase
+              .from('profiles')
+              .update({ avatar_url: avatarUrl })
+              .eq('id', selectedUser.id);
+          }
+        } catch (avatarError) {
+          console.error('Avatar upload failed:', avatarError);
+          toast.error('Failed to upload new avatar');
+        }
+      }
 
       // Update role if changed
       if (formRole !== selectedUser.role) {
@@ -899,47 +1043,69 @@ export default function UserManagement() {
                 {/* Avatar Upload */}
                 <div className="grid gap-2">
                   <Label>{language === 'ar' ? 'الصورة الشخصية' : 'Profile Picture'}</Label>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarSelect}
-                    className="hidden"
-                  />
                   <div className="flex items-center gap-4">
                     <Avatar className="h-16 w-16">
-                      {formAvatarPreview ? (
-                        <AvatarImage src={formAvatarPreview} alt="Preview" />
-                      ) : (
-                        <AvatarFallback className="bg-muted">
-                          <Upload className="h-6 w-6 text-muted-foreground" />
-                        </AvatarFallback>
-                      )}
+                      <AvatarImage src={formAvatarPreview || undefined} />
+                      <AvatarFallback>{formName ? formName.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
                     </Avatar>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Upload className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                      {language === 'ar' ? 'اختر صورة' : 'Choose Image'}
-                    </Button>
-                    {formAvatarPreview && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setFormAvatarFile(null);
-                          setFormAvatarPreview(null);
-                          if (fileInputRef.current) fileInputRef.current.value = '';
-                        }}
-                      >
-                        {language === 'ar' ? 'إزالة' : 'Remove'}
-                      </Button>
-                    )}
+                    <div className="flex-1">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        ref={fileInputRef}
+                        onChange={handleAvatarSelect}
+                        className="cursor-pointer"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {language === 'ar' ? 'الحد الأقصى 2 ميجابايت' : 'Max size 2MB'}
+                      </p>
+                    </div>
                   </div>
+
+                  {/* Crop UI */}
+                  {isCropping && tempImageSrc && (
+                    <div className="mt-4 border rounded-lg p-4 space-y-4">
+                      <div className="relative h-64 w-full bg-black rounded-lg overflow-hidden">
+                        <Cropper
+                          image={tempImageSrc}
+                          crop={crop}
+                          zoom={zoom}
+                          aspect={1}
+                          onCropChange={setCrop}
+                          onCropComplete={onCropComplete}
+                          onZoomChange={setZoom}
+                        />
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-sm min-w-[3rem]">{t('Zoom')}</span>
+                        <Slider
+                          value={[zoom]}
+                          min={1}
+                          max={3}
+                          step={0.1}
+                          onValueChange={(vals) => setZoom(vals[0])}
+                          className="flex-1"
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setIsCropping(false);
+                            setTempImageSrc(null);
+                            setFormAvatarFile(null);
+                            if (fileInputRef.current) fileInputRef.current.value = '';
+                          }}
+                        >
+                          {t('common.cancel')}
+                        </Button>
+                        <Button type="button" onClick={showCroppedImage}>
+                          {language === 'ar' ? 'قص وحفظ' : 'Crop & Save'}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1028,21 +1194,76 @@ export default function UserManagement() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-email">{t('auth.email')} *</Label>
-                  <Input
-                    id="edit-email"
-                    type="email"
-                    value={formEmail}
-                    onChange={(e) => setFormEmail(e.target.value)}
-                    placeholder={t('auth.email')}
-                    required
-                    disabled
-                    className="opacity-60"
-                  />
-                  <p className="text-xs text-muted-foreground">{language === 'ar' ? 'لا يمكن تعديل البريد الإلكتروني' : 'Email cannot be changed'}</p>
+
+              {/* Avatar Upload */}
+              <div className="grid gap-2">
+                <Label>{language === 'ar' ? 'الصورة الشخصية' : 'Profile Picture'}</Label>
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-16 w-16">
+                    <AvatarImage src={formAvatarPreview || undefined} />
+                    <AvatarFallback>{formName.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      ref={fileInputRef}
+                      onChange={handleAvatarSelect}
+                      className="cursor-pointer"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {language === 'ar' ? 'الحد الأقصى 2 ميجابايت' : 'Max size 2MB'}
+                    </p>
+                  </div>
                 </div>
+
+                {/* Crop UI */}
+                {isCropping && tempImageSrc && (
+                  <div className="mt-4 border rounded-lg p-4 space-y-4">
+                    <div className="relative h-64 w-full bg-black rounded-lg overflow-hidden">
+                      <Cropper
+                        image={tempImageSrc}
+                        crop={crop}
+                        zoom={zoom}
+                        aspect={1}
+                        onCropChange={setCrop}
+                        onCropComplete={onCropComplete}
+                        onZoomChange={setZoom}
+                      />
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm min-w-[3rem]">{t('Zoom')}</span>
+                      <Slider
+                        value={[zoom]}
+                        min={1}
+                        max={3}
+                        step={0.1}
+                        onValueChange={(vals) => setZoom(vals[0])}
+                        className="flex-1"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setIsCropping(false);
+                          setTempImageSrc(null);
+                          setFormAvatarFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                      >
+                        {t('common.cancel')}
+                      </Button>
+                      <Button type="button" onClick={showCroppedImage}>
+                        {language === 'ar' ? 'قص وحفظ' : 'Crop & Save'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="edit-phone">{t('users.phoneNumber')}</Label>
                   <Input
@@ -1053,34 +1274,34 @@ export default function UserManagement() {
                     placeholder="+20 123 456 7890"
                   />
                 </div>
-              </div>
-              <div className="grid gap-2 mb-4">
-                <Label htmlFor="edit-password">{t('password')} ({language === 'ar' ? 'اختياري' : 'Optional'})</Label>
-                <div className="relative">
-                  <Input
-                    id="edit-password"
-                    type={showPassword ? "text" : "password"}
-                    value={formPassword}
-                    onChange={(e) => setFormPassword(e.target.value)}
-                    placeholder={language === 'ar' ? 'اترك فارغاً للاحتفاظ بكلمة المرور الحالية' : 'Leave empty to keep current password'}
-                    minLength={6}
-                    className="ltr:pr-10 rtl:pl-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-password">{t('password')} ({language === 'ar' ? 'اختياري' : 'Optional'})</Label>
+                  <div className="relative">
+                    <Input
+                      id="edit-password"
+                      type={showPassword ? "text" : "password"}
+                      value={formPassword}
+                      onChange={(e) => setFormPassword(e.target.value)}
+                      placeholder={language === 'ar' ? 'اترك فارغاً للاحتفاظ بكلمة المرور الحالية' : 'Leave empty to keep current password'}
+                      minLength={6}
+                      className="ltr:pr-10 rtl:pl-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {language === 'ar' ? 'أدخل كلمة مرور جديدة فقط إذا كنت تريد تغييرها' : 'Enter a new password only if you want to change it'}
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {language === 'ar' ? 'أدخل كلمة مرور جديدة فقط إذا كنت تريد تغييرها' : 'Enter a new password only if you want to change it'}
-                </p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
@@ -1162,6 +1383,7 @@ export default function UserManagement() {
                   </div>
                 </div>
               )}
+
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
