@@ -84,9 +84,24 @@ function AppRoutes() {
     );
   }
 
+  const { roles } = useAuth();
+
   return (
     <Routes>
-      <Route path="/auth" element={isAuthenticated ? <Navigate to={getDefaultRoute()} replace /> : <Auth />} />
+      <Route
+        path="/auth"
+        element={
+          isAuthenticated
+            ? (roles.length === 0 ? (
+              <div className="min-h-screen flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+              </div>
+            ) : (
+              <Navigate to={getDefaultRoute()} replace />
+            ))
+            : <Auth />
+        }
+      />
       <Route path="/login" element={<Navigate to="/auth" replace />} />
       <Route path="/" element={<Navigate to={isAuthenticated ? getDefaultRoute() : "/auth"} replace />} />
 

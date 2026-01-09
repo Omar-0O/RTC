@@ -149,7 +149,7 @@ export default function MyCourses() {
             .select('*')
             .eq('course_id', course.id)
             .order('lecture_number');
-        setLectures(lecturesData || []);
+        setLectures((lecturesData as unknown as CourseLecture[]) || []);
 
         // Fetch beneficiaries
         const { data: beneficiariesData } = await supabase
@@ -233,7 +233,7 @@ export default function MyCourses() {
 
                 setAttendanceData(prev => ({
                     ...prev,
-                    [lectureId]: [...(prev[lectureId] || []), data]
+                    [lectureId]: [...(prev[lectureId] || []), data as Attendance]
                 }));
             }
         } catch (error) {

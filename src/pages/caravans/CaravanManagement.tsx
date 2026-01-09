@@ -23,10 +23,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X, Search, Pencil } from 'lucide-react';
+import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X, Search, Pencil, MoreVertical } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { StatsCard } from '@/components/ui/stats-card';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 
 interface Caravan {
@@ -105,6 +111,18 @@ export default function CaravanManagement() {
     // Edit State
     const [isEditMode, setIsEditMode] = useState(false);
     const [selectedCaravanId, setSelectedCaravanId] = useState<string | null>(null);
+
+    const getFilterDisplayLabel = (filter: string) => {
+        switch (filter) {
+            case 'weekly': return language === 'ar' ? 'أسبوعي' : 'Weekly';
+            case 'monthly': return language === 'ar' ? 'شهري' : 'Monthly';
+            case 'quarterly': return language === 'ar' ? 'ربع سنوي' : 'Quarterly';
+            case 'trimester': return language === 'ar' ? 'ثلث سنوي' : 'Trimester';
+            case 'semi_annual': return language === 'ar' ? 'نصف سنوي' : 'Semi-Annual';
+            case 'annual': return language === 'ar' ? 'سنوي' : 'Annual';
+            default: return language === 'ar' ? 'الكل' : 'All';
+        }
+    };
 
     const handleEditCaravan = async (caravan: Caravan) => {
         setIsEditMode(true);
@@ -571,7 +589,7 @@ export default function CaravanManagement() {
         const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+        link.download = `${filename}_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
         link.click();
         URL.revokeObjectURL(link.href);
 
@@ -604,14 +622,31 @@ export default function CaravanManagement() {
         }
     };
 
+    const getCaravanTypeLabel = (type: string) => {
+        switch (type) {
+            case 'food_distribution': return isRTL ? 'إطعام' : 'Food Distribution';
+            case 'charity_market': return isRTL ? 'سوق خيري' : 'Charity Market';
+            case 'eid_carnival': return isRTL ? 'كرنفال العيد' : 'Eid Carnival';
+            case 'other': return isRTL ? 'أخرى' : 'Other';
+            default: return type;
+        }
+    };
+
     const exportAllCaravans = async () => {
         try {
             // Fetch all caravans with participants
-            // This might be heavy, but let's assume reasonable size or paginate later.
-            // For now, fetching simple list.
+            // Filter by the IDs currently shown in the list
+            const shownCaravanIds = filteredCaravans.map(c => c.id);
+
+            if (shownCaravanIds.length === 0) {
+                toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
+                return;
+            }
+
             const { data: allCaravans } = await supabase
                 .from('caravans' as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-                .select('*, caravan_participants(*)');
+                .select('*, caravan_participants(*)')
+                .in('id', shownCaravanIds);
 
             if (!allCaravans) return;
 
@@ -661,7 +696,43 @@ export default function CaravanManagement() {
                 }
             });
 
-            downloadCSV(flattenedData, 'All_Caravans_Report');
+            // Add metadata row at the top
+            const metadata = `${isRTL ? 'الفترة' : 'Period'}: ${getFilterDisplayLabel(timeFilter)}`;
+
+            // We need to modify downloadCSV to accept this or handle it here. 
+            // Let's handle it here by constructing CSV manually or modifying downloadCSV. 
+            // For simplicity, let's inject it into the first row's keys or just use a custom logic here.
+
+            // Better: Prepend the metadata to the CSV content.
+            // Since downloadCSV is generic, let's just pass the data and modify downloadCSV or handle it.
+            // I'll modify downloadCSV call slightly or just reimplement the simple join here for this specific export if needed.
+            // But downloadCSV is used by others.
+
+            // Let's just create the CSV string here and download it, to avoid breaking other calls or modifying downloadCSV signature too much.
+
+            const headers = Object.keys(flattenedData[0]);
+            const csvRows = flattenedData.map(row => headers.map(header => {
+                const value = row[header];
+                if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
+                    return `"${value.replace(/"/g, '""')}"`;
+                }
+                return value ?? '';
+            }).join(','));
+
+            const csvContent = [
+                metadata, // Add metadata as the first line
+                headers.join(','),
+                ...csvRows
+            ].join('\n');
+
+            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Caravans_Report_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+
+            toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
 
         } catch (e) {
             console.error(e);
@@ -671,15 +742,7 @@ export default function CaravanManagement() {
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <StatsCard
-                    title={isRTL ? 'إجمالي القوافل' : 'Total Caravans'}
-                    value={filteredCaravans.length}
-                    icon={Bus}
-                    description={isRTL ? 'قافلة في الفترة المحددة' : 'Caravans in selected period'}
-                    className="md:col-span-1"
-                />
-            </div>
+
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -718,9 +781,17 @@ export default function CaravanManagement() {
                         </SelectContent>
                     </Select>
 
+                    <div className="bg-card text-card-foreground shadow-sm border rounded-md px-3 h-10 flex items-center gap-2 min-w-fit">
+                        <Bus className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-semibold text-sm">{filteredCaravans.length}</span>
+                        <span className="text-xs text-muted-foreground hidden lg:inline">{isRTL ? 'قافلة' : 'Caravans'}</span>
+                    </div>
+
                     <Button variant="outline" onClick={exportAllCaravans} className="flex-1 sm:flex-none">
                         <FileSpreadsheet className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                        <span className="text-xs sm:text-sm">{t('caravans.exportAll')}</span>
+                        <span className="text-xs sm:text-sm">
+                            {t('caravans.exportAll')} ({getFilterDisplayLabel(timeFilter)})
+                        </span>
                     </Button>
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
@@ -920,36 +991,41 @@ export default function CaravanManagement() {
 
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredCaravans.map(caravan => (
-                    <Card key={caravan.id}>
+                    <Card key={caravan.id} className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
                         <CardHeader className="pb-3">
                             <div className="flex justify-between items-start">
                                 <div>
                                     <CardTitle>{caravan.name}</CardTitle>
-                                    <CardDescription>{caravan.type}</CardDescription>
+                                    <CardDescription>{getCaravanTypeLabel(caravan.type)}</CardDescription>
                                 </div>
-                                <div className="flex gap-1">
-                                    <Button variant="ghost" size="icon" onClick={() => exportCaravanDetails(caravan)}>
-                                        <Download className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleEditCaravan(caravan)}
-                                    >
-                                        <Pencil className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-destructive hover:text-destructive"
-                                        onClick={() => {
-                                            setCaravanToDelete(caravan);
-                                            setIsDeleteDialogOpen(true);
-                                        }}
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                </div>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                            <span className="sr-only">Open menu</span>
+                                            <MoreVertical className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={() => handleEditCaravan(caravan)} className="cursor-pointer">
+                                            <Pencil className="ltr:mr-2 rtl:ml-2 h-4 w-4" />
+                                            {isRTL ? 'تعديل' : 'Edit'}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => exportCaravanDetails(caravan)} className="cursor-pointer">
+                                            <Download className="ltr:mr-2 rtl:ml-2 h-4 w-4" />
+                                            {isRTL ? 'تصدير الشيت' : 'Export Sheet'}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() => {
+                                                setCaravanToDelete(caravan);
+                                                setIsDeleteDialogOpen(true);
+                                            }}
+                                            className="text-destructive focus:text-destructive cursor-pointer"
+                                        >
+                                            <Trash2 className="ltr:mr-2 rtl:ml-2 h-4 w-4" />
+                                            {isRTL ? 'حذف القافلة' : 'Delete Caravan'}
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                         </CardHeader>
                         <CardContent>
