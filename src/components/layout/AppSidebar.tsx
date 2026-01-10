@@ -51,8 +51,15 @@ export function AppSidebar() {
   const { t, language, setLanguage, isRTL } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
-  const { state } = useSidebar();
+  const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === 'collapsed';
+
+  // Close mobile sidebar when navigation item is clicked
+  const handleNavClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
   const [isOrganizer, setIsOrganizer] = useState(false);
 
   // Check if user is a course organizer
@@ -223,7 +230,7 @@ export function AppSidebar() {
                     isActive={location.pathname === item.url}
                     tooltip={item.title}
                   >
-                    <NavLink to={item.url}>
+                    <NavLink to={item.url} onClick={handleNavClick}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>

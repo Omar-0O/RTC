@@ -142,7 +142,29 @@
   /* Fix for touch events after dialog closes */
   body {
     pointer-events: auto !important;
-    touch-action: auto !important;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    /* Safe area insets for notch devices */
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Improve touch scrolling */
+  html {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+
+  /* Prevent zoom on input focus (iOS) - inputs below 16px trigger zoom */
+  @media screen and (max-width: 768px) {
+
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
   }
 
   /* Ensure dialogs don't block touch events permanently */
