@@ -286,7 +286,7 @@ export function AppSidebar() {
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align={isRTL ? 'start' : 'end'} className="w-56">
+          <DropdownMenuContent align={isRTL ? 'start' : 'end'} side="top" className="w-56">
             <div className="px-2 py-1.5">
               <p className="text-sm font-medium">{displayName}</p>
               <p className="text-xs text-muted-foreground">{user?.email}</p>
