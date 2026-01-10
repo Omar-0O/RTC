@@ -673,10 +673,10 @@ export default function UserManagement() {
 
       // Update role if changed
       if (formRole !== selectedUser.role) {
+        // Use upsert to handle cases where user doesn't have a role entry
         const { error: roleError } = await supabase
           .from('user_roles')
-          .update({ role: formRole as AppRole })
-          .eq('user_id', selectedUser.id);
+          .upsert({ user_id: selectedUser.id, role: formRole as AppRole }, { onConflict: 'user_id' });
 
         if (roleError) throw roleError;
       }
@@ -746,10 +746,10 @@ export default function UserManagement() {
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
     try {
+      // Use upsert to handle cases where user doesn't have a role entry
       const { error } = await supabase
         .from('user_roles')
-        .update({ role: newRole as AppRole })
-        .eq('user_id', userId);
+        .upsert({ user_id: userId, role: newRole as AppRole }, { onConflict: 'user_id' });
 
       if (error) throw error;
 

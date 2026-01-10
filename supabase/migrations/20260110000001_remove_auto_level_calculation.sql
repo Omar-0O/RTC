@@ -1,9 +1,9 @@
--- ============================================
--- Fix: Remove automatic level calculation from all triggers
--- The volunteer level should ONLY be changed manually
--- ============================================
+-- Remove automatic volunteer level calculation from all triggers
+-- The volunteer level should be manually managed, not automatically calculated based on points
 
+-- ============================================
 -- 1. Fix the deletion trigger (remove level auto-update)
+-- ============================================
 CREATE OR REPLACE FUNCTION public.deduct_points_on_submission_delete()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -19,19 +19,21 @@ BEGIN
     -- Calculate new points after deduction
     new_points_total := GREATEST(0, new_points_total - COALESCE(OLD.points_awarded, 0));
     
-    -- Update profile with new points (DO NOT update level - it's manual only!)
+    -- Update profile with new points (DO NOT update level)
     UPDATE public.profiles
     SET 
       total_points = new_points_total,
       activities_count = GREATEST(0, activities_count - 1)
-      -- NO level update here!
+      -- Removed: level = public.calculate_level(new_points_total)
     WHERE id = OLD.volunteer_id;
   END IF;
   RETURN OLD;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
+-- ============================================
 -- 2. Fix the approval/insert trigger (remove level auto-update)
+-- ============================================
 CREATE OR REPLACE FUNCTION public.update_points_on_submission()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -43,7 +45,7 @@ BEGIN
       SET 
         total_points = total_points + COALESCE(NEW.points_awarded, 0),
         activities_count = activities_count + 1
-        -- NO level update here!
+        -- Removed: level = public.calculate_level(total_points + NEW.points_awarded)
       WHERE id = NEW.volunteer_id;
     
     -- For UPDATE: Adjust points if status changed to approved
@@ -52,7 +54,7 @@ BEGIN
       SET 
         total_points = total_points + COALESCE(NEW.points_awarded, 0),
         activities_count = activities_count + 1
-        -- NO level update here!
+        -- Removed: level = public.calculate_level(total_points + NEW.points_awarded)
       WHERE id = NEW.volunteer_id;
     END IF;
   END IF;

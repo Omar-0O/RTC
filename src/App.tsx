@@ -31,6 +31,7 @@ import Events from "./pages/events/Events";
 import EventManagement from "./pages/events/EventManagement";
 import CourseManagement from "./pages/courses/CourseManagement";
 import MyCourses from "./pages/courses/MyCourses";
+import SubmissionManagement from "./pages/hr/SubmissionManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -144,6 +145,9 @@ function AppRoutes() {
         {/* Course Routes */}
         <Route path="/courses" element={<CourseManagement />} />
         <Route path="/my-courses" element={<MyCourses />} />
+
+        {/* HR Routes */}
+        <Route path="/hr/submissions" element={<SubmissionManagement />} />
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />

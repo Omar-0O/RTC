@@ -13,7 +13,8 @@ import {
   Building2,
   Bus,
   Calendar,
-  GraduationCap
+  GraduationCap,
+  FileCheck
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -121,15 +122,12 @@ export function AppSidebar() {
   ];
 
   const hrNavItems = [
-    { title: t('nav.dashboard'), url: '/dashboard', icon: Home }, // Or a specific dashboard if needed
+    { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
+    { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
-    { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 }, // Reuse admin reports
+    { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
     { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/profile', icon: User },
-    // Head HR might have more, but for now they share this. 
-    // If Head HR needs to be distinct, I can add logic. 
-    // The user said "Head HR can promote", which is in user management.
-    // "Have a sheet with all volunteers..." -> Reports.
   ];
 
   const getNavItems = () => {
@@ -145,6 +143,7 @@ export function AppSidebar() {
       case 'head_hr':
         return [
           { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
+          { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
           { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },

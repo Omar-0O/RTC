@@ -255,10 +255,13 @@ export default function LogActivity() {
     }
   };
 
-  const uploadExcel = async (excelBlob: Blob): Promise<string | null> => {
+  const uploadExcel = async (excelBlob: Blob, activityName: string, date: string): Promise<string | null> => {
     if (!user) return null;
     try {
-      const fileName = `${user.id}/group-reports/${Date.now()}.csv`;
+      // Sanitize activity name for filename (remove special characters)
+      const sanitizedName = activityName.replace(/[^a-zA-Z0-9\u0600-\u06FF\s]/g, '').replace(/\s+/g, '_');
+      const fileName = `${user.id}/group-reports/${sanitizedName}_${date}.xlsx`;
+
       const { error: uploadError } = await supabase.storage
         .from('activity-proofs') // Reusing same bucket or create new one
         .upload(fileName, excelBlob);
@@ -358,7 +361,11 @@ export default function LogActivity() {
           participants: participantsForExcel
         });
 
-        const excelUrl = await uploadExcel(excelBlob);
+        const excelUrl = await uploadExcel(
+          excelBlob,
+          isRTL ? selectedActivity.name_ar : selectedActivity.name,
+          new Date().toLocaleDateString('en-CA') // YYYY-MM-DD format
+        );
 
         // Create Group Submission Record
         const { data: groupSub, error: groupError } = await supabase

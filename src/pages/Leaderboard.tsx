@@ -61,6 +61,7 @@ export default function Leaderboard() {
       });
 
       if (error) throw error;
+      console.log('Leaderboard data:', data);
       setLeaderboard((data as LeaderboardEntry[]) || []);
 
     } catch (error) {

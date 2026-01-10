@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Users, Activity, Award, Building2, TrendingUp } from 'lucide-react';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,6 +27,7 @@ type RecentSubmission = {
 type TopVolunteer = {
   id: string;
   full_name: string;
+  avatar_url?: string | null;
   total_points: number;
   level: string;
 };
@@ -108,6 +110,7 @@ export default function AdminDashboard() {
         setTopVolunteers(topVolunteersData.slice(0, 5).map((v: any) => ({
           id: v.volunteer_id,
           full_name: isRTL ? (v.full_name_ar || v.full_name || '') : v.full_name || '',
+          avatar_url: v.avatar_url,
           total_points: v.total_points,
           level: v.level || 'under_follow_up'
         })));
@@ -261,6 +264,12 @@ export default function AdminDashboard() {
                     <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-bold">
                       {index + 1}
                     </span>
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={volunteer.avatar_url || undefined} />
+                      <AvatarFallback className="text-sm">
+                        {volunteer.full_name?.substring(0, 2)?.toUpperCase() || 'V'}
+                      </AvatarFallback>
+                    </Avatar>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{volunteer.full_name || (isRTL ? 'متطوع' : 'Volunteer')}</p>
                       <p className="text-xs text-muted-foreground">{volunteer.total_points} {t('common.points')}</p>
