@@ -96,7 +96,7 @@ export default function Auth() {
             alt="RTC Mohandseen Logo"
             className="h-48 w-auto mx-auto mb-1 object-contain"
           />
-          <h1 className="text-xl font-bold">RTC Mohandseen</h1>
+          <h1 className="text-lg font-bold">RTC Mohandseen</h1>
           <p className="text-muted-foreground">{t('volunteerPortal')}</p>
         </div>
 

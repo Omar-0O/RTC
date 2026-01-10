@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Users, Activity, Award, Building2, TrendingUp } from 'lucide-react';
+import { Users, Activity, Award, Building2, TrendingUp, Bell } from 'lucide-react';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -152,6 +153,35 @@ export default function AdminDashboard() {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      alert('This browser does not support desktop notification');
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      new Notification('Notifications Enabled', {
+        body: 'You will now receive updates!',
+        icon: '/favicon.png'
+      });
+    }
+  };
+
+  const sendTestNotification = () => {
+    if (Notification.permission === 'granted') {
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.showNotification('Test Notification', {
+          body: 'This is a test notification from the Admin Dashboard',
+          icon: '/favicon.png',
+          data: '/admin'
+        });
+      });
+    } else {
+      alert('Please enable notifications first');
     }
   };
 
@@ -316,6 +346,28 @@ export default function AdminDashboard() {
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+      {/* Notifications Test */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bell className="h-5 w-5" />
+            Notifications Configuration
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Configure and test PWA push notifications. You need to enable permissions on this device first.
+          </p>
+          <div className="flex gap-4">
+            <Button onClick={requestNotificationPermission} variant="outline">
+              Enable Notifications
+            </Button>
+            <Button onClick={sendTestNotification}>
+              Send Test Notification
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>
