@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,35 +7,44 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { AppLayout } from "./components/layout/AppLayout";
-import Auth from "./pages/Auth";
-import VolunteerDashboard from "./pages/volunteer/Dashboard";
-import LogActivity from "./pages/volunteer/LogActivity";
-import Profile from "./pages/volunteer/Profile";
-import Leaderboard from "./pages/Leaderboard";
-import AdminDashboard from "./pages/admin/Dashboard";
-import UserManagement from "./pages/admin/UserManagement";
-import CommitteeManagement from "./pages/admin/CommitteeManagement";
-import ActivityManagement from "./pages/admin/ActivityManagement";
-import Reports from "./pages/admin/Reports";
-import BadgeManagement from "./pages/admin/BadgeManagement";
-import SupervisorDashboard from "./pages/supervisor/Dashboard";
-import SupervisorUserManagement from "./pages/supervisor/UserManagement";
-import SupervisorActivityManagement from "./pages/supervisor/ActivityManagement";
-import SupervisorCommitteeManagement from "./pages/supervisor/CommitteeManagement";
-import SupervisorBadgeManagement from "./pages/supervisor/BadgeManagement";
-import SupervisorReports from "./pages/supervisor/Reports";
-import CommitteeLeaderDashboard from "./pages/leader/Dashboard";
-import Members from "./pages/leader/Members";
-import Caravans from "./pages/caravans/Caravans";
-import CaravanManagement from "./pages/caravans/CaravanManagement";
-import Events from "./pages/events/Events";
-import EventManagement from "./pages/events/EventManagement";
-import CourseManagement from "./pages/courses/CourseManagement";
-import MyCourses from "./pages/courses/MyCourses";
-import SubmissionManagement from "./pages/hr/SubmissionManagement";
-import NotFound from "./pages/NotFound";
+
+// Lazy load pages
+const Auth = lazy(() => import("./pages/Auth"));
+const VolunteerDashboard = lazy(() => import("./pages/volunteer/Dashboard"));
+const LogActivity = lazy(() => import("./pages/volunteer/LogActivity"));
+const Profile = lazy(() => import("./pages/volunteer/Profile"));
+const Leaderboard = lazy(() => import("./pages/Leaderboard"));
+const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
+const CommitteeManagement = lazy(() => import("./pages/admin/CommitteeManagement"));
+const ActivityManagement = lazy(() => import("./pages/admin/ActivityManagement"));
+const Reports = lazy(() => import("./pages/admin/Reports"));
+const BadgeManagement = lazy(() => import("./pages/admin/BadgeManagement"));
+const SupervisorDashboard = lazy(() => import("./pages/supervisor/Dashboard"));
+const SupervisorUserManagement = lazy(() => import("./pages/supervisor/UserManagement"));
+const SupervisorActivityManagement = lazy(() => import("./pages/supervisor/ActivityManagement"));
+const SupervisorCommitteeManagement = lazy(() => import("./pages/supervisor/CommitteeManagement"));
+const SupervisorBadgeManagement = lazy(() => import("./pages/supervisor/BadgeManagement"));
+const SupervisorReports = lazy(() => import("./pages/supervisor/Reports"));
+const CommitteeLeaderDashboard = lazy(() => import("./pages/leader/Dashboard"));
+const Members = lazy(() => import("./pages/leader/Members"));
+const Caravans = lazy(() => import("./pages/caravans/Caravans"));
+const CaravanManagement = lazy(() => import("./pages/caravans/CaravanManagement"));
+const Events = lazy(() => import("./pages/events/Events"));
+const EventManagement = lazy(() => import("./pages/events/EventManagement"));
+const CourseManagement = lazy(() => import("./pages/courses/CourseManagement"));
+const MyCourses = lazy(() => import("./pages/courses/MyCourses"));
+const SubmissionManagement = lazy(() => import("./pages/hr/SubmissionManagement"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
+
+// Loading component
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+  </div>
+);
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -171,7 +181,9 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <AppRoutes />
+            <Suspense fallback={<PageLoader />}>
+              <AppRoutes />
+            </Suspense>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>
