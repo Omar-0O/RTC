@@ -150,6 +150,8 @@ const Sidebar = React.forwardRef<
     );
   }
 
+  const [startX, setStartX] = React.useState(0);
+
   if (isMobile) {
     return (
       <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
@@ -163,6 +165,14 @@ const Sidebar = React.forwardRef<
             } as React.CSSProperties
           }
           side={side}
+          onTouchStart={(e) => setStartX(e.touches[0].clientX)}
+          onTouchEnd={(e) => {
+            const endX = e.changedTouches[0].clientX;
+            const diff = endX - startX;
+            const threshold = 50;
+            if (side === 'left' && diff < -threshold) setOpenMobile(false);
+            if (side === 'right' && diff > threshold) setOpenMobile(false);
+          }}
         >
           <SheetTitle className="sr-only">Sidebar</SheetTitle>
           <div className="flex h-full w-full flex-col">{children}</div>
