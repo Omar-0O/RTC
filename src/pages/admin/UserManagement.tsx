@@ -910,12 +910,12 @@ export default function UserManagement() {
               </DialogTrigger>
             </div>
           )}
-          <DialogContent>
+          <DialogContent className="max-w-[95vw] sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>{t('users.addUser')}</DialogTitle>
               <DialogDescription>{t('users.createUser')}</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAddUser} className="max-h-[80vh] overflow-y-auto px-1">
+            <form onSubmit={handleAddUser} className="max-h-[70vh] overflow-y-auto px-1">
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="grid gap-2">
@@ -1144,11 +1144,11 @@ export default function UserManagement() {
                   </div>
                 </div>
               )}
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} className="w-full sm:w-auto">
                   {t('common.cancel')}
                 </Button>
-                <Button type="submit" disabled={isSubmitting}>
+                <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                   {isSubmitting ? 'Adding...' : t('common.add')}
                 </Button>
               </DialogFooter>
@@ -1165,12 +1165,12 @@ export default function UserManagement() {
           resetForm();
         }
       }}>
-        <DialogContent>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{language === 'ar' ? 'تعديل المستخدم' : 'Edit User'}</DialogTitle>
             <DialogDescription>{language === 'ar' ? 'تعديل بيانات المستخدم' : 'Update user information'}</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEditUser} className="max-h-[80vh] overflow-y-auto px-1">
+          <form onSubmit={handleEditUser} className="max-h-[70vh] overflow-y-auto px-1">
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
@@ -1385,11 +1385,11 @@ export default function UserManagement() {
               )}
 
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto">
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                 {isSubmitting ? 'Updating...' : t('common.save')}
               </Button>
             </DialogFooter>
