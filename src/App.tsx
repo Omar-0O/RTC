@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { AppLayout } from "./components/layout/AppLayout";
 import ScrollToTop from "./components/ScrollToTop";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Lazy load pages
 const Auth = lazy(() => import("./pages/Auth"));
@@ -38,7 +39,16 @@ const MyCourses = lazy(() => import("./pages/courses/MyCourses"));
 const SubmissionManagement = lazy(() => import("./pages/hr/SubmissionManagement"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2, // 2 minutes - data stays fresh, no refetch needed
+      gcTime: 1000 * 60 * 10, // 10 minutes - keep in cache
+      refetchOnWindowFocus: false, // Don't refetch when tab becomes active
+      retry: 1, // Only retry once on failure
+    },
+  },
+});
 
 // Loading component
 const PageLoader = () => (
@@ -183,9 +193,11 @@ const App = () => (
           <Sonner />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <ScrollToTop />
-            <Suspense fallback={<PageLoader />}>
-              <AppRoutes />
-            </Suspense>
+            <ErrorBoundary>
+              <Suspense fallback={<PageLoader />}>
+                <AppRoutes />
+              </Suspense>
+            </ErrorBoundary>
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>

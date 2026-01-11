@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -133,8 +133,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return roles.includes(role);
   }, [roles]);
 
-  // Determine primary role (highest privilege)
-  const getPrimaryRole = (): AppRole => {
+  // Determine primary role (highest privilege) - memoized
+  const primaryRole = useMemo((): AppRole => {
     if (roles.includes('admin')) return 'admin';
     if (roles.includes('head_hr')) return 'head_hr';
     if (roles.includes('hr')) return 'hr';
@@ -145,21 +145,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (roles.includes('head_caravans')) return 'head_caravans';
     if (roles.includes('head_events')) return 'head_events';
     return 'volunteer';
-  };
+  }, [roles]);
+
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
+    user,
+    session,
+    profile,
+    roles,
+    isAuthenticated: !!user,
+    isLoading,
+    signOut,
+    refreshProfile,
+    hasRole,
+    primaryRole,
+  }), [user, session, profile, roles, isLoading, signOut, refreshProfile, hasRole, primaryRole]);
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      session,
-      profile,
-      roles,
-      isAuthenticated: !!user,
-      isLoading,
-      signOut,
-      refreshProfile,
-      hasRole,
-      primaryRole: getPrimaryRole(),
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

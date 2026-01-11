@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 
@@ -37,7 +38,7 @@ const iconSizes = {
   lg: 'text-base',
 };
 
-export function LevelBadge({ level, size = 'md', showLabel = true, className }: LevelBadgeProps) {
+export const LevelBadge = memo(function LevelBadge({ level, size = 'md', showLabel = true, className }: LevelBadgeProps) {
   const { t } = useLanguage();
   // Handle both capitalized and lowercase inputs gracefully
   const normalizedLevel = level?.toLowerCase() || 'under_follow_up';
@@ -58,7 +59,7 @@ export function LevelBadge({ level, size = 'md', showLabel = true, className }: 
       {showLabel && <span className="truncate">{t(`level.${normalizedLevel}`)}</span>}
     </div>
   );
-}
+});
 
 export function getLevelProgress(points: number): { level: VolunteerLevel; progress: number; nextThreshold: number } {
   const thresholds = [

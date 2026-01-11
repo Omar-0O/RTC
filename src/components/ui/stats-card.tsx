@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LucideIcon } from 'lucide-react';
@@ -14,13 +15,13 @@ interface StatsCardProps {
   className?: string;
 }
 
-export function StatsCard({ 
-  title, 
-  value, 
-  description, 
-  icon: Icon, 
+export const StatsCard = memo(function StatsCard({
+  title,
+  value,
+  description,
+  icon: Icon,
   trend,
-  className 
+  className
 }: StatsCardProps) {
   return (
     <Card className={cn('relative overflow-hidden', className)}>
@@ -50,4 +51,4 @@ export function StatsCard({
       </CardContent>
     </Card>
   );
-}
+});

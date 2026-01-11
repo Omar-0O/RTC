@@ -376,18 +376,18 @@ export default function BadgeManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{isRTL ? 'الشارات والإنجازات' : 'Badges & Achievements'}</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{isRTL ? 'الشارات والإنجازات' : 'Badges & Achievements'}</h1>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={(open) => { setIsAddDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
+            <Button className="w-full sm:w-auto">
+              <Plus className="ltr:mr-2 rtl:ml-2 h-4 w-4" />
               {isRTL ? 'إضافة شارة' : 'Add Badge'}
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{isRTL ? 'إنشاء شارة جديدة' : 'Create New Badge'}</DialogTitle>
               <DialogDescription>
@@ -396,7 +396,7 @@ export default function BadgeManagement() {
             </DialogHeader>
             <form onSubmit={handleAddBadge}>
               <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label>Badge Name (EN)</Label>
                     <Input
@@ -417,7 +417,7 @@ export default function BadgeManagement() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label>{isRTL ? 'الأيقونة' : 'Icon'}</Label>
                     <Select value={formData.icon} onValueChange={(value) => setFormData({ ...formData, icon: value })}>
@@ -455,7 +455,7 @@ export default function BadgeManagement() {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label>{isRTL ? 'الأثر المطلوب' : 'Points Required'}</Label>
                     <Input
@@ -477,7 +477,7 @@ export default function BadgeManagement() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label>{isRTL ? 'المدة بالأشهر' : 'Months Required'}</Label>
                     <Input
@@ -519,12 +519,12 @@ export default function BadgeManagement() {
                   />
                 </div>
               </div>
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} className="w-full sm:w-auto">
                   {isRTL ? 'إلغاء' : 'Cancel'}
                 </Button>
-                <Button type="submit" disabled={submitting}>
-                  {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+                  {submitting && <Loader2 className="ltr:mr-2 rtl:ml-2 h-4 w-4 animate-spin" />}
                   {isRTL ? 'إنشاء' : 'Create'}
                 </Button>
               </DialogFooter>
@@ -767,7 +767,7 @@ export default function BadgeManagement() {
 
       {/* Edit Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) { setSelectedBadge(null); resetForm(); } }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isRTL ? 'تعديل الشارة' : 'Edit Badge'}</DialogTitle>
             <DialogDescription>
@@ -776,7 +776,7 @@ export default function BadgeManagement() {
           </DialogHeader>
           <form onSubmit={handleEditBadge}>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>Badge Name (EN)</Label>
                   <Input
@@ -795,7 +795,7 @@ export default function BadgeManagement() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>{isRTL ? 'الأيقونة' : 'Icon'}</Label>
                   <Select value={formData.icon} onValueChange={(value) => setFormData({ ...formData, icon: value })}>
@@ -833,7 +833,7 @@ export default function BadgeManagement() {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>{isRTL ? 'الأثر المطلوب' : 'Points Required'}</Label>
                   <Input
@@ -853,7 +853,7 @@ export default function BadgeManagement() {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label>{isRTL ? 'المدة بالأشهر' : 'Months Required'}</Label>
                   <Input
@@ -893,12 +893,12 @@ export default function BadgeManagement() {
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto">
                 {isRTL ? 'إلغاء' : 'Cancel'}
               </Button>
-              <Button type="submit" disabled={submitting}>
-                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+                {submitting && <Loader2 className="ltr:mr-2 rtl:ml-2 h-4 w-4 animate-spin" />}
                 {isRTL ? 'حفظ' : 'Save'}
               </Button>
             </DialogFooter>
@@ -908,7 +908,7 @@ export default function BadgeManagement() {
 
       {/* Award Badge Dialog */}
       <Dialog open={isAwardDialogOpen} onOpenChange={(open) => { setIsAwardDialogOpen(open); if (!open) { setSelectedBadge(null); setSelectedUserId(''); } }}>
-        <DialogContent>
+        <DialogContent className="max-w-[95vw] sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{isRTL ? 'منح الشارة' : 'Award Badge'}</DialogTitle>
             <DialogDescription>
