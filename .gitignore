@@ -22,3 +22,20 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Supabase
+supabase.exe
+
+# Local artifacts and dumps
+schema_dump.sql
+error_screenshot.png
+verification_schedule.png
+h origin main
+
+# OS Files
+Thumbs.db
