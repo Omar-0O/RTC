@@ -439,34 +439,37 @@ export default function CommitteeManagement() {
                 {t('committees.addCommittee')}
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="dialog-mobile-safe">
               <DialogHeader>
                 <DialogTitle>{t('committees.createNew')}</DialogTitle>
                 <DialogDescription>{t('committees.createDescription')}</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleAddCommittee}>
                 <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="name">Name (English) *</Label>
-                    <Input
-                      id="name"
-                      value={formName}
-                      onChange={(e) => setFormName(e.target.value)}
-                      placeholder="Committee name in English"
-                      required
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="name">Name (English) *</Label>
+                      <Input
+                        id="name"
+                        value={formName}
+                        onChange={(e) => setFormName(e.target.value)}
+                        placeholder="Committee name in English"
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="name-ar">الاسم (عربي) *</Label>
+                      <Input
+                        id="name-ar"
+                        value={formNameAr}
+                        onChange={(e) => setFormNameAr(e.target.value)}
+                        placeholder="اسم اللجنة بالعربي"
+                        dir="rtl"
+                        required
+                      />
+                    </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="name-ar">الاسم (عربي) *</Label>
-                    <Input
-                      id="name-ar"
-                      value={formNameAr}
-                      onChange={(e) => setFormNameAr(e.target.value)}
-                      placeholder="اسم اللجنة بالعربي"
-                      dir="rtl"
-                      required
-                    />
-                  </div>
+
                   <div className="grid gap-2">
                     <Label htmlFor="description">Description (English)</Label>
                     <Textarea
@@ -488,33 +491,39 @@ export default function CommitteeManagement() {
                       rows={2}
                     />
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="type">Type</Label>
-                    <Select
-                      value={formType}
-                      onValueChange={(val: 'production' | 'fourth_year') => setFormType(val)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="production">Production Committee / لجنة انتاج</SelectItem>
-                        <SelectItem value="fourth_year">Fourth Year Committee / لجنة سنة رابعة</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="color">Color</Label>
-                    <Input
-                      id="color"
-                      type="color"
-                      value={formColor}
-                      onChange={(e) => setFormColor(e.target.value)}
-                      className="h-10 w-20"
-                    />
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="type">Type</Label>
+                      <Select
+                        value={formType}
+                        onValueChange={(val: 'production' | 'fourth_year') => setFormType(val)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="production">Production Committee / لجنة انتاج</SelectItem>
+                          <SelectItem value="fourth_year">Fourth Year Committee / لجنة سنة رابعة</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="color">Color</Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          id="color"
+                          type="color"
+                          value={formColor}
+                          onChange={(e) => setFormColor(e.target.value)}
+                          className="h-10 w-20 p-1 cursor-pointer"
+                        />
+                        <span className="text-sm text-muted-foreground">{formColor}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="gap-2 sm:gap-0">
                   <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
                     {t('common.cancel')}
                   </Button>

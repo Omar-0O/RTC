@@ -125,9 +125,13 @@
     @apply border-border;
   }
 
+  html,
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    width: 100%;
+    overflow-x: hidden;
+    position: relative;
   }
 
   /* RTL Support for Arabic */
@@ -215,5 +219,12 @@
     .dialog-mobile-safe {
       @apply max-w-lg;
     }
+  }
+
+  /* Ensure root fits appropriately */
+  #root {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
   }
 }
