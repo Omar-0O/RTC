@@ -26,6 +26,7 @@ import { toast } from 'sonner';
 import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search } from 'lucide-react';
 import { format, addDays, getDay } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -88,6 +89,7 @@ interface Volunteer {
     full_name: string;
     full_name_ar: string | null;
     phone: string | null;
+    avatar_url: string | null;
 }
 
 interface Attendance {
@@ -226,7 +228,7 @@ export default function CourseManagement() {
         try {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id, full_name, full_name_ar, phone')
+                .select('id, full_name, full_name_ar, phone, avatar_url')
                 .neq('full_name', 'RTC Admin')
                 .order('full_name');
             if (error) throw error;
@@ -1103,7 +1105,7 @@ export default function CourseManagement() {
                                             <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0" align="start" side="bottom">
                                                 <Command>
                                                     <CommandInput placeholder={isRTL ? 'اكتب اسم المتطوع...' : 'Type volunteer name...'} />
-                                                    <CommandList className="max-h-[200px]">
+                                                    <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
                                                         <CommandEmpty>{isRTL ? 'لا يوجد متطوعين' : 'No volunteers found'}</CommandEmpty>
                                                         <CommandGroup heading={isRTL ? 'المتطوعين' : 'Volunteers'}>
                                                             {volunteers.slice(0, 50).map(volunteer => (
@@ -1112,9 +1114,15 @@ export default function CourseManagement() {
                                                                     value={`${volunteer.full_name} ${volunteer.full_name_ar || ''}`}
                                                                     onSelect={() => handleAddOrganizer(volunteer)}
                                                                 >
-                                                                    <div className="flex flex-col min-w-0">
-                                                                        <span className="truncate">{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
-                                                                        <span className="text-xs text-muted-foreground">{volunteer.phone || '-'}</span>
+                                                                    <div className="flex items-center gap-2 w-full">
+                                                                        <Avatar className="h-8 w-8">
+                                                                            <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                            <AvatarFallback>{(volunteer.full_name?.[0] || '?').toUpperCase()}</AvatarFallback>
+                                                                        </Avatar>
+                                                                        <div className="flex flex-col min-w-0">
+                                                                            <span className="truncate font-medium">{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
+                                                                            <span className="text-xs text-muted-foreground">{volunteer.phone || '-'}</span>
+                                                                        </div>
                                                                     </div>
                                                                 </CommandItem>
                                                             ))}
@@ -1613,7 +1621,7 @@ export default function CourseManagement() {
                                                 <PopoverContent className="w-[calc(100vw-4rem)] sm:w-[400px] p-0" align="start">
                                                     <Command>
                                                         <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
-                                                        <CommandList>
+                                                        <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
                                                             <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results found'}</CommandEmpty>
                                                             <CommandGroup>
                                                                 {volunteers.slice(0, 50).map(volunteer => (
@@ -1622,9 +1630,15 @@ export default function CourseManagement() {
                                                                         value={`${volunteer.full_name} ${volunteer.full_name_ar || ''}`}
                                                                         onSelect={() => handleAddOrganizerToDetails(volunteer)}
                                                                     >
-                                                                        <div className="flex flex-col">
-                                                                            <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
-                                                                            <span className="text-xs text-muted-foreground">{volunteer.phone}</span>
+                                                                        <div className="flex items-center gap-2 w-full">
+                                                                            <Avatar className="h-8 w-8">
+                                                                                <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                                <AvatarFallback>{(volunteer.full_name?.[0] || '?').toUpperCase()}</AvatarFallback>
+                                                                            </Avatar>
+                                                                            <div className="flex flex-col">
+                                                                                <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
+                                                                                <span className="text-xs text-muted-foreground">{volunteer.phone}</span>
+                                                                            </div>
                                                                         </div>
                                                                     </CommandItem>
                                                                 ))}
