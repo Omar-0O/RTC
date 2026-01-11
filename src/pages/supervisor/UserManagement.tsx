@@ -317,16 +317,16 @@ export default function SupervisorUserManagement() {
                                     <Card key={user.id} className="overflow-hidden">
                                         <CardContent className="p-4">
                                             <div className="flex items-start justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <Avatar className="h-10 w-10">
+                                                <div className="flex items-center gap-3 min-w-0 flex-1">
+                                                    <Avatar className="h-10 w-10 shrink-0">
                                                         <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
                                                         <AvatarFallback>
                                                             {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                                                         </AvatarFallback>
                                                     </Avatar>
-                                                    <div>
-                                                        <p className="font-medium">{user.full_name || 'No name'}</p>
-                                                        <p className="text-sm text-muted-foreground">{user.email}</p>
+                                                    <div className="min-w-0">
+                                                        <p className="font-medium truncate">{user.full_name || 'No name'}</p>
+                                                        <p className="text-sm text-muted-foreground truncate">{user.email}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-1 -mr-2">

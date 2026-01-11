@@ -130,7 +130,8 @@
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     width: 100%;
-    overflow-x: hidden;
+    /* max-width: 100%; - Removed to allow natural overflow if needed */
+    overflow-x: auto;
     position: relative;
   }
 
@@ -225,6 +226,5 @@
   #root {
     width: 100%;
     max-width: 100vw;
-    overflow-x: hidden;
   }
 }

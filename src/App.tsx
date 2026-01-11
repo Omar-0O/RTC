@@ -75,7 +75,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
-  const { isAuthenticated, isLoading, primaryRole } = useAuth();
+  // Hook order fixed: Unconditional useAuth call
+  const { isAuthenticated, isLoading, primaryRole, roles } = useAuth();
 
   const getDefaultRoute = () => {
     switch (primaryRole) {
@@ -105,8 +106,6 @@ function AppRoutes() {
       </div>
     );
   }
-
-  const { roles } = useAuth();
 
   return (
     <Routes>

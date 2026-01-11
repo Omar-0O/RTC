@@ -647,7 +647,7 @@ export default function UserManagement() {
           email: formEmail.trim(),
           phone: formPhone.trim() || null,
           committee_id: formCommitteeId || null,
-          level: formLevel as Database["public"]["Enums"]["volunteer_level"],
+          level: formLevel as any,
           attended_mini_camp: formLevel === 'under_follow_up' ? formAttendedMiniCamp : null,
           attended_camp: formLevel === 'project_responsible' ? formAttendedCamp : null,
         })
@@ -838,17 +838,6 @@ export default function UserManagement() {
 
       if (rolesError) throw rolesError;
 
-      let passwordsMap = new Map<string, string>();
-      if (['admin', 'head_hr', 'hr'].includes(primaryRole)) {
-        const { data: passwordsData, error: passwordsError } = await supabase
-          .from('user_private_details')
-          .select('id, visible_password');
-
-        if (!passwordsError && passwordsData) {
-          passwordsMap = new Map(passwordsData.map(p => [p.id, p.visible_password]));
-        }
-      }
-
       const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role]) || []);
 
       const exportData = profilesData
@@ -864,7 +853,7 @@ export default function UserManagement() {
             if (role === 'head_hr') return 'Head HR';
             return role || 'volunteer';
           })(),
-          'Password': passwordsMap.get(u.id) || '',
+          'Password': ['admin', 'head_hr', 'hr'].includes(primaryRole) ? (u.visible_password || '') : '',
           'Joined At': new Date(u.created_at).toLocaleDateString(),
           'Mini Camp Attendance': u.level === 'under_follow_up' ? (u.attended_mini_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A',
           'Camp Attendance': u.level === 'project_responsible' ? (u.attended_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A'
@@ -897,13 +886,13 @@ export default function UserManagement() {
           if (!open) resetForm();
         }}>
           {['admin', 'head_hr'].includes(primaryRole) && (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={handleExportUsers} className="flex-1 sm:flex-none">
+            <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
+              <Button variant="outline" onClick={handleExportUsers} className="w-full xs:w-auto">
                 <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                 <span className="text-xs sm:text-sm">{isRTL ? 'تصدير المتطوعين' : 'Export Users'}</span>
               </Button>
               <DialogTrigger asChild>
-                <Button className="flex-1 sm:flex-none">
+                <Button className="w-full xs:w-auto">
                   <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                   <span className="text-xs sm:text-sm">{t('users.addUser')}</span>
                 </Button>
@@ -1567,8 +1556,8 @@ export default function UserManagement() {
                     <CardContent className="p-4">
                       {/* Header with avatar and actions */}
                       <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-12 w-12">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <Avatar className="h-12 w-12 shrink-0">
                             <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
                             <AvatarFallback className="text-sm">
                               {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
@@ -1637,7 +1626,7 @@ export default function UserManagement() {
                         <LevelBadge level={user.level} size="sm" />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 pt-3 border-t text-sm">
+                      <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 pt-3 border-t text-sm">
                         <div>
                           <p className="text-xs text-muted-foreground mb-0.5">{t('users.committee')}</p>
                           <p className="font-medium truncate">{user.committee_name || '—'}</p>
@@ -1653,7 +1642,7 @@ export default function UserManagement() {
                         {user.phone && (
                           <div>
                             <p className="text-xs text-muted-foreground mb-0.5">{t('users.phoneNumber')}</p>
-                            <p dir="ltr" className="text-start">{user.phone}</p>
+                            <p dir="ltr" className={language === 'ar' ? "text-right" : "text-left"}>{user.phone}</p>
                           </div>
                         )}
                       </div>

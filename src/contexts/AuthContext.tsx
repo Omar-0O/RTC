@@ -1,24 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { Database } from '@/integrations/supabase/types';
 
 import { UserRole } from '@/types';
 
 type AppRole = UserRole;
-
-interface Profile {
-  id: string;
-  email: string;
-  full_name: string | null;
-  full_name_ar: string | null;
-  avatar_url: string | null;
-  phone: string | null;
-  committee_id: string | null;
-  total_points: number;
-  level: string;
-  activities_count: number;
-  join_date: string;
-}
+type Profile = Database['public']['Tables']['profiles']['Row'];
 
 interface AuthContextType {
   user: User | null;
@@ -56,7 +44,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (profileData) {
-        setProfile(profileData as Profile);
+        setProfile(profileData);
       }
 
       const { data: rolesData, error: rolesError } = await supabase
@@ -88,15 +76,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event: AuthChangeEvent | string, session) => {
+        console.log('Auth state change:', event, session?.user?.id);
+
+        if (event === 'TOKEN_REFRESH_ERROR') {
+          console.error('Token refresh error, signing out...');
+          await supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setRoles([]);
+          setIsLoading(false);
+          return;
+        }
+
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setRoles([]);
+          setIsLoading(false);
+          return;
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
 
         // Defer profile fetch with setTimeout to avoid deadlock
         if (session?.user) {
-          setTimeout(() => {
-            fetchProfile(session.user.id);
-          }, 0);
+          // Only fetch if profile is not already loaded or user changed
+          if (!profile || profile.id !== session.user.id) {
+            setTimeout(() => {
+              fetchProfile(session.user.id);
+            }, 0);
+          }
         } else {
           setProfile(null);
           setRoles([]);
@@ -113,13 +126,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (session?.user) {
         fetchProfile(session.user.id);
+      } else {
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [fetchProfile]);
+  }, [fetchProfile]); // Removed profile dependency to avoid effect loops, logic inside handles checks
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
