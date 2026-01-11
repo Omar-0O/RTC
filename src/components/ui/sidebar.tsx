@@ -154,30 +154,44 @@ const Sidebar = React.forwardRef<
 
   if (isMobile) {
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-        <SheetContent
-          data-sidebar="sidebar"
-          data-mobile="true"
-          className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
-          style={
-            {
-              "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-            } as React.CSSProperties
-          }
-          side={side}
+      <>
+        <div
+          className="fixed inset-y-0 z-40 w-6"
+          style={side === "left" ? { left: 0 } : { right: 0 }}
           onTouchStart={(e) => setStartX(e.touches[0].clientX)}
           onTouchEnd={(e) => {
             const endX = e.changedTouches[0].clientX;
             const diff = endX - startX;
             const threshold = 50;
-            if (side === 'left' && diff < -threshold) setOpenMobile(false);
-            if (side === 'right' && diff > threshold) setOpenMobile(false);
+            if (side === "left" && diff > threshold) setOpenMobile(true);
+            if (side === "right" && diff < -threshold) setOpenMobile(true);
           }}
-        >
-          <SheetTitle className="sr-only">Sidebar</SheetTitle>
-          <div className="flex h-full w-full flex-col">{children}</div>
-        </SheetContent>
-      </Sheet>
+        />
+        <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+          <SheetContent
+            data-sidebar="sidebar"
+            data-mobile="true"
+            className="w-[--sidebar-width] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+            style={
+              {
+                "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+              } as React.CSSProperties
+            }
+            side={side}
+            onTouchStart={(e) => setStartX(e.touches[0].clientX)}
+            onTouchEnd={(e) => {
+              const endX = e.changedTouches[0].clientX;
+              const diff = endX - startX;
+              const threshold = 50;
+              if (side === 'left' && diff < -threshold) setOpenMobile(false);
+              if (side === 'right' && diff > threshold) setOpenMobile(false);
+            }}
+          >
+            <SheetTitle className="sr-only">Sidebar</SheetTitle>
+            <div className="flex h-full w-full flex-col">{children}</div>
+          </SheetContent>
+        </Sheet>
+      </>
     );
   }
 

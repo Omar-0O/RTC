@@ -333,93 +333,95 @@ export default function Members() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>{t('users.fullName')}</TableHead>
-                                <TableHead>{t('users.level')}</TableHead>
-                                <TableHead>{t('common.points')}</TableHead>
-                                <TableHead>{t('users.joined')}</TableHead>
-                                <TableHead className="text-end">{language === 'ar' ? 'إجراءات' : 'Actions'}</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredMembers.length === 0 ? (
+                    <div className="overflow-x-auto">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                                        {language === 'ar' ? 'لا يوجد أعضاء مطابقين للبحث' : 'No members found'}
-                                    </TableCell>
+                                    <TableHead>{t('users.fullName')}</TableHead>
+                                    <TableHead>{t('users.level')}</TableHead>
+                                    <TableHead>{t('common.points')}</TableHead>
+                                    <TableHead>{t('users.joined')}</TableHead>
+                                    <TableHead className="text-end">{language === 'ar' ? 'إجراءات' : 'Actions'}</TableHead>
                                 </TableRow>
-                            ) : (
-                                filteredMembers.map((member) => (
-                                    <TableRow key={member.id}>
-                                        <TableCell>
-                                            <div className="flex items-center gap-3">
-                                                <Avatar className="h-9 w-9">
-                                                    <AvatarImage src={member.avatar_url || undefined} />
-                                                    <AvatarFallback>
-                                                        {member.full_name?.substring(0, 2).toUpperCase() || 'U'}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                                <div>
-                                                    <p className="font-medium text-sm">
-                                                        {language === 'ar' ? member.full_name_ar || member.full_name : member.full_name}
-                                                    </p>
-                                                    <div className="flex flex-col text-xs text-muted-foreground gap-0.5">
-                                                        <span className="flex items-center gap-1">
-                                                            <Mail className="h-3 w-3" />
-                                                            {member.email}
-                                                        </span>
-                                                        {member.phone && (
-                                                            <span className="flex items-center gap-1">
-                                                                <Phone className="h-3 w-3" />
-                                                                {member.phone}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <LevelBadge level={displayLevel(member.level)} size="sm" />
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="font-medium">{member.total_points}</div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {member.activities_count} {language === 'ar' ? 'نشاط' : 'activities'}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                <Calendar className="h-3 w-3" />
-                                                {member.created_at ? format(new Date(member.created_at), 'PPP') : '-'}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-end">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => navigate(`/leader/members/${member.id}`)}
-                                                >
-                                                    <Eye className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                    onClick={() => openRemoveDialog(member)}
-                                                    disabled={member.id === profile?.id}
-                                                >
-                                                    <UserMinus className="h-4 w-4" />
-                                                </Button>
-                                            </div>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredMembers.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                            {language === 'ar' ? 'لا يوجد أعضاء مطابقين للبحث' : 'No members found'}
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
+                                ) : (
+                                    filteredMembers.map((member) => (
+                                        <TableRow key={member.id}>
+                                            <TableCell>
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="h-9 w-9">
+                                                        <AvatarImage src={member.avatar_url || undefined} />
+                                                        <AvatarFallback>
+                                                            {member.full_name?.substring(0, 2).toUpperCase() || 'U'}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <p className="font-medium text-sm">
+                                                            {language === 'ar' ? member.full_name_ar || member.full_name : member.full_name}
+                                                        </p>
+                                                        <div className="flex flex-col text-xs text-muted-foreground gap-0.5">
+                                                            <span className="flex items-center gap-1">
+                                                                <Mail className="h-3 w-3" />
+                                                                {member.email}
+                                                            </span>
+                                                            {member.phone && (
+                                                                <span className="flex items-center gap-1">
+                                                                    <Phone className="h-3 w-3" />
+                                                                    {member.phone}
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <LevelBadge level={displayLevel(member.level)} size="sm" />
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="font-medium">{member.total_points}</div>
+                                                <div className="text-xs text-muted-foreground">
+                                                    {member.activities_count} {language === 'ar' ? 'نشاط' : 'activities'}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                    <Calendar className="h-3 w-3" />
+                                                    {member.created_at ? format(new Date(member.created_at), 'PPP') : '-'}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-end">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => navigate(`/leader/members/${member.id}`)}
+                                                    >
+                                                        <Eye className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                        onClick={() => openRemoveDialog(member)}
+                                                        disabled={member.id === profile?.id}
+                                                    >
+                                                        <UserMinus className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
             </Card>
 

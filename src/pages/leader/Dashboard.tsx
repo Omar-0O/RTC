@@ -258,63 +258,65 @@ export default function CommitteeLeaderDashboard() {
               {language === 'ar' ? 'لا يوجد أعضاء في هذه اللجنة بعد.' : 'No members in this committee yet.'}
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-start">{t('users.fullName')}</TableHead>
-                  <TableHead className="text-start">{t('users.level')}</TableHead>
-                  <TableHead className="text-start">{language === 'ar' ? 'المشاركات الشهرية' : 'Monthly Participations'}</TableHead>
-                  <TableHead className="text-start">{t('leader.memberProgress')}</TableHead>
-                  <TableHead className="text-start">{language === 'ar' ? 'إجراءات' : 'Actions'}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {members.map((member) => (
-                  <TableRow key={member.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          {member.avatar_url && <AvatarImage src={member.avatar_url} />}
-                          <AvatarFallback className="text-xs">
-                            {member.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">
-                            {language === 'ar' ? member.full_name_ar || member.full_name : member.full_name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {member.activities_count} {language === 'ar' ? 'مشاركة' : 'participations'}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <LevelBadge level={displayLevel(member.level)} size="sm" />
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-bold">{member.activities_count || 0}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <Progress value={getLevelProgress(member.total_points).progress} className="h-2 w-24" />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => openRemoveDialog(member)}
-                        disabled={member.id === profile?.id}
-                      >
-                        <UserMinus className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-start">{t('users.fullName')}</TableHead>
+                    <TableHead className="text-start">{t('users.level')}</TableHead>
+                    <TableHead className="text-start">{language === 'ar' ? 'المشاركات الشهرية' : 'Monthly Participations'}</TableHead>
+                    <TableHead className="text-start">{t('leader.memberProgress')}</TableHead>
+                    <TableHead className="text-start">{language === 'ar' ? 'إجراءات' : 'Actions'}</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {members.map((member) => (
+                    <TableRow key={member.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            {member.avatar_url && <AvatarImage src={member.avatar_url} />}
+                            <AvatarFallback className="text-xs">
+                              {member.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">
+                              {language === 'ar' ? member.full_name_ar || member.full_name : member.full_name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {member.activities_count} {language === 'ar' ? 'مشاركة' : 'participations'}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <LevelBadge level={displayLevel(member.level)} size="sm" />
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-bold">{member.activities_count || 0}</span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <Progress value={getLevelProgress(member.total_points).progress} className="h-2 w-24" />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => openRemoveDialog(member)}
+                          disabled={member.id === profile?.id}
+                        >
+                          <UserMinus className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

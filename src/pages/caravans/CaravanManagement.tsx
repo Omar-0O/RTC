@@ -769,7 +769,7 @@ export default function CaravanManagement() {
                         onChange={(e) => setFilterDate(e.target.value)}
                     />
                     <Select value={timeFilter} onValueChange={setTimeFilter}>
-                        <SelectTrigger className="w-[180px] h-10">
+                        <SelectTrigger className="w-full sm:w-[180px] h-10">
                             <SelectValue placeholder={isRTL ? 'اختر الفترة' : 'Select Period'} />
                         </SelectTrigger>
                         <SelectContent>
@@ -869,15 +869,15 @@ export default function CaravanManagement() {
                                     <div className="space-y-6">
                                         <div className="space-y-3">
                                             <Label className="text-sm text-muted-foreground">{t('caravans.addVolunteer')}</Label>
-                                            <div className="flex gap-4 items-end">
+                                            <div className="flex flex-col sm:flex-row gap-4 items-end">
                                                 <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                                                     <PopoverTrigger asChild>
-                                                        <Button variant="outline" role="combobox" className="flex-1 justify-between h-12">
+                                                        <Button variant="outline" role="combobox" className="w-full sm:flex-1 justify-between h-12">
                                                             <span className="truncate">{t('caravans.addVolunteer')}</span>
                                                             <ChevronsUpDown className="ltr:ml-2 rtl:mr-2 h-4 w-4 shrink-0 opacity-50" />
                                                         </Button>
                                                     </PopoverTrigger>
-                                                    <PopoverContent className="p-0 w-[calc(100vw-2rem)] sm:w-[400px]" side="bottom" align="start">
+                                                    <PopoverContent className="p-0 w-[calc(100vw-4rem)] sm:w-[400px]" side="bottom" align="start">
                                                         <Command>
                                                             <CommandInput placeholder={t('common.search')} />
                                                             <CommandList className="max-h-[200px]">
@@ -905,7 +905,7 @@ export default function CaravanManagement() {
                                                     </PopoverContent>
                                                 </Popover>
 
-                                                <div className="flex items-center space-x-2 rtl:space-x-reverse h-12 border rounded-md px-3 bg-card/50">
+                                                <div className="flex w-full sm:w-auto items-center space-x-2 rtl:space-x-reverse h-12 border rounded-md px-3 bg-card/50">
                                                     <Switch
                                                         id="vest-toggle"
                                                         checked={woreVest}
@@ -936,7 +936,7 @@ export default function CaravanManagement() {
                                                     className="h-12"
                                                     dir="ltr"
                                                 />
-                                                <Button onClick={handleAddGuest} variant="secondary" disabled={!guestName} className="h-12">
+                                                <Button onClick={handleAddGuest} variant="secondary" disabled={!guestName} className="h-12 w-full md:w-auto">
                                                     <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                                     {isRTL ? 'إضافة ضيف' : 'Add Guest'}
                                                 </Button>
