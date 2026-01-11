@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { AppLayout } from "./components/layout/AppLayout";
+import ScrollToTop from "./components/ScrollToTop";
 
 // Lazy load pages
 const Auth = lazy(() => import("./pages/Auth"));
@@ -181,6 +182,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <ScrollToTop />
             <Suspense fallback={<PageLoader />}>
               <AppRoutes />
             </Suspense>

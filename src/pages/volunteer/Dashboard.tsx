@@ -5,10 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { StatsCard } from '@/components/ui/stats-card';
-import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from 'react-router-dom';
-import { Activity, Trophy, Star, ArrowRight, Loader2, Award } from 'lucide-react';
+import { Activity, Star, ArrowRight, Loader2, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import CourseSchedule from '@/components/courses/CourseSchedule';
@@ -29,8 +28,6 @@ export default function VolunteerDashboard() {
   const [badgeCount, setBadgeCount] = useState(0);
 
   const points = profile?.total_points || 0;
-  const { nextThreshold } = getLevelProgress(points);
-  const level = profile?.level || 'under_follow_up';
   const activitiesCount = profile?.activities_count || 0;
   const [monthlyActivities, setMonthlyActivities] = useState(0);
 
@@ -92,10 +89,6 @@ export default function VolunteerDashboard() {
     }
   };
 
-  const displayLevel = (dbLevel: string) => {
-    return t(`level.${dbLevel}`);
-  };
-
   const getStatusText = (status: string) => {
     switch (status) {
       case 'approved': return isRTL ? 'مقبول' : 'Approved';
@@ -149,16 +142,11 @@ export default function VolunteerDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <StatsCard
           title={t('dashboard.totalPoints')}
           value={points}
           icon={Star}
-        />
-        <StatsCard
-          title={t('dashboard.currentLevel')}
-          value={displayLevel(level)}
-          icon={Trophy}
         />
         <StatsCard
           title={isRTL ? 'إجمالي مشاركاتك خلال الشهر' : 'Activities This Month'}
