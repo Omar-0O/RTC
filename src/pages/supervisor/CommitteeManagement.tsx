@@ -399,10 +399,10 @@ export default function CommitteeManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t('committees.title')}</h1>
-          <p className="text-muted-foreground">{t('committees.subtitle')}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('committees.title')}</h1>
+          <p className="text-sm text-muted-foreground">{t('committees.subtitle')}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -434,12 +434,12 @@ export default function CommitteeManagement() {
             if (!open) resetForm();
           }}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                 {t('committees.addCommittee')}
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{t('committees.createNew')}</DialogTitle>
                 <DialogDescription>{t('committees.createDescription')}</DialogDescription>
@@ -514,11 +514,11 @@ export default function CommitteeManagement() {
                     />
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} className="w-full sm:w-auto">
                     {t('common.cancel')}
                   </Button>
-                  <Button type="submit" disabled={isSubmitting}>
+                  <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                     {isSubmitting ? 'Adding...' : t('common.add')}
                   </Button>
                 </DialogFooter>
@@ -612,7 +612,7 @@ export default function CommitteeManagement() {
           resetForm();
         }
       }}>
-        <DialogContent>
+        <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('common.edit')}</DialogTitle>
             <DialogDescription>
@@ -685,11 +685,11 @@ export default function CommitteeManagement() {
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto">
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
                 {isSubmitting ? 'Saving...' : t('common.save')}
               </Button>
             </DialogFooter>

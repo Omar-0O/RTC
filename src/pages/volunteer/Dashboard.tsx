@@ -116,24 +116,24 @@ export default function VolunteerDashboard() {
   return (
     <div className="space-y-6 animate-slide-up">
       {/* Welcome Section */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Avatar className="h-14 w-14">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-12 w-12 sm:h-14 sm:w-14 shrink-0">
             <AvatarImage src={profile?.avatar_url || undefined} alt={profile?.full_name || ''} />
-            <AvatarFallback className="bg-primary text-primary-foreground text-lg">
+            <AvatarFallback className="bg-primary text-primary-foreground text-base sm:text-lg">
               {(profile?.full_name || 'V').split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <h1 className="text-2xl font-bold">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-2xl font-bold truncate">
               {t('dashboard.welcome')}, {(isRTL ? (profile?.full_name_ar || profile?.full_name) : profile?.full_name)?.split(' ')[0] || (isRTL ? 'متطوع' : 'Volunteer')}! 👋
             </h1>
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {t('dashboard.totalPoints')}: {points}
             </p>
           </div>
         </div>
-        <Button asChild>
+        <Button asChild className="w-full sm:w-auto sm:self-start">
           <Link to="/activity">
             <Activity className={isRTL ? "ml-2 h-4 w-4" : "mr-2 h-4 w-4"} />
             {t('dashboard.logNewActivity')}
@@ -142,7 +142,7 @@ export default function VolunteerDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-3">
         <StatsCard
           title={t('dashboard.totalPoints')}
           value={points}
@@ -152,13 +152,12 @@ export default function VolunteerDashboard() {
           title={isRTL ? 'إجمالي مشاركاتك خلال الشهر' : 'Activities This Month'}
           value={monthlyActivities}
           icon={Activity}
-          description={isRTL ? 'مشاركاتك هذا الشهر' : 'Your participations this month'}
         />
         <StatsCard
           title={t('profile.badges')}
           value={badgeCount}
           icon={Award}
-          description={isRTL ? 'الإنجازات المكتسبة' : 'Achievements earned'}
+          className="col-span-2 lg:col-span-1"
         />
       </div>
 
@@ -167,12 +166,12 @@ export default function VolunteerDashboard() {
 
       {/* Recent Participations */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <CardTitle>{isRTL ? 'مشاركاتك الأخيرة!' : 'Your Recent Participations!'}</CardTitle>
-            <CardDescription>{isRTL ? 'آخر مشاركاتك' : 'Your latest participations'}</CardDescription>
+            <CardTitle className="text-base sm:text-lg">{isRTL ? 'مشاركاتك الأخيرة!' : 'Your Recent Participations!'}</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">{isRTL ? 'آخر مشاركاتك' : 'Your latest participations'}</CardDescription>
           </div>
-          <Button variant="ghost" size="sm" asChild>
+          <Button variant="ghost" size="sm" asChild className="self-start sm:self-auto">
             <Link to="/profile">
               {isRTL ? 'عرض الكل' : 'View all'} <ArrowRight className={isRTL ? "mr-1 h-4 w-4" : "ml-1 h-4 w-4"} />
             </Link>
@@ -192,14 +191,14 @@ export default function VolunteerDashboard() {
               {recentSubmissions.map((submission) => (
                 <div
                   key={submission.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border p-3"
                 >
-                  <div className="space-y-1">
-                    <p className="font-medium text-sm">{submission.activity_name}</p>
+                  <div className="space-y-0.5 min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate">{submission.activity_name}</p>
                     <p className="text-xs text-muted-foreground">{formatDate(submission.submitted_at)}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-primary">+{submission.points} {isRTL ? 'نقطة' : 'pts'}</span>
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className="text-sm font-medium text-primary whitespace-nowrap">+{submission.points} {isRTL ? 'نقطة' : 'pts'}</span>
                   </div>
                 </div>
               ))}
