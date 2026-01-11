@@ -162,12 +162,12 @@ export default function SupervisorDashboard() {
     return (
         <div className="space-y-6">
             <div>
-                <h1 className="text-3xl font-bold tracking-tight">{isRTL ? 'لوحة التحكم' : 'Dashboard'}</h1>
-                <p className="text-muted-foreground">{isRTL ? 'نظرة عامة على جميع البيانات' : 'Overview of all data'}</p>
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{isRTL ? 'لوحة التحكم' : 'Dashboard'}</h1>
+                <p className="text-sm sm:text-base text-muted-foreground">{isRTL ? 'نظرة عامة على جميع البيانات' : 'Overview of all data'}</p>
             </div>
 
             {/* Stats Grid */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
                 <StatsCard
                     title={t('admin.totalVolunteers')}
                     value={stats.totalVolunteers}
@@ -213,15 +213,15 @@ export default function SupervisorDashboard() {
                                 recentSubmissions.map((submission) => (
                                     <div
                                         key={submission.id}
-                                        className="flex items-center justify-between rounded-lg border p-3"
+                                        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border p-3"
                                     >
-                                        <div className="space-y-1">
-                                            <p className="font-medium">{submission.volunteer_name}</p>
-                                            <p className="text-sm text-muted-foreground">
+                                        <div className="space-y-1 min-w-0 flex-1">
+                                            <p className="font-medium truncate">{submission.volunteer_name}</p>
+                                            <p className="text-sm text-muted-foreground truncate">
                                                 {submission.activity_name} • {submission.committee_name}
                                             </p>
                                         </div>
-                                        <span className="text-sm font-medium text-primary">+{submission.points} {t('common.points')}</span>
+                                        <span className="text-sm font-medium text-primary whitespace-nowrap self-start sm:self-center">+{submission.points} {t('common.points')}</span>
                                     </div>
                                 ))
                             )}
@@ -294,7 +294,7 @@ export default function SupervisorDashboard() {
                             {isRTL ? 'لا توجد لجان حتى الآن' : 'No committees yet'}
                         </p>
                     ) : (
-                        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
                             {committeeStats.map((committee) => (
                                 <div
                                     key={committee.id}

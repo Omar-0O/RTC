@@ -802,7 +802,7 @@ export default function CaravanManagement() {
                                 <span className="text-xs sm:text-sm">{t('caravans.add')}</span>
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+                        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader className="pb-4">
                                 <DialogTitle className="text-xl">{isEditMode ? (isRTL ? 'تعديل القافلة' : 'Edit Caravan') : t('caravans.add')}</DialogTitle>
                                 <DialogDescription>{isEditMode ? (isRTL ? 'تعديل تفاصيل القافلة' : 'Edit caravan details') : (isRTL ? 'أضف تفاصيل القافلة الجديدة' : 'Add new caravan details')}</DialogDescription>
@@ -988,9 +988,9 @@ export default function CaravanManagement() {
 
                             </div>
 
-                            <DialogFooter className="flex-col sm:flex-row gap-3 pt-4">
-                                <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-12 w-full sm:w-auto">{t('common.cancel')}</Button>
-                                <Button onClick={isEditMode ? handleUpdateCaravan : handleCreateCaravan} className="h-12 w-full sm:w-auto">{isEditMode ? (isRTL ? 'تحديث' : 'Update') : t('common.save')}</Button>
+                            <DialogFooter className="gap-2 sm:gap-0 pt-4">
+                                <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-12 px-6 w-full sm:w-auto">{t('common.cancel')}</Button>
+                                <Button onClick={isEditMode ? handleUpdateCaravan : handleCreateCaravan} className="h-12 px-6 w-full sm:w-auto">{isEditMode ? (isRTL ? 'تحديث' : 'Update') : t('common.save')}</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>

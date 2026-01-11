@@ -204,12 +204,12 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">{t('admin.dashboard')}</h1>
-        <p className="text-muted-foreground">{t('admin.overview')}</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('admin.dashboard')}</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">{t('admin.overview')}</p>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title={t('admin.totalVolunteers')}
           value={stats.totalVolunteers}
@@ -327,7 +327,7 @@ export default function AdminDashboard() {
               {isRTL ? 'لا توجد لجان حتى الآن' : 'No committees yet'}
             </p>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
               {committeeStats.map((committee) => (
                 <div
                   key={committee.id}
@@ -360,7 +360,7 @@ export default function AdminDashboard() {
           <p className="text-sm text-muted-foreground">
             Configure and test PWA push notifications. You need to enable permissions on this device first.
           </p>
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
             <Button onClick={requestNotificationPermission} variant="outline">
               Enable Notifications
             </Button>

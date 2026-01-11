@@ -156,13 +156,13 @@ const Sidebar = React.forwardRef<
     return (
       <>
         <div
-          className="fixed inset-y-0 z-40 w-6"
+          className="fixed inset-y-0 z-40 w-8"
           style={side === "left" ? { left: 0 } : { right: 0 }}
           onTouchStart={(e) => setStartX(e.touches[0].clientX)}
           onTouchEnd={(e) => {
             const endX = e.changedTouches[0].clientX;
             const diff = endX - startX;
-            const threshold = 50;
+            const threshold = 30;
             if (side === "left" && diff > threshold) setOpenMobile(true);
             if (side === "right" && diff < -threshold) setOpenMobile(true);
           }}
@@ -182,7 +182,7 @@ const Sidebar = React.forwardRef<
             onTouchEnd={(e) => {
               const endX = e.changedTouches[0].clientX;
               const diff = endX - startX;
-              const threshold = 50;
+              const threshold = 30;
               if (side === 'left' && diff < -threshold) setOpenMobile(false);
               if (side === 'right' && diff > threshold) setOpenMobile(false);
             }}

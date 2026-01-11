@@ -203,17 +203,17 @@ export default function CommitteeLeaderDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
             {t('leader.dashboard')} - {committeeName}
           </h1>
-          <p className="text-muted-foreground">{t('leader.overview')}</p>
+          <p className="text-sm sm:text-base text-muted-foreground">{t('leader.overview')}</p>
         </div>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2">
         <StatsCard
           title={t('leader.totalMembers')}
           value={totalMembers}
