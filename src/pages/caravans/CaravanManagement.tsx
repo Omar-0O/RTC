@@ -802,25 +802,30 @@ export default function CaravanManagement() {
                                 <span className="text-xs sm:text-sm">{t('caravans.add')}</span>
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[85vh] overflow-y-auto">
-                            <DialogHeader className="pb-4">
-                                <DialogTitle className="text-xl">{isEditMode ? (isRTL ? 'تعديل القافلة' : 'Edit Caravan') : t('caravans.add')}</DialogTitle>
+                        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+                            <DialogHeader>
+                                <DialogTitle className="text-2xl font-bold">{isEditMode ? (isRTL ? 'تعديل القافلة' : 'Edit Caravan') : t('caravans.add')}</DialogTitle>
                                 <DialogDescription>{isEditMode ? (isRTL ? 'تعديل تفاصيل القافلة' : 'Edit caravan details') : (isRTL ? 'أضف تفاصيل القافلة الجديدة' : 'Add new caravan details')}</DialogDescription>
                             </DialogHeader>
 
-                            <div className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{t('caravans.name')}</Label>
-                                        <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="h-12" />
+                            <div className="grid gap-6 py-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-sm sm:text-base font-medium">{t('caravans.name')}</Label>
+                                        <Input
+                                            value={formData.name}
+                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                            className="h-11 sm:h-12"
+                                            placeholder={isRTL ? 'مثال: قافلة إطعام رمضان' : 'e.g., Ramadan Food Caravan'}
+                                        />
                                     </div>
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{t('caravans.type')}</Label>
+                                    <div className="space-y-2">
+                                        <Label className="text-sm sm:text-base font-medium">{t('caravans.type')}</Label>
                                         <Select
                                             value={formData.type}
                                             onValueChange={val => setFormData({ ...formData, type: val })}
                                         >
-                                            <SelectTrigger className="h-12">
+                                            <SelectTrigger className="h-11 sm:h-12">
                                                 <SelectValue placeholder={isRTL ? 'اختر النوع' : 'Select Type'} />
                                             </SelectTrigger>
                                             <SelectContent>
@@ -831,53 +836,58 @@ export default function CaravanManagement() {
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{t('caravans.location')}</Label>
-                                        <Input value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} className="h-12" />
+                                    <div className="space-y-2">
+                                        <Label className="text-sm sm:text-base font-medium">{t('caravans.location')}</Label>
+                                        <Input
+                                            value={formData.location}
+                                            onChange={e => setFormData({ ...formData, location: e.target.value })}
+                                            className="h-11 sm:h-12"
+                                            placeholder={isRTL ? 'مثال: قرية النهضة' : 'e.g., Al-Nahda Village'}
+                                        />
                                     </div>
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{t('caravans.date')}</Label>
-                                        <Input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} className="h-12" />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3">
-                                    <Label className="text-base">{isRTL ? 'مواعيد التحرك' : 'Timings'}</Label>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                        <div className="space-y-3">
-                                            <Label className="text-sm text-muted-foreground">{t('caravans.moveTime')}</Label>
-                                            <Input type="time" value={formData.move_time} onChange={e => setFormData({ ...formData, move_time: e.target.value })} className="h-12" />
-                                        </div>
-                                        <div className="space-y-3">
-                                            <Label className="text-sm text-muted-foreground">{t('caravans.actualMoveTime')}</Label>
-                                            <Input type="time" value={formData.actual_move_time} onChange={e => setFormData({ ...formData, actual_move_time: e.target.value })} className="h-12" />
-                                        </div>
-                                        <div className="space-y-3">
-                                            <Label className="text-sm text-muted-foreground">{t('caravans.busArrivalTime')}</Label>
-                                            <Input type="time" value={formData.bus_arrival_time} onChange={e => setFormData({ ...formData, bus_arrival_time: e.target.value })} className="h-12" />
-                                        </div>
-                                        <div className="space-y-3">
-                                            <Label className="text-sm text-muted-foreground">{t('caravans.returnTime')}</Label>
-                                            <Input type="time" value={formData.return_time} onChange={e => setFormData({ ...formData, return_time: e.target.value })} className="h-12" />
-                                        </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-sm sm:text-base font-medium">{t('caravans.date')}</Label>
+                                        <Input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} className="h-11 sm:h-12" />
                                     </div>
                                 </div>
 
-                                <div className="border-t pt-6">
-                                    <h3 className="text-base font-medium mb-4">{t('caravans.participants')}</h3>
+                                <div className="space-y-2 sm:space-y-3">
+                                    <Label className="text-sm sm:text-base font-medium">{isRTL ? 'مواعيد التحرك' : 'Timings'}</Label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                                        <div className="space-y-1.5 sm:space-y-2">
+                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.moveTime')}</Label>
+                                            <Input type="time" value={formData.move_time} onChange={e => setFormData({ ...formData, move_time: e.target.value })} className="h-11 sm:h-12" />
+                                        </div>
+                                        <div className="space-y-1.5 sm:space-y-2">
+                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.actualMoveTime')}</Label>
+                                            <Input type="time" value={formData.actual_move_time} onChange={e => setFormData({ ...formData, actual_move_time: e.target.value })} className="h-11 sm:h-12" />
+                                        </div>
+                                        <div className="space-y-1.5 sm:space-y-2">
+                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.busArrivalTime')}</Label>
+                                            <Input type="time" value={formData.bus_arrival_time} onChange={e => setFormData({ ...formData, bus_arrival_time: e.target.value })} className="h-11 sm:h-12" />
+                                        </div>
+                                        <div className="space-y-1.5 sm:space-y-2">
+                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.returnTime')}</Label>
+                                            <Input type="time" value={formData.return_time} onChange={e => setFormData({ ...formData, return_time: e.target.value })} className="h-11 sm:h-12" />
+                                        </div>
+                                    </div>
+                                </div>
 
-                                    <div className="space-y-6">
-                                        <div className="space-y-3">
-                                            <Label className="text-sm text-muted-foreground">{t('caravans.addVolunteer')}</Label>
-                                            <div className="flex flex-col sm:flex-row gap-4 items-end">
+                                <div className="border-t pt-4 sm:pt-6">
+                                    <h3 className="text-sm sm:text-base font-medium mb-3 sm:mb-4">{t('caravans.participants')}</h3>
+
+                                    <div className="space-y-4 sm:space-y-6">
+                                        <div className="space-y-2 sm:space-y-3">
+                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.addVolunteer')}</Label>
+                                            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end">
                                                 <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                                                     <PopoverTrigger asChild>
-                                                        <Button variant="outline" role="combobox" className="w-full sm:flex-1 justify-between h-12">
-                                                            <span className="truncate">{t('caravans.addVolunteer')}</span>
+                                                        <Button variant="outline" role="combobox" className="w-full sm:flex-1 justify-between h-11 sm:h-12">
+                                                            <span className="truncate text-sm">{t('caravans.addVolunteer')}</span>
                                                             <ChevronsUpDown className="ltr:ml-2 rtl:mr-2 h-4 w-4 shrink-0 opacity-50" />
                                                         </Button>
                                                     </PopoverTrigger>
-                                                    <PopoverContent className="p-0 w-[calc(100vw-4rem)] sm:w-[400px]" side="bottom" align="start">
+                                                    <PopoverContent className="p-0 w-[calc(100vw-2rem)] sm:w-[400px]" side="bottom" align="start">
                                                         <Command>
                                                             <CommandInput placeholder={t('common.search')} />
                                                             <CommandList className="max-h-[200px]">
@@ -895,7 +905,7 @@ export default function CaravanManagement() {
                                                                                     <AvatarImage src={volunteer.avatar_url || undefined} />
                                                                                     <AvatarFallback className="text-[10px]">{volunteer.full_name?.charAt(0)}</AvatarFallback>
                                                                                 </Avatar>
-                                                                                <span className="truncate">{volunteer.full_name}</span>
+                                                                                <span className="truncate text-sm">{volunteer.full_name}</span>
                                                                             </div>
                                                                         </CommandItem>
                                                                     ))}
@@ -905,26 +915,26 @@ export default function CaravanManagement() {
                                                     </PopoverContent>
                                                 </Popover>
 
-                                                <div className="flex w-full sm:w-auto items-center space-x-2 rtl:space-x-reverse h-12 border rounded-md px-3 bg-card/50">
+                                                <div className="flex w-full sm:w-auto items-center space-x-2 rtl:space-x-reverse h-11 sm:h-12 border rounded-md px-3 bg-card/50">
                                                     <Switch
                                                         id="vest-toggle"
                                                         checked={woreVest}
                                                         onCheckedChange={setWoreVest}
                                                     />
-                                                    <Label htmlFor="vest-toggle" className="cursor-pointer text-sm whitespace-nowrap">
+                                                    <Label htmlFor="vest-toggle" className="cursor-pointer text-xs sm:text-sm whitespace-nowrap">
                                                         {isRTL ? 'ارتدى الـ Vest' : 'Wore Vest'}
                                                     </Label>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="space-y-3">
-                                            <Label className="text-sm text-muted-foreground">{t('caravans.addGuest')}</Label>
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="space-y-2 sm:space-y-3">
+                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.addGuest')}</Label>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                                                 <Input
                                                     value={guestName}
                                                     onChange={e => setGuestName(e.target.value)}
-                                                    placeholder={t('users.fullName')}
-                                                    className="h-12"
+                                                    placeholder={isRTL ? 'الاسم الثلاثي كاملاً' : 'Full tripartite name'}
+                                                    className="h-11 sm:h-12 text-sm"
                                                 />
                                                 <Input
                                                     value={guestPhone}
@@ -932,11 +942,11 @@ export default function CaravanManagement() {
                                                         const val = e.target.value;
                                                         if (/^\d*$/.test(val)) setGuestPhone(val);
                                                     }}
-                                                    placeholder={t('users.phoneNumber')}
-                                                    className="h-12"
+                                                    placeholder={isRTL ? '01xxxxxxxxx' : '01xxxxxxxxx'}
+                                                    className="h-11 sm:h-12 text-sm"
                                                     dir="ltr"
                                                 />
-                                                <Button onClick={handleAddGuest} variant="secondary" disabled={!guestName} className="h-12 w-full md:w-auto">
+                                                <Button onClick={handleAddGuest} variant="secondary" disabled={!guestName} className="h-11 sm:h-12 w-full text-sm">
                                                     <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                                     {isRTL ? 'إضافة ضيف' : 'Add Guest'}
                                                 </Button>
@@ -988,9 +998,9 @@ export default function CaravanManagement() {
 
                             </div>
 
-                            <DialogFooter className="gap-2 sm:gap-0 pt-4">
-                                <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-12 px-6 w-full sm:w-auto">{t('common.cancel')}</Button>
-                                <Button onClick={isEditMode ? handleUpdateCaravan : handleCreateCaravan} className="h-12 px-6 w-full sm:w-auto">{isEditMode ? (isRTL ? 'تحديث' : 'Update') : t('common.save')}</Button>
+                            <DialogFooter className="gap-2 sm:gap-0 pt-3 sm:pt-4">
+                                <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-11 sm:h-12 px-4 sm:px-6 w-full sm:w-auto text-sm">{t('common.cancel')}</Button>
+                                <Button onClick={isEditMode ? handleUpdateCaravan : handleCreateCaravan} className="h-11 sm:h-12 px-4 sm:px-6 w-full sm:w-auto text-sm">{isEditMode ? (isRTL ? 'تحديث' : 'Update') : t('common.save')}</Button>
                             </DialogFooter>
                         </DialogContent>
                     </Dialog>
