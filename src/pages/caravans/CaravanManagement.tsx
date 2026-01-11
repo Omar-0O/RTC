@@ -802,14 +802,14 @@ export default function CaravanManagement() {
                                 <span className="text-xs sm:text-sm">{t('caravans.add')}</span>
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="dialog-mobile-safe max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+                        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                             <DialogHeader className="pb-4">
                                 <DialogTitle className="text-xl">{isEditMode ? (isRTL ? 'تعديل القافلة' : 'Edit Caravan') : t('caravans.add')}</DialogTitle>
                                 <DialogDescription>{isEditMode ? (isRTL ? 'تعديل تفاصيل القافلة' : 'Edit caravan details') : (isRTL ? 'أضف تفاصيل القافلة الجديدة' : 'Add new caravan details')}</DialogDescription>
                             </DialogHeader>
 
                             <div className="space-y-6">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-3">
                                         <Label className="text-base">{t('caravans.name')}</Label>
                                         <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="h-12" />
@@ -843,7 +843,7 @@ export default function CaravanManagement() {
 
                                 <div className="space-y-3">
                                     <Label className="text-base">{isRTL ? 'مواعيد التحرك' : 'Timings'}</Label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                         <div className="space-y-3">
                                             <Label className="text-sm text-muted-foreground">{t('caravans.moveTime')}</Label>
                                             <Input type="time" value={formData.move_time} onChange={e => setFormData({ ...formData, move_time: e.target.value })} className="h-12" />

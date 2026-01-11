@@ -439,14 +439,14 @@ export default function CommitteeManagement() {
                 {t('committees.addCommittee')}
               </Button>
             </DialogTrigger>
-            <DialogContent className="dialog-mobile-safe">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{t('committees.createNew')}</DialogTitle>
                 <DialogDescription>{t('committees.createDescription')}</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleAddCommittee}>
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-6 py-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="grid gap-2">
                       <Label htmlFor="name">Name (English) *</Label>
                       <Input
@@ -455,6 +455,7 @@ export default function CommitteeManagement() {
                         onChange={(e) => setFormName(e.target.value)}
                         placeholder="Committee name in English"
                         required
+                        className="h-12"
                       />
                     </div>
                     <div className="grid gap-2">
@@ -466,6 +467,7 @@ export default function CommitteeManagement() {
                         placeholder="اسم اللجنة بالعربي"
                         dir="rtl"
                         required
+                        className="h-12"
                       />
                     </div>
                   </div>
@@ -492,14 +494,14 @@ export default function CommitteeManagement() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="grid gap-2">
                       <Label htmlFor="type">Type</Label>
                       <Select
                         value={formType}
                         onValueChange={(val: 'production' | 'fourth_year') => setFormType(val)}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="h-12">
                           <SelectValue placeholder="Select Type" />
                         </SelectTrigger>
                         <SelectContent>
@@ -516,7 +518,7 @@ export default function CommitteeManagement() {
                           type="color"
                           value={formColor}
                           onChange={(e) => setFormColor(e.target.value)}
-                          className="h-10 w-20 p-1 cursor-pointer"
+                          className="h-12 w-20 p-1 cursor-pointer"
                         />
                         <span className="text-sm text-muted-foreground">{formColor}</span>
                       </div>
@@ -524,10 +526,10 @@ export default function CommitteeManagement() {
                   </div>
                 </div>
                 <DialogFooter className="gap-2 sm:gap-0">
-                  <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                  <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} className="h-12 px-6 w-full sm:w-auto">
                     {t('common.cancel')}
                   </Button>
-                  <Button type="submit" disabled={isSubmitting}>
+                  <Button type="submit" disabled={isSubmitting} className="h-12 px-6 w-full sm:w-auto">
                     {isSubmitting ? 'Adding...' : t('common.add')}
                   </Button>
                 </DialogFooter>
