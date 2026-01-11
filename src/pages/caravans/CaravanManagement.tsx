@@ -1006,9 +1006,13 @@ export default function CaravanManagement() {
                                     <CardTitle>{caravan.name}</CardTitle>
                                     <CardDescription>{getCaravanTypeLabel(caravan.type)}</CardDescription>
                                 </div>
-                                <DropdownMenu>
+                                <DropdownMenu modal={false}>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <Button
+                                            variant="ghost"
+                                            className="h-8 w-8 p-0"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
                                             <span className="sr-only">Open menu</span>
                                             <MoreVertical className="h-4 w-4" />
                                         </Button>

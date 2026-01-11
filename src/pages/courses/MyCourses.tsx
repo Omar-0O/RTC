@@ -544,7 +544,7 @@ export default function MyCourses() {
 
             {/* Course Details Dialog */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{selectedCourse?.name}</DialogTitle>
                         <DialogDescription>{selectedCourse?.trainer_name}</DialogDescription>
