@@ -79,7 +79,7 @@ export default function Members() {
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
     const [selectedMember, setSelectedMember] = useState<Profile | null>(null);
-    const [selectedVolunteerId, setSelectedVolunteerId] = useState<string>('');
+    const [selectedVolunteerIds, setSelectedVolunteerIds] = useState<string[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [comboboxOpen, setComboboxOpen] = useState(false);
 
@@ -135,7 +135,7 @@ export default function Members() {
     }, [committeeId]);
 
     const handleAddMember = async () => {
-        if (!selectedVolunteerId || !committeeId) {
+        if (selectedVolunteerIds.length === 0 || !committeeId) {
             toast.error(language === 'ar' ? 'يرجى اختيار متطوع' : 'Please select a volunteer');
             return;
         }
@@ -145,19 +145,27 @@ export default function Members() {
             const { error } = await supabase
                 .from('profiles')
                 .update({ committee_id: committeeId })
-                .eq('id', selectedVolunteerId);
+                .in('id', selectedVolunteerIds);
 
             if (error) throw error;
 
-            toast.success(language === 'ar' ? 'تم إضافة العضو بنجاح' : 'Member added successfully');
+            toast.success(language === 'ar' ? 'تم إضافة الأعضاء بنجاح' : 'Members added successfully');
             setIsAddDialogOpen(false);
-            setSelectedVolunteerId('');
+            setSelectedVolunteerIds([]);
             fetchData();
         } catch (error: any) {
             toast.error(error.message);
         } finally {
             setIsActionLoading(false);
         }
+    };
+
+    const toggleVolunteerSelection = (id: string) => {
+        setSelectedVolunteerIds(prev =>
+            prev.includes(id)
+                ? prev.filter(vId => vId !== id)
+                : [...prev, id]
+        );
     };
 
     const handleRemoveMember = async () => {
@@ -250,9 +258,9 @@ export default function Members() {
                                             aria-expanded={comboboxOpen}
                                             className="w-full justify-between"
                                         >
-                                            {selectedVolunteerId
-                                                ? availableVolunteers.find((v) => v.id === selectedVolunteerId)?.full_name || (language === 'ar' ? 'تم الاختيار' : 'Selected')
-                                                : (language === 'ar' ? 'اختر متطوعاً...' : 'Select a volunteer...')}
+                                            {selectedVolunteerIds.length > 0
+                                                ? (language === 'ar' ? `تم اختيار ${selectedVolunteerIds.length}` : `${selectedVolunteerIds.length} Selected`)
+                                                : (language === 'ar' ? 'اختر متطوعين...' : 'Select volunteers...')}
                                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
@@ -266,20 +274,25 @@ export default function Members() {
                                                         <CommandItem
                                                             key={volunteer.id}
                                                             value={volunteer.full_name || volunteer.email}
-                                                            onSelect={() => {
-                                                                setSelectedVolunteerId(volunteer.id);
-                                                                setComboboxOpen(false);
-                                                            }}
+                                                            onSelect={() => toggleVolunteerSelection(volunteer.id)}
                                                         >
                                                             <Check
                                                                 className={cn(
                                                                     "mr-2 h-4 w-4",
-                                                                    selectedVolunteerId === volunteer.id ? "opacity-100" : "opacity-0"
+                                                                    selectedVolunteerIds.includes(volunteer.id) ? "opacity-100" : "opacity-0"
                                                                 )}
                                                             />
-                                                            <div className="flex flex-col">
-                                                                <span>{language === 'ar' ? volunteer.full_name_ar || volunteer.full_name : volunteer.full_name}</span>
-                                                                <span className="text-xs text-muted-foreground">{volunteer.email}</span>
+                                                            <div className="flex items-center gap-3">
+                                                                <Avatar className="h-8 w-8">
+                                                                    <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                    <AvatarFallback>
+                                                                        {volunteer.full_name?.substring(0, 2).toUpperCase() || 'U'}
+                                                                    </AvatarFallback>
+                                                                </Avatar>
+                                                                <div className="flex flex-col">
+                                                                    <span>{language === 'ar' ? volunteer.full_name_ar || volunteer.full_name : volunteer.full_name}</span>
+                                                                    <span className="text-xs text-muted-foreground">{volunteer.email}</span>
+                                                                </div>
                                                             </div>
                                                         </CommandItem>
                                                     ))}
@@ -303,7 +316,7 @@ export default function Members() {
                             </Button>
                             <Button
                                 onClick={handleAddMember}
-                                disabled={isActionLoading || !selectedVolunteerId}
+                                disabled={isActionLoading || selectedVolunteerIds.length === 0}
                             >
                                 {isActionLoading ? (language === 'ar' ? 'جاري الإضافة...' : 'Adding...') : t('common.add')}
                             </Button>
