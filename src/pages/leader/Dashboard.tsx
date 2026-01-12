@@ -346,7 +346,7 @@ export default function CommitteeLeaderDashboard() {
             {isRTL ? 'الفلاتر' : 'Filters'}
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2">
             <Label>{isRTL ? 'الشهر' : 'Month'}</Label>
             <Input
@@ -435,15 +435,18 @@ export default function CommitteeLeaderDashboard() {
                             setSelectedVolunteer(volunteer.id === selectedVolunteer ? '' : volunteer.id);
                             setVolunteerSearchOpen(false);
                           }}
+                          className="flex items-center gap-2"
                         >
-                          <Check className={cn("mr-2 h-4 w-4", selectedVolunteer === volunteer.id ? "opacity-100" : "opacity-0")} />
-                          <Avatar className="h-6 w-6 mr-2">
+                          <Check className={cn("h-4 w-4 shrink-0", selectedVolunteer === volunteer.id ? "opacity-100" : "opacity-0")} />
+                          <Avatar className="h-6 w-6 shrink-0">
                             <AvatarImage src={volunteer.avatar_url || undefined} />
                             <AvatarFallback className="text-[10px]">
                               {volunteer.full_name?.substring(0, 2) || 'U'}
                             </AvatarFallback>
                           </Avatar>
-                          {isRTL ? (volunteer.full_name_ar || volunteer.full_name) : volunteer.full_name}
+                          <span className="truncate">
+                            {isRTL ? (volunteer.full_name_ar || volunteer.full_name) : volunteer.full_name}
+                          </span>
                         </CommandItem>
                       ))}
                     </CommandGroup>
