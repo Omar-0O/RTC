@@ -196,18 +196,19 @@ export default function Members() {
         setIsRemoveDialogOpen(true);
     };
 
-    const displayLevel = (dbLevel: string) => {
+    const displayLevel = (dbLevel: string): string => {
+        // Map database levels to the new volunteer level system
         const levelMap: Record<string, string> = {
-            bronze: 'تحت المتابعة',
-            silver: 'تحت المتابعة',
-            gold: 'مشروع مسئول',
-            platinum: 'مسؤول',
-            diamond: 'مسؤول',
-            under_follow_up: 'تحت المتابعة',
-            project_responsible: 'مشروع مسئول',
-            responsible: 'مسؤول',
+            bronze: 'under_follow_up',
+            silver: 'under_follow_up',
+            gold: 'project_responsible',
+            platinum: 'responsible',
+            diamond: 'responsible',
+            under_follow_up: 'under_follow_up',
+            project_responsible: 'project_responsible',
+            responsible: 'responsible',
         };
-        return levelMap[dbLevel] || 'تحت المتابعة';
+        return levelMap[dbLevel] || 'under_follow_up';
     };
 
     const filteredMembers = members.filter(member =>
