@@ -187,10 +187,21 @@ export default function CourseSchedule() {
         return courses.filter(c => {
             // Check if the day matches
             if (!c.schedule_days.includes(dayName)) return false;
+
+            // Normalize dates to midnight local time for proper comparison
+            const checkDate = new Date(date);
+            checkDate.setHours(0, 0, 0, 0);
+
             // Check if course has started (start_date <= date)
-            if (new Date(c.start_date) > date) return false;
+            const startDate = new Date(c.start_date + 'T00:00:00'); // Parse as local time
+            if (startDate.setHours(0, 0, 0, 0) > checkDate.getTime()) return false;
+
             // Check if course hasn't ended (end_date is null or end_date >= date)
-            if (c.end_date && new Date(c.end_date) < new Date(dateStr)) return false;
+            if (c.end_date) {
+                const endDate = new Date(c.end_date + 'T00:00:00'); // Parse as local time
+                if (endDate.setHours(0, 0, 0, 0) < checkDate.getTime()) return false;
+            }
+
             return true;
         });
     };
