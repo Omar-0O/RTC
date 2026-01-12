@@ -77,6 +77,7 @@ export default function CommitteeLeaderDashboard() {
 
   const [committee, setCommittee] = useState<Committee | null>(null);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [committeeMembers, setCommitteeMembers] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters
@@ -94,16 +95,24 @@ export default function CommitteeLeaderDashboard() {
     { value: 'responsible', label: { ar: 'مسؤول', en: 'Responsible' } },
   ];
 
-  // Get unique volunteers from submissions
-  const volunteersInSubmissions = useMemo(() => {
+  // Get all volunteers (committee members + those with submissions)
+  const allVolunteers = useMemo(() => {
     const uniqueVolunteers = new Map<string, Profile>();
+
+    // Add all committee members first
+    committeeMembers.forEach(member => {
+      uniqueVolunteers.set(member.id, member);
+    });
+
+    // Also add volunteers from submissions (in case they're external)
     submissions.forEach(s => {
       if (!uniqueVolunteers.has(s.profiles.id)) {
         uniqueVolunteers.set(s.profiles.id, s.profiles);
       }
     });
+
     return Array.from(uniqueVolunteers.values());
-  }, [submissions]);
+  }, [committeeMembers, submissions]);
 
   // Committee IDs for special handling
   const CARAVANS_COMMITTEE_ID = 'e3517d42-3140-4323-bf79-5a6728fc45ef';
@@ -124,6 +133,15 @@ export default function CommitteeLeaderDashboard() {
         .maybeSingle();
 
       if (committeeData) setCommittee(committeeData);
+
+      // Fetch committee members
+      const { data: membersData } = await supabase
+        .from('profiles')
+        .select('id, full_name, full_name_ar, email, total_points, level, avatar_url, committee_id, phone')
+        .eq('committee_id', committeeId)
+        .order('full_name');
+
+      if (membersData) setCommitteeMembers(membersData);
 
       // Fetch submissions for this committee
       const monthDate = new Date(selectedMonth + '-01');
@@ -378,15 +396,15 @@ export default function CommitteeLeaderDashboard() {
                   {selectedVolunteer ? (
                     <div className="flex items-center gap-2">
                       <Avatar className="h-5 w-5">
-                        <AvatarImage src={volunteersInSubmissions.find(v => v.id === selectedVolunteer)?.avatar_url || undefined} />
+                        <AvatarImage src={allVolunteers.find(v => v.id === selectedVolunteer)?.avatar_url || undefined} />
                         <AvatarFallback className="text-[10px]">
-                          {volunteersInSubmissions.find(v => v.id === selectedVolunteer)?.full_name?.substring(0, 2) || 'U'}
+                          {allVolunteers.find(v => v.id === selectedVolunteer)?.full_name?.substring(0, 2) || 'U'}
                         </AvatarFallback>
                       </Avatar>
                       <span className="truncate">
                         {isRTL
-                          ? (volunteersInSubmissions.find(v => v.id === selectedVolunteer)?.full_name_ar || volunteersInSubmissions.find(v => v.id === selectedVolunteer)?.full_name)
-                          : volunteersInSubmissions.find(v => v.id === selectedVolunteer)?.full_name}
+                          ? (allVolunteers.find(v => v.id === selectedVolunteer)?.full_name_ar || allVolunteers.find(v => v.id === selectedVolunteer)?.full_name)
+                          : allVolunteers.find(v => v.id === selectedVolunteer)?.full_name}
                       </span>
                     </div>
                   ) : (isRTL ? 'الكل' : 'All')}
@@ -409,7 +427,7 @@ export default function CommitteeLeaderDashboard() {
                         <Check className={cn("mr-2 h-4 w-4", !selectedVolunteer ? "opacity-100" : "opacity-0")} />
                         {isRTL ? 'الكل' : 'All'}
                       </CommandItem>
-                      {volunteersInSubmissions.map(volunteer => (
+                      {allVolunteers.map(volunteer => (
                         <CommandItem
                           key={volunteer.id}
                           value={(isRTL ? volunteer.full_name_ar : volunteer.full_name) || 'unknown'}
