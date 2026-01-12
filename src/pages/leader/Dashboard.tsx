@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, TrendingUp, FileSpreadsheet, Calendar, Award, Filter } from 'lucide-react';
+import { Users, TrendingUp, FileSpreadsheet, Calendar, Award, Filter, Check, ChevronsUpDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { StatsCard } from '@/components/ui/stats-card';
 import { supabase } from '@/integrations/supabase/client';
@@ -69,6 +82,28 @@ export default function CommitteeLeaderDashboard() {
   // Filters
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [memberFilter, setMemberFilter] = useState<'all' | 'members' | 'external'>('all');
+  const [selectedVolunteer, setSelectedVolunteer] = useState<string>('');
+  const [levelFilter, setLevelFilter] = useState<string>('all');
+  const [volunteerSearchOpen, setVolunteerSearchOpen] = useState(false);
+
+  // Volunteer levels
+  const volunteerLevels = [
+    { value: 'all', label: { ar: 'كل الدرجات', en: 'All Degrees' } },
+    { value: 'under_follow_up', label: { ar: 'تحت المتابعة', en: 'Under Follow-up' } },
+    { value: 'project_responsible', label: { ar: 'مسؤول مشروع', en: 'Project Responsible' } },
+    { value: 'responsible', label: { ar: 'مسؤول', en: 'Responsible' } },
+  ];
+
+  // Get unique volunteers from submissions
+  const volunteersInSubmissions = useMemo(() => {
+    const uniqueVolunteers = new Map<string, Profile>();
+    submissions.forEach(s => {
+      if (!uniqueVolunteers.has(s.profiles.id)) {
+        uniqueVolunteers.set(s.profiles.id, s.profiles);
+      }
+    });
+    return Array.from(uniqueVolunteers.values());
+  }, [submissions]);
 
   // Committee IDs for special handling
   const CARAVANS_COMMITTEE_ID = 'e3517d42-3140-4323-bf79-5a6728fc45ef';
@@ -133,15 +168,25 @@ export default function CommitteeLeaderDashboard() {
     fetchData();
   }, [committeeId, selectedMonth]);
 
-  // Filter submissions based on member/non-member
+  // Filter submissions based on all filters
   const filteredSubmissions = useMemo(() => {
-    if (memberFilter === 'all') return submissions;
-
     return submissions.filter(sub => {
-      const isMember = sub.profiles.committee_id === committeeId;
-      return memberFilter === 'members' ? isMember : !isMember;
+      // Member filter
+      if (memberFilter !== 'all') {
+        const isMember = sub.profiles.committee_id === committeeId;
+        if (memberFilter === 'members' && !isMember) return false;
+        if (memberFilter === 'external' && isMember) return false;
+      }
+
+      // Volunteer filter
+      if (selectedVolunteer && sub.profiles.id !== selectedVolunteer) return false;
+
+      // Level filter
+      if (levelFilter !== 'all' && sub.profiles.level !== levelFilter) return false;
+
+      return true;
     });
-  }, [submissions, memberFilter, committeeId]);
+  }, [submissions, memberFilter, committeeId, selectedVolunteer, levelFilter]);
 
   // Stats
   const totalSubmissions = submissions.length;
@@ -283,7 +328,7 @@ export default function CommitteeLeaderDashboard() {
             {isRTL ? 'الفلاتر' : 'Filters'}
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2">
+        <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2">
             <Label>{isRTL ? 'الشهر' : 'Month'}</Label>
             <Input
@@ -304,6 +349,90 @@ export default function CommitteeLeaderDashboard() {
                 <SelectItem value="external">{isRTL ? 'متطوعين آخرين' : 'External Volunteers'}</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>{isRTL ? 'الدرجة التطوعية' : 'Volunteer Level'}</Label>
+            <Select value={levelFilter} onValueChange={setLevelFilter}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {volunteerLevels.map(level => (
+                  <SelectItem key={level.value} value={level.value}>
+                    {level.label[isRTL ? 'ar' : 'en']}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>{isRTL ? 'بحث بالمتطوع' : 'Search Volunteer'}</Label>
+            <Popover open={volunteerSearchOpen} onOpenChange={setVolunteerSearchOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={volunteerSearchOpen}
+                  className="w-full justify-between"
+                >
+                  {selectedVolunteer ? (
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-5 w-5">
+                        <AvatarImage src={volunteersInSubmissions.find(v => v.id === selectedVolunteer)?.avatar_url || undefined} />
+                        <AvatarFallback className="text-[10px]">
+                          {volunteersInSubmissions.find(v => v.id === selectedVolunteer)?.full_name?.substring(0, 2) || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="truncate">
+                        {isRTL
+                          ? (volunteersInSubmissions.find(v => v.id === selectedVolunteer)?.full_name_ar || volunteersInSubmissions.find(v => v.id === selectedVolunteer)?.full_name)
+                          : volunteersInSubmissions.find(v => v.id === selectedVolunteer)?.full_name}
+                      </span>
+                    </div>
+                  ) : (isRTL ? 'الكل' : 'All')}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[250px] p-0">
+                <Command>
+                  <CommandInput placeholder={isRTL ? 'ابحث عن متطوع...' : 'Search volunteer...'} />
+                  <CommandList>
+                    <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results found'}</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="all_clear"
+                        onSelect={() => {
+                          setSelectedVolunteer('');
+                          setVolunteerSearchOpen(false);
+                        }}
+                      >
+                        <Check className={cn("mr-2 h-4 w-4", !selectedVolunteer ? "opacity-100" : "opacity-0")} />
+                        {isRTL ? 'الكل' : 'All'}
+                      </CommandItem>
+                      {volunteersInSubmissions.map(volunteer => (
+                        <CommandItem
+                          key={volunteer.id}
+                          value={(isRTL ? volunteer.full_name_ar : volunteer.full_name) || 'unknown'}
+                          onSelect={() => {
+                            setSelectedVolunteer(volunteer.id === selectedVolunteer ? '' : volunteer.id);
+                            setVolunteerSearchOpen(false);
+                          }}
+                        >
+                          <Check className={cn("mr-2 h-4 w-4", selectedVolunteer === volunteer.id ? "opacity-100" : "opacity-0")} />
+                          <Avatar className="h-6 w-6 mr-2">
+                            <AvatarImage src={volunteer.avatar_url || undefined} />
+                            <AvatarFallback className="text-[10px]">
+                              {volunteer.full_name?.substring(0, 2) || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          {isRTL ? (volunteer.full_name_ar || volunteer.full_name) : volunteer.full_name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardContent>
       </Card>
