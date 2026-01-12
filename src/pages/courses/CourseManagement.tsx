@@ -1180,20 +1180,30 @@ export default function CourseManagement() {
                                 <div>
                                     <div className="flex items-center gap-2">
                                         <CardTitle className="text-lg">{course.name}</CardTitle>
-                                        {(course.has_certificates || course.certificate_status) && (
-                                            <Badge variant={
-                                                course.certificate_status === 'delivered' ? 'default' :
-                                                    course.certificate_status === 'ready' ? 'secondary' :
-                                                        'outline'
-                                            } className="text-[10px] h-5">
-                                                {isRTL ?
-                                                    (course.certificate_status === 'printing' ? 'جاري الطباعة' :
-                                                        course.certificate_status === 'ready' ? 'جاهزة للتسليم' :
-                                                            course.certificate_status === 'delivered' ? 'تم التسليم' : 'انتظار')
-                                                    : (course.certificate_status || 'Pending')
-                                                }
-                                            </Badge>
-                                        )}
+                                        {course.has_certificates && (() => {
+                                            // Check if all lectures are completed
+                                            const lectureStatuses = course.course_lectures || [];
+                                            const allCompleted = lectureStatuses.length > 0 &&
+                                                lectureStatuses.every((l: any) => l.status === 'completed' || l.status === 'cancelled');
+
+                                            // Only show if all lectures are done
+                                            if (!allCompleted) return null;
+
+                                            return (
+                                                <Badge variant={
+                                                    course.certificate_status === 'delivered' ? 'default' :
+                                                        course.certificate_status === 'ready' ? 'secondary' :
+                                                            'outline'
+                                                } className="text-[10px] h-5">
+                                                    {isRTL ?
+                                                        (course.certificate_status === 'printing' ? 'جاري الطباعة' :
+                                                            course.certificate_status === 'ready' ? 'جاهزة للتسليم' :
+                                                                course.certificate_status === 'delivered' ? 'تم التسليم' : 'انتظار')
+                                                        : (course.certificate_status || 'Pending')
+                                                    }
+                                                </Badge>
+                                            );
+                                        })()}
                                     </div>
                                     <CardDescription>{course.trainer_name}</CardDescription>
                                 </div>

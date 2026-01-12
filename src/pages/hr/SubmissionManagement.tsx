@@ -131,10 +131,6 @@ export default function SubmissionManagement() {
         { value: 'under_follow_up', label: { ar: 'تحت المتابعة', en: 'Under Follow-up' } },
         { value: 'project_responsible', label: { ar: 'مسؤول مشروع', en: 'Project Responsible' } },
         { value: 'responsible', label: { ar: 'مسؤول', en: 'Responsible' } },
-        { value: 'silver', label: { ar: 'فضية', en: 'Silver' } },
-        { value: 'gold', label: { ar: 'ذهبية', en: 'Gold' } },
-        { value: 'platinum', label: { ar: 'بلاتينية', en: 'Platinum' } },
-        { value: 'diamond', label: { ar: 'ماسية', en: 'Diamond' } },
     ];
 
     useEffect(() => {
