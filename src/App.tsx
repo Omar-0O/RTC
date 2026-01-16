@@ -37,6 +37,7 @@ const EventManagement = lazy(() => import("./pages/events/EventManagement"));
 const CourseManagement = lazy(() => import("./pages/courses/CourseManagement"));
 const MyCourses = lazy(() => import("./pages/courses/MyCourses"));
 const SubmissionManagement = lazy(() => import("./pages/hr/SubmissionManagement"));
+const TrainerManagement = lazy(() => import("./pages/trainers/TrainerManagement"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -165,6 +166,7 @@ function AppRoutes() {
         {/* Course Routes */}
         <Route path="/courses" element={<CourseManagement />} />
         <Route path="/my-courses" element={<MyCourses />} />
+        <Route path="/trainers" element={<TrainerManagement />} />
 
         {/* HR Routes */}
         <Route path="/hr/submissions" element={<SubmissionManagement />} />

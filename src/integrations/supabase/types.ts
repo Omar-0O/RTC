@@ -533,6 +533,7 @@ export type Database = {
           schedule_time: string
           start_date: string
           total_lectures: number
+          trainer_id: string | null
           trainer_name: string
           trainer_phone: string | null
           updated_at: string | null
@@ -554,6 +555,7 @@ export type Database = {
           schedule_time: string
           start_date: string
           total_lectures: number
+          trainer_id?: string | null
           trainer_name: string
           trainer_phone?: string | null
           updated_at?: string | null
@@ -575,6 +577,7 @@ export type Database = {
           schedule_time?: string
           start_date?: string
           total_lectures?: number
+          trainer_id?: string | null
           trainer_name?: string
           trainer_phone?: string | null
           updated_at?: string | null
@@ -592,6 +595,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "courses_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
             referencedColumns: ["id"]
           },
         ]
@@ -811,6 +821,36 @@ export type Database = {
           },
         ]
       }
+      trainers: {
+        Row: {
+          created_at: string | null
+          id: string
+          image_url: string | null
+          name_ar: string
+          name_en: string
+          phone: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          name_ar: string
+          name_en: string
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          image_url?: string | null
+          name_ar?: string
+          name_en?: string
+          phone?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_badges: {
         Row: {
           badge_id: string
@@ -918,6 +958,13 @@ export type Database = {
           level: Database["public"]["Enums"]["volunteer_level"]
           total_points: number
           volunteer_id: string
+        }[]
+      }
+      get_trainer_stats: {
+        Args: { p_trainer_id: string }
+        Returns: {
+          certificates_delivered_count: number
+          courses_count: number
         }[]
       }
       get_user_committee_id: { Args: { _user_id: string }; Returns: string }

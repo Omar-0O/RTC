@@ -14,7 +14,8 @@ import {
   Bus,
   Calendar,
   GraduationCap,
-  FileCheck
+  FileCheck,
+  UserCheck
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -96,6 +97,7 @@ export function AppSidebar() {
     { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
+    { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
     { title: t('nav.logActivity'), url: '/supervisor/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/supervisor/profile', icon: User },
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
@@ -109,6 +111,7 @@ export function AppSidebar() {
     { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/leader/profile', icon: User },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
+    { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
   ];
 
   // Add My Courses only if user is an organizer
@@ -125,6 +128,7 @@ export function AppSidebar() {
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
     { title: t('nav.caravans'), url: '/caravans', icon: Bus },
     { title: t('nav.courses'), url: '/courses', icon: Activity },
+    { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
     { title: t('nav.events'), url: '/events', icon: Calendar },
   ];
 
@@ -177,6 +181,7 @@ export function AppSidebar() {
           { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
           { title: t('leader.dashboard'), url: '/leader/committee', icon: Building2 },
           { title: t('leader.members'), url: '/leader/members', icon: Users },
+          { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },

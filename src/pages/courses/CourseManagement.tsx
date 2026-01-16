@@ -46,6 +46,7 @@ import {
     CommandItem,
     CommandList,
 } from '@/components/ui/command';
+import { Switch } from '@/components/ui/switch';
 
 interface Course {
     id: string;
@@ -107,6 +108,14 @@ interface CourseBeneficiary {
     phone: string;
 }
 
+interface Trainer {
+    id: string;
+    name_en: string;
+    name_ar: string;
+    phone: string | null;
+    image_url: string | null;
+}
+
 const ROOMS = [
     { value: 'lab_1', label: { en: 'Lab 1', ar: 'لاب 1' } },
     { value: 'lab_2', label: { en: 'Lab 2', ar: 'لاب 2' } },
@@ -146,6 +155,9 @@ export default function CourseManagement() {
     const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
     const [detailsOrganizers, setDetailsOrganizers] = useState<CourseOrganizer[]>([]);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [trainers, setTrainers] = useState<Trainer[]>([]);
+    const [selectedTrainerId, setSelectedTrainerId] = useState<string>('');
+    const [isExternalTrainer, setIsExternalTrainer] = useState(false);
 
     // Filter out ended courses unless showPastCourses is true
     const activeCourses = courses.filter(course => {
@@ -180,6 +192,7 @@ export default function CourseManagement() {
     useEffect(() => {
         fetchCourses();
         fetchVolunteers();
+        fetchTrainers();
     }, []);
 
 
@@ -238,6 +251,19 @@ export default function CourseManagement() {
         }
     };
 
+    const fetchTrainers = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('trainers')
+                .select('id, name_en, name_ar, phone, image_url')
+                .order('name_ar');
+            if (error) throw error;
+            setTrainers((data as Trainer[]) || []);
+        } catch (error) {
+            console.error('Error fetching trainers:', error);
+        }
+    };
+
     const fetchCourses = async () => {
         setLoading(true);
         try {
@@ -247,7 +273,7 @@ export default function CourseManagement() {
                 .order('start_date', { ascending: false });
 
             if (error) throw error;
-            setCourses(data || []);
+            setCourses((data as Course[]) || []);
         } catch (error) {
             console.error('Error fetching courses:', error);
             toast.error(isRTL ? 'فشل في تحميل الكورسات' : 'Failed to fetch courses');
@@ -273,6 +299,8 @@ export default function CourseManagement() {
             has_certificates: false,
         });
         setOrganizers([]);
+        setSelectedTrainerId('');
+        setIsExternalTrainer(false);
     };
 
     const handleAddOrganizer = (volunteer: Volunteer) => {
@@ -301,7 +329,7 @@ export default function CourseManagement() {
     };
 
     const handleCreateCourse = async () => {
-        if (!formData.name || !formData.trainer_name || formData.schedule_days.length === 0) {
+        if (!formData.name || formData.schedule_days.length === 0) {
             toast.error(isRTL ? 'يرجى ملء البيانات المطلوبة' : 'Please fill required fields');
             return;
         }
@@ -343,9 +371,15 @@ export default function CourseManagement() {
             const actualStartDate = lectureDates.length > 0 ? format(lectureDates[0], 'yyyy-MM-dd') : formData.start_date;
             const actualEndDate = lectureDates.length > 0 ? format(lectureDates[lectureDates.length - 1], 'yyyy-MM-dd') : null;
 
+            // Get trainer info if selected
+            const selectedTrainer = trainers.find(t => t.id === selectedTrainerId);
+
             // Prepare data
             const courseData = {
                 ...formData,
+                trainer_id: selectedTrainerId || null,
+                trainer_name: selectedTrainer ? (isRTL ? selectedTrainer.name_ar : selectedTrainer.name_en) : formData.trainer_name,
+                trainer_phone: selectedTrainer?.phone || formData.trainer_phone,
                 start_date: actualStartDate,
                 end_date: actualEndDate,
                 interview_date: formData.interview_date || null,
@@ -428,7 +462,7 @@ export default function CourseManagement() {
             }
 
             if (lecturesData) {
-                setLectures(lecturesData);
+                setLectures(lecturesData as CourseLecture[]);
                 // Fetch attendance for all these lectures
                 const lectureIds = lecturesData.map(l => l.id);
                 const { data: attendance } = await supabase
@@ -439,7 +473,10 @@ export default function CourseManagement() {
                 if (attendance) {
                     const grouped = attendance.reduce((acc, curr) => {
                         if (!acc[curr.lecture_id]) acc[curr.lecture_id] = [];
-                        acc[curr.lecture_id].push(curr);
+                        acc[curr.lecture_id].push({
+                            ...curr,
+                            status: curr.status as Attendance['status']
+                        });
                         return acc;
                     }, {} as Record<string, Attendance[]>);
                     setAttendanceData(grouped);
@@ -791,7 +828,7 @@ export default function CourseManagement() {
 
                 setAttendanceData(prev => ({
                     ...prev,
-                    [lectureId]: [...(prev[lectureId] || []), data]
+                    [lectureId]: [...(prev[lectureId] || []), data as Attendance]
                 }));
             }
         } catch (error) {
@@ -959,23 +996,84 @@ export default function CourseManagement() {
                                     </div>
 
                                     {/* Trainer Info */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-3">
-                                            <Label className="text-base">{isRTL ? 'اسم المدرب *' : 'Trainer Name *'}</Label>
-                                            <Input
-                                                value={formData.trainer_name}
-                                                onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
-                                                className="h-12"
-                                            />
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-base">{isRTL ? 'المدرب' : 'Trainer'}</Label>
+                                            <div className="flex items-center gap-3">
+                                                <span className={`text-sm ${!isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
+                                                    {isRTL ? 'من الفرع' : 'Internal'}
+                                                </span>
+                                                <Switch
+                                                    checked={isExternalTrainer}
+                                                    onCheckedChange={(checked) => {
+                                                        setIsExternalTrainer(checked);
+                                                        if (checked) {
+                                                            setSelectedTrainerId('');
+                                                        } else {
+                                                            setFormData({ ...formData, trainer_name: '', trainer_phone: '' });
+                                                        }
+                                                    }}
+                                                />
+                                                <span className={`text-sm ${isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
+                                                    {isRTL ? 'خارجي' : 'External'}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="space-y-3">
-                                            <Label className="text-base">{isRTL ? 'رقم المدرب' : 'Trainer Phone'}</Label>
-                                            <Input
-                                                value={formData.trainer_phone}
-                                                onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
-                                                className="h-12"
-                                            />
-                                        </div>
+
+                                        {!isExternalTrainer ? (
+                                            // Internal trainer - dropdown
+                                            <div className="space-y-3">
+                                                <Select value={selectedTrainerId} onValueChange={setSelectedTrainerId}>
+                                                    <SelectTrigger className="h-12">
+                                                        <SelectValue placeholder={isRTL ? 'اختر مدرب من الفرع...' : 'Select trainer from branch...'} />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {trainers.map(trainer => (
+                                                            <SelectItem key={trainer.id} value={trainer.id} className="py-3">
+                                                                <div className="flex items-center gap-2 w-full flex-row-reverse justify-end">
+                                                                    <div className="flex flex-col items-end">
+                                                                        <span>{isRTL ? trainer.name_ar : trainer.name_en}</span>
+                                                                        {trainer.phone && <span className="text-muted-foreground text-xs">{trainer.phone}</span>}
+                                                                    </div>
+                                                                    <Avatar className="h-8 w-8">
+                                                                        <AvatarImage src={trainer.image_url || undefined} />
+                                                                        <AvatarFallback>{(isRTL ? trainer.name_ar : trainer.name_en).charAt(0)}</AvatarFallback>
+                                                                    </Avatar>
+                                                                </div>
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                {trainers.length === 0 && (
+                                                    <p className="text-sm text-muted-foreground">
+                                                        {isRTL ? 'لا يوجد مدربين مسجلين. أضف مدربين من صفحة المدربين أولاً.' : 'No trainers registered. Add trainers from Trainers page first.'}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            // External trainer - manual input
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <Label>{isRTL ? 'اسم المدرب *' : 'Trainer Name *'}</Label>
+                                                    <Input
+                                                        value={formData.trainer_name}
+                                                        onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
+                                                        className="h-12"
+                                                        placeholder={isRTL ? 'أدخل اسم المدرب' : 'Enter trainer name'}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label>{isRTL ? 'رقم المدرب' : 'Trainer Phone'}</Label>
+                                                    <Input
+                                                        value={formData.trainer_phone}
+                                                        onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
+                                                        className="h-12"
+                                                        placeholder="01xxxxxxxxx"
+                                                        dir="ltr"
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Schedule */}
@@ -1322,7 +1420,7 @@ export default function CourseManagement() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="pending">{isRTL ? 'الكورس لسة مخلصش 3> ' : 'Pending (Ongoing)'}</SelectItem>
+                                            <SelectItem value="pending">{isRTL ? 'الكورس لسة مخلصش' : 'Pending (Ongoing)'}</SelectItem>
                                             <SelectItem value="printing">{isRTL ? 'جاري الطباعة' : 'Printing'}</SelectItem>
                                             <SelectItem value="ready">{isRTL ? 'جاهزة للتسليم' : 'Ready'}</SelectItem>
                                             <SelectItem value="delivered">{isRTL ? 'تم التسليم' : 'Delivered'}</SelectItem>
