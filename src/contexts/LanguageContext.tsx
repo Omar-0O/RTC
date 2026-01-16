@@ -270,7 +270,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.profile': 'ملفي الشخصي',
     'nav.reviewSubmissions': 'مراجعة الطلبات',
     'nav.userManagement': 'إدارة المتطوعين',
-    'nav.committees': 'اللجان',
+    'nav.committees': 'اللجان الانتاجية',
     'nav.activities': 'الأنشطة',
     'nav.badges': 'الشارات',
     'nav.reports': 'التقارير',
@@ -415,7 +415,7 @@ const translations: Record<Language, Record<string, string>> = {
     'users.createUser': 'إنشاء حساب مستخدم جديد في النظام.',
 
     // Committee Management
-    'committees.title': 'إدارة اللجان',
+    'committees.title': 'إدارة اللجان الانتاجية',
     'committees.subtitle': 'إنشاء وإدارة لجان المنظمة',
     'committees.addCommittee': 'إضافة لجنة',
     'committees.createNew': 'إنشاء لجنة جديدة',

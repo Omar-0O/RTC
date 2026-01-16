@@ -105,9 +105,12 @@ interface Committee {
 }
 
 export default function TrainerManagement(): JSX.Element {
-    const { user } = useAuth();
+    const { user, roles, profile, isLoading } = useAuth(); // Add isLoading
     const { isRTL } = useLanguage();
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const isRestricted = roles.includes('committee_leader') &&
+        !roles.some(r => ['admin', 'supervisor', 'head_production', 'head_fourth_year', 'head_events', 'head_caravans', 'head_hr'].includes(r));
 
     const [trainers, setTrainers] = useState<Trainer[]>([]);
     const [loading, setLoading] = useState(true);
@@ -120,6 +123,12 @@ export default function TrainerManagement(): JSX.Element {
     const [isUploading, setIsUploading] = useState(false);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (isRestricted && profile?.committee_id) {
+            setFormData(prev => ({ ...prev, committee_id: profile.committee_id }));
+        }
+    }, [isRestricted, profile?.committee_id]);
 
     const [formData, setFormData] = useState({
         name_en: '',
@@ -136,9 +145,10 @@ export default function TrainerManagement(): JSX.Element {
 
 
     useEffect(() => {
+        if (isLoading) return; // Wait for auth to load
         fetchTrainers();
         fetchCommittees();
-    }, []);
+    }, [isLoading, isRestricted, profile?.committee_id]); // Depend on auth loading and restricted user props
 
     const fetchTrainers = async () => {
         setLoading(true);
@@ -148,28 +158,47 @@ export default function TrainerManagement(): JSX.Element {
             let fetchError = null;
 
             try {
-                const result = await supabase
+                // Use explicit any to break the complex type inference chain that causes infinite recursion
+                let query: any = supabase
                     .from('trainers')
                     .select('*, committee:committees(id, name, name_ar)')
                     .order('name_ar');
+
+                if (isRestricted && profile?.committee_id) {
+                    query = query.eq('committee_id', profile.committee_id);
+                }
+
+                const result = await query;
                 data = result.data || [];
                 fetchError = result.error;
             } catch {
                 // If join fails, try without committee
-                const result = await supabase
+                let query: any = supabase
                     .from('trainers')
                     .select('*')
                     .order('name_ar');
+
+                if (isRestricted && profile?.committee_id) {
+                    query = query.eq('committee_id', profile.committee_id);
+                }
+
+                const result = await query;
                 data = result.data || [];
                 fetchError = result.error;
             }
 
-            // If there's still an error with the basic query, try simpler
+            // If there's still an error with the basic query, try simpler (usually this block is redundant if the above catch works, but keeping structure)
             if (fetchError) {
-                const result = await supabase
+                let query: any = supabase
                     .from('trainers')
                     .select('*')
                     .order('name_ar');
+
+                if (isRestricted && profile?.committee_id) {
+                    query = query.eq('committee_id', profile.committee_id);
+                }
+
+                const result = await query;
                 data = result.data || [];
                 if (result.error) throw result.error;
             }
@@ -240,7 +269,7 @@ export default function TrainerManagement(): JSX.Element {
             name_ar: '',
             phone: '',
             image_url: '',
-            committee_id: ''
+            committee_id: isRestricted && profile?.committee_id ? profile.committee_id : ''
         });
         setEditingTrainer(null);
         setImageFile(null);
@@ -666,7 +695,16 @@ export default function TrainerManagement(): JSX.Element {
             {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold">{isRTL ? 'إدارة المدربين' : 'Trainer Management'}</h1>
+                    <h1 className="text-2xl font-bold flex items-center gap-2">
+                        {isRTL ? 'إدارة المدربين' : 'Trainer Management'}
+                        {isRestricted && profile?.committee_id && committees.find(c => c.id === profile.committee_id) && (
+                            <span className="text-primary text-xl">
+                                - {isRTL
+                                    ? committees.find(c => c.id === profile.committee_id)?.name_ar
+                                    : committees.find(c => c.id === profile.committee_id)?.name}
+                            </span>
+                        )}
+                    </h1>
                     <p className="text-muted-foreground">
                         {isRTL ? 'إدارة مدربي الكورسات' : 'Manage course trainers'}
                     </p>
@@ -693,6 +731,8 @@ export default function TrainerManagement(): JSX.Element {
                         className="pl-9"
                     />
                 </div>
+            </div>
+            {!isRestricted && (
                 <Select value={selectedCommittee} onValueChange={setSelectedCommittee}>
                     <SelectTrigger className="w-[180px]">
                         <SelectValue placeholder={isRTL ? 'كل اللجان' : 'All Committees'} />
@@ -706,151 +746,153 @@ export default function TrainerManagement(): JSX.Element {
                         ))}
                     </SelectContent>
                 </Select>
-            </div>
+            )}
 
             {/* Trainers Grid */}
-            {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {[1, 2, 3].map(i => (
-                        <Card key={i} className="animate-pulse">
-                            <CardContent className="p-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="h-16 w-16 rounded-full bg-muted" />
-                                    <div className="space-y-2 flex-1">
-                                        <div className="h-4 bg-muted rounded w-3/4" />
-                                        <div className="h-3 bg-muted rounded w-1/2" />
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            ) : filteredTrainers.length === 0 ? (
-                <Card className="p-8 text-center">
-                    <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">
-                        {searchQuery
-                            ? (isRTL ? 'لا توجد نتائج' : 'No results found')
-                            : (isRTL ? 'لا يوجد مدربين مسجلين' : 'No trainers registered')}
-                    </p>
-                    {!searchQuery && (
-                        <Button onClick={openCreateDialog} variant="outline" className="mt-4">
-                            {isRTL ? 'إضافة أول مدرب' : 'Add first trainer'}
-                        </Button>
-                    )}
-                </Card>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredTrainers.map(trainer => (
-                        <Card
-                            key={trainer.id}
-                            className="group hover:shadow-md transition-shadow cursor-pointer"
-                            onClick={() => {
-                                setViewTrainer(trainer);
-                                setIsViewDialogOpen(true);
-                            }}
-                        >
-                            <CardContent className="p-6">
-                                <div className="flex items-start gap-4">
-                                    <Avatar className={`h-16 w-16 border-4 ${trainer.is_active ? 'border-green-500' : 'border-muted'
-                                        }`}>
-                                        <AvatarImage src={trainer.image_url || undefined} alt={trainer.name_ar} />
-                                        <AvatarFallback className="text-lg bg-primary text-primary-foreground">
-                                            {getTrainerInitials(trainer)}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="font-bold text-lg leading-tight">
-                                                {isRTL ? trainer.name_ar : trainer.name_en}
-                                            </h3>
+            {
+                loading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {[1, 2, 3].map(i => (
+                            <Card key={i} className="animate-pulse">
+                                <CardContent className="p-6">
+                                    <div className="flex items-center gap-4">
+                                        <div className="h-16 w-16 rounded-full bg-muted" />
+                                        <div className="space-y-2 flex-1">
+                                            <div className="h-4 bg-muted rounded w-3/4" />
+                                            <div className="h-3 bg-muted rounded w-1/2" />
                                         </div>
-                                        <p className="text-sm text-muted-foreground mt-1">
-                                            {isRTL ? trainer.name_en : trainer.name_ar}
-                                        </p>
-
-                                        {trainer.committee_name && (
-                                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                                                <Building2 className="h-3 w-3" />
-                                                <span>{trainer.committee_name}</span>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                ) : filteredTrainers.length === 0 ? (
+                    <Card className="p-8 text-center">
+                        <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                        <p className="text-muted-foreground">
+                            {searchQuery
+                                ? (isRTL ? 'لا توجد نتائج' : 'No results found')
+                                : (isRTL ? 'لا يوجد مدربين مسجلين' : 'No trainers registered')}
+                        </p>
+                        {!searchQuery && (
+                            <Button onClick={openCreateDialog} variant="outline" className="mt-4">
+                                {isRTL ? 'إضافة أول مدرب' : 'Add first trainer'}
+                            </Button>
+                        )}
+                    </Card>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {filteredTrainers.map(trainer => (
+                            <Card
+                                key={trainer.id}
+                                className="group hover:shadow-md transition-shadow cursor-pointer"
+                                onClick={() => {
+                                    setViewTrainer(trainer);
+                                    setIsViewDialogOpen(true);
+                                }}
+                            >
+                                <CardContent className="p-6">
+                                    <div className="flex items-start gap-4">
+                                        <Avatar className={`h-16 w-16 border-4 ${trainer.is_active ? 'border-green-500' : 'border-muted'
+                                            }`}>
+                                            <AvatarImage src={trainer.image_url || undefined} alt={trainer.name_ar} />
+                                            <AvatarFallback className="text-lg bg-primary text-primary-foreground">
+                                                {getTrainerInitials(trainer)}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="font-bold text-lg leading-tight">
+                                                    {isRTL ? trainer.name_ar : trainer.name_en}
+                                                </h3>
                                             </div>
-                                        )}
-                                    </div>
+                                            <p className="text-sm text-muted-foreground mt-1">
+                                                {isRTL ? trainer.name_en : trainer.name_ar}
+                                            </p>
 
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={(e) => {
-                                                e.stopPropagation();
-                                                openEditDialog(trainer);
-                                            }}>
-                                                <Pencil className="mr-2 h-4 w-4" />
-                                                {isRTL ? 'تعديل' : 'Edit'}
-                                            </DropdownMenuItem>
-
-                                            {trainer.phone && (
-                                                <DropdownMenuItem onClick={(e) => handleWhatsApp(trainer.phone!, e)}>
-                                                    <MessageCircle className="mr-2 h-4 w-4" />
-                                                    {isRTL ? 'واتساب' : 'WhatsApp'}
-                                                </DropdownMenuItem>
+                                            {trainer.committee_name && (
+                                                <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                                                    <Building2 className="h-3 w-3" />
+                                                    <span>{trainer.committee_name}</span>
+                                                </div>
                                             )}
+                                        </div>
 
-                                            <DropdownMenuItem onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleExportTrainer(trainer);
-                                            }}>
-                                                <FileSpreadsheet className="mr-2 h-4 w-4" />
-                                                {isRTL ? 'تصدير Excel' : 'Export Excel'}
-                                            </DropdownMenuItem>
-
-                                            <DropdownMenuItem
-                                                className="text-destructive focus:text-destructive"
-                                                onClick={(e) => {
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                                <Button variant="ghost" className="h-8 w-8 p-0">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setTrainerToDelete(trainer);
-                                                    setIsDeleteDialogOpen(true);
-                                                }}
-                                            >
-                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                {isRTL ? 'حذف' : 'Delete'}
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
+                                                    openEditDialog(trainer);
+                                                }}>
+                                                    <Pencil className="mr-2 h-4 w-4" />
+                                                    {isRTL ? 'تعديل' : 'Edit'}
+                                                </DropdownMenuItem>
 
-                                {/* Stats */}
-                                <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <BookOpen className="h-4 w-4 text-blue-500" />
-                                        <span className="font-medium">{trainer.courses_count || 0}</span>
-                                        <span className="text-muted-foreground">
-                                            {isRTL ? 'كورس' : 'total'}
-                                        </span>
+                                                {trainer.phone && (
+                                                    <DropdownMenuItem onClick={(e) => handleWhatsApp(trainer.phone!, e)}>
+                                                        <MessageCircle className="mr-2 h-4 w-4" />
+                                                        {isRTL ? 'واتساب' : 'WhatsApp'}
+                                                    </DropdownMenuItem>
+                                                )}
+
+                                                <DropdownMenuItem onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleExportTrainer(trainer);
+                                                }}>
+                                                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                                    {isRTL ? 'تصدير Excel' : 'Export Excel'}
+                                                </DropdownMenuItem>
+
+                                                <DropdownMenuItem
+                                                    className="text-destructive focus:text-destructive"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setTrainerToDelete(trainer);
+                                                        setIsDeleteDialogOpen(true);
+                                                    }}
+                                                >
+                                                    <Trash2 className="mr-2 h-4 w-4" />
+                                                    {isRTL ? 'حذف' : 'Delete'}
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </div>
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <Check className="h-4 w-4 text-green-500" />
-                                        <span className="font-medium">{trainer.completed_courses_count || 0}</span>
-                                        <span className="text-muted-foreground">
-                                            {isRTL ? 'تم' : 'completed'}
-                                        </span>
+
+                                    {/* Stats */}
+                                    <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <BookOpen className="h-4 w-4 text-blue-500" />
+                                            <span className="font-medium">{trainer.courses_count || 0}</span>
+                                            <span className="text-muted-foreground">
+                                                {isRTL ? 'كورس' : 'total'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <Check className="h-4 w-4 text-green-500" />
+                                            <span className="font-medium">{trainer.completed_courses_count || 0}</span>
+                                            <span className="text-muted-foreground">
+                                                {isRTL ? 'تم' : 'completed'}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <Award className="h-4 w-4 text-amber-500" />
+                                            <span className="font-medium">{trainer.certificates_delivered_count || 0}</span>
+                                            <span className="text-muted-foreground">
+                                                {isRTL ? 'شهادة' : 'certs'}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <Award className="h-4 w-4 text-amber-500" />
-                                        <span className="font-medium">{trainer.certificates_delivered_count || 0}</span>
-                                        <span className="text-muted-foreground">
-                                            {isRTL ? 'شهادة' : 'certs'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            )}
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                )
+            }
 
             {/* Add/Edit Dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -908,12 +950,15 @@ export default function TrainerManagement(): JSX.Element {
                             <Select
                                 value={formData.committee_id || 'none'}
                                 onValueChange={(value) => setFormData({ ...formData, committee_id: value === 'none' ? '' : value })}
+                                disabled={isRestricted}
                             >
                                 <SelectTrigger className="h-11">
                                     <SelectValue placeholder={isRTL ? 'اختر لجنة (اختياري)' : 'Select committee (optional)'} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="none">{isRTL ? 'بدون لجنة' : 'No committee'}</SelectItem>
+                                    {!isRestricted && (
+                                        <SelectItem value="none">{isRTL ? 'بدون لجنة' : 'No committee'}</SelectItem>
+                                    )}
                                     {committees.map(committee => (
                                         <SelectItem key={committee.id} value={committee.id}>
                                             {isRTL ? committee.name_ar : committee.name}
@@ -1068,6 +1113,6 @@ export default function TrainerManagement(): JSX.Element {
                 </DialogContent>
             </Dialog>
 
-        </div>
+        </div >
     );
 }

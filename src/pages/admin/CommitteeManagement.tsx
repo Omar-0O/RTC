@@ -410,7 +410,7 @@ export default function CommitteeManagement() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t('committees.title')}</h1>
-          <p className="text-muted-foreground">{t('committees.subtitle')}</p>
+
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

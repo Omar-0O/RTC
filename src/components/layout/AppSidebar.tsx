@@ -155,6 +155,7 @@ export function AppSidebar() {
         return [
           { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
           { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
+          { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
@@ -164,6 +165,7 @@ export function AppSidebar() {
         return [
           { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
           { title: t('nav.caravans'), url: '/caravans', icon: Bus },
+          { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },
         ];
@@ -171,6 +173,7 @@ export function AppSidebar() {
         return [
           { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
           { title: t('nav.events'), url: '/events', icon: Calendar },
+          { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },

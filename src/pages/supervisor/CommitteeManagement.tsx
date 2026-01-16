@@ -410,7 +410,7 @@ export default function CommitteeManagement() {
       <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('committees.title')}</h1>
-          <p className="text-sm text-muted-foreground">{t('committees.subtitle')}</p>
+
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
