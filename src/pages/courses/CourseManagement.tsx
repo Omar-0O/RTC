@@ -1271,98 +1271,104 @@ export default function CourseManagement() {
 
             {/* Course Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {activeCourses.map(course => (
-                    <Card key={course.id}>
-                        <CardHeader className="pb-3">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <div className="flex items-center gap-2">
-                                        <CardTitle className="text-lg">{course.name}</CardTitle>
-                                        {course.has_certificates && (() => {
-                                            // Check if all lectures are completed
-                                            const lectureStatuses = course.course_lectures || [];
-                                            const allCompleted = lectureStatuses.length > 0 &&
-                                                lectureStatuses.every((l: any) => l.status === 'completed' || l.status === 'cancelled');
+                {activeCourses.map(course => {
+                    const isFinished = course.end_date && new Date(course.end_date) < new Date();
+                    return (
+                        <Card
+                            key={course.id}
+                            className={`transition-all ${isFinished ? 'opacity-60 hover:opacity-100 bg-muted/20' : ''}`}
+                        >
+                            <CardHeader className="pb-3">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <CardTitle className="text-lg">{course.name}</CardTitle>
+                                            {course.has_certificates && (() => {
+                                                // Check if all lectures are completed
+                                                const lectureStatuses = course.course_lectures || [];
+                                                const allCompleted = lectureStatuses.length > 0 &&
+                                                    lectureStatuses.every((l: any) => l.status === 'completed' || l.status === 'cancelled');
 
-                                            // Only show if all lectures are done
-                                            if (!allCompleted) return null;
+                                                // Only show if all lectures are done
+                                                if (!allCompleted) return null;
 
-                                            return (
-                                                <Badge variant={
-                                                    course.certificate_status === 'delivered' ? 'default' :
-                                                        course.certificate_status === 'ready' ? 'secondary' :
-                                                            'outline'
-                                                } className="text-[10px] h-5">
-                                                    {isRTL ?
-                                                        (course.certificate_status === 'printing' ? 'جاري الطباعة' :
-                                                            course.certificate_status === 'ready' ? 'جاهزة للتسليم' :
-                                                                course.certificate_status === 'delivered' ? 'تم التسليم' : 'انتظار')
-                                                        : (course.certificate_status || 'Pending')
-                                                    }
-                                                </Badge>
-                                            );
-                                        })()}
+                                                return (
+                                                    <Badge variant={
+                                                        course.certificate_status === 'delivered' ? 'default' :
+                                                            course.certificate_status === 'ready' ? 'secondary' :
+                                                                'outline'
+                                                    } className="text-[10px] h-5">
+                                                        {isRTL ?
+                                                            (course.certificate_status === 'printing' ? 'جاري الطباعة' :
+                                                                course.certificate_status === 'ready' ? 'جاهزة للتسليم' :
+                                                                    course.certificate_status === 'delivered' ? 'تم التسليم' : 'انتظار')
+                                                            : (course.certificate_status || 'Pending')
+                                                        }
+                                                    </Badge>
+                                                );
+                                            })()}
+                                        </div>
+                                        <CardDescription>{course.trainer_name}</CardDescription>
                                     </div>
-                                    <CardDescription>{course.trainer_name}</CardDescription>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon">
+                                                <MoreHorizontal className="w-4 h-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => openCourseDetails(course)}>
+                                                <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => exportCourseToExcel(course)}>
+                                                <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'تصدير Excel' : 'Export Excel'}
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={() => {
+                                                    setCourseToDelete(course);
+                                                    setIsDeleteDialogOpen(true);
+                                                }}
+                                                className="text-destructive focus:text-destructive"
+                                            >
+                                                <Trash2 className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'حذف' : 'Delete'}
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon">
-                                            <MoreHorizontal className="w-4 h-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => openCourseDetails(course)}>
-                                            <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                            {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => exportCourseToExcel(course)}>
-                                            <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                            {isRTL ? 'تصدير Excel' : 'Export Excel'}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            onClick={() => {
-                                                setCourseToDelete(course);
-                                                setIsDeleteDialogOpen(true);
-                                            }}
-                                            className="text-destructive focus:text-destructive"
-                                        >
-                                            <Trash2 className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                            {isRTL ? 'حذف' : 'Delete'}
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-2 text-sm">
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <MapPin className="w-4 h-4" />
-                                    <span>{getRoomLabel(course.room)}</span>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <MapPin className="w-4 h-4" />
+                                        <span>{getRoomLabel(course.room)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Calendar className="w-4 h-4" />
+                                        <span>{getDaysLabel(course.schedule_days)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Clock className="w-4 h-4" />
+                                        <span>{course.schedule_time}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <BookOpen className="w-4 h-4" />
+                                        <span>{course.total_lectures} {isRTL ? 'محاضرة' : 'lectures'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Clock className="w-4 h-4" />
+                                        <span>
+                                            {isRTL ? 'متبقي: ' : 'Remaining: '}
+                                            {Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0))}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <Calendar className="w-4 h-4" />
-                                    <span>{getDaysLabel(course.schedule_days)}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <Clock className="w-4 h-4" />
-                                    <span>{course.schedule_time}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <BookOpen className="w-4 h-4" />
-                                    <span>{course.total_lectures} {isRTL ? 'محاضرة' : 'lectures'}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <Clock className="w-4 h-4" />
-                                    <span>
-                                        {isRTL ? 'متبقي: ' : 'Remaining: '}
-                                        {Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0))}
-                                    </span>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+                            </CardContent>
+                        </Card>
+                    );
+                })}
                 {courses.length === 0 && !loading && (
                     <div className="col-span-full flex flex-col items-center justify-center p-8 border rounded-lg border-dashed text-muted-foreground">
                         <BookOpen className="w-12 h-12 mb-2 opacity-20" />

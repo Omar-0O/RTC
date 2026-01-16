@@ -602,420 +602,473 @@ export default function TrainerManagement() {
             console.error('Export failed:', error);
             toast.error(isRTL ? 'حدث خطأ أثناء التصدير' : 'Export failed');
         }
-    };
+    }
+};
 
-    const handleWhatsApp = (phone: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        const cleanPhone = phone.replace(/\D/g, '');
-        window.open(`https://wa.me/${cleanPhone}`, '_blank');
-    };
+const handleExportAllTrainers = () => {
+    try {
+        const allTrainersData = [
+            // Headers
+            [
+                isRTL ? 'الاسم بالعربية' : 'Name (Ar)',
+                isRTL ? 'الاسم بالإنجليزية' : 'Name (En)',
+                isRTL ? 'رقم الهاتف' : 'Phone',
+                isRTL ? 'اللجنة' : 'Committee',
+                isRTL ? 'تاريخ الانضمام' : 'Join Date',
+                isRTL ? 'الحالة' : 'Status',
+                isRTL ? 'إجمالي الكورسات' : 'Total Courses',
+                isRTL ? 'الكورسات المكتملة' : 'Completed Courses',
+                isRTL ? 'الشهادات المسلمة' : 'Certificates Delivered'
+            ],
+            // Data
+            ...trainers.map(trainer => [
+                trainer.name_ar,
+                trainer.name_en,
+                trainer.phone || '-',
+                trainer.committee_name || '-',
+                new Date(trainer.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US'),
+                trainer.is_active ? (isRTL ? 'نشط' : 'Active') : (isRTL ? 'غير نشط' : 'Inactive'),
+                trainer.courses_count || 0,
+                trainer.completed_courses_count || 0,
+                trainer.certificates_delivered_count || 0
+            ])
+        ];
 
-    return (
-        <div className="container mx-auto p-4 space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold">{isRTL ? 'إدارة المدربين' : 'Trainer Management'}</h1>
-                    <p className="text-muted-foreground">
-                        {isRTL ? 'إدارة مدربي الكورسات' : 'Manage course trainers'}
-                    </p>
-                </div>
+        const wb = utils.book_new();
+        const ws = utils.aoa_to_sheet(allTrainersData);
+
+        // Set column widths
+        ws['!cols'] = [
+            { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
+        ];
+
+        utils.book_append_sheet(wb, ws, isRTL ? 'كل المدربين' : 'All Trainers');
+
+        const dateStr = new Date().toISOString().split('T')[0];
+        const fileName = `All_Trainers_Report_${dateStr}.xlsx`;
+
+        writeFile(wb, fileName);
+        toast.success(isRTL ? 'تم تصدير بيانات المدربين بنجاح' : 'All trainers exported successfully');
+
+    } catch (error) {
+        console.error('Export all failed:', error);
+        toast.error(isRTL ? 'حدث خطأ أثناء التصدير' : 'Export failed');
+    }
+};
+
+const handleWhatsApp = (phone: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const cleanPhone = phone.replace(/\D/g, '');
+    window.open(`https://wa.me/${cleanPhone}`, '_blank');
+};
+
+return (
+    <div className="container mx-auto p-4 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <h1 className="text-2xl font-bold">{isRTL ? 'إدارة المدربين' : 'Trainer Management'}</h1>
+                <p className="text-muted-foreground">
+                    {isRTL ? 'إدارة مدربي الكورسات' : 'Manage course trainers'}
+                </p>
+            </div>
+            <div className="flex gap-2">
+                <Button onClick={handleExportAllTrainers} variant="outline" className="gap-2">
+                    <FileSpreadsheet className="h-4 w-4" />
+                    {isRTL ? 'تصدير الكل' : 'Export All'}
+                </Button>
                 <Button onClick={openCreateDialog} className="gap-2">
                     <Plus className="h-4 w-4" />
                     {isRTL ? 'إضافة مدرب' : 'Add Trainer'}
                 </Button>
             </div>
+        </div>
 
-            <div className="flex gap-4 items-center">
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        placeholder={isRTL ? 'بحث عن مدرب...' : 'Search trainers...'}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-9"
-                    />
-                </div>
-                <Select value={selectedCommittee} onValueChange={setSelectedCommittee}>
-                    <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder={isRTL ? 'كل اللجان' : 'All Committees'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">{isRTL ? 'كل اللجان' : 'All Committees'}</SelectItem>
-                        {committees.map(committee => (
-                            <SelectItem key={committee.id} value={committee.id}>
-                                {isRTL ? committee.name_ar : committee.name}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+        <div className="flex gap-4 items-center">
+            <div className="relative flex-1 max-w-md">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                    placeholder={isRTL ? 'بحث عن مدرب...' : 'Search trainers...'}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                />
             </div>
-
-            {/* Trainers Grid */}
-            {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {[1, 2, 3].map(i => (
-                        <Card key={i} className="animate-pulse">
-                            <CardContent className="p-6">
-                                <div className="flex items-center gap-4">
-                                    <div className="h-16 w-16 rounded-full bg-muted" />
-                                    <div className="space-y-2 flex-1">
-                                        <div className="h-4 bg-muted rounded w-3/4" />
-                                        <div className="h-3 bg-muted rounded w-1/2" />
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
+            <Select value={selectedCommittee} onValueChange={setSelectedCommittee}>
+                <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder={isRTL ? 'كل اللجان' : 'All Committees'} />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">{isRTL ? 'كل اللجان' : 'All Committees'}</SelectItem>
+                    {committees.map(committee => (
+                        <SelectItem key={committee.id} value={committee.id}>
+                            {isRTL ? committee.name_ar : committee.name}
+                        </SelectItem>
                     ))}
-                </div>
-            ) : filteredTrainers.length === 0 ? (
-                <Card className="p-8 text-center">
-                    <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">
-                        {searchQuery
-                            ? (isRTL ? 'لا توجد نتائج' : 'No results found')
-                            : (isRTL ? 'لا يوجد مدربين مسجلين' : 'No trainers registered')}
-                    </p>
-                    {!searchQuery && (
-                        <Button onClick={openCreateDialog} variant="outline" className="mt-4">
-                            {isRTL ? 'إضافة أول مدرب' : 'Add first trainer'}
-                        </Button>
-                    )}
-                </Card>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredTrainers.map(trainer => (
-                        <Card
-                            key={trainer.id}
-                            className="group hover:shadow-md transition-shadow cursor-pointer"
-                            onClick={() => {
-                                setViewTrainer(trainer);
-                                setIsViewDialogOpen(true);
-                            }}
-                        >
-                            <CardContent className="p-6">
-                                <div className="flex items-start gap-4">
-                                    <Avatar className={`h-16 w-16 border-4 ${trainer.is_active ? 'border-green-500' : 'border-muted'
-                                        }`}>
-                                        <AvatarImage src={trainer.image_url || undefined} alt={trainer.name_ar} />
-                                        <AvatarFallback className="text-lg bg-primary text-primary-foreground">
-                                            {getTrainerInitials(trainer)}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="font-bold text-lg leading-tight">
-                                                {isRTL ? trainer.name_ar : trainer.name_en}
-                                            </h3>
+                </SelectContent>
+            </Select>
+        </div>
+
+        {/* Trainers Grid */}
+        {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3].map(i => (
+                    <Card key={i} className="animate-pulse">
+                        <CardContent className="p-6">
+                            <div className="flex items-center gap-4">
+                                <div className="h-16 w-16 rounded-full bg-muted" />
+                                <div className="space-y-2 flex-1">
+                                    <div className="h-4 bg-muted rounded w-3/4" />
+                                    <div className="h-3 bg-muted rounded w-1/2" />
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+        ) : filteredTrainers.length === 0 ? (
+            <Card className="p-8 text-center">
+                <User className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground">
+                    {searchQuery
+                        ? (isRTL ? 'لا توجد نتائج' : 'No results found')
+                        : (isRTL ? 'لا يوجد مدربين مسجلين' : 'No trainers registered')}
+                </p>
+                {!searchQuery && (
+                    <Button onClick={openCreateDialog} variant="outline" className="mt-4">
+                        {isRTL ? 'إضافة أول مدرب' : 'Add first trainer'}
+                    </Button>
+                )}
+            </Card>
+        ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredTrainers.map(trainer => (
+                    <Card
+                        key={trainer.id}
+                        className="group hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => {
+                            setViewTrainer(trainer);
+                            setIsViewDialogOpen(true);
+                        }}
+                    >
+                        <CardContent className="p-6">
+                            <div className="flex items-start gap-4">
+                                <Avatar className={`h-16 w-16 border-4 ${trainer.is_active ? 'border-green-500' : 'border-muted'
+                                    }`}>
+                                    <AvatarImage src={trainer.image_url || undefined} alt={trainer.name_ar} />
+                                    <AvatarFallback className="text-lg bg-primary text-primary-foreground">
+                                        {getTrainerInitials(trainer)}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <h3 className="font-bold text-lg leading-tight">
+                                            {isRTL ? trainer.name_ar : trainer.name_en}
+                                        </h3>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        {isRTL ? trainer.name_en : trainer.name_ar}
+                                    </p>
+
+                                    {trainer.committee_name && (
+                                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                                            <Building2 className="h-3 w-3" />
+                                            <span>{trainer.committee_name}</span>
                                         </div>
-                                        <p className="text-sm text-muted-foreground mt-1">
-                                            {isRTL ? trainer.name_en : trainer.name_ar}
-                                        </p>
+                                    )}
+                                </div>
+
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                            <MoreHorizontal className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onClick={(e) => {
+                                            e.stopPropagation();
+                                            openEditDialog(trainer);
+                                        }}>
+                                            <Pencil className="mr-2 h-4 w-4" />
+                                            {isRTL ? 'تعديل' : 'Edit'}
+                                        </DropdownMenuItem>
+
                                         {trainer.phone && (
-                                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                                                <Phone className="h-3 w-3" />
-                                                <span dir="ltr">{trainer.phone}</span>
-                                            </div>
+                                            <DropdownMenuItem onClick={(e) => handleWhatsApp(trainer.phone!, e)}>
+                                                <MessageCircle className="mr-2 h-4 w-4" />
+                                                {isRTL ? 'واتساب' : 'WhatsApp'}
+                                            </DropdownMenuItem>
                                         )}
-                                        {trainer.committee_name && (
-                                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                                                <Building2 className="h-3 w-3" />
-                                                <span>{trainer.committee_name}</span>
-                                            </div>
-                                        )}
-                                    </div>
 
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={(e) => {
+                                        <DropdownMenuItem onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleExportTrainer(trainer);
+                                        }}>
+                                            <FileSpreadsheet className="mr-2 h-4 w-4" />
+                                            {isRTL ? 'تصدير Excel' : 'Export Excel'}
+                                        </DropdownMenuItem>
+
+                                        <DropdownMenuItem
+                                            className="text-destructive focus:text-destructive"
+                                            onClick={(e) => {
                                                 e.stopPropagation();
-                                                openEditDialog(trainer);
-                                            }}>
-                                                <Pencil className="mr-2 h-4 w-4" />
-                                                {isRTL ? 'تعديل' : 'Edit'}
-                                            </DropdownMenuItem>
+                                                setTrainerToDelete(trainer);
+                                                setIsDeleteDialogOpen(true);
+                                            }}
+                                        >
+                                            <Trash2 className="mr-2 h-4 w-4" />
+                                            {isRTL ? 'حذف' : 'Delete'}
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
 
-                                            {trainer.phone && (
-                                                <DropdownMenuItem onClick={(e) => handleWhatsApp(trainer.phone!, e)}>
-                                                    <MessageCircle className="mr-2 h-4 w-4" />
-                                                    {isRTL ? 'واتساب' : 'WhatsApp'}
-                                                </DropdownMenuItem>
-                                            )}
-
-                                            <DropdownMenuItem onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleExportTrainer(trainer);
-                                            }}>
-                                                <FileSpreadsheet className="mr-2 h-4 w-4" />
-                                                {isRTL ? 'تصدير Excel' : 'Export Excel'}
-                                            </DropdownMenuItem>
-
-                                            <DropdownMenuItem
-                                                className="text-destructive focus:text-destructive"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setTrainerToDelete(trainer);
-                                                    setIsDeleteDialogOpen(true);
-                                                }}
-                                            >
-                                                <Trash2 className="mr-2 h-4 w-4" />
-                                                {isRTL ? 'حذف' : 'Delete'}
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                            {/* Stats */}
+                            <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
+                                <div className="flex items-center gap-2 text-sm">
+                                    <BookOpen className="h-4 w-4 text-blue-500" />
+                                    <span className="font-medium">{trainer.courses_count || 0}</span>
+                                    <span className="text-muted-foreground">
+                                        {isRTL ? 'كورس' : 'total'}
+                                    </span>
                                 </div>
-
-                                {/* Stats */}
-                                <div className="flex flex-wrap gap-4 mt-4 pt-4 border-t">
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <BookOpen className="h-4 w-4 text-blue-500" />
-                                        <span className="font-medium">{trainer.courses_count || 0}</span>
-                                        <span className="text-muted-foreground">
-                                            {isRTL ? 'كورس' : 'total'}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <Check className="h-4 w-4 text-green-500" />
-                                        <span className="font-medium">{trainer.completed_courses_count || 0}</span>
-                                        <span className="text-muted-foreground">
-                                            {isRTL ? 'تم' : 'completed'}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <Award className="h-4 w-4 text-amber-500" />
-                                        <span className="font-medium">{trainer.certificates_delivered_count || 0}</span>
-                                        <span className="text-muted-foreground">
-                                            {isRTL ? 'شهادة' : 'certs'}
-                                        </span>
-                                    </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                    <Check className="h-4 w-4 text-green-500" />
+                                    <span className="font-medium">{trainer.completed_courses_count || 0}</span>
+                                    <span className="text-muted-foreground">
+                                        {isRTL ? 'تم' : 'completed'}
+                                    </span>
                                 </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+                                <div className="flex items-center gap-2 text-sm">
+                                    <Award className="h-4 w-4 text-amber-500" />
+                                    <span className="font-medium">{trainer.certificates_delivered_count || 0}</span>
+                                    <span className="text-muted-foreground">
+                                        {isRTL ? 'شهادة' : 'certs'}
+                                    </span>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+        )}
+
+        {/* Add/Edit Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>
+                        {editingTrainer
+                            ? (isRTL ? 'تعديل المدرب' : 'Edit Trainer')
+                            : (isRTL ? 'إضافة مدرب جديد' : 'Add New Trainer')}
+                    </DialogTitle>
+                    <DialogDescription>
+                        {isRTL ? 'أدخل بيانات المدرب' : 'Enter trainer details'}
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                    <div className="grid gap-2">
+                        <Label htmlFor="name_ar">{isRTL ? 'الاسم بالعربية *' : 'Arabic Name *'}</Label>
+                        <Input
+                            id="name_ar"
+                            value={formData.name_ar}
+                            onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
+                            placeholder={isRTL ? 'مثال: محمد أحمد' : 'e.g., محمد أحمد'}
+                            dir="rtl"
+                            className="h-11"
+                        />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="name_en">{isRTL ? 'الاسم بالإنجليزية *' : 'English Name *'}</Label>
+                        <Input
+                            id="name_en"
+                            value={formData.name_en}
+                            onChange={(e) => setFormData({ ...formData, name_en: e.target.value })}
+                            placeholder="e.g., Mohamed Ahmed"
+                            dir="ltr"
+                            className="h-11"
+                        />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label htmlFor="phone">{isRTL ? 'رقم الهاتف' : 'Phone Number'}</Label>
+                        <Input
+                            id="phone"
+                            value={formData.phone}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            placeholder="01xxxxxxxxx"
+                            dir="ltr"
+                            className="h-11"
+                        />
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label>{isRTL ? 'اللجنة التابع لها' : 'Committee'}</Label>
+                        <Select
+                            value={formData.committee_id || 'none'}
+                            onValueChange={(value) => setFormData({ ...formData, committee_id: value === 'none' ? '' : value })}
+                        >
+                            <SelectTrigger className="h-11">
+                                <SelectValue placeholder={isRTL ? 'اختر لجنة (اختياري)' : 'Select committee (optional)'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">{isRTL ? 'بدون لجنة' : 'No committee'}</SelectItem>
+                                {committees.map(committee => (
+                                    <SelectItem key={committee.id} value={committee.id}>
+                                        {isRTL ? committee.name_ar : committee.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="grid gap-2">
+                        <Label>{isRTL ? 'صورة المدرب' : 'Trainer Photo'}</Label>
+                        <div className="flex flex-col items-center gap-3">
+                            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                <Avatar className="h-20 w-20 sm:h-24 sm:w-24 border-2 border-dashed border-muted-foreground/50 hover:border-primary transition-colors">
+                                    <AvatarImage src={previewUrl || undefined} />
+                                    <AvatarFallback className="text-lg bg-muted">
+                                        {formData.name_ar.charAt(0) || <User className="h-8 w-8 text-muted-foreground" />}
+                                    </AvatarFallback>
+                                </Avatar>
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {isUploading ? (
+                                        <Loader2 className="h-6 w-6 text-white animate-spin" />
+                                    ) : (
+                                        <Camera className="h-6 w-6 text-white" />
+                                    )}
+                                </div>
+                            </div>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageChange}
+                                className="hidden"
+                            />
+                            <p className="text-xs text-muted-foreground text-center">
+                                {isRTL ? 'اضغط لاختيار صورة' : 'Click to select photo'}
+                            </p>
+                        </div>
+                    </div>
                 </div>
-            )}
 
-            {/* Add/Edit Dialog */}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="w-[95vw] max-w-md max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {editingTrainer
-                                ? (isRTL ? 'تعديل المدرب' : 'Edit Trainer')
-                                : (isRTL ? 'إضافة مدرب جديد' : 'Add New Trainer')}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {isRTL ? 'أدخل بيانات المدرب' : 'Enter trainer details'}
-                        </DialogDescription>
-                    </DialogHeader>
+                <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto">
+                        {isRTL ? 'إلغاء' : 'Cancel'}
+                    </Button>
+                    <Button onClick={handleSave} disabled={isSaving || isUploading} className="w-full sm:w-auto">
+                        {isUploading
+                            ? (isRTL ? 'جاري رفع الصورة...' : 'Uploading...')
+                            : isSaving
+                                ? (isRTL ? 'جاري الحفظ...' : 'Saving...')
+                                : (isRTL ? 'حفظ' : 'Save')}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
 
-                    <div className="space-y-4 py-4">
-                        <div className="grid gap-2">
-                            <Label htmlFor="name_ar">{isRTL ? 'الاسم بالعربية *' : 'Arabic Name *'}</Label>
-                            <Input
-                                id="name_ar"
-                                value={formData.name_ar}
-                                onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
-                                placeholder={isRTL ? 'مثال: محمد أحمد' : 'e.g., محمد أحمد'}
-                                dir="rtl"
-                                className="h-11"
-                            />
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>
+                        {isRTL ? 'تأكيد الحذف' : 'Confirm Delete'}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {isRTL
+                            ? `هل أنت متأكد من حذف المدرب "${trainerToDelete?.name_ar}"؟ لا يمكن التراجع عن هذا الإجراء.`
+                            : `Are you sure you want to delete trainer "${trainerToDelete?.name_en}"? This action cannot be undone.`}
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        {isRTL ? 'حذف' : 'Delete'}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
+        {/* View Details Dialog */}
+        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{isRTL ? 'تفاصيل المدرب' : 'Trainer Details'}</DialogTitle>
+                </DialogHeader>
+                {viewTrainer && (
+                    <div className="space-y-6">
+                        <div className="flex flex-col items-center text-center">
+                            <Avatar className={`h-24 w-24 border-4 mb-4 ${viewTrainer.is_active ? 'border-green-500' : 'border-muted'
+                                }`}>
+                                <AvatarImage src={viewTrainer.image_url || undefined} alt={viewTrainer.name_ar} />
+                                <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
+                                    {getTrainerInitials(viewTrainer)}
+                                </AvatarFallback>
+                            </Avatar>
+                            <h2 className="text-xl font-bold">{isRTL ? viewTrainer.name_ar : viewTrainer.name_en}</h2>
+                            <p className="text-muted-foreground">{isRTL ? viewTrainer.name_en : viewTrainer.name_ar}</p>
                         </div>
 
-                        <div className="grid gap-2">
-                            <Label htmlFor="name_en">{isRTL ? 'الاسم بالإنجليزية *' : 'English Name *'}</Label>
-                            <Input
-                                id="name_en"
-                                value={formData.name_en}
-                                onChange={(e) => setFormData({ ...formData, name_en: e.target.value })}
-                                placeholder="e.g., Mohamed Ahmed"
-                                dir="ltr"
-                                className="h-11"
-                            />
+                        <div className="grid grid-cols-2 gap-4 text-center">
+                            <div className="p-4 bg-muted/50 rounded-lg">
+                                <p className="text-2xl font-bold">{viewTrainer.courses_count || 0}</p>
+                                <p className="text-xs text-muted-foreground">{isRTL ? 'كورس' : 'Courses'}</p>
+                            </div>
+                            <div className="p-4 bg-muted/50 rounded-lg">
+                                <p className="text-2xl font-bold">{viewTrainer.completed_courses_count || 0}</p>
+                                <p className="text-xs text-muted-foreground">{isRTL ? 'مكتمل' : 'Completed'}</p>
+                            </div>
                         </div>
 
-                        <div className="grid gap-2">
-                            <Label htmlFor="phone">{isRTL ? 'رقم الهاتف' : 'Phone Number'}</Label>
-                            <Input
-                                id="phone"
-                                value={formData.phone}
-                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                placeholder="01xxxxxxxxx"
-                                dir="ltr"
-                                className="h-11"
-                            />
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label>{isRTL ? 'اللجنة التابع لها' : 'Committee'}</Label>
-                            <Select
-                                value={formData.committee_id || 'none'}
-                                onValueChange={(value) => setFormData({ ...formData, committee_id: value === 'none' ? '' : value })}
-                            >
-                                <SelectTrigger className="h-11">
-                                    <SelectValue placeholder={isRTL ? 'اختر لجنة (اختياري)' : 'Select committee (optional)'} />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">{isRTL ? 'بدون لجنة' : 'No committee'}</SelectItem>
-                                    {committees.map(committee => (
-                                        <SelectItem key={committee.id} value={committee.id}>
-                                            {isRTL ? committee.name_ar : committee.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="grid gap-2">
-                            <Label>{isRTL ? 'صورة المدرب' : 'Trainer Photo'}</Label>
-                            <div className="flex flex-col items-center gap-3">
-                                <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                                    <Avatar className="h-20 w-20 sm:h-24 sm:w-24 border-2 border-dashed border-muted-foreground/50 hover:border-primary transition-colors">
-                                        <AvatarImage src={previewUrl || undefined} />
-                                        <AvatarFallback className="text-lg bg-muted">
-                                            {formData.name_ar.charAt(0) || <User className="h-8 w-8 text-muted-foreground" />}
-                                        </AvatarFallback>
-                                    </Avatar>
-                                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                        {isUploading ? (
-                                            <Loader2 className="h-6 w-6 text-white animate-spin" />
-                                        ) : (
-                                            <Camera className="h-6 w-6 text-white" />
-                                        )}
-                                    </div>
+                        <div className="space-y-3">
+                            {viewTrainer.phone && (
+                                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                                    <Phone className="h-5 w-5 text-muted-foreground" />
+                                    <span dir="ltr" className="flex-1">{viewTrainer.phone}</span>
+                                    <a href={`tel:${viewTrainer.phone}`} className="text-primary hover:underline text-sm">
+                                        {isRTL ? 'اتصل' : 'Call'}
+                                    </a>
                                 </div>
-                                <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleImageChange}
-                                    className="hidden"
-                                />
-                                <p className="text-xs text-muted-foreground text-center">
-                                    {isRTL ? 'اضغط لاختيار صورة' : 'Click to select photo'}
-                                </p>
+                            )}
+                            {viewTrainer.committee_name && (
+                                <div className="flex items-center gap-3 p-3 border rounded-lg">
+                                    <Building2 className="h-5 w-5 text-muted-foreground" />
+                                    <span className="flex-1">{viewTrainer.committee_name}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex justify-between items-center pt-4 border-t mt-4">
+                            <Button
+                                variant="outline"
+                                className="gap-2 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700"
+                                onClick={() => viewTrainer && handleExportTrainer(viewTrainer)}
+                            >
+                                <FileSpreadsheet className="h-4 w-4" />
+                                {isRTL ? 'تصدير تقرير' : 'Export Report'}
+                            </Button>
+
+                            <div className="flex gap-2">
+                                <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+                                    {isRTL ? 'إغلاق' : 'Close'}
+                                </Button>
+                                <Button onClick={() => {
+                                    setIsViewDialogOpen(false);
+                                    openEditDialog(viewTrainer);
+                                }}>
+                                    {isRTL ? 'تعديل' : 'Edit'}
+                                </Button>
                             </div>
                         </div>
                     </div>
+                )}
+            </DialogContent>
+        </Dialog>
 
-                    <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
-                        <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto">
-                            {isRTL ? 'إلغاء' : 'Cancel'}
-                        </Button>
-                        <Button onClick={handleSave} disabled={isSaving || isUploading} className="w-full sm:w-auto">
-                            {isUploading
-                                ? (isRTL ? 'جاري رفع الصورة...' : 'Uploading...')
-                                : isSaving
-                                    ? (isRTL ? 'جاري الحفظ...' : 'Saving...')
-                                    : (isRTL ? 'حفظ' : 'Save')}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            {/* Delete Confirmation Dialog */}
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>
-                            {isRTL ? 'تأكيد الحذف' : 'Confirm Delete'}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                            {isRTL
-                                ? `هل أنت متأكد من حذف المدرب "${trainerToDelete?.name_ar}"؟ لا يمكن التراجع عن هذا الإجراء.`
-                                : `Are you sure you want to delete trainer "${trainerToDelete?.name_en}"? This action cannot be undone.`}
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                            {isRTL ? 'حذف' : 'Delete'}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
-            {/* View Details Dialog */}
-            <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>{isRTL ? 'تفاصيل المدرب' : 'Trainer Details'}</DialogTitle>
-                    </DialogHeader>
-                    {viewTrainer && (
-                        <div className="space-y-6">
-                            <div className="flex flex-col items-center text-center">
-                                <Avatar className={`h-24 w-24 border-4 mb-4 ${viewTrainer.is_active ? 'border-green-500' : 'border-muted'
-                                    }`}>
-                                    <AvatarImage src={viewTrainer.image_url || undefined} alt={viewTrainer.name_ar} />
-                                    <AvatarFallback className="text-2xl bg-primary text-primary-foreground">
-                                        {getTrainerInitials(viewTrainer)}
-                                    </AvatarFallback>
-                                </Avatar>
-                                <h2 className="text-xl font-bold">{isRTL ? viewTrainer.name_ar : viewTrainer.name_en}</h2>
-                                <p className="text-muted-foreground">{isRTL ? viewTrainer.name_en : viewTrainer.name_ar}</p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4 text-center">
-                                <div className="p-4 bg-muted/50 rounded-lg">
-                                    <p className="text-2xl font-bold">{viewTrainer.courses_count || 0}</p>
-                                    <p className="text-xs text-muted-foreground">{isRTL ? 'كورس' : 'Courses'}</p>
-                                </div>
-                                <div className="p-4 bg-muted/50 rounded-lg">
-                                    <p className="text-2xl font-bold">{viewTrainer.completed_courses_count || 0}</p>
-                                    <p className="text-xs text-muted-foreground">{isRTL ? 'مكتمل' : 'Completed'}</p>
-                                </div>
-                            </div>
-
-                            <div className="space-y-3">
-                                {viewTrainer.phone && (
-                                    <div className="flex items-center gap-3 p-3 border rounded-lg">
-                                        <Phone className="h-5 w-5 text-muted-foreground" />
-                                        <span dir="ltr" className="flex-1">{viewTrainer.phone}</span>
-                                        <a href={`tel:${viewTrainer.phone}`} className="text-primary hover:underline text-sm">
-                                            {isRTL ? 'اتصل' : 'Call'}
-                                        </a>
-                                    </div>
-                                )}
-                                {viewTrainer.committee_name && (
-                                    <div className="flex items-center gap-3 p-3 border rounded-lg">
-                                        <Building2 className="h-5 w-5 text-muted-foreground" />
-                                        <span className="flex-1">{viewTrainer.committee_name}</span>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex justify-between items-center pt-4 border-t mt-4">
-                                <Button
-                                    variant="outline"
-                                    className="gap-2 text-green-600 border-green-200 hover:bg-green-50 hover:text-green-700"
-                                    onClick={() => viewTrainer && handleExportTrainer(viewTrainer)}
-                                >
-                                    <FileSpreadsheet className="h-4 w-4" />
-                                    {isRTL ? 'تصدير تقرير' : 'Export Report'}
-                                </Button>
-
-                                <div className="flex gap-2">
-                                    <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
-                                        {isRTL ? 'إغلاق' : 'Close'}
-                                    </Button>
-                                    <Button onClick={() => {
-                                        setIsViewDialogOpen(false);
-                                        openEditDialog(viewTrainer);
-                                    }}>
-                                        {isRTL ? 'تعديل' : 'Edit'}
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
-
-        </div >
-    );
+    </div >
+);
 }
