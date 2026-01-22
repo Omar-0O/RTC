@@ -346,6 +346,7 @@ export default function UserManagement() {
         if (roles.includes('committee_leader')) return 'committee_leader';
         if (roles.includes('head_caravans')) return 'head_caravans';
         if (roles.includes('head_events')) return 'head_events';
+        if (roles.includes('head_ethics')) return 'head_ethics';
         return 'volunteer';
       };
 
@@ -776,6 +777,7 @@ export default function UserManagement() {
       // Actually if existing users have it they will be migrated. But to avoid runtime error if data is stale:
       case 'head_caravans':
       case 'head_events':
+      case 'head_ethics':
         return 'bg-blue-100 text-blue-700';
       default:
         return 'bg-muted text-muted-foreground';
@@ -791,6 +793,7 @@ export default function UserManagement() {
       case 'head_hr': return t('common.head_hr');
       case 'head_caravans': return t('common.head_caravans');
       case 'head_events': return t('common.head_events');
+      case 'head_ethics': return t('common.head_ethics');
       default: return t('common.volunteer');
     }
   };
@@ -992,6 +995,7 @@ export default function UserManagement() {
                         <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
                         <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
                         <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
+                        <SelectItem value="head_ethics">{t('common.head_ethics')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1305,6 +1309,7 @@ export default function UserManagement() {
                       <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
                       <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
                       <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
+                      <SelectItem value="head_ethics">{t('common.head_ethics')}</SelectItem>
                       <SelectItem value="hr">{t('common.hr')}</SelectItem>
                       <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
                     </SelectContent>

@@ -102,7 +102,7 @@ Deno.serve(async (req: Request) => {
                 .upsert({
                     user_id: userData.user.id,
                     role: role || 'volunteer'
-                }, { onConflict: 'user_id,role', ignoreDuplicates: true })
+                }, { onConflict: 'user_id' })
 
             if (insertRoleError) {
                 console.warn('Role upsert warning:', insertRoleError.message)

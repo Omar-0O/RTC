@@ -15,7 +15,9 @@ import {
   Calendar,
   GraduationCap,
   FileCheck,
-  UserCheck
+  UserCheck,
+  Award,
+  PhoneCall
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -188,6 +190,14 @@ export function AppSidebar() {
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },
+        ];
+      case 'head_ethics':
+        return [
+          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/dashboard', icon: Home },
+          { title: t('ethics.competition'), url: '/ethics/competition', icon: Award },
+          { title: t('ethics.calls'), url: '/ethics/calls', icon: PhoneCall },
+          { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
+          { title: t('nav.profile'), url: '/profile', icon: User },
         ];
       default:
         return volunteerNavItems;

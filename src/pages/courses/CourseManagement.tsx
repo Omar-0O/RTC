@@ -107,6 +107,8 @@ interface CourseBeneficiary {
     course_id: string;
     name: string;
     phone: string;
+    certificate_eligible?: boolean | null;
+    attendance_percentage?: number | null;
 }
 
 interface Trainer {
@@ -1043,6 +1045,11 @@ export default function CourseManagement() {
 
             if (error) throw error;
 
+            // If status is 'delivered', calculate eligibility for all beneficiaries
+            if (status === 'delivered') {
+                await calculateCertificateEligibility(courseId);
+            }
+
             setCourses(courses.map(c => c.id === courseId ? { ...c, certificate_status: status as any } : c));
             if (selectedCourse?.id === courseId) {
                 setSelectedCourse({ ...selectedCourse, certificate_status: status as any });
@@ -1051,6 +1058,70 @@ export default function CourseManagement() {
         } catch (error) {
             console.error('Error updating certificate status:', error);
             toast.error(isRTL ? 'فشل تحديث الحالة' : 'Failed to update status');
+        }
+    };
+
+    // Calculate certificate eligibility based on 75% attendance
+    const calculateCertificateEligibility = async (courseId: string) => {
+        try {
+            // Get all lectures for this course
+            const { data: courseLectures } = await supabase
+                .from('course_lectures')
+                .select('id')
+                .eq('course_id', courseId)
+                .eq('status', 'completed');
+
+            const totalLectures = courseLectures?.length || 0;
+
+            // Get all beneficiaries for this course
+            const { data: courseBeneficiaries } = await supabase
+                .from('course_beneficiaries')
+                .select('id, phone')
+                .eq('course_id', courseId);
+
+            if (!courseBeneficiaries || courseBeneficiaries.length === 0) return;
+
+            const lectureIds = courseLectures?.map(l => l.id) || [];
+
+            // Get all attendance records for these lectures
+            const { data: allAttendance } = await supabase
+                .from('course_attendance')
+                .select('student_phone, status')
+                .in('lecture_id', lectureIds)
+                .eq('status', 'present');
+
+            // Count attendance per student
+            const attendanceCount: Record<string, number> = {};
+            (allAttendance || []).forEach((att: any) => {
+                attendanceCount[att.student_phone] = (attendanceCount[att.student_phone] || 0) + 1;
+            });
+
+            // Calculate eligibility and update each beneficiary
+            let eligibleCount = 0;
+            for (const beneficiary of courseBeneficiaries) {
+                const presentCount = attendanceCount[beneficiary.phone] || 0;
+                const percentage = totalLectures > 0 ? (presentCount / totalLectures) * 100 : 100;
+                const isEligible = percentage >= 75;
+
+                if (isEligible) eligibleCount++;
+
+                await supabase
+                    .from('course_beneficiaries')
+                    .update({
+                        attendance_percentage: Math.round(percentage * 100) / 100,
+                        certificate_eligible: isEligible
+                    } as any)
+                    .eq('id', beneficiary.id);
+            }
+
+            // Show summary toast
+            toast.info(
+                isRTL
+                    ? `${eligibleCount} من ${courseBeneficiaries.length} مستفيد مستحق للشهادة (حضور ≥ 75%)`
+                    : `${eligibleCount} of ${courseBeneficiaries.length} beneficiaries eligible for certificate (attendance ≥ 75%)`
+            );
+        } catch (error) {
+            console.error('Error calculating eligibility:', error);
         }
     };
 

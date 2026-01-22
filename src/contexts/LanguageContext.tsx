@@ -73,6 +73,17 @@ const translations: Record<Language, Record<string, string>> = {
     'common.head_fourth_year': 'Fourth Year Head',
     'common.head_caravans': 'Head of Caravans',
     'common.head_events': 'Head of Events',
+    'common.head_ethics': 'Ethics Publishing Head',
+
+    // Ethics
+    'ethics.competition': 'Individual Competition',
+    'ethics.participants': 'Participants',
+    'ethics.addParticipant': 'Add Participant',
+    'ethics.entries': 'Entries',
+    'ethics.addEntry': 'Add Entry',
+    'ethics.calls': 'Calls Outreach',
+    'ethics.callsCount': 'Calls Count',
+    'ethics.driveLink': 'Drive Link',
 
     // Committee Leader
     'leader.dashboard': 'Committee Dashboard',
@@ -270,7 +281,7 @@ const translations: Record<Language, Record<string, string>> = {
     'nav.profile': 'ملفي الشخصي',
     'nav.reviewSubmissions': 'مراجعة الطلبات',
     'nav.userManagement': 'إدارة المتطوعين',
-    'nav.committees': 'اللجان الانتاجية',
+    'nav.committees': 'اللجان',
     'nav.activities': 'الأنشطة',
     'nav.badges': 'الشارات',
     'nav.reports': 'التقارير',
@@ -325,6 +336,17 @@ const translations: Record<Language, Record<string, string>> = {
     'common.head_fourth_year': 'هيد لجان سنة رابعة',
     'common.head_caravans': 'هيد لجنة قوافل',
     'common.head_events': 'هيد لجنة ايفنتات',
+    'common.head_ethics': 'هيد نشر اخلاقيات',
+
+    // Ethics
+    'ethics.competition': 'المسابقة الفردية',
+    'ethics.participants': 'المشاركين',
+    'ethics.addParticipant': 'إضافة مشارك',
+    'ethics.entries': 'المشاركات',
+    'ethics.addEntry': 'إضافة مشاركة',
+    'ethics.calls': 'المكالمات',
+    'ethics.callsCount': 'عدد المكالمات',
+    'ethics.driveLink': 'لينك الدرايف',
 
     // Committee Leader
     'leader.dashboard': 'لوحة تحكم اللجنة',

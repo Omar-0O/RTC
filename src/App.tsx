@@ -38,6 +38,8 @@ const CourseManagement = lazy(() => import("./pages/courses/CourseManagement"));
 const MyCourses = lazy(() => import("./pages/courses/MyCourses"));
 const SubmissionManagement = lazy(() => import("./pages/hr/SubmissionManagement"));
 const TrainerManagement = lazy(() => import("./pages/trainers/TrainerManagement"));
+const IndividualCompetition = lazy(() => import("./pages/ethics/IndividualCompetition"));
+const CallsManagement = lazy(() => import("./pages/ethics/CallsManagement"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -95,6 +97,8 @@ function AppRoutes() {
       case 'head_events':
       case 'head_caravans':
         return '/leader';
+      case 'head_ethics':
+        return '/dashboard';
       default:
         return '/dashboard';
     }
@@ -170,6 +174,10 @@ function AppRoutes() {
 
         {/* HR Routes */}
         <Route path="/hr/submissions" element={<SubmissionManagement />} />
+
+        {/* Ethics Routes */}
+        <Route path="/ethics/competition" element={<IndividualCompetition />} />
+        <Route path="/ethics/calls" element={<CallsManagement />} />
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />

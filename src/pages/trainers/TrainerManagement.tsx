@@ -89,6 +89,7 @@ interface Trainer {
     name_ar: string;
     phone: string | null;
     image_url: string | null;
+    specialization: string | null;
     committee_id: string | null;
     committee_name?: string;
     created_at: string;
@@ -135,6 +136,7 @@ export default function TrainerManagement(): JSX.Element {
         name_ar: '',
         phone: '',
         image_url: '',
+        specialization: '',
         committee_id: ''
     });
 
@@ -269,6 +271,7 @@ export default function TrainerManagement(): JSX.Element {
             name_ar: '',
             phone: '',
             image_url: '',
+            specialization: '',
             committee_id: isRestricted && profile?.committee_id ? profile.committee_id : ''
         });
         setEditingTrainer(null);
@@ -288,6 +291,7 @@ export default function TrainerManagement(): JSX.Element {
             name_ar: trainer.name_ar,
             phone: trainer.phone || '',
             image_url: trainer.image_url || '',
+            specialization: trainer.specialization || '',
             committee_id: trainer.committee_id || ''
         });
         setPreviewUrl(trainer.image_url || null);
@@ -377,6 +381,7 @@ export default function TrainerManagement(): JSX.Element {
                     name_ar: formData.name_ar,
                     phone: formData.phone || null,
                     image_url: imageUrl || null,
+                    specialization: formData.specialization || null,
                     updated_at: new Date().toISOString()
                 };
 
@@ -398,7 +403,8 @@ export default function TrainerManagement(): JSX.Element {
                     name_en: formData.name_en,
                     name_ar: formData.name_ar,
                     phone: formData.phone || null,
-                    image_url: imageUrl || null
+                    image_url: imageUrl || null,
+                    specialization: formData.specialization || null
                 };
 
                 // Try to include committee_id
@@ -585,17 +591,31 @@ export default function TrainerManagement(): JSX.Element {
                 isRTL ? 'الاسم' : 'Name',
                 isRTL ? 'رقم الهاتف' : 'Phone',
                 isRTL ? 'اسم الكورس' : 'Course Name',
+                isRTL ? 'نسبة الحضور' : 'Attendance %',
+                isRTL ? 'مستحق للشهادة' : 'Eligible',
                 isRTL ? 'التاريخ' : 'Date'
             ];
 
             const certData: any[][] = [];
             (courses || []).forEach((course: any) => {
-                if (course.has_certificates && course.certificate_status === 'delivered') {
+                // Show all beneficiaries from courses with certificates
+                if (course.has_certificates) {
                     (course.course_beneficiaries || []).forEach((b: any) => {
+                        const attendancePercentage = b.attendance_percentage != null
+                            ? `${b.attendance_percentage}%`
+                            : (isRTL ? 'غير محسوب' : 'Not calculated');
+                        const isEligible = b.certificate_eligible === true
+                            ? (isRTL ? '✓ مستحق' : '✓ Yes')
+                            : b.certificate_eligible === false
+                                ? (isRTL ? '✗ غير مستحق' : '✗ No')
+                                : (isRTL ? '-' : '-');
+
                         certData.push([
                             b.name,
                             b.phone,
                             course.name,
+                            attendancePercentage,
+                            isEligible,
                             course.end_date || course.start_date
                         ]);
                     });
@@ -610,6 +630,8 @@ export default function TrainerManagement(): JSX.Element {
                     { wch: 25 }, // Name
                     { wch: 15 }, // Phone
                     { wch: 30 }, // Course Name
+                    { wch: 15 }, // Attendance %
+                    { wch: 15 }, // Eligible
                     { wch: 15 }  // Date
                 ];
 
@@ -816,6 +838,11 @@ export default function TrainerManagement(): JSX.Element {
                                                     <span>{trainer.committee_name}</span>
                                                 </div>
                                             )}
+                                            {trainer.specialization && (
+                                                <p className="text-sm text-primary/80 mt-1 italic">
+                                                    {trainer.specialization}
+                                                </p>
+                                            )}
                                         </div>
 
                                         <DropdownMenu>
@@ -941,6 +968,18 @@ export default function TrainerManagement(): JSX.Element {
                                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                                 placeholder="01xxxxxxxxx"
                                 dir="ltr"
+                                className="h-11"
+                            />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="specialization">{isRTL ? 'التخصص' : 'Specialization'}</Label>
+                            <Input
+                                id="specialization"
+                                value={formData.specialization}
+                                onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+                                placeholder={isRTL ? 'مثال: مهارات القيادة والتواصل' : 'e.g., Leadership & Communication Skills'}
+                                dir={isRTL ? 'rtl' : 'ltr'}
                                 className="h-11"
                             />
                         </div>
