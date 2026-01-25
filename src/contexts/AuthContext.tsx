@@ -74,65 +74,72 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user, fetchProfile]);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
+    let mounted = true;
+
+    async function initializeAuth() {
+      try {
+        // Check for an active session first
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+
+        if (mounted) {
+          if (initialSession) {
+            console.log('Initial session found:', initialSession.user.id);
+            setSession(initialSession);
+            setUser(initialSession.user);
+            // Verify profile immediately if we have a session
+            fetchProfile(initialSession.user.id);
+          } else {
+            console.log('No initial session found');
+          }
+        }
+      } catch (error) {
+        console.error('Error during auth initialization:', error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    initializeAuth();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent | string, session) => {
-        console.log('Auth state change:', event, session?.user?.id);
+        if (!mounted) return;
 
-        if (event === 'TOKEN_REFRESH_ERROR') {
-          console.error('Token refresh error, signing out...');
-          await supabase.auth.signOut();
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setRoles([]);
-          setIsLoading(false);
-          return;
-        }
+        console.log('Auth state change:', event);
 
-        if (event === 'SIGNED_OUT') {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setRoles([]);
-          setIsLoading(false);
-          return;
-        }
-
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        // Defer profile fetch with setTimeout to avoid deadlock
-        if (session?.user) {
-          // Only fetch if profile is not already loaded or user changed
-          if (!profile || profile.id !== session.user.id) {
-            setTimeout(() => {
+        if (event === 'TokenRefreshed' || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          setSession(session);
+          setUser(session?.user ?? null);
+          if (session?.user) {
+            // Only fetch profile if we don't have it or it's different
+            if (!profile || profile.id !== session.user.id) {
               fetchProfile(session.user.id);
-            }, 0);
+            }
           }
-        } else {
+        } else if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
           setProfile(null);
           setRoles([]);
+          setIsLoading(false);
+        } else if (event === 'TOKEN_REFRESH_ERROR') {
+          console.error('Token refresh error occurred');
+          // Do not immediately sign out, let the session expire naturally or wait for next action
+          // but user might need to re-login next time they try an action
         }
 
+        // Ensure loading is false after any auth event if it wasn't already
         setIsLoading(false);
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setIsLoading(false);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [fetchProfile]); // Removed profile dependency to avoid effect loops, logic inside handles checks
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [fetchProfile]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();

@@ -69,6 +69,10 @@ interface ActivitySubmission {
   reviewed_at?: string | null;
   rejection_reason?: string | null;
   created_at?: string;
+  participant_type?: 'volunteer' | 'guest' | 'trainer';
+  guest_name?: string | null;
+  guest_phone?: string | null;
+  trainer_id?: string | null;
 }
 
 interface ActivityType {
@@ -389,14 +393,25 @@ export default function Reports() {
           let participantName = volunteer?.full_name || (language === 'ar' ? 'غير معروف' : 'Unknown');
           let participantPhone = volunteer?.phone || '';
 
-          if (isTrainer) {
+          if (s.participant_type === 'trainer' || isTrainer) {
             participantType = language === 'ar' ? 'مدرب' : 'Trainer';
-            // Use trainer name if available
             if (trainer) {
               participantName = language === 'ar' ? trainer.name_ar : trainer.name_en;
               participantPhone = trainer.phone || participantPhone;
+            } else if (s.trainer_id) {
+              // Try to find by trainer_id if set
+              const linkedTrainer = trainers.find(t => t.id === s.trainer_id);
+              if (linkedTrainer) {
+                participantName = language === 'ar' ? linkedTrainer.name_ar : linkedTrainer.name_en;
+                participantPhone = linkedTrainer.phone || participantPhone;
+              }
             }
+          } else if (s.participant_type === 'guest' || (!volunteer && s.guest_name)) {
+            participantType = language === 'ar' ? 'ضيف' : 'Guest';
+            participantName = s.guest_name || participantName;
+            participantPhone = s.guest_phone || participantPhone;
           } else if (!volunteer) {
+            // Fallback for old records or partial data
             participantType = language === 'ar' ? 'ضيف' : 'Guest';
           }
 
@@ -405,7 +420,7 @@ export default function Reports() {
             [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'نوع المشارك' : 'Participant Type']: participantType,
             [language === 'ar' ? 'اسم المشارك' : 'Participant Name']: participantName,
-            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: participantPhone,
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: participantPhone ? `'${participantPhone}'` : '',
             [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
             [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
             [language === 'ar' ? 'الأثر' : 'Impact']: s.points_awarded || 0,
@@ -440,7 +455,7 @@ export default function Reports() {
             [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
-            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone ? `'${volunteer.phone}'` : '',
             [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
             [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
             [language === 'ar' ? 'الأثر' : 'Impact']: s.points_awarded || 0,

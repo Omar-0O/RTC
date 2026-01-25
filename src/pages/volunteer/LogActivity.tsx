@@ -57,6 +57,8 @@ interface Volunteer {
 
 
 
+
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export default function LogActivity() {
@@ -69,6 +71,7 @@ export default function LogActivity() {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [committeeId, setCommitteeId] = useState(profile?.committee_id || '');
   const [activityId, setActivityId] = useState('');
+  const [activityDate, setActivityDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState('branch');
   const [woreVest, setWoreVest] = useState(false); // Track if volunteer wore vest
@@ -79,6 +82,8 @@ export default function LogActivity() {
   const [isUploading, setIsUploading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
+
+
 
   // Group Submission State
   const [isGroupSubmission, setIsGroupSubmission] = useState(false);
@@ -97,6 +102,8 @@ export default function LogActivity() {
       setCommitteeId(profile.committee_id);
     }
   }, [profile?.committee_id, committeeId]);
+
+
 
   useEffect(() => {
     if (isGroupSubmission) {
@@ -297,6 +304,8 @@ export default function LogActivity() {
       }
     }
 
+
+
     setIsSubmitting(true);
 
     try {
@@ -319,16 +328,13 @@ export default function LogActivity() {
         location: location,
         wore_vest: location === 'branch' ? woreVest : false, // Only track vest for branch activities
         points_awarded: pointsAwarded,
-        status: 'approved' as "pending" | "approved" | "rejected", // Auto-approved? usually committee leader submissions are trustworthy? 
-        // Or maybe pending if configured. Let's stick to 'approved' for now as per leader logic usually.
-        // But wait, user role logic: 
-        // If leader -> 'approved' (since they are leader)
-        // If volunteer -> 'pending' (unless auto-approve rules)
-        // Let's stick to default behavior or enforce 'approved' for leader.
-        // We'll set it to 'approved' if user is leader.
-        reviewed_at: new Date().toISOString(),
-        reviewed_by: user.id, // Leader approves it effectively
+        participant_type: 'volunteer' as const, // Default to volunteer
+        volunteer_id: user.id, // Explicitly set volunteer_id again
+        status: (isLeader ? 'approved' : 'pending') as "pending" | "approved" | "rejected",
+        reviewed_at: (isLeader ? new Date().toISOString() : null),
+        reviewed_by: (isLeader ? user.id : null),
         proof_url: proofUrl,
+        submitted_at: new Date(activityDate).toISOString(),
       };
 
       if (isGroupSubmission) {
@@ -376,7 +382,8 @@ export default function LogActivity() {
             committee_id: committeeId,
             guest_participants: null,
             excel_sheet_url: excelUrl,
-            submitted_at: new Date().toISOString()
+            excel_sheet_url: excelUrl,
+            submitted_at: new Date(activityDate).toISOString()
           })
           .select()
           .single();
@@ -408,9 +415,9 @@ export default function LogActivity() {
       } else {
         // Individual Submission
         const { error } = await supabase.from('activity_submissions').insert({
-          volunteer_id: user.id,
+          volunteer_id: user.id, // Ensure volunteer_id is set
           participants_count: selectedActivity.mode === 'group' ? parseInt(participantsCount) || 1 : 1,
-          status: (isLeader ? 'approved' : 'pending') as "pending" | "approved" | "rejected", // Auto-approve if leader
+          status: (isLeader ? 'approved' : 'pending') as "pending" | "approved" | "rejected",
           ...submissionData
         });
 
@@ -431,6 +438,7 @@ export default function LogActivity() {
 
   const handleReset = () => {
     setActivityId('');
+    setActivityDate(new Date().toISOString().split('T')[0]);
     setDescription('');
     setLocation('branch');
     setWoreVest(false);
@@ -439,6 +447,7 @@ export default function LogActivity() {
     setProofPreview(null);
     setIsSubmitted(false);
     setSelectedVolunteers([]);
+    setIsGroupSubmission(false);
     setIsGroupSubmission(false);
   };
 
@@ -579,6 +588,20 @@ export default function LogActivity() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Activity Date */}
+              <div className="space-y-3">
+                <Label className="text-base font-medium">{isRTL ? 'تاريخ النشاط' : 'Activity Date'} <span className="text-destructive">*</span></Label>
+                <Input
+                  type="date"
+                  value={activityDate}
+                  onChange={(e) => setActivityDate(e.target.value)}
+                  max={new Date().toISOString().split('T')[0]}
+                  className="h-12 text-base px-4"
+                />
+              </div>
+
+
 
               {/* Activity Type */}
               <div className="space-y-3">

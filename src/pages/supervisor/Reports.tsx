@@ -67,6 +67,9 @@ interface ActivitySubmission {
   reviewed_at?: string | null;
   rejection_reason?: string | null;
   created_at?: string;
+  participant_type?: 'volunteer' | 'guest' | 'trainer';
+  guest_name?: string | null;
+  trainer_id?: string | null;
 }
 
 interface ActivityType {
@@ -83,6 +86,8 @@ export default function Reports() {
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
+  // Add Trainers state
+  const [trainers, setTrainers] = useState<{ id: string, user_id: string | null, name_ar: string, name_en: string, phone: string | null }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -121,6 +126,10 @@ export default function Reports() {
       if (committeesRes.data) setCommittees(committeesRes.data);
       if (submissionsRes.data) setSubmissions(submissionsRes.data);
       if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
+
+      // Fetch trainers
+      const { data: trainersData } = await supabase.from('trainers').select('id, user_id, name_en, name_ar, phone');
+      if (trainersData) setTrainers(trainersData);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -357,10 +366,25 @@ export default function Reports() {
           if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
           else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
 
+          let participantName = volunteer?.full_name || (language === 'ar' ? 'غير معروف' : 'Unknown');
+          let participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
+
+          if (s.participant_type === 'trainer' || (!volunteer && s.trainer_id)) {
+            participantType = language === 'ar' ? 'مدرب' : 'Trainer';
+            const trainer = trainers.find(t => t.id === s.trainer_id || t.user_id === s.volunteer_id);
+            if (trainer) {
+              participantName = language === 'ar' ? trainer.name_ar : trainer.name_en;
+            }
+          } else if (s.participant_type === 'guest' || (!volunteer && s.guest_name)) {
+            participantType = language === 'ar' ? 'ضيف' : 'Guest';
+            participantName = s.guest_name || participantName;
+          }
+
           return {
             [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-            [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
+            [language === 'ar' ? 'اسم المشارك' : 'Participant Name']: participantName,
+            [language === 'ar' ? 'نوع المشارك' : 'Participant Type']: participantType,
             [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
             [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
             [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
