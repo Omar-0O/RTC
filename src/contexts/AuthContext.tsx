@@ -157,6 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (roles.includes('head_fourth_year')) return 'head_fourth_year';
     if (roles.includes('head_caravans')) return 'head_caravans';
     if (roles.includes('head_events')) return 'head_events';
+    if (roles.includes('head_ethics')) return 'head_ethics';
     return 'volunteer';
   }, [roles]);
 

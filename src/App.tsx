@@ -37,6 +37,12 @@ const EventManagement = lazy(() => import("./pages/events/EventManagement"));
 const CourseManagement = lazy(() => import("./pages/courses/CourseManagement"));
 const MyCourses = lazy(() => import("./pages/courses/MyCourses"));
 const SubmissionManagement = lazy(() => import("./pages/hr/SubmissionManagement"));
+const TrainerManagement = lazy(() => import("./pages/trainers/TrainerManagement"));
+const IndividualCompetition = lazy(() => import("./pages/ethics/IndividualCompetition"));
+const CallsManagement = lazy(() => import("./pages/ethics/CallsManagement"));
+const QuranManagement = lazy(() => import("./pages/admin/QuranManagement"));
+const BeneficiaryDetails = lazy(() => import("./pages/admin/BeneficiaryDetails"));
+const QuranCircles = lazy(() => import("./pages/admin/QuranCircles"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -94,6 +100,8 @@ function AppRoutes() {
       case 'head_events':
       case 'head_caravans':
         return '/leader';
+      case 'head_ethics':
+        return '/dashboard';
       default:
         return '/dashboard';
     }
@@ -165,9 +173,14 @@ function AppRoutes() {
         {/* Course Routes */}
         <Route path="/courses" element={<CourseManagement />} />
         <Route path="/my-courses" element={<MyCourses />} />
+        <Route path="/trainers" element={<TrainerManagement />} />
 
         {/* HR Routes */}
         <Route path="/hr/submissions" element={<SubmissionManagement />} />
+
+        {/* Ethics Routes */}
+        <Route path="/ethics/competition" element={<IndividualCompetition />} />
+        <Route path="/ethics/calls" element={<CallsManagement />} />
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />
@@ -175,7 +188,11 @@ function AppRoutes() {
         <Route path="/admin/committees" element={<CommitteeManagement />} />
         <Route path="/admin/activities" element={<ActivityManagement />} />
         <Route path="/admin/reports" element={<Reports />} />
+        <Route path="/admin/reports" element={<Reports />} />
         <Route path="/admin/badges" element={<BadgeManagement />} />
+        <Route path="/admin/quran" element={<QuranManagement />} />
+        <Route path="/admin/quran/:id" element={<BeneficiaryDetails />} />
+        <Route path="/admin/quran-circles" element={<QuranCircles />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

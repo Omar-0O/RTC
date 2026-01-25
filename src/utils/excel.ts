@@ -25,7 +25,7 @@ export const generateGroupSubmissionCSV = (data: GroupSubmissionData): Blob => {
 
     // Sheet 1: Activity Information (Arabic labels, no Leader)
     const activityInfo = [{
-        'اسم النشاط': data.activityName,
+        'نوع المهمة': data.activityName,
         'اللجنة': data.committeeName,
         'التاريخ': data.date,
         'إجمالي المشاركين': totalParticipants,
@@ -50,7 +50,7 @@ export const generateGroupSubmissionCSV = (data: GroupSubmissionData): Blob => {
     utils.book_append_sheet(
         wb,
         utils.json_to_sheet(activityInfo),
-        'معلومات النشاط'
+        'معلومات المهمة'
     );
 
     // Add Participants sheet

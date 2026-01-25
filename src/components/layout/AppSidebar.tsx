@@ -14,7 +14,11 @@ import {
   Bus,
   Calendar,
   GraduationCap,
-  FileCheck
+  FileCheck,
+  UserCheck,
+  Award,
+  PhoneCall,
+  BookOpen
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -96,6 +100,7 @@ export function AppSidebar() {
     { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
+    { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
     { title: t('nav.logActivity'), url: '/supervisor/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/supervisor/profile', icon: User },
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
@@ -109,6 +114,7 @@ export function AppSidebar() {
     { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/leader/profile', icon: User },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
+    { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
   ];
 
   // Add My Courses only if user is an organizer
@@ -125,7 +131,10 @@ export function AppSidebar() {
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
     { title: t('nav.caravans'), url: '/caravans', icon: Bus },
     { title: t('nav.courses'), url: '/courses', icon: Activity },
+    { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
     { title: t('nav.events'), url: '/events', icon: Calendar },
+    { title: isRTL ? 'إدارة القرآن' : 'Quran Management', url: '/admin/quran', icon: BookOpen },
+    { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
   ];
 
   const hrNavItems = [
@@ -151,6 +160,7 @@ export function AppSidebar() {
         return [
           { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
           { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
+          { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
@@ -160,7 +170,7 @@ export function AppSidebar() {
         return [
           { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
           { title: t('nav.caravans'), url: '/caravans', icon: Bus },
-          { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
+          { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },
         ];
@@ -168,6 +178,7 @@ export function AppSidebar() {
         return [
           { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
           { title: t('nav.events'), url: '/events', icon: Calendar },
+          { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },
@@ -178,9 +189,26 @@ export function AppSidebar() {
           { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
           { title: t('leader.dashboard'), url: '/leader/committee', icon: Building2 },
           { title: t('leader.members'), url: '/leader/members', icon: Users },
+          { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },
+        ];
+      case 'head_ethics':
+        return [
+          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/dashboard', icon: Home },
+          { title: t('ethics.competition'), url: '/ethics/competition', icon: Award },
+          { title: t('ethics.calls'), url: '/ethics/calls', icon: PhoneCall },
+          { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
+          { title: t('nav.profile'), url: '/profile', icon: User },
+        ];
+      case 'head_quran':
+        return [
+          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/dashboard', icon: Home },
+          { title: isRTL ? 'مستفيدين القرآن' : 'Quran Beneficiaries', url: '/admin/quran', icon: BookOpen },
+          { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
+          { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
+          { title: t('nav.profile'), url: '/profile', icon: User },
         ];
       default:
         return volunteerNavItems;

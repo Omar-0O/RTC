@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, MoreHorizontal, Users, Award, Pencil, Trash2, FileSpreadsheet } from 'lucide-react';
+import { Plus, MoreHorizontal, Users, Award, Pencil, Trash2, FileSpreadsheet, GraduationCap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +57,7 @@ interface CommitteeWithStats extends Committee {
   volunteerCount: number;
   totalPoints: number;
   participationCount: number;
+  trainerCount: number;
 }
 
 export default function CommitteeManagement() {
@@ -165,7 +166,13 @@ export default function CommitteeManagement() {
             .select('*', { count: 'exact', head: true })
             .eq('committee_id', committee.id);
 
-          // 2. Stats from Activities (Points & Participations) - Filtered by Time
+          // 2. Trainer Count
+          const { count: trainerCount } = await supabase
+            .from('trainers')
+            .select('*', { count: 'exact', head: true })
+            .eq('committee_id', committee.id);
+
+          // 3. Stats from Activities (Points & Participations) - Filtered by Time
           let query = supabase
             .from('activity_submissions')
             .select('points_awarded')
@@ -187,6 +194,7 @@ export default function CommitteeManagement() {
             ...committee,
             committee_type: committee.committee_type as 'production' | 'fourth_year',
             volunteerCount: volunteerCount || 0,
+            trainerCount: trainerCount || 0,
             totalPoints,
             participationCount
           };
@@ -402,7 +410,7 @@ export default function CommitteeManagement() {
       <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('committees.title')}</h1>
-          <p className="text-sm text-muted-foreground">{t('committees.subtitle')}</p>
+
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -575,7 +583,7 @@ export default function CommitteeManagement() {
                 </p>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
                   <div>
                     <div className="flex items-center justify-center gap-1 text-muted-foreground">
                       <Users className="h-4 w-4" />
@@ -596,6 +604,13 @@ export default function CommitteeManagement() {
                     </div>
                     <p className="text-2xl font-bold">{committee.participationCount || 0}</p>
                     <p className="text-xs text-muted-foreground">{language === 'ar' ? 'المشاركات' : 'Participations'}</p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-center gap-1 text-muted-foreground">
+                      <GraduationCap className="h-4 w-4" />
+                    </div>
+                    <p className="text-2xl font-bold">{committee.trainerCount || 0}</p>
+                    <p className="text-xs text-muted-foreground">{language === 'ar' ? 'المدربين' : 'Trainers'}</p>
                   </div>
                 </div>
               </CardContent>

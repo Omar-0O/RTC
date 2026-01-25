@@ -78,6 +78,14 @@ interface ActivityType {
   points: number;
 }
 
+interface Trainer {
+  id: string;
+  user_id: string | null;
+  name_en: string;
+  name_ar: string;
+  phone: string | null;
+}
+
 export default function Reports() {
   const { t, language, isRTL } = useLanguage();
   const [dateRange, setDateRange] = useState('month');
@@ -85,6 +93,7 @@ export default function Reports() {
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -123,6 +132,10 @@ export default function Reports() {
       if (committeesRes.data) setCommittees(committeesRes.data);
       if (submissionsRes.data) setSubmissions(submissionsRes.data);
       if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
+
+      // Fetch trainers
+      const { data: trainersData } = await supabase.from('trainers').select('id, user_id, name_en, name_ar, phone');
+      if (trainersData) setTrainers(trainersData as unknown as Trainer[]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -351,8 +364,65 @@ export default function Reports() {
         downloadCSV(volunteersData, 'volunteers');
         break;
 
+      case 'all_activities':
+        // All participations (trainers, volunteers, guests - everyone)
+        const allReportData = filteredSubmissions.map(s => {
+          const volunteer = profiles.find(p => p.id === s.volunteer_id);
+          const activityType = activityTypes.find(a => a.id === s.activity_type_id);
+          const committee = committees.find(c => c.id === (s.committee_id || volunteer?.committee_id));
+
+          // Check if this is a trainer (by user_id or by committee)
+          const trainer = trainers.find(t => t.user_id === s.volunteer_id);
+          const isTrainerCommittee = committee?.name === 'Trainer';
+          const isTrainer = trainer || isTrainerCommittee;
+
+          let locationStr = s.location || 'branch';
+          if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
+          else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
+
+          const vestStatus = s.location === 'branch'
+            ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
+            : '';
+
+          // Determine participant type and name
+          let participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
+          let participantName = volunteer?.full_name || (language === 'ar' ? 'غير معروف' : 'Unknown');
+          let participantPhone = volunteer?.phone || '';
+
+          if (isTrainer) {
+            participantType = language === 'ar' ? 'مدرب' : 'Trainer';
+            // Use trainer name if available
+            if (trainer) {
+              participantName = language === 'ar' ? trainer.name_ar : trainer.name_en;
+              participantPhone = trainer.phone || participantPhone;
+            }
+          } else if (!volunteer) {
+            participantType = language === 'ar' ? 'ضيف' : 'Guest';
+          }
+
+          return {
+            [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'نوع المشارك' : 'Participant Type']: participantType,
+            [language === 'ar' ? 'اسم المشارك' : 'Participant Name']: participantName,
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: participantPhone,
+            [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
+            [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
+            [language === 'ar' ? 'الأثر' : 'Impact']: s.points_awarded || 0,
+            [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+            [language === 'ar' ? 'الملاحظات' : 'Notes']: s.description || '',
+            [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
+          };
+        });
+        const { start: allStart, end: allEnd } = getDateRange();
+        const allDateStr = `${format(allStart, 'yyyy-MM-dd')}_to_${format(allEnd, 'yyyy-MM-dd')}`;
+        downloadCSV(allReportData, `all_participations_${allDateStr}`);
+        break;
+
       case 'activities':
-        const reportData = filteredSubmissions.map(s => {
+        // Volunteers only participations (only those with profiles)
+        const volunteerSubmissions = filteredSubmissions.filter(s => profiles.some(p => p.id === s.volunteer_id));
+        const reportData = volunteerSubmissions.map(s => {
           const volunteer = profiles.find(p => p.id === s.volunteer_id);
           const activityType = activityTypes.find(a => a.id === s.activity_type_id);
           const committee = committees.find(c => c.id === (volunteer?.committee_id || s.committee_id));
@@ -367,7 +437,7 @@ export default function Reports() {
             : '';
 
           return {
-            [language === 'ar' ? 'النشاط' : 'Activity']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
             [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
@@ -379,10 +449,10 @@ export default function Reports() {
             [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
           };
         });
-        // Use 'participation_log' filename with dynamic date range
+        // Use 'volunteers_participations' filename with dynamic date range
         const { start, end } = getDateRange();
         const dateStr = `${format(start, 'yyyy-MM-dd')}_to_${format(end, 'yyyy-MM-dd')}`;
-        downloadCSV(reportData, `participation_log_${dateStr}`);
+        downloadCSV(reportData, `volunteers_participations_${dateStr}`);
         break;
 
 
@@ -676,22 +746,32 @@ export default function Reports() {
 
             </CardHeader>
             <CardContent>
-              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2">
-                <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('volunteers')}>
+              <div className="grid gap-4 grid-cols-1">
+                <Button variant="outline" className="w-full justify-start h-auto py-3 px-4" onClick={() => handleExport('volunteers')}>
                   <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
-                  <span className="truncate">{t('reports.volunteerList')}</span>
+                  <span>{t('reports.volunteerList')}</span>
                 </Button>
-                <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('activities')}>
+                <Button variant="outline" className="w-full justify-start h-auto py-3 px-4 flex-wrap" onClick={() => handleExport('all_activities')}>
                   <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
-                  <span className="truncate">
-                    {t('reports.activityLog')}
-                    <span className="text-xs opacity-70 ml-2 mr-2">
-                      (
-                      {(() => {
+                  <span className="flex flex-col items-start text-start sm:flex-row sm:items-center gap-1">
+                    <span>{language === 'ar' ? 'شيت مشاركات كلي' : 'All Participations'}</span>
+                    <span className="text-xs opacity-70">
+                      ({(() => {
                         const { start, end } = getDateRange();
-                        return `${format(start, 'yyyy/MM/dd')} - ${format(end, 'yyyy/MM/dd')}`;
-                      })()}
-                      )
+                        return `${format(start, 'MM/dd')} - ${format(end, 'MM/dd')}`;
+                      })()})
+                    </span>
+                  </span>
+                </Button>
+                <Button variant="outline" className="w-full justify-start h-auto py-3 px-4 flex-wrap" onClick={() => handleExport('activities')}>
+                  <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
+                  <span className="flex flex-col items-start text-start sm:flex-row sm:items-center gap-1">
+                    <span>{language === 'ar' ? 'شيت مشاركات المتطوعين' : 'Volunteers Participations'}</span>
+                    <span className="text-xs opacity-70">
+                      ({(() => {
+                        const { start, end } = getDateRange();
+                        return `${format(start, 'MM/dd')} - ${format(end, 'MM/dd')}`;
+                      })()})
                     </span>
                   </span>
                 </Button>
@@ -755,7 +835,7 @@ export default function Reports() {
                                 : '';
 
                               return {
-                                [language === 'ar' ? 'النشاط' : 'Activity']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+                                [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
                                 [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
                                 [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
                                 [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',

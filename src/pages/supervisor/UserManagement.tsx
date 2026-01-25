@@ -40,7 +40,7 @@ interface Committee {
     name_ar: string;
 }
 
-type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr' | 'head_production' | 'head_fourth_year' | 'head_caravans' | 'head_events';
+type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr' | 'head_production' | 'head_fourth_year' | 'head_caravans' | 'head_events' | 'head_ethics';
 
 interface UserWithDetails {
     id: string;
@@ -216,6 +216,7 @@ export default function SupervisorUserManagement() {
             case 'head_fourth_year':
             case 'head_events':
             case 'head_caravans':
+            case 'head_ethics':
                 return 'bg-blue-100 text-blue-700';
             default:
                 return 'bg-muted text-muted-foreground';
@@ -231,6 +232,7 @@ export default function SupervisorUserManagement() {
             case 'head_fourth_year': return t('common.head_fourth_year');
             case 'head_events': return t('common.head_events');
             case 'head_caravans': return t('common.head_caravans');
+            case 'head_ethics': return t('common.head_ethics');
             default: return t('common.volunteer');
         }
     };
@@ -278,6 +280,7 @@ export default function SupervisorUserManagement() {
                                 <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
                                 <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
                                 <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
+                                <SelectItem value="head_ethics">{t('common.head_ethics')}</SelectItem>
                                 <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
                                 <SelectItem value="admin">{t('common.admin')}</SelectItem>
                             </SelectContent>

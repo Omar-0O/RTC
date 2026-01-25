@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, MoreHorizontal, Users, Award, Pencil, Trash2, FileSpreadsheet } from 'lucide-react';
+import { Plus, MoreHorizontal, Users, Award, Pencil, Trash2, FileSpreadsheet, GraduationCap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,11 +37,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import { utils, writeFile } from 'xlsx';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, format } from 'date-fns';
+import CommitteeCard from './CommitteeCard';
 
 interface Committee {
   id: string;
@@ -57,10 +59,13 @@ interface CommitteeWithStats extends Committee {
   volunteerCount: number;
   totalPoints: number;
   participationCount: number;
+  trainerCount: number;
 }
 
 export default function CommitteeManagement() {
   const { t, language } = useLanguage();
+  // ... rest of the component
+
   const [committees, setCommittees] = useState<CommitteeWithStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
@@ -165,7 +170,13 @@ export default function CommitteeManagement() {
             .select('*', { count: 'exact', head: true })
             .eq('committee_id', committee.id);
 
-          // 2. Stats from Activities (Points & Participations) - Filtered by Time
+          // 2. Trainer Count
+          const { count: trainerCount } = await supabase
+            .from('trainers')
+            .select('*', { count: 'exact', head: true })
+            .eq('committee_id', committee.id);
+
+          // 3. Stats from Activities (Points & Participations) - Filtered by Time
           let query = supabase
             .from('activity_submissions')
             .select('points_awarded')
@@ -187,6 +198,7 @@ export default function CommitteeManagement() {
             ...committee,
             committee_type: committee.committee_type as 'production' | 'fourth_year',
             volunteerCount: volunteerCount || 0,
+            trainerCount: trainerCount || 0,
             totalPoints,
             participationCount
           };
@@ -402,7 +414,7 @@ export default function CommitteeManagement() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">{t('committees.title')}</h1>
-          <p className="text-muted-foreground">{t('committees.subtitle')}</p>
+
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -547,72 +559,50 @@ export default function CommitteeManagement() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {committees.map((committee) => (
-            <Card key={committee.id} className="relative">
-              <div
-                className="absolute top-0 left-0 right-0 h-1 rounded-t-lg"
-                style={{ backgroundColor: committee.color || '#3B82F6' }}
-              />
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <CardTitle className="text-lg">{getDisplayName(committee)}</CardTitle>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEditDialog(committee)}>
-                        <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                        {t('common.edit')}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => {
-                          setSelectedCommittee(committee);
-                          setIsDeleteDialogOpen(true);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                        {t('common.delete')}
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {getDisplayDescription(committee) || 'No description'}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div>
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                      <Users className="h-4 w-4" />
-                    </div>
-                    <p className="text-2xl font-bold">{committee.volunteerCount}</p>
-                    <p className="text-xs text-muted-foreground">{t('common.volunteers')}</p>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                      <Award className="h-4 w-4" />
-                    </div>
-                    <p className="text-2xl font-bold">{committee.totalPoints.toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">{t('common.points')}</p>
-                  </div>
-                  <div>
-                    <div className="flex items-center justify-center gap-1 text-muted-foreground">
-                      <FileSpreadsheet className="h-4 w-4" />
-                    </div>
-                    <p className="text-2xl font-bold">{committee.participationCount || 0}</p>
-                    <p className="text-xs text-muted-foreground">{language === 'ar' ? 'المشاركات' : 'Participations'}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Tabs defaultValue="production" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="production">{language === 'ar' ? 'اللجان الانتاجية' : 'Production Committees'}</TabsTrigger>
+            <TabsTrigger value="fourth_year">{language === 'ar' ? 'لجان سنة رابعة' : 'Fourth Year Committees'}</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="production">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {committees.filter(c => c.committee_type === 'production').map((committee) => (
+                <CommitteeCard
+                  key={committee.id}
+                  committee={committee}
+                  showTrainers={true}
+                  language={language}
+                  getDisplayName={getDisplayName}
+                  getDisplayDescription={getDisplayDescription}
+                  t={t}
+                  openEditDialog={openEditDialog}
+                  setSelectedCommittee={setSelectedCommittee}
+                  setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+                />
+              ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="fourth_year">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {committees.filter(c => c.committee_type === 'fourth_year').map((committee) => (
+                <CommitteeCard
+                  key={committee.id}
+                  committee={committee}
+                  showTrainers={false}
+                  language={language}
+                  getDisplayName={getDisplayName}
+                  getDisplayDescription={getDisplayDescription}
+                  t={t}
+                  openEditDialog={openEditDialog}
+                  setSelectedCommittee={setSelectedCommittee}
+                  setIsDeleteDialogOpen={setIsDeleteDialogOpen}
+                />
+              ))}
+            </div>
+          </TabsContent>
+        </Tabs>
       )}
 
       {/* Edit Dialog */}

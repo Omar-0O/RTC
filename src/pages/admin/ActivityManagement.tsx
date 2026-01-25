@@ -167,12 +167,12 @@ export default function ActivityManagement() {
 
       if (error) throw error;
 
-      toast.success(isRTL ? 'تم إنشاء نوع النشاط بنجاح' : 'Activity type created successfully');
+      toast.success(isRTL ? 'تم إنشاء نوع المهمة بنجاح' : 'Task type created successfully');
       setIsAddDialogOpen(false);
       resetForm();
       fetchData();
     } catch (error: any) {
-      toast.error(isRTL ? 'فشل في إنشاء نوع النشاط' : 'Failed to create activity type');
+      toast.error(isRTL ? 'فشل في إنشاء نوع المهمة' : 'Failed to create task type');
       console.error(error);
     } finally {
       setSubmitting(false);
@@ -198,13 +198,13 @@ export default function ActivityManagement() {
 
       if (error) throw error;
 
-      toast.success(isRTL ? 'تم تحديث نوع النشاط بنجاح' : 'Activity type updated successfully');
+      toast.success(isRTL ? 'تم تحديث نوع المهمة بنجاح' : 'Task type updated successfully');
       setIsEditDialogOpen(false);
       setSelectedActivity(null);
       resetForm();
       fetchData();
     } catch (error: any) {
-      toast.error(isRTL ? 'فشل في تحديث نوع النشاط' : 'Failed to update activity type');
+      toast.error(isRTL ? 'فشل في تحديث نوع المهمة' : 'Failed to update task type');
       console.error(error);
     } finally {
       setSubmitting(false);
@@ -222,13 +222,13 @@ export default function ActivityManagement() {
         throw error;
       }
 
-      toast.success(isRTL ? 'تم حذف نوع النشاط بنجاح' : 'Activity type deleted successfully');
+      toast.success(isRTL ? 'تم حذف نوع المهمة بنجاح' : 'Task type deleted successfully');
       setIsDeleteDialogOpen(false);
       setSelectedActivity(null);
       fetchData();
     } catch (error: any) {
       console.error('Failed to delete activity:', error);
-      toast.error(isRTL ? 'فشل في حذف نوع النشاط. قد يكون هناك مشاركات مرتبطة به.' : 'Failed to delete activity type. There might be submissions linked to it.');
+      toast.error(isRTL ? 'فشل في حذف نوع المهمة. قد يكون هناك مشاركات مرتبطة به.' : 'Failed to delete task type. There might be submissions linked to it.');
     } finally {
       setSubmitting(false);
     }
@@ -262,28 +262,28 @@ export default function ActivityManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{isRTL ? 'أنواع الأنشطة' : 'Activity Types'}</h1>
-          <p className="text-muted-foreground">{isRTL ? 'إدارة أنواع الأنشطة التطوعية والنقاط' : 'Manage volunteer activity types and point values'}</p>
+          <h1 className="text-3xl font-bold tracking-tight">{isRTL ? 'أنواع المهام' : 'Task Types'}</h1>
+          <p className="text-muted-foreground">{isRTL ? 'إدارة أنواع المهام التطوعية والأثر' : 'Manage volunteer task types and impact values'}</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={(open) => { setIsAddDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              {isRTL ? 'إضافة نوع نشاط' : 'Add Activity Type'}
+              {isRTL ? 'إضافة نوع مهمة' : 'Add Task Type'}
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{isRTL ? 'إنشاء نوع نشاط' : 'Create Activity Type'}</DialogTitle>
+              <DialogTitle>{isRTL ? 'إنشاء نوع مهمة' : 'Create Task Type'}</DialogTitle>
               <DialogDescription>
-                {isRTL ? 'تعريف نوع جديد من الأنشطة التطوعية' : 'Define a new type of volunteer activity.'}
+                {isRTL ? 'تعريف نوع جديد من المهام التطوعية' : 'Define a new type of volunteer task.'}
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleAddActivity}>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="grid gap-2">
-                    <Label htmlFor="name">Activity Name (EN)</Label>
+                    <Label htmlFor="name">Task Type Name (EN)</Label>
                     <Input
                       id="name"
                       value={formData.name}
@@ -293,7 +293,7 @@ export default function ActivityManagement() {
                     />
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="name_ar">اسم النشاط (عربي)</Label>
+                    <Label htmlFor="name_ar">نوع المهمة (عربي)</Label>
                     <Input
                       id="name_ar"
                       value={formData.name_ar}
@@ -396,7 +396,7 @@ export default function ActivityManagement() {
                     id="description_ar"
                     value={formData.description_ar}
                     onChange={(e) => setFormData({ ...formData, description_ar: e.target.value })}
-                    placeholder="وصف النشاط"
+                    placeholder="وصف المهمة"
                     rows={2}
                     dir="rtl"
                   />
@@ -453,7 +453,7 @@ export default function ActivityManagement() {
       {/* Activities Table */}
       <Card>
         <CardHeader>
-          <CardTitle>{isRTL ? 'أنواع الأنشطة' : 'Activity Types'} ({filteredActivities.length})</CardTitle>
+          <CardTitle>{isRTL ? 'أنواع المهام' : 'Task Types'} ({filteredActivities.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <>
@@ -461,7 +461,7 @@ export default function ActivityManagement() {
             <div className="grid gap-4 md:hidden">
               {filteredActivities.length === 0 ? (
                 <p className="text-center text-muted-foreground py-8">
-                  {isRTL ? 'لا توجد أنشطة' : 'No activities found'}
+                  {isRTL ? 'لا توجد مهام' : 'No tasks found'}
                 </p>
               ) : (
                 filteredActivities.map((activity) => (
@@ -536,7 +536,7 @@ export default function ActivityManagement() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-start">{isRTL ? 'اسم النشاط' : 'Activity Name'}</TableHead>
+                    <TableHead className="text-start">{isRTL ? 'نوع المهمة' : 'Task Type Name'}</TableHead>
                     <TableHead className="text-start">{isRTL ? 'اللجنة' : 'Committee'}</TableHead>
                     <TableHead className="text-start">{isRTL ? 'الأثر' : 'Impact'}</TableHead>
                     <TableHead className="text-start">{isRTL ? 'النوع' : 'Mode'}</TableHead>
@@ -548,7 +548,7 @@ export default function ActivityManagement() {
                   {filteredActivities.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        {isRTL ? 'لا توجد أنشطة' : 'No activities found'}
+                        {isRTL ? 'لا توجد مهام' : 'No tasks found'}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -622,16 +622,16 @@ export default function ActivityManagement() {
       <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) { setSelectedActivity(null); resetForm(); } }}>
         <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{isRTL ? 'تعديل نوع النشاط' : 'Edit Activity Type'}</DialogTitle>
+            <DialogTitle>{isRTL ? 'تعديل نوع المهمة' : 'Edit Task Type'}</DialogTitle>
             <DialogDescription>
-              {isRTL ? 'تحديث تفاصيل نوع النشاط' : 'Update activity type details.'}
+              {isRTL ? 'تحديث تفاصيل نوع المهمة' : 'Update task type details.'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEditActivity}>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-name">Activity Name (EN)</Label>
+                  <Label htmlFor="edit-name">Task Type Name (EN)</Label>
                   <Input
                     id="edit-name"
                     value={formData.name}
@@ -640,7 +640,7 @@ export default function ActivityManagement() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="edit-name_ar">اسم النشاط (عربي)</Label>
+                  <Label htmlFor="edit-name_ar">نوع المهمة (عربي)</Label>
                   <Input
                     id="edit-name_ar"
                     value={formData.name_ar}
@@ -669,62 +669,60 @@ export default function ActivityManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 border rounded-md bg-muted/20 space-y-3 mb-4">
-                  <p className="text-sm font-medium">{isRTL ? 'إعدادات الأثر' : 'Impact Settings'}</p>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit-points" className="text-xs">{isRTL ? 'الأساسي' : 'Base'}</Label>
-                      <Input
-                        id="edit-points"
-                        type="number"
-                        min="1"
-                        value={formData.points}
-                        onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
-                        required
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit-points_vest" className="text-xs">{isRTL ? 'مع Vest' : 'With Vest'}</Label>
-                      <Input
-                        id="edit-points_vest"
-                        type="number"
-                        min="1"
-                        value={formData.points_with_vest}
-                        onChange={(e) => setFormData({ ...formData, points_with_vest: parseInt(e.target.value) || 0 })}
-                        required
-                        className="border-green-200 focus-visible:ring-green-500"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="edit-points_no_vest" className="text-xs">{isRTL ? 'بدون Vest' : 'No Vest'}</Label>
-                      <Input
-                        id="edit-points_no_vest"
-                        type="number"
-                        min="1"
-                        value={formData.points_without_vest}
-                        onChange={(e) => setFormData({ ...formData, points_without_vest: parseInt(e.target.value) || 0 })}
-                        required
-                        className="border-orange-200 focus-visible:ring-orange-500"
-                      />
-                    </div>
+              <div className="col-span-2 p-3 border rounded-md bg-muted/20 space-y-3">
+                <p className="text-sm font-medium">{isRTL ? 'إعدادات الأثر' : 'Impact Settings'}</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-points" className="text-xs">{isRTL ? 'الأساسي' : 'Base'}</Label>
+                    <Input
+                      id="edit-points"
+                      type="number"
+                      min="1"
+                      value={formData.points}
+                      onChange={(e) => setFormData({ ...formData, points: parseInt(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-points_vest" className="text-xs">{isRTL ? 'مع Vest' : 'With Vest'}</Label>
+                    <Input
+                      id="edit-points_vest"
+                      type="number"
+                      min="1"
+                      value={formData.points_with_vest}
+                      onChange={(e) => setFormData({ ...formData, points_with_vest: parseInt(e.target.value) || 0 })}
+                      required
+                      className="border-green-200 focus-visible:ring-green-500"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="edit-points_no_vest" className="text-xs">{isRTL ? 'بدون Vest' : 'No Vest'}</Label>
+                    <Input
+                      id="edit-points_no_vest"
+                      type="number"
+                      min="1"
+                      value={formData.points_without_vest}
+                      onChange={(e) => setFormData({ ...formData, points_without_vest: parseInt(e.target.value) || 0 })}
+                      required
+                      className="border-orange-200 focus-visible:ring-orange-500"
+                    />
                   </div>
                 </div>
-                <div className="grid gap-2">
-                  <Label>{isRTL ? 'النوع' : 'Mode'}</Label>
-                  <Select
-                    value={formData.mode}
-                    onValueChange={(value: 'individual' | 'group') => setFormData({ ...formData, mode: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="individual">{isRTL ? 'فردي' : 'Individual'}</SelectItem>
-                      <SelectItem value="group">{isRTL ? 'جماعي' : 'Group'}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>{isRTL ? 'النوع' : 'Mode'}</Label>
+                <Select
+                  value={formData.mode}
+                  onValueChange={(value: 'individual' | 'group') => setFormData({ ...formData, mode: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="individual">{isRTL ? 'فردي' : 'Individual'}</SelectItem>
+                    <SelectItem value="group">{isRTL ? 'جماعي' : 'Group'}</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid gap-2">
                 <Label>Description (EN)</Label>
@@ -761,7 +759,7 @@ export default function ActivityManagement() {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{isRTL ? 'حذف نوع النشاط؟' : 'Delete Activity Type?'}</AlertDialogTitle>
+            <AlertDialogTitle>{isRTL ? 'حذف نوع المهمة؟' : 'Delete Task Type?'}</AlertDialogTitle>
             <AlertDialogDescription>
               {isRTL
                 ? `هل أنت متأكد من حذف "${selectedActivity?.name_ar}"؟ لا يمكن التراجع عن هذا الإجراء.`

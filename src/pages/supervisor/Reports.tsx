@@ -358,7 +358,7 @@ export default function Reports() {
           else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
 
           return {
-            [language === 'ar' ? 'النشاط' : 'Activity']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
             [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',

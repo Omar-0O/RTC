@@ -27,6 +27,7 @@ import {
 interface Course {
     id: string;
     name: string;
+    trainer_id: string | null;
     trainer_name: string;
     trainer_phone: string | null;
     room: string;
@@ -184,9 +185,74 @@ export default function MyCourses() {
 
         if (error) {
             toast.error(isRTL ? 'فشل تحديث الحالة' : 'Failed to update status');
-        } else {
-            toast.success(isRTL ? 'تم التحديث' : 'Updated');
-            setLectures(prev => prev.map(l => l.id === lectureId ? { ...l, status } : l));
+            return;
+        }
+
+        // If marked as completed, create trainer participation
+        if (status === 'completed' && selectedCourse) {
+            await createTrainerParticipation(selectedCourse, lectureId);
+        }
+
+        toast.success(isRTL ? 'تم التحديث' : 'Updated');
+        setLectures(prev => prev.map(l => l.id === lectureId ? { ...l, status } : l));
+    };
+
+    // Create trainer participation when lecture is completed
+    const createTrainerParticipation = async (course: Course, lectureId: string) => {
+        if (!course.trainer_id) return; // External trainer, no account
+
+        try {
+            // Get trainer info to find user_id
+            const { data: trainerData } = await supabase
+                .from('trainers')
+                .select('user_id, name')
+                .eq('id', course.trainer_id)
+                .single();
+
+            if (!trainerData?.user_id) return; // Trainer not linked to a user account
+
+            // Get trainer committee
+            const { data: committee } = await supabase
+                .from('committees')
+                .select('id')
+                .eq('name', 'Trainer')
+                .single();
+
+            // Get trainer lecture activity type
+            const { data: activityType } = await supabase
+                .from('activity_types')
+                .select('id, points')
+                .eq('name', 'Trainer Lecture')
+                .single();
+
+            if (!committee || !activityType) {
+                console.warn('لجنة المدرب أو نوع المهمة غير موجود');
+                return;
+            }
+
+            // Get lecture info for description
+            const lecture = lectures.find(l => l.id === lectureId);
+            const lectureNum = lecture?.lecture_number || '';
+
+            // Create activity submission for the trainer
+            const { error: submitError } = await supabase.from('activity_submissions').insert({
+                volunteer_id: trainerData.user_id,
+                activity_type_id: activityType.id,
+                committee_id: committee.id,
+                description: `محاضرة ${lectureNum} في كورس: ${course.name}`,
+                points_awarded: activityType.points,
+                status: 'approved',
+                location: 'branch',
+                proof_url: null
+            });
+
+            if (submitError) {
+                console.error('Error creating trainer participation:', submitError);
+            } else {
+                console.log('تم تسجيل مشاركة المدرب');
+            }
+        } catch (error) {
+            console.error('Error in createTrainerParticipation:', error);
         }
     };
 

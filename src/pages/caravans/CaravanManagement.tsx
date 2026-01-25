@@ -162,8 +162,27 @@ export default function CaravanManagement() {
     };
 
     const handleUpdateCaravan = async () => {
-        if (!formData.name || !formData.date || !formData.location || !selectedCaravanId) {
-            toast.error(isRTL ? 'يرجى ملء البيانات الأساسية' : 'Please fill basic details');
+        const missingFields: string[] = [];
+
+        if (!formData.name?.trim()) {
+            missingFields.push(isRTL ? 'اسم القافلة' : 'Caravan name');
+        }
+        if (!formData.date) {
+            missingFields.push(isRTL ? 'التاريخ' : 'Date');
+        }
+        if (!formData.location?.trim()) {
+            missingFields.push(isRTL ? 'الموقع' : 'Location');
+        }
+        if (!selectedCaravanId) {
+            missingFields.push(isRTL ? 'معرف القافلة' : 'Caravan ID');
+        }
+
+        if (missingFields.length > 0) {
+            toast.error(
+                isRTL
+                    ? `يرجى ملء الحقول التالية: ${missingFields.join('، ')}`
+                    : `Please fill in: ${missingFields.join(', ')}`
+            );
             return;
         }
 
@@ -252,9 +271,10 @@ export default function CaravanManagement() {
             resetForm();
             fetchCaravans();
 
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error updating caravan:', error);
-            toast.error(isRTL ? 'حدث خطأ أثناء تحديث القافلة' : 'Error updating caravan');
+            const errorMessage = error.message || (isRTL ? 'حدث خطأ أثناء تحديث القافلة' : 'Error updating caravan');
+            toast.error(errorMessage);
         }
     };
 
@@ -464,8 +484,28 @@ export default function CaravanManagement() {
     };
 
     const handleCreateCaravan = async () => {
-        if (!formData.name || !formData.date || !formData.location) {
-            toast.error(isRTL ? 'يرجى ملء البيانات الأساسية' : 'Please fill basic details');
+        // Specific validation with clear error messages
+        const missingFields: string[] = [];
+
+        if (!formData.name?.trim()) {
+            missingFields.push(isRTL ? 'اسم القافلة' : 'Caravan name');
+        }
+        if (!formData.date) {
+            missingFields.push(isRTL ? 'التاريخ' : 'Date');
+        }
+        if (!formData.location?.trim()) {
+            missingFields.push(isRTL ? 'الموقع' : 'Location');
+        }
+        if (!formData.type) {
+            missingFields.push(isRTL ? 'نوع القافلة' : 'Caravan type');
+        }
+
+        if (missingFields.length > 0) {
+            toast.error(
+                isRTL
+                    ? `يرجى ملء الحقول التالية: ${missingFields.join('، ')}`
+                    : `Please fill in: ${missingFields.join(', ')}`
+            );
             return;
         }
 
@@ -508,9 +548,10 @@ export default function CaravanManagement() {
             setIsCreateOpen(false);
             resetForm();
             fetchCaravans();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error creating caravan:', error);
-            toast.error(isRTL ? 'حدث خطأ أثناء إنشاء القافلة' : 'Error creating caravan');
+            const errorMessage = error.message || (isRTL ? 'حدث خطأ أثناء إنشاء القافلة' : 'Error creating caravan');
+            toast.error(errorMessage);
         }
     };
 

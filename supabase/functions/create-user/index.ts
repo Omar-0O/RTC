@@ -78,8 +78,9 @@ Deno.serve(async (req: Request) => {
 
         if (!isAuthorized) {
             // Log for debugging
-            console.log(`User ${requester.id} attempted to create user but has roles: ${roles.join(', ')}`)
-            throw new Error(`Unauthorized: Admin or HR access required. User roles are: ${roles.join(', ') || 'none'}`)
+            console.log(`User ${requester.id} (${requester.email}) attempted to create user but has roles: ${roles.join(', ')}`)
+            const roleList = roles.length > 0 ? roles.join(', ') : 'none';
+            throw new Error(`Unauthorized: Admin or Head HR access required. Your current roles: ${roleList}. Please contact an administrator.`)
         }
 
         // Create the user with email confirmed
@@ -102,7 +103,7 @@ Deno.serve(async (req: Request) => {
                 .upsert({
                     user_id: userData.user.id,
                     role: role || 'volunteer'
-                }, { onConflict: 'user_id,role', ignoreDuplicates: true })
+                }, { onConflict: 'user_id' })
 
             if (insertRoleError) {
                 console.warn('Role upsert warning:', insertRoleError.message)

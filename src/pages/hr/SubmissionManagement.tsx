@@ -107,12 +107,25 @@ interface VolunteerSummary {
     submissions: Submission[];
 }
 
+// Guest participation interface for head_hr
+interface GuestParticipation {
+    id: string;
+    name: string;
+    phone: string | null;
+    source: 'event' | 'caravan' | 'call';
+    source_name: string;
+    date: string;
+    type: 'guest' | 'trainer';
+}
+
 export default function SubmissionManagement() {
-    const { user } = useAuth();
+    const { user, primaryRole } = useAuth();
     const { t, language } = useLanguage();
     const isRTL = language === 'ar';
+    const isHeadHR = primaryRole === 'head_hr';
 
     const [submissions, setSubmissions] = useState<Submission[]>([]);
+    const [guestParticipations, setGuestParticipations] = useState<GuestParticipation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Filters
@@ -131,10 +144,6 @@ export default function SubmissionManagement() {
         { value: 'under_follow_up', label: { ar: 'تحت المتابعة', en: 'Under Follow-up' } },
         { value: 'project_responsible', label: { ar: 'مسؤول مشروع', en: 'Project Responsible' } },
         { value: 'responsible', label: { ar: 'مسؤول', en: 'Responsible' } },
-        { value: 'silver', label: { ar: 'فضية', en: 'Silver' } },
-        { value: 'gold', label: { ar: 'ذهبية', en: 'Gold' } },
-        { value: 'platinum', label: { ar: 'بلاتينية', en: 'Platinum' } },
-        { value: 'diamond', label: { ar: 'ماسية', en: 'Diamond' } },
     ];
 
     useEffect(() => {
@@ -143,7 +152,10 @@ export default function SubmissionManagement() {
 
     useEffect(() => {
         fetchSubmissions();
-    }, [selectedMonth, selectedLevel, selectedVolunteer]);
+        if (isHeadHR) {
+            fetchGuestParticipations();
+        }
+    }, [selectedMonth, selectedLevel, selectedVolunteer, isHeadHR]);
 
     const fetchVolunteers = async () => {
         try {
@@ -200,10 +212,8 @@ export default function SubmissionManagement() {
                 .lte('submitted_at', endDate.toISOString())
                 .order('submitted_at', { ascending: false });
 
-            // Apply Level Filter
-            if (selectedLevel !== 'all') {
-                query = query.eq('profiles.level', selectedLevel as any);
-            }
+            // Apply Level Filter - Note: filtering on joined table fields in Supabase 
+            // doesn't work with .eq(), so we filter client-side below
 
             // Apply Volunteer Filter
             if (selectedVolunteer) {
@@ -230,7 +240,22 @@ export default function SubmissionManagement() {
 
             const filteredSubmissions = submissionsData.filter(s => {
                 const isAdmin = adminIds.includes(s.volunteer_id);
-                return !isAdmin;
+                if (isAdmin) return false;
+
+                // Apply level filter client-side
+                if (selectedLevel !== 'all') {
+                    const volunteerLevel = s.profiles?.level;
+                    // Handle level aliases (bronze/silver -> under_follow_up, gold -> project_responsible, platinum/diamond -> responsible)
+                    if (selectedLevel === 'under_follow_up') {
+                        return ['under_follow_up', 'bronze', 'silver', 'newbie', 'active'].includes(volunteerLevel);
+                    } else if (selectedLevel === 'project_responsible') {
+                        return ['project_responsible', 'gold'].includes(volunteerLevel);
+                    } else if (selectedLevel === 'responsible') {
+                        return ['responsible', 'platinum', 'diamond'].includes(volunteerLevel);
+                    }
+                    return volunteerLevel === selectedLevel;
+                }
+                return true;
             });
 
             console.log('Filtered submissions (final):', filteredSubmissions.length);
@@ -245,8 +270,116 @@ export default function SubmissionManagement() {
         }
     };
 
+    // Fetch guest and trainer participations from events, caravans, and calls (for head_hr only)
+    const fetchGuestParticipations = async () => {
+        if (!isHeadHR) return;
+
+        try {
+            const monthDate = new Date(selectedMonth + '-01');
+            const startDate = startOfMonth(monthDate);
+            const endDate = endOfMonth(monthDate);
+
+            const guestData: GuestParticipation[] = [];
+
+            // Fetch event participants (guests)
+            const { data: eventParticipants } = await supabase
+                .from('event_participants')
+                .select(`
+                    id,
+                    name,
+                    phone,
+                    is_volunteer,
+                    events (name, date)
+                `)
+                .eq('is_volunteer', false)
+                .gte('events.date', startDate.toISOString().split('T')[0])
+                .lte('events.date', endDate.toISOString().split('T')[0]);
+
+            if (eventParticipants) {
+                eventParticipants.forEach((p: any) => {
+                    if (p.events) {
+                        guestData.push({
+                            id: p.id,
+                            name: p.name || '',
+                            phone: p.phone,
+                            source: 'event',
+                            source_name: p.events.name || '',
+                            date: p.events.date || '',
+                            type: 'guest'
+                        });
+                    }
+                });
+            }
+
+            // Fetch caravan participants (guests)
+            const { data: caravanParticipants } = await supabase
+                .from('caravan_participants')
+                .select(`
+                    id,
+                    name,
+                    phone,
+                    is_volunteer,
+                    caravans (name, date)
+                `)
+                .eq('is_volunteer', false)
+                .gte('caravans.date', startDate.toISOString().split('T')[0])
+                .lte('caravans.date', endDate.toISOString().split('T')[0]);
+
+            if (caravanParticipants) {
+                caravanParticipants.forEach((p: any) => {
+                    if (p.caravans) {
+                        guestData.push({
+                            id: p.id,
+                            name: p.name || '',
+                            phone: p.phone,
+                            source: 'caravan',
+                            source_name: p.caravans.name || '',
+                            date: p.caravans.date || '',
+                            type: 'guest'
+                        });
+                    }
+                });
+            }
+
+            // Fetch call participants (guests)
+            const { data: callParticipants } = await supabase
+                .from('call_participants')
+                .select(`
+                    id,
+                    name,
+                    phone,
+                    is_volunteer,
+                    calls (name, date)
+                `)
+                .eq('is_volunteer', false)
+                .gte('calls.date', startDate.toISOString().split('T')[0])
+                .lte('calls.date', endDate.toISOString().split('T')[0]);
+
+            if (callParticipants) {
+                callParticipants.forEach((p: any) => {
+                    if (p.calls) {
+                        guestData.push({
+                            id: p.id,
+                            name: p.name || '',
+                            phone: p.phone,
+                            source: 'call',
+                            source_name: p.calls.name || '',
+                            date: p.calls.date || '',
+                            type: 'guest'
+                        });
+                    }
+                });
+            }
+
+            setGuestParticipations(guestData);
+        } catch (error) {
+            console.error('Error fetching guest participations:', error);
+        }
+    };
+
     const exportReport = () => {
-        const reportData = submissions.map(s => {
+        // Volunteer participation data
+        const volunteerData = submissions.map(s => {
             const volunteer = s.profiles;
             const activityType = s.activity_types;
             const committee = s.committees;
@@ -261,9 +394,10 @@ export default function SubmissionManagement() {
                 : '';
 
             return {
-                [isRTL ? 'النشاط' : 'Activity']: activityType?.[isRTL ? 'name_ar' : 'name'] || '',
-                [isRTL ? 'اللجنة' : 'Committee']: committee?.[isRTL ? 'name_ar' : 'name'] || '',
-                [isRTL ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
+                [isRTL ? 'النوع' : 'Type']: isRTL ? 'متطوع' : 'Volunteer',
+                [isRTL ? 'نوع المهمة' : 'Task Type']: activityType?.[isRTL ? 'name_ar' : 'name'] || '',
+                [isRTL ? 'اللجنة/المصدر' : 'Committee/Source']: committee?.[isRTL ? 'name_ar' : 'name'] || '',
+                [isRTL ? 'الاسم' : 'Name']: volunteer?.full_name || '',
                 [isRTL ? 'رقم الهاتف' : 'Phone']: `'${volunteer?.phone || ''}'`,
                 [isRTL ? 'نوع المشاركة' : 'Participation Type']: locationStr,
                 [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
@@ -273,6 +407,31 @@ export default function SubmissionManagement() {
                 [isRTL ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
             };
         });
+
+        // Guest participation data (only for head_hr)
+        const guestData = isHeadHR ? guestParticipations.map(g => {
+            const sourceLabel = g.source === 'event'
+                ? (isRTL ? 'نزولة' : 'Event')
+                : g.source === 'caravan'
+                    ? (isRTL ? 'قافلة' : 'Caravan')
+                    : (isRTL ? 'زيارة' : 'Call');
+
+            return {
+                [isRTL ? 'النوع' : 'Type']: isRTL ? 'ضيف' : 'Guest',
+                [isRTL ? 'نوع المهمة' : 'Task Type']: sourceLabel,
+                [isRTL ? 'اللجنة/المصدر' : 'Committee/Source']: g.source_name,
+                [isRTL ? 'الاسم' : 'Name']: g.name,
+                [isRTL ? 'رقم الهاتف' : 'Phone']: `'${g.phone || ''}'`,
+                [isRTL ? 'نوع المشاركة' : 'Participation Type']: sourceLabel,
+                [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: '',
+                [isRTL ? 'الأثر' : 'Impact']: 0,
+                [isRTL ? 'تاريخ المشاركة' : 'Date']: g.date,
+                [isRTL ? 'الملاحظات' : 'Notes']: '',
+                [isRTL ? 'رابط الإثبات' : 'Proof Link']: '',
+            };
+        }) : [];
+
+        const reportData = [...volunteerData, ...guestData];
 
         if (reportData.length === 0) {
             toast.error(isRTL ? 'لا توجد بيانات للتصدير' : 'No data to export');

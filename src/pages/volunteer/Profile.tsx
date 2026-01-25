@@ -9,7 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
-import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X } from 'lucide-react';
+import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X, MessageSquare, Plus, AlertCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -36,6 +38,24 @@ type ActivitySubmission = {
   status: string;
   submitted_at: string;
   proof_url: string | null;
+};
+
+type VolunteerFeedback = {
+  id: string;
+  content: string;
+  created_at: string;
+  author: {
+    full_name: string | null;
+    avatar_url: string | null;
+  };
+};
+
+type Fine = {
+  source_type: string;
+  source_name: string;
+  source_name_ar: string;
+  created_at: string;
+  amount: number;
 };
 
 interface ProfileProps {
@@ -101,13 +121,19 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const { id: paramUserId } = useParams();
   const userId = propUserId || paramUserId;
 
-  const { user, profile: authProfile, refreshProfile, primaryRole } = useAuth();
+  const { user, profile: authProfile, refreshProfile, hasRole } = useAuth();
   const { t, isRTL } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [badges, setBadges] = useState<UserBadge[]>([]);
   const [activities, setActivities] = useState<ActivitySubmission[]>([]);
+  const [feedbacks, setFeedbacks] = useState<VolunteerFeedback[]>([]);
+  const [fines, setFines] = useState<Fine[]>([]);
+
+  const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false);
+  const [newFeedback, setNewFeedback] = useState('');
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
   const [monthlyPoints, setMonthlyPoints] = useState(0);
 
@@ -190,9 +216,23 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         .eq('volunteer_id', targetUserId)
         .order('submitted_at', { ascending: false });
 
-      const [badgesRes, activitiesRes]: [any, any] = await Promise.all([
+      const feedbacksQuery = supabase
+        .from('volunteer_feedbacks')
+        .select('id, content, created_at, author:profiles!volunteer_feedbacks_author_id_fkey(full_name, avatar_url)')
+        .eq('volunteer_id', targetUserId)
+        .order('created_at', { ascending: false });
+
+      const finesQuery = supabase
+        .from('volunteer_fines_view')
+        .select('*')
+        .eq('volunteer_id', targetUserId)
+        .order('created_at', { ascending: false });
+
+      const [badgesRes, activitiesRes, feedbacksRes, finesRes]: [any, any, any, any] = await Promise.all([
         badgesQuery,
         activitiesQuery,
+        feedbacksQuery,
+        finesQuery,
       ]);
 
       if (badgesRes.data) {
@@ -212,6 +252,25 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           status: a.status,
           submitted_at: a.submitted_at,
           proof_url: a.proof_url,
+        })));
+      }
+
+      if (feedbacksRes.data) {
+        setFeedbacks(feedbacksRes.data.map((f: any) => ({
+          id: f.id,
+          content: f.content,
+          created_at: f.created_at,
+          author: f.author,
+        })));
+      }
+
+      if (finesRes.data) {
+        setFines(finesRes.data.map((f: any) => ({
+          source_type: f.source_type,
+          source_name: f.source_name,
+          source_name_ar: f.source_name_ar,
+          created_at: f.created_at,
+          amount: f.amount,
         })));
       }
     } catch (error) {
@@ -424,6 +483,12 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           <TabsTrigger value="badges">
             {t('profile.badges')} ({badges.length})
           </TabsTrigger>
+          <TabsTrigger value="feedbacks">
+            {isRTL ? 'الآراء والتقييمات' : 'Feedbacks'} ({feedbacks.length})
+          </TabsTrigger>
+          <TabsTrigger value="fines">
+            {isRTL ? 'الغرامات' : 'Fines'} ({fines.reduce((sum, f) => sum + f.amount, 0)})
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="activities">
@@ -478,48 +543,170 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="badges">
+        <TabsContent value="feedbacks">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Award className="h-5 w-5" />
-                {t('profile.badges')}
-              </CardTitle>
-              <CardDescription>
-                {isRTL ? 'الإنجازات التي حصلت عليها من خلال مساهماتك' : 'Achievements you\'ve earned through your contributions'}
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex flex-col space-y-1.5">
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  {isRTL ? 'آراء القادة' : 'Leaders Feedback'}
+                </CardTitle>
+                <CardDescription>
+                </CardDescription>
+              </div>
+
+              {isViewOnly && (hasRole('admin') || hasRole('head_hr') || hasRole('hr') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_caravans') || hasRole('head_events') || hasRole('head_ethics') || hasRole('head_quran') || hasRole('head_production') || hasRole('head_fourth_year')) && (
+                <Dialog open={isFeedbackDialogOpen} onOpenChange={setIsFeedbackDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm" className="gap-1">
+                      <Plus className="h-4 w-4" />
+                      {isRTL ? 'إضافة Feedback' : 'Add Feedback'}
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>{isRTL ? 'إضافة رأي جديد' : 'Add New Feedback'}</DialogTitle>
+                      <DialogDescription>
+                        {isRTL ? 'أكتب رأيك أو تقييمك لهذا المتطوع. سيظهر هذا في ملفه الشخصي.' : 'Write your feedback or evaluation for this volunteer. This will appear on their profile.'}
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                      <Textarea
+                        value={newFeedback}
+                        onChange={(e) => setNewFeedback(e.target.value)}
+                        placeholder={isRTL ? 'اكتب تعليقك هنا...' : 'Write your feedback here...'}
+                        className="min-h-[100px]"
+                      />
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setIsFeedbackDialogOpen(false)} disabled={submittingFeedback}>
+                        {isRTL ? 'إلغاء' : 'Cancel'}
+                      </Button>
+                      <Button
+                        onClick={async () => {
+                          if (!newFeedback.trim() || !targetUserId || !user) return;
+                          setSubmittingFeedback(true);
+                          try {
+                            const { error } = await supabase
+                              .from('volunteer_feedbacks')
+                              .insert({
+                                volunteer_id: targetUserId,
+                                author_id: user.id,
+                                content: newFeedback.trim()
+                              });
+
+                            if (error) throw error;
+
+                            toast.success(isRTL ? 'تم إضافة الرأ بنجاح' : 'Feedback added successfully');
+                            setNewFeedback('');
+                            setIsFeedbackDialogOpen(false);
+                            fetchData();
+                          } catch (error) {
+                            console.error('Error adding feedback:', error);
+                            toast.error(isRTL ? 'حدث خطأ أثناء إضافة الرأي' : 'Error adding feedback');
+                          } finally {
+                            setSubmittingFeedback(false);
+                          }
+                        }}
+                        disabled={!newFeedback.trim() || submittingFeedback}
+                      >
+                        {submittingFeedback && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isRTL ? 'نشر' : 'Post'}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
             </CardHeader>
             <CardContent>
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
-              ) : badges.length === 0 ? (
+              ) : feedbacks.length === 0 ? (
                 <p className="text-muted-foreground text-center py-8">
-                  {isRTL ? 'أكمل الأنشطة للحصول على الشارات!' : 'Complete activities to earn badges!'}
+                  {isRTL ? 'لا توجد آراء بعد.' : 'No feedback yet.'}
                 </p>
               ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {badges.map((userBadge) => (
+                <div className="space-y-4 pt-4">
+                  {feedbacks.map((feedback) => (
                     <div
-                      key={userBadge.id}
-                      className="flex flex-col items-center text-center p-4 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                      key={feedback.id}
+                      className="flex flex-col gap-3 rounded-lg border p-4 bg-card/50"
                     >
-                      <div
-                        className="w-16 h-16 rounded-full flex items-center justify-center mb-3"
-                        style={{ backgroundColor: userBadge.badge.color + '20', color: userBadge.badge.color }}
-                      >
-                        <Award className="h-8 w-8" />
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={feedback.author?.avatar_url || undefined} />
+                          <AvatarFallback>
+                            {feedback.author?.full_name?.substring(0, 2).toUpperCase() || '??'}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-semibold">{feedback.author?.full_name || (isRTL ? 'مستخدم غير معروف' : 'Unknown User')}</span>
+                          <span className="text-xs text-muted-foreground">{formatDate(feedback.created_at)}</span>
+                        </div>
                       </div>
-                      <h4 className="font-medium text-sm">
-                        {isRTL ? userBadge.badge.name_ar : userBadge.badge.name}
-                      </h4>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {isRTL ? userBadge.badge.description_ar : userBadge.badge.description}
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                        {feedback.content}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {formatDate(userBadge.earned_at)}
-                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="fines">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-destructive" />
+                    {isRTL ? 'سجل الغرامات' : 'Fines History'}
+                  </CardTitle>
+                  <CardDescription>
+                    {isRTL ? 'سجل الغرامات التلقائية لعدم ارتداء الـ Vest' : 'Automatic fines history for not wearing Vest'}
+                  </CardDescription>
+                </div>
+                <div className="text-2xl font-bold text-destructive">
+                  {fines.reduce((sum, f) => sum + f.amount, 0)} {isRTL ? 'ج.م' : 'EGP'}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : fines.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  {isRTL ? 'سجل نظيف! لا توجد غرامات.' : 'Clean record! No fines.'}
+                </p>
+              ) : (
+                <div className="space-y-4 pt-4">
+                  {fines.map((fine, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between rounded-lg border p-4 bg-destructive/5 border-destructive/20"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className="font-semibold">
+                          {isRTL ? 'عدم ارتداء الـ Vest' : 'No Vest Penalty'}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {isRTL
+                            ? `في: ${fine.source_name_ar || fine.source_name}`
+                            : `In: ${fine.source_name}`}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(fine.created_at)}
+                        </span>
+                      </div>
+                      <div className="font-bold text-destructive">
+                        -{fine.amount} {isRTL ? 'ج.م' : 'EGP'}
+                      </div>
                     </div>
                   ))}
                 </div>
