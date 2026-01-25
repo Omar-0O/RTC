@@ -1494,7 +1494,10 @@ export const Constants = {
                 "head_fourth_year",
                 "head_events",
                 "head_ethics",
+<<<<<<< HEAD
                 "head_quran",
+=======
+>>>>>>> e485d11fbbca9a0f16e2e67425898bcfc7c6e7c8
             ],
             submission_status: ["pending", "approved", "rejected"],
             volunteer_level: [

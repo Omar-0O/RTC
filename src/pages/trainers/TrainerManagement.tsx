@@ -116,7 +116,6 @@ interface UserProfile {
     full_name: string | null;
     email: string | null;
 }
-
 export default function TrainerManagement(): JSX.Element {
     const { user, roles, profile, isLoading } = useAuth(); // Add isLoading
     const { isRTL } = useLanguage();
@@ -140,7 +139,6 @@ export default function TrainerManagement(): JSX.Element {
     // Users state
     const [availableUsers, setAvailableUsers] = useState<UserProfile[]>([]);
     const [userSearch, setUserSearch] = useState('');
-
     useEffect(() => {
         if (isRestricted && profile?.committee_id) {
             setFormData(prev => ({ ...prev, committee_id: profile.committee_id }));
@@ -186,7 +184,6 @@ export default function TrainerManagement(): JSX.Element {
             console.error('Error fetching users:', error);
         }
     };
-
     const fetchTrainers = async () => {
         setLoading(true);
         try {
