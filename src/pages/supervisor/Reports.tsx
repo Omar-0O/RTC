@@ -69,6 +69,7 @@ interface ActivitySubmission {
   created_at?: string;
   participant_type?: 'volunteer' | 'guest' | 'trainer';
   guest_name?: string | null;
+  guest_phone?: string | null;
   trainer_id?: string | null;
 }
 
@@ -124,7 +125,12 @@ export default function Reports() {
       }
 
       if (committeesRes.data) setCommittees(committeesRes.data);
-      if (submissionsRes.data) setSubmissions(submissionsRes.data);
+      if (submissionsRes.data) {
+        console.log('DEBUG: Fetched Submissions:', submissionsRes.data.length);
+        const guestSubs = submissionsRes.data.filter(s => s.participant_type === 'guest' || s.guest_name);
+        console.log('DEBUG: Guest Submissions Sample:', guestSubs.slice(0, 3));
+        setSubmissions(submissionsRes.data);
+      }
       if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
 
       // Fetch trainers
@@ -369,15 +375,19 @@ export default function Reports() {
           let participantName = volunteer?.full_name || (language === 'ar' ? 'غير معروف' : 'Unknown');
           let participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
 
+          let participantPhone = volunteer?.phone || '';
+
           if (s.participant_type === 'trainer' || (!volunteer && s.trainer_id)) {
             participantType = language === 'ar' ? 'مدرب' : 'Trainer';
             const trainer = trainers.find(t => t.id === s.trainer_id || t.user_id === s.volunteer_id);
             if (trainer) {
               participantName = language === 'ar' ? trainer.name_ar : trainer.name_en;
+              participantPhone = trainer.phone || participantPhone;
             }
-          } else if (s.participant_type === 'guest' || (!volunteer && s.guest_name)) {
+          } else if (s.participant_type === 'guest' || s.guest_name) {
             participantType = language === 'ar' ? 'ضيف' : 'Guest';
-            participantName = s.guest_name || participantName;
+            participantName = s.guest_name || '';
+            participantPhone = s.guest_phone || '';
           }
 
           return {
@@ -385,13 +395,14 @@ export default function Reports() {
             [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اسم المشارك' : 'Participant Name']: participantName,
             [language === 'ar' ? 'نوع المشارك' : 'Participant Type']: participantType,
-            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: participantPhone ? `'${participantPhone}'` : '',
             [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
             [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
             [language === 'ar' ? 'الملاحظات' : 'Notes']: s.description || '',
             [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
           };
         });
+        console.log('DEBUG: Mapped Report Data Sample:', reportData.slice(0, 3));
         // Use 'participation_log' filename, filtered by current month
         downloadCSV(reportData, `participation_log_${dateRange}`);
         break;

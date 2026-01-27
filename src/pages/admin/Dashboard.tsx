@@ -18,6 +18,7 @@ type DashboardStats = {
 type RecentSubmission = {
   id: string;
   volunteer_name: string;
+  participant_label: string;
   activity_name: string;
   committee_name: string;
   points: number;
@@ -77,10 +78,14 @@ export default function AdminDashboard() {
             points_awarded,
             status,
             submitted_at,
+            participant_type,
+            guest_name,
+            trainer_id,
             volunteer:profiles!activity_submissions_volunteer_id_fkey(full_name, full_name_ar),
             activity:activity_types!activity_submissions_activity_type_id_fkey(name, name_ar),
             committee:committees!activity_submissions_committee_id_fkey(name, name_ar)
           `)
+          .neq('participant_type', 'guest')
           .order('submitted_at', { ascending: false })
           .limit(5),
       ]);
@@ -118,21 +123,38 @@ export default function AdminDashboard() {
       }
 
       // Recent submissions
-      const submissions = (submissionsRes.data || []).map((s: any) => ({
-        id: s.id,
-        volunteer_name: isRTL
-          ? (s.volunteer?.full_name_ar || s.volunteer?.full_name || '')
-          : (s.volunteer?.full_name || ''),
-        activity_name: isRTL
-          ? (s.activity?.name_ar || s.activity?.name || '')
-          : (s.activity?.name || ''),
-        committee_name: isRTL
-          ? (s.committee?.name_ar || s.committee?.name || '')
-          : (s.committee?.name || ''),
-        points: s.points_awarded || 0,
-        status: s.status,
-        submitted_at: s.submitted_at,
-      }));
+      const submissions = (submissionsRes.data || []).map((s: any) => {
+        // Determine participant name and type label
+        let volunteerName = '';
+        let participantLabel = '';
+
+        if (s.participant_type === 'trainer' || s.trainer_id) {
+          volunteerName = s.volunteer?.full_name_ar || s.volunteer?.full_name || s.guest_name || (isRTL ? 'مدرب' : 'Trainer');
+          participantLabel = isRTL ? 'مدرب' : 'Trainer';
+        } else if (s.participant_type === 'guest' || (!s.volunteer && s.guest_name)) {
+          volunteerName = s.guest_name || (isRTL ? 'ضيف' : 'Guest');
+          participantLabel = isRTL ? 'ضيف' : 'Guest';
+        } else {
+          volunteerName = isRTL
+            ? (s.volunteer?.full_name_ar || s.volunteer?.full_name || '')
+            : (s.volunteer?.full_name || '');
+        }
+
+        return {
+          id: s.id,
+          volunteer_name: volunteerName,
+          participant_label: participantLabel,
+          activity_name: isRTL
+            ? (s.activity?.name_ar || s.activity?.name || '')
+            : (s.activity?.name || ''),
+          committee_name: isRTL
+            ? (s.committee?.name_ar || s.committee?.name || '')
+            : (s.committee?.name || ''),
+          points: s.points_awarded || 0,
+          status: s.status,
+          submitted_at: s.submitted_at,
+        };
+      });
       setRecentSubmissions(submissions);
 
       // Committee stats
@@ -258,7 +280,12 @@ export default function AdminDashboard() {
                     className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border p-3"
                   >
                     <div className="space-y-1 min-w-0 flex-1">
-                      <p className="font-medium truncate">{submission.volunteer_name}</p>
+                      <p className="font-medium truncate">
+                        {submission.volunteer_name}
+                        {submission.participant_label && (
+                          <span className="text-xs text-muted-foreground mr-1 ml-1">({submission.participant_label})</span>
+                        )}
+                      </p>
                       <p className="text-sm text-muted-foreground truncate">
                         {submission.activity_name} • {submission.committee_name}
                       </p>

@@ -246,10 +246,10 @@ export default function CaravanManagement() {
             if (toInsert.length > 0) {
                 await supabase.from('caravan_participants').insert(toInsert.map(p => ({
                     caravan_id: selectedCaravanId,
-                    volunteer_id: p.volunteer_id || null,
+                    volunteer_id: p.is_volunteer ? (p.volunteer_id || null) : null, // Force null for guests
                     name: p.name,
                     phone: p.phone,
-                    is_volunteer: p.is_volunteer,
+                    is_volunteer: Boolean(p.is_volunteer),
                     wore_vest: p.wore_vest
                 })));
             }
@@ -258,10 +258,10 @@ export default function CaravanManagement() {
                 await supabase.from('caravan_participants').upsert(toUpdate.map(p => ({
                     id: p.id,
                     caravan_id: selectedCaravanId,
-                    volunteer_id: p.volunteer_id || null,
+                    volunteer_id: p.is_volunteer ? (p.volunteer_id || null) : null, // Force null for guests
                     name: p.name,
                     phone: p.phone,
-                    is_volunteer: p.is_volunteer,
+                    is_volunteer: Boolean(p.is_volunteer),
                     wore_vest: p.wore_vest
                 })));
             }
@@ -429,6 +429,18 @@ export default function CaravanManagement() {
             return;
         }
 
+        // Check for duplicate name
+        if (participants.some(p => p.name.trim().toLowerCase() === guestName.trim().toLowerCase())) {
+            toast.error(isRTL ? 'هذا الاسم مضاف بالفعل' : 'This name is already added');
+            return;
+        }
+
+        // Check for duplicate phone (if provided)
+        if (guestPhone && participants.some(p => p.phone === guestPhone)) {
+            toast.error(isRTL ? 'رقم الهاتف مضاف بالفعل' : 'This phone number is already added');
+            return;
+        }
+
         setParticipants([...participants, {
             name: guestName,
             phone: guestPhone,
@@ -533,10 +545,10 @@ export default function CaravanManagement() {
                     .from('caravan_participants' as any) // eslint-disable-line @typescript-eslint/no-explicit-any
                     .insert(participants.map(p => ({
                         caravan_id: caravanData.id,
-                        volunteer_id: p.volunteer_id || null,
+                        volunteer_id: p.is_volunteer ? (p.volunteer_id || null) : null, // Force null for guests
                         name: p.name,
                         phone: p.phone,
-                        is_volunteer: p.is_volunteer,
+                        is_volunteer: Boolean(p.is_volunteer),
                         wore_vest: p.wore_vest // Pass wore_vest status
                     })));
 

@@ -78,7 +78,7 @@ interface Profile {
 
 interface Submission {
     id: string;
-    volunteer_id: string;
+    volunteer_id: string | null;
     activity_type_id: string;
     submitted_at: string;
     points_awarded: number;
@@ -87,7 +87,10 @@ interface Submission {
     wore_vest?: boolean;
     description?: string;
     proof_url?: string;
-    profiles: Profile;
+    participant_type?: 'volunteer' | 'guest' | 'trainer';
+    guest_name?: string | null;
+    guest_phone?: string | null;
+    profiles: Profile | null;
     activity_types: {
         name: string;
         name_ar: string;
@@ -96,7 +99,6 @@ interface Submission {
         name: string;
         name_ar: string;
     };
-
 }
 
 interface VolunteerSummary {
@@ -204,7 +206,10 @@ export default function SubmissionManagement() {
                     wore_vest,
                     description,
                     proof_url,
-                    profiles:profiles!activity_submissions_volunteer_id_fkey!inner (id, full_name, full_name_ar, level, avatar_url, phone),
+                    participant_type,
+                    guest_name,
+                    guest_phone,
+                    profiles:profiles!activity_submissions_volunteer_id_fkey (id, full_name, full_name_ar, level, avatar_url, phone),
                     activity_types (name, name_ar),
                     committees (name, name_ar)
                 `)
@@ -239,11 +244,17 @@ export default function SubmissionManagement() {
             console.log('Fetched submissions (raw - before filter):', data?.length);
 
             const filteredSubmissions = submissionsData.filter(s => {
-                const isAdmin = adminIds.includes(s.volunteer_id);
-                if (isAdmin) return false;
+                // Skip admin check for guests (volunteer_id is null)
+                if (s.volunteer_id) {
+                    const isAdmin = adminIds.includes(s.volunteer_id);
+                    if (isAdmin) return false;
+                }
 
-                // Apply level filter client-side
+                // Apply level filter client-side (skip for guests)
                 if (selectedLevel !== 'all') {
+                    // Guests don't have a level, so exclude them from level filtering
+                    if (!s.profiles) return false;
+
                     const volunteerLevel = s.profiles?.level;
                     // Handle level aliases (bronze/silver -> under_follow_up, gold -> project_responsible, platinum/diamond -> responsible)
                     if (selectedLevel === 'under_follow_up') {
@@ -758,83 +769,106 @@ export default function SubmissionManagement() {
                         </CardContent>
                     </Card>
                 ) : (
-                    submissions.map((submission) => (
-                        <Card key={submission.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                            <CardContent className="p-4 sm:p-6">
-                                <div className="flex items-start gap-4">
-                                    {/* Volunteer Avatar */}
-                                    <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border-2 border-primary/10">
-                                        <AvatarImage src={submission.profiles.avatar_url || undefined} />
-                                        <AvatarFallback className="text-lg">
-                                            {(submission.profiles.full_name?.substring(0, 2) || "U")}
-                                        </AvatarFallback>
-                                    </Avatar>
+                    submissions.map((submission) => {
+                        // Determine if this is a guest submission
+                        const isGuest = !submission.profiles || submission.participant_type === 'guest';
+                        const displayName = isGuest
+                            ? submission.guest_name
+                            : (isRTL ? submission.profiles?.full_name_ar : submission.profiles?.full_name);
+                        const displayPhone = isGuest ? submission.guest_phone : submission.profiles?.phone;
 
-                                    {/* Content */}
-                                    <div className="flex-1 min-w-0 grid gap-1">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                                <h3 className="font-semibold text-base sm:text-lg truncate">
-                                                    {isRTL ? submission.profiles.full_name_ar : submission.profiles.full_name}
-                                                </h3>
+                        return (
+                            <Card key={submission.id} className="overflow-hidden hover:shadow-md transition-shadow">
+                                <CardContent className="p-4 sm:p-6">
+                                    <div className="flex items-start gap-4">
+                                        {/* Avatar */}
+                                        <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border-2 border-primary/10">
+                                            {!isGuest && submission.profiles?.avatar_url ? (
+                                                <AvatarImage src={submission.profiles.avatar_url} />
+                                            ) : null}
+                                            <AvatarFallback className="text-lg">
+                                                {isGuest ? '👤' : (submission.profiles?.full_name?.substring(0, 2) || "U")}
+                                            </AvatarFallback>
+                                        </Avatar>
+
+                                        {/* Content */}
+                                        <div className="flex-1 min-w-0 grid gap-1">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <h3 className="font-semibold text-base sm:text-lg truncate">
+                                                        {displayName || (isRTL ? 'ضيف' : 'Guest')}
+                                                    </h3>
+                                                    {isGuest ? (
+                                                        <Badge variant="outline" className="text-xs sm:text-xs shrink-0 text-emerald-600 border-emerald-200 bg-emerald-50">
+                                                            {isRTL ? 'ضيف' : 'Guest'}
+                                                        </Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className={cn(
+                                                            "text-xs sm:text-xs shrink-0",
+                                                            (submission.profiles?.level === 'under_follow_up' || submission.profiles?.level === 'bronze') && 'text-orange-500 border-orange-200 bg-orange-50',
+                                                            submission.profiles?.level === 'responsible' && 'text-blue-500 border-blue-200 bg-blue-50',
+                                                            submission.profiles?.level === 'project_responsible' && 'text-purple-500 border-purple-200 bg-purple-50',
+                                                            submission.profiles?.level === 'silver' && 'text-slate-500 border-slate-200 bg-slate-50',
+                                                            submission.profiles?.level === 'gold' && 'text-yellow-600 border-yellow-200 bg-yellow-50',
+                                                            submission.profiles?.level === 'platinum' && 'text-cyan-600 border-cyan-200 bg-cyan-50'
+                                                        )}>
+                                                            {getLevelLabel(submission.profiles?.level || '')}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-xs text-muted-foreground whitespace-nowrap">
+                                                        {format(new Date(submission.submitted_at), 'PPP p')}
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                        onClick={() => handleDelete(submission.id)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 text-sm text-foreground/80">
+                                                <span className="font-medium">
+                                                    {isRTL ? submission.activity_types?.name_ar : submission.activity_types?.name}
+                                                </span>
+                                                <span className="text-muted-foreground">•</span>
+                                                <span className="text-muted-foreground">
+                                                    {isRTL ? submission.committees?.name_ar : submission.committees?.name}
+                                                </span>
+                                                {displayPhone && (
+                                                    <>
+                                                        <span className="text-muted-foreground">•</span>
+                                                        <span className="text-muted-foreground text-xs">{displayPhone}</span>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Status & Points */}
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <Badge variant={submission.status === 'approved' ? 'default' : 'secondary'} className="h-6">
+                                                    {submission.points_awarded} {isRTL ? 'أثر' : 'Impact'}
+                                                </Badge>
                                                 <Badge variant="outline" className={cn(
-                                                    "text-xs sm:text-xs shrink-0",
-                                                    (submission.profiles.level === 'under_follow_up' || submission.profiles.level === 'bronze') && 'text-orange-500 border-orange-200 bg-orange-50',
-                                                    submission.profiles.level === 'responsible' && 'text-blue-500 border-blue-200 bg-blue-50',
-                                                    submission.profiles.level === 'project_responsible' && 'text-purple-500 border-purple-200 bg-purple-50',
-                                                    submission.profiles.level === 'silver' && 'text-slate-500 border-slate-200 bg-slate-50',
-                                                    submission.profiles.level === 'gold' && 'text-yellow-600 border-yellow-200 bg-yellow-50',
-                                                    submission.profiles.level === 'platinum' && 'text-cyan-600 border-cyan-200 bg-cyan-50'
+                                                    "capitalize h-6",
+                                                    submission.status === 'approved' && "text-green-600 border-green-200 bg-green-50",
+                                                    submission.status === 'pending' && "text-yellow-600 border-yellow-200 bg-yellow-50",
+                                                    submission.status === 'rejected' && "text-red-600 border-red-200 bg-red-50",
                                                 )}>
-                                                    {getLevelLabel(submission.profiles.level)}
+                                                    {submission.status === 'approved' ? (isRTL ? 'معتمد' : 'Approved') :
+                                                        submission.status === 'pending' ? (isRTL ? 'قيد الانتظار' : 'Pending') :
+                                                            (isRTL ? 'مرفوض' : 'Rejected')}
                                                 </Badge>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="text-xs text-muted-foreground whitespace-nowrap">
-                                                    {format(new Date(submission.submitted_at), 'PPP p')}
-                                                </div>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                    onClick={() => handleDelete(submission.id)}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 text-sm text-foreground/80">
-                                            <span className="font-medium">
-                                                {isRTL ? submission.activity_types.name_ar : submission.activity_types.name}
-                                            </span>
-                                            <span className="text-muted-foreground">•</span>
-                                            <span className="text-muted-foreground">
-                                                {isRTL ? submission.committees.name_ar : submission.committees.name}
-                                            </span>
-                                        </div>
-
-                                        {/* Status & Points */}
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <Badge variant={submission.status === 'approved' ? 'default' : 'secondary'} className="h-6">
-                                                {submission.points_awarded} {isRTL ? 'أثر' : 'Impact'}
-                                            </Badge>
-                                            <Badge variant="outline" className={cn(
-                                                "capitalize h-6",
-                                                submission.status === 'approved' && "text-green-600 border-green-200 bg-green-50",
-                                                submission.status === 'pending' && "text-yellow-600 border-yellow-200 bg-yellow-50",
-                                                submission.status === 'rejected' && "text-red-600 border-red-200 bg-red-50",
-                                            )}>
-                                                {submission.status === 'approved' ? (isRTL ? 'معتمد' : 'Approved') :
-                                                    submission.status === 'pending' ? (isRTL ? 'قيد الانتظار' : 'Pending') :
-                                                        (isRTL ? 'مرفوض' : 'Rejected')}
-                                            </Badge>
                                         </div>
                                     </div>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))
+                                </CardContent>
+                            </Card>
+                        );
+                    })
                 )}
             </div>
 

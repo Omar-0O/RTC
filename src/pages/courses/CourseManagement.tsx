@@ -162,7 +162,7 @@ export default function CourseManagement() {
     const [trainers, setTrainers] = useState<Trainer[]>([]);
     const [selectedTrainerId, setSelectedTrainerId] = useState<string>('');
     const [isExternalTrainer, setIsExternalTrainer] = useState(false);
-    const [committees, setCommittees] = useState<{ id: string, name: string, name_ar: string }[]>([]);
+    const [committees, setCommittees] = useState<{ id: string, name: string, name_ar: string, committee_type?: string | null }[]>([]);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
 
@@ -219,7 +219,7 @@ export default function CourseManagement() {
         try {
             const { data, error } = await supabase
                 .from('committees')
-                .select('id, name, name_ar')
+                .select('id, name, name_ar, committee_type')
                 .order('name_ar');
             if (error) throw error;
             setCommittees(data || []);
@@ -1324,11 +1324,13 @@ export default function CourseManagement() {
                                                 <SelectValue placeholder={isRTL ? 'اختر اللجنة' : 'Select Committee'} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {committees.map(committee => (
-                                                    <SelectItem key={committee.id} value={committee.id} className="py-3">
-                                                        {isRTL ? committee.name_ar : committee.name}
-                                                    </SelectItem>
-                                                ))}
+                                                {committees
+                                                    .filter(c => c.committee_type !== 'fourth_year')
+                                                    .map(committee => (
+                                                        <SelectItem key={committee.id} value={committee.id} className="py-3">
+                                                            {isRTL ? committee.name_ar : committee.name}
+                                                        </SelectItem>
+                                                    ))}
                                             </SelectContent>
                                         </Select>
                                     </div>
@@ -1767,11 +1769,13 @@ export default function CourseManagement() {
                                     <SelectValue placeholder={isRTL ? 'اختر اللجنة' : 'Select Committee'} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {committees.map(committee => (
-                                        <SelectItem key={committee.id} value={committee.id} className="py-3">
-                                            {isRTL ? committee.name_ar : committee.name}
-                                        </SelectItem>
-                                    ))}
+                                    {committees
+                                        .filter(c => c.committee_type !== 'fourth_year')
+                                        .map(committee => (
+                                            <SelectItem key={committee.id} value={committee.id} className="py-3">
+                                                {isRTL ? committee.name_ar : committee.name}
+                                            </SelectItem>
+                                        ))}
                                 </SelectContent>
                             </Select>
                         </div>

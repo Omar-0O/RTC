@@ -375,11 +375,6 @@ export default function Reports() {
           const activityType = activityTypes.find(a => a.id === s.activity_type_id);
           const committee = committees.find(c => c.id === (s.committee_id || volunteer?.committee_id));
 
-          // Check if this is a trainer (by user_id or by committee)
-          const trainer = trainers.find(t => t.user_id === s.volunteer_id);
-          const isTrainerCommittee = committee?.name === 'Trainer';
-          const isTrainer = trainer || isTrainerCommittee;
-
           let locationStr = s.location || 'branch';
           if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
           else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
@@ -388,31 +383,46 @@ export default function Reports() {
             ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
             : '';
 
-          // Determine participant type and name
+          // Determine participant type and name - CHECK participant_type FIRST before profile lookup
           let participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
-          let participantName = volunteer?.full_name || (language === 'ar' ? 'غير معروف' : 'Unknown');
-          let participantPhone = volunteer?.phone || '';
+          let participantName = language === 'ar' ? 'غير معروف' : 'Unknown';
+          let participantPhone = '';
 
-          if (s.participant_type === 'trainer' || isTrainer) {
-            participantType = language === 'ar' ? 'مدرب' : 'Trainer';
-            if (trainer) {
-              participantName = language === 'ar' ? trainer.name_ar : trainer.name_en;
-              participantPhone = trainer.phone || participantPhone;
-            } else if (s.trainer_id) {
-              // Try to find by trainer_id if set
-              const linkedTrainer = trainers.find(t => t.id === s.trainer_id);
-              if (linkedTrainer) {
-                participantName = language === 'ar' ? linkedTrainer.name_ar : linkedTrainer.name_en;
-                participantPhone = linkedTrainer.phone || participantPhone;
-              }
-            }
-          } else if (s.participant_type === 'guest' || (!volunteer && s.guest_name)) {
+          // Priority 1: Check if explicitly a guest (by participant_type or guest_name)
+          if (s.participant_type === 'guest' || s.guest_name) {
             participantType = language === 'ar' ? 'ضيف' : 'Guest';
             participantName = s.guest_name || participantName;
-            participantPhone = s.guest_phone || participantPhone;
-          } else if (!volunteer) {
-            // Fallback for old records or partial data
-            participantType = language === 'ar' ? 'ضيف' : 'Guest';
+            participantPhone = s.guest_phone || '';
+          }
+          // Priority 2: Check if explicitly a trainer
+          else if (s.participant_type === 'trainer' || s.trainer_id) {
+            participantType = language === 'ar' ? 'مدرب' : 'Trainer';
+            // Try to find trainer by trainer_id first
+            const linkedTrainer = s.trainer_id ? trainers.find(t => t.id === s.trainer_id) : null;
+            if (linkedTrainer) {
+              participantName = language === 'ar' ? linkedTrainer.name_ar : linkedTrainer.name_en;
+              participantPhone = linkedTrainer.phone || '';
+            } else if (volunteer) {
+              // Fallback to volunteer profile if trainer record not found
+              const trainerByUserId = trainers.find(t => t.user_id === s.volunteer_id);
+              if (trainerByUserId) {
+                participantName = language === 'ar' ? trainerByUserId.name_ar : trainerByUserId.name_en;
+                participantPhone = trainerByUserId.phone || '';
+              } else {
+                participantName = volunteer.full_name || participantName;
+                participantPhone = volunteer.phone || '';
+              }
+            }
+          }
+          // Priority 3: Check if volunteer profile exists
+          else if (volunteer) {
+            participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
+            participantName = volunteer.full_name || participantName;
+            participantPhone = volunteer.phone || '';
+          }
+          // Priority 4: Fallback for unknown (no volunteer_id and no guest_name)
+          else {
+            participantType = language === 'ar' ? 'غير معروف' : 'Unknown';
           }
 
           return {
