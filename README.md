@@ -2,7 +2,7 @@
 
 **برنامج تسجيل المشاركات** is a comprehensive Volunteer Management System designed to gamify the volunteering experience and streamline organization management. It empowers volunteers to track their impact while giving administrators powerful tools to oversee activities, committees, and performance.
 
-![Banner](public/og-image.png)
+![Banner](src/assets/logo.png)
 
 ## 🚀 Features
 
