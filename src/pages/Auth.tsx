@@ -1,14 +1,22 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Languages, Eye, EyeOff } from 'lucide-react';
+import { Languages, Eye, EyeOff, Sun, Moon, Laptop } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useTheme } from 'next-themes';
 import logo from '@/assets/logo.png';
+import { cn } from '@/lib/utils';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -18,6 +26,7 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t, isRTL, language, setLanguage } = useLanguage();
+  const { setTheme } = useTheme();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,15 +161,45 @@ export default function Auth() {
         </Card>
       </div>
 
-      <Button
-        variant="ghost"
-        size="icon"
-        className="fixed bottom-4 right-4 rounded-full bg-white/50 backdrop-blur-sm hover:bg-white/80 text-black hover:text-black shadow-sm border border-gray-100"
-        onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
-        title={language === 'en' ? 'Switch to Arabic' : 'Switch to English'}
-      >
-        <Languages className="h-5 w-5" />
-      </Button>
+      <div className="fixed bottom-4 right-4 flex gap-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full bg-white/50 backdrop-blur-sm hover:bg-white/80 text-black hover:text-black shadow-sm border border-gray-100 dark:bg-black/50 dark:hover:bg-black/80 dark:text-white dark:hover:text-white dark:border-gray-800"
+              title={t('theme.toggle')}
+            >
+              <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setTheme("light")}>
+              <Sun className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+              {t('theme.light')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("dark")}>
+              <Moon className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+              {t('theme.dark')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("system")}>
+              <Laptop className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+              {t('theme.system')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-full bg-white/50 backdrop-blur-sm hover:bg-white/80 text-black hover:text-black shadow-sm border border-gray-100 dark:bg-black/50 dark:hover:bg-black/80 dark:text-white dark:hover:text-white dark:border-gray-800"
+          onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+          title={language === 'en' ? 'Switch to Arabic' : 'Switch to English'}
+        >
+          <Languages className="h-5 w-5" />
+        </Button>
+      </div>
     </div>
   );
 }
