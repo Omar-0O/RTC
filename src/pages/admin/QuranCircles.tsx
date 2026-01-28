@@ -41,10 +41,17 @@ interface Guest {
     phone: string;
 }
 
+interface Teacher {
+    id: string;
+    name: string;
+}
+
 interface QuranCircle {
     id: string;
     name: string;
     date: string;
+    teacher_id: string | null;
+    teacher_name?: string;
     guest_names: Guest[];
     beneficiaries_count?: number;
 }
@@ -62,6 +69,7 @@ export default function QuranCircles() {
     const [formData, setFormData] = useState({
         name: '',
         date: new Date().toISOString().split('T')[0],
+        teacher_id: '',
         guest_names: [] as Guest[]
     });
     const [guestNameInput, setGuestNameInput] = useState('');
@@ -72,11 +80,13 @@ export default function QuranCircles() {
 
     // Beneficiaries Selection State
     const [allBeneficiaries, setAllBeneficiaries] = useState<Beneficiary[]>([]);
+    const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
     const [beneficiarySearch, setBeneficiarySearch] = useState('');
 
     useEffect(() => {
         fetchCircles();
         fetchBeneficiaries();
+        fetchTeachers();
     }, []);
 
     const fetchCircles = async () => {
@@ -85,9 +95,10 @@ export default function QuranCircles() {
             const { data, error } = await supabase
                 .from('quran_circles')
                 .select(`
-                    *,
-                    quran_circle_beneficiaries (count)
-                `)
+                        *,
+                        teacher: quran_teachers(name),
+                        quran_circle_beneficiaries(count)
+                            `)
                 .order('date', { ascending: false });
 
             if (error) throw error;
@@ -103,6 +114,8 @@ export default function QuranCircles() {
                     id: circle.id,
                     name: circle.name,
                     date: circle.date,
+                    teacher_id: circle.teacher_id,
+                    teacher_name: circle.teacher?.name,
                     guest_names: formattedGuests,
                     beneficiaries_count: circle.quran_circle_beneficiaries[0]?.count || 0
                 };
@@ -131,6 +144,20 @@ export default function QuranCircles() {
         }
     };
 
+    const fetchTeachers = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('quran_teachers')
+                .select('id, name')
+                .order('name');
+
+            if (error) throw error;
+            setAllTeachers(data || []);
+        } catch (error) {
+            console.error('Error fetching teachers:', error);
+        }
+    };
+
     const handleSave = async () => {
         if (!formData.name || !formData.date) {
             toast.error(isRTL ? 'يرجى ملء الحقول المطلوبة' : 'Please fill required fields');
@@ -147,7 +174,8 @@ export default function QuranCircles() {
                     .update({
                         name: formData.name,
                         date: formData.date,
-                        guest_names: formData.guest_names
+                        teacher_id: formData.teacher_id || null,
+                        guest_names: formData.guest_names as any
                     })
                     .eq('id', selectedId);
 
@@ -159,7 +187,8 @@ export default function QuranCircles() {
                     .insert({
                         name: formData.name,
                         date: formData.date,
-                        guest_names: formData.guest_names
+                        teacher_id: formData.teacher_id || null,
+                        guest_names: formData.guest_names as any
                     })
                     .select()
                     .single();
@@ -236,6 +265,7 @@ export default function QuranCircles() {
         setFormData({
             name: circle.name,
             date: circle.date,
+            teacher_id: circle.teacher_id || '',
             guest_names: circle.guest_names
         });
         setSelectedBeneficiaries(loadedBeneficiaries);
@@ -248,6 +278,7 @@ export default function QuranCircles() {
         setFormData({
             name: '',
             date: new Date().toISOString().split('T')[0],
+            teacher_id: '',
             guest_names: []
         });
         setSelectedBeneficiaries([]);
@@ -347,6 +378,20 @@ export default function QuranCircles() {
                                 </div>
                             </div>
 
+                            <div className="space-y-2">
+                                <Label>{isRTL ? 'المحفظ' : 'Teacher'}</Label>
+                                <select
+                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    value={formData.teacher_id}
+                                    onChange={e => setFormData({ ...formData, teacher_id: e.target.value })}
+                                >
+                                    <option value="">{isRTL ? 'اختر محفظ...' : 'Select Teacher...'}</option>
+                                    {allTeachers.map(t => (
+                                        <option key={t.id} value={t.id}>{t.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
                             {/* Beneficiaries Selection */}
                             <div className="space-y-2 border p-4 rounded-lg bg-muted/20">
                                 <div className="flex justify-between items-center mb-2">
@@ -368,7 +413,7 @@ export default function QuranCircles() {
                                             return (
                                                 <div
                                                     key={b.id}
-                                                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-md transition-colors ${isSelected ? 'bg-primary/5 border-primary/20 border' : 'hover:bg-muted border border-transparent'}`}
+                                                    className={`flex flex - col sm: flex - row sm: items - center justify - between gap - 2 p - 2 rounded - md transition - colors ${isSelected ? 'bg-primary/5 border-primary/20 border' : 'hover:bg-muted border border-transparent'}`}
                                                 >
                                                     <div className="flex items-center gap-2 flex-1 cursor-pointer" onClick={() => toggleBeneficiary(b.id)}>
                                                         <Checkbox checked={isSelected} />
@@ -384,7 +429,7 @@ export default function QuranCircles() {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => updateAttendanceType(b.id, 'memorization')}
-                                                                className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${selectedData?.type === 'memorization'
+                                                                className={`px - 3 py - 1 text - xs font - medium rounded - sm transition - all ${selectedData?.type === 'memorization'
                                                                     ? 'bg-primary text-primary-foreground shadow-sm'
                                                                     : 'hover:bg-muted text-muted-foreground'
                                                                     }`}
@@ -394,10 +439,10 @@ export default function QuranCircles() {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => updateAttendanceType(b.id, 'revision')}
-                                                                className={`px-3 py-1 text-xs font-medium rounded-sm transition-all ${selectedData?.type === 'revision'
-                                                                    ? 'bg-amber-500 text-white shadow-sm'
-                                                                    : 'hover:bg-muted text-muted-foreground'
-                                                                    }`}
+                                                                className={`px - 3 py - 1 text - xs font - medium rounded - sm transition - all ${selectedData?.type === 'revision'
+                                                                        ? 'bg-amber-500 text-white shadow-sm'
+                                                                        : 'hover:bg-muted text-muted-foreground'
+                                                                    } `}
                                                             >
                                                                 {isRTL ? 'مراجعة' : 'Revision'}
                                                             </button>
@@ -492,6 +537,14 @@ export default function QuranCircles() {
                                             <span className="flex items-center gap-1">
                                                 {format(new Date(c.date), 'yyyy-MM-dd')}
                                             </span>
+                                            {c.teacher_name && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span className="flex items-center gap-1 font-medium text-primary">
+                                                        {c.teacher_name}
+                                                    </span>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                     <DropdownMenu>
@@ -532,6 +585,6 @@ export default function QuranCircles() {
                     ))
                 )}
             </div>
-        </div>
+        </div >
     );
 }

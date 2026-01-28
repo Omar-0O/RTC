@@ -17,6 +17,8 @@ interface CreateUserBody {
     committeeId?: string;
     phone?: string;
     level?: string;
+    joinDate?: string;
+    isAshbal?: boolean;
 }
 
 Deno.serve(async (req: Request) => {
@@ -25,7 +27,7 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
-        const { email, password, fullName, fullNameAr, role, committeeId, phone, level } = await req.json() as CreateUserBody
+        const { email, password, fullName, fullNameAr, role, committeeId, phone, level, joinDate, isAshbal } = await req.json() as CreateUserBody
 
         const supabaseUrl = Deno.env.get('SUPABASE_URL')
         const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -122,7 +124,9 @@ Deno.serve(async (req: Request) => {
                     full_name_ar: fullNameAr,
                     committee_id: committeeId || null,
                     phone: phone || null,
-                    level: level || 'under_follow_up'
+                    level: level || 'under_follow_up',
+                    join_date: joinDate || undefined,
+                    is_ashbal: isAshbal || false
                 })
                 .eq('id', userData.user.id)
 

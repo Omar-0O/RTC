@@ -15,6 +15,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 
 type UserBadge = {
   id: string;
@@ -38,7 +46,9 @@ type ActivitySubmission = {
   status: string;
   submitted_at: string;
   proof_url: string | null;
+  is_paid?: boolean; // Added is_paid
 };
+
 
 type VolunteerFeedback = {
   id: string;
@@ -130,10 +140,17 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const [activities, setActivities] = useState<ActivitySubmission[]>([]);
   const [feedbacks, setFeedbacks] = useState<VolunteerFeedback[]>([]);
   const [fines, setFines] = useState<Fine[]>([]);
+  const [manualFines, setManualFines] = useState<ActivitySubmission[]>([]);
+  const [activityTypes, setActivityTypes] = useState<{ id: string; name: string; name_ar: string }[]>([]);
 
   const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false);
+  const [isFineDialogOpen, setIsFineDialogOpen] = useState(false);
   const [newFeedback, setNewFeedback] = useState('');
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [selectedFineType, setSelectedFineType] = useState('');
+  const [fineAmount, setFineAmount] = useState('');
+  const [fineComment, setFineComment] = useState('');
+  const [submittingFine, setSubmittingFine] = useState(false);
 
   const [monthlyPoints, setMonthlyPoints] = useState(0);
 
@@ -147,11 +164,17 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   // Use either the fetched profile (for view mode) or auth profile (for own profile)
   const displayProfile = isViewOnly ? viewedProfile : authProfile;
   const displayAvatar = isViewOnly ? viewedAvatarUrl : (authProfile?.avatar_url || null);
+  const isAshbal = displayProfile?.is_ashbal;
 
-  // Show monthly points if viewing own profile, otherwise total
-  const points = (!isViewOnly) ? monthlyPoints : (displayProfile?.total_points || 0);
+  // Calculate total impact (positive points only) from activities if available, falling back to profile total_points (which might be net)
+  // Ideally, we should recalculate this from all activities to be accurate "Impact"
+  const totalImpact = activities.reduce((sum, a) => sum + Math.max(0, a.points), 0);
+
+  // Show monthly points if viewing own profile, otherwise total impact
+  const points = (!isViewOnly) ? monthlyPoints : totalImpact;
 
   // Level progress is now manual, so we don't calculate it from points
+  const userLevel = displayProfile?.level;
   const userInitials = displayProfile?.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U';
 
   useEffect(() => {
@@ -198,7 +221,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           .eq('status', 'approved')
           .gte('submitted_at', startOfMonth);
 
-        const mPoints = monthlyData?.reduce((sum, item) => sum + (item.points_awarded || 0), 0) || 0;
+        const mPoints = monthlyData?.reduce((sum, item) => sum + Math.max(0, item.points_awarded || 0), 0) || 0;
         setMonthlyPoints(mPoints);
       }
 
@@ -212,7 +235,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
       const activitiesQuery = supabase
         .from('activity_submissions')
-        .select('id, points_awarded, status, submitted_at, proof_url, activity:activity_types(name, name_ar), committee:committees(name, name_ar)')
+        .select('id, points_awarded, status, submitted_at, proof_url, is_paid, activity:activity_types(name, name_ar), committee:committees(name, name_ar)')
         .eq('volunteer_id', targetUserId)
         .order('submitted_at', { ascending: false });
 
@@ -228,11 +251,12 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         .eq('volunteer_id', targetUserId)
         .order('created_at', { ascending: false });
 
-      const [badgesRes, activitiesRes, feedbacksRes, finesRes]: [any, any, any, any] = await Promise.all([
+      const [badgesRes, activitiesRes, feedbacksRes, finesRes, typesRes]: [any, any, any, any, any] = await Promise.all([
         badgesQuery,
         activitiesQuery,
         feedbacksQuery,
         finesQuery,
+        supabase.from('activity_types').select('id, name, name_ar').order('name'),
       ]);
 
       if (badgesRes.data) {
@@ -244,7 +268,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       }
 
       if (activitiesRes.data) {
-        setActivities(activitiesRes.data.map((a: any) => ({
+        const allActivities = activitiesRes.data.map((a: any) => ({
           id: a.id,
           activity_name: isRTL ? (a.activity?.name_ar || a.activity?.name) : a.activity?.name,
           committee_name: isRTL ? (a.committee?.name_ar || a.committee?.name) : a.committee?.name,
@@ -252,7 +276,15 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           status: a.status,
           submitted_at: a.submitted_at,
           proof_url: a.proof_url,
-        })));
+          is_paid: a.is_paid,
+        }));
+
+        setActivities(allActivities.filter((a: any) => a.points >= 0));
+        setManualFines(allActivities.filter((a: any) => a.points < 0));
+      }
+
+      if (typesRes.data) {
+        setActivityTypes(typesRes.data);
       }
 
       if (feedbacksRes.data) {
@@ -365,19 +397,111 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     });
   };
 
+  const handleAddFine = async () => {
+    if (!fineAmount || !targetUserId || !user || !selectedFineType) return;
+
+    setSubmittingFine(true);
+    try {
+      const amount = Math.abs(parseInt(fineAmount));
+
+      const { error } = await supabase
+        .from('activity_submissions')
+        .insert({
+          volunteer_id: targetUserId,
+          committee_id: displayProfile?.committee_id || null,
+          activity_type_id: selectedFineType,
+          points_awarded: -amount,
+          status: 'approved',
+          submitted_at: new Date().toISOString(),
+          description: fineComment,
+          reviewed_by: user.id
+        });
+
+      if (error) throw error;
+
+      toast.success(isRTL ? 'تم إضافة الغرامة بنجاح' : 'Fine added successfully');
+      setIsFineDialogOpen(false);
+      setFineAmount('');
+      setFineComment('');
+      setSelectedFineType('');
+      fetchData();
+    } catch (error) {
+      console.error('Error adding fine:', error);
+      toast.error(isRTL ? 'حدث خطأ أثناء إضافة الغرامة' : 'Error adding fine');
+    } finally {
+      setSubmittingFine(false);
+    }
+  };
+
+  const handleMarkAsPaid = async (fineId: string) => {
+    try {
+      const { error } = await supabase
+        .from('activity_submissions')
+        .update({ is_paid: true })
+        .eq('id', fineId);
+
+      if (error) throw error;
+
+      toast.success(isRTL ? 'تم تسجيل دفع الغرامة' : 'Fine marked as paid');
+
+      // Optimistic update
+      setManualFines(prev => prev.map(f => f.id === fineId ? { ...f, is_paid: true } : f));
+      fetchData();
+    } catch (error) {
+      console.error('Error marking fine as paid:', error);
+      toast.error(isRTL ? 'فشل تحديث الحالة' : 'Failed to update status');
+    }
+  };
+
+  const getCoverImage = (uid: string) => {
+    const covers = [
+      "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&h=400&fit=crop", // Mountains
+      "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=1200&h=400&fit=crop", // Green Valley
+      "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&h=400&fit=crop", // Forest Light
+      "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1200&h=400&fit=crop", // Foggy Forest
+      "https://images.unsplash.com/photo-1501854140884-074cf2b2c3af?w=1200&h=400&fit=crop", // Blue Coast
+      "https://images.unsplash.com/photo-1532274402911-5a369e4c4bb5?w=1200&h=400&fit=crop", // Landscape
+      "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=1200&h=400&fit=crop", // Nature tree
+      "https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=1200&h=400&fit=crop", // Dark Sea
+      "https://images.unsplash.com/photo-1418065460487-3e41a6c84dc5?w=1200&h=400&fit=crop", // Forest path
+      "https://images.unsplash.com/photo-1497436072909-60f360e1d4b0?w=1200&h=400&fit=crop", // Mountains day
+      "https://images.unsplash.com/photo-1518173946687-a4c8892bbd9f?w=1200&h=400&fit=crop", // Grey mountains
+      "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1200&h=400&fit=crop", // Green mountains
+    ];
+
+    let hash = 0;
+    for (let i = 0; i < uid.length; i++) {
+      hash = uid.charCodeAt(i) + ((hash << 5) - hash);
+    }
+
+    const index = Math.abs(hash) % covers.length;
+    return covers[index];
+  };
+
+  const coverImage = getCoverImage(targetUserId || 'default');
+
   return (
     <div className="space-y-6 animate-slide-up">
       {/* Profile Header */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row items-center gap-6">
-            <div className="relative group">
-              <Avatar className="h-24 w-24">
-                <AvatarImage src={displayAvatar || undefined} alt={displayProfile?.full_name || ''} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
+      <Card className="overflow-hidden border-none shadow-md">
+        <div className="h-48 relative group/cover">
+          <img
+            src={coverImage}
+            alt="Cover"
+            className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+        </div>
+        <CardContent className="relative pt-0 px-6 pb-6">
+          <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-6">
+            <div className="relative group shrink-0 -mt-20">
+              <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
+                <AvatarImage src={displayAvatar || undefined} alt={displayProfile?.full_name || ''} className="object-cover" />
+                <AvatarFallback className="bg-primary/20 text-primary text-4xl font-bold">
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
+
               {!isViewOnly && (
                 <>
                   <input
@@ -390,7 +514,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                   <Button
                     size="icon"
                     variant="secondary"
-                    className="absolute bottom-0 right-0 h-8 w-8 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute bottom-1 right-1 h-9 w-9 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
                   >
@@ -403,75 +527,80 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 </>
               )}
             </div>
-            <div className="flex-1 text-center md:text-left">
-              <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-2">
-                <h1 className="text-2xl font-bold">
+
+            <div className="flex-1 text-center md:text-start space-y-2 mb-2 pt-4">
+              <div className="flex flex-col md:flex-row items-center md:items-end gap-3 justify-center md:justify-start">
+                <h1 className="text-3xl font-bold tracking-tight">
                   {isRTL ? (displayProfile?.full_name_ar || displayProfile?.full_name) : displayProfile?.full_name}
                 </h1>
-                <LevelBadge level={displayProfile?.level || 'under_follow_up'} />
+                <div className="flex items-center gap-2 mb-1">
+                  <LevelBadge level={userLevel || 'under_follow_up'} />
+                  {isAshbal && (
+                    <span className="inline-flex items-center rounded-full border border-blue-200 px-2.5 py-0.5 text-xs font-semibold bg-blue-50 text-blue-700">
+                      {isRTL ? 'شبل' : 'Ashbal'}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-wrap justify-center md:justify-start gap-4 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1">
+
+              <div className="flex flex-wrap justify-center md:justify-start gap-x-6 gap-y-2 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1.5 transition-colors hover:text-foreground">
                   <Mail className="h-4 w-4" />
                   {displayProfile?.email}
                 </span>
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1.5 transition-colors hover:text-foreground">
                   <Calendar className="h-4 w-4" />
                   {t('profile.memberSince')} {formatDate(displayProfile?.join_date || new Date().toISOString())}
                 </span>
               </div>
             </div>
 
-            {/* Camp Attendance Section */}
-            {(() => {
-              const level = displayProfile?.level || 'under_follow_up';
-              const showMiniCamp = level === 'under_follow_up';
-              // Check role from profiles table (which includes role fallback logic via fetch if needed, 
-              // but here displayProfile comes from profiles table directly). 
-              // displayProfile.role is a string (e.g. 'committee_leader').
-              const showCamp = displayProfile?.role === 'committee_leader';
-
-              if (!showMiniCamp && !showCamp) return null;
-
-              return (
-                <div className="flex flex-col items-center justify-center gap-2 py-2 border-t border-b w-full my-4">
-                  <div className="flex items-center gap-2">
-                    <div className={cn(
-                      "flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium",
-                      (showMiniCamp ? displayProfile?.attended_mini_camp : displayProfile?.attended_camp)
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                        : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                    )}>
-                      {(showMiniCamp ? displayProfile?.attended_mini_camp : displayProfile?.attended_camp) ? (
-                        <>
-                          <Check className="h-4 w-4" />
-                          {isRTL ? (showMiniCamp ? 'حضر الميني كامب' : 'حضر الكامب') : (showMiniCamp ? 'Attended Mini Camp' : 'Attended Camp')}
-                        </>
-                      ) : (
-                        <>
-                          <X className="h-4 w-4" />
-                          {isRTL ? (showMiniCamp ? 'لم يحضر الميني كامب' : 'لم يحضر الكامب') : (showMiniCamp ? 'Did not attend Mini Camp' : 'Did not attend Camp')}
-                        </>
-                      )
-                      }
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            <div className="flex gap-6 text-center">
-              <div>
-                <div className="text-4xl font-bold text-primary">{points}</div>
-                <div className="text-sm text-muted-foreground">{!isViewOnly ? (isRTL ? 'أثر هذا الشهر' : 'Monthly Impact') : (isRTL ? 'إجمالي الأثر' : 'Total Impact')}</div>
+            <div className="flex gap-4 items-center shrink-0 w-full md:w-auto justify-center md:justify-end mt-4 md:mt-0 pt-4">
+              <div className="flex flex-col items-center bg-muted/30 p-3 rounded-xl min-w-[100px] border">
+                <span className="text-2xl font-bold text-primary">{points}</span>
+                <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+                  {!isViewOnly ? (isRTL ? 'أثر هذا الشهر' : 'Monthly Impact') : (isRTL ? 'إجمالي الأثر' : 'Total Impact')}
+                </span>
               </div>
-              <div className="border-r"></div>
-              <div>
-                <div className="text-4xl font-bold text-primary">{activities.filter(a => a.status === 'approved').length}</div>
-                <div className="text-sm text-muted-foreground">{isRTL ? 'عدد المشاركات' : 'Participations'}</div>
+              <div className="flex flex-col items-center bg-muted/30 p-3 rounded-xl min-w-[100px] border">
+                <span className="text-2xl font-bold text-primary">{activities.filter(a => a.status === 'approved').length}</span>
+                <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+                  {isRTL ? 'مشاركات' : 'Participations'}
+                </span>
               </div>
             </div>
           </div>
+
+          {/* Camp Attendance Badges */}
+          {(() => {
+            const level = displayProfile?.level || 'under_follow_up';
+            const showMiniCamp = level === 'under_follow_up';
+            const showCamp = displayProfile?.role === 'committee_leader';
+
+            if (!showMiniCamp && !showCamp) return null;
+
+            const attended = showMiniCamp ? displayProfile?.attended_mini_camp : displayProfile?.attended_camp;
+            const label = isRTL
+              ? (showMiniCamp ? 'الميني كامب' : 'الكامب')
+              : (showMiniCamp ? 'Mini Camp' : 'Camp');
+
+            return (
+              <div className="flex items-center gap-4 pt-4 border-t mt-2">
+                <div className="text-sm font-medium text-muted-foreground">{isRTL ? 'حالة الحضور:' : 'Attendance Status:'}</div>
+                {attended ? (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800">
+                    <Check className="h-4 w-4" />
+                    {isRTL ? `حضر ${label}` : `Attended ${label}`}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-secondary text-secondary-foreground">
+                    <X className="h-4 w-4 text-muted-foreground" />
+                    {isRTL ? `لم يحضر ${label}` : `Did Not Attend ${label}`}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 
@@ -513,27 +642,45 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                   {activities.map((activity) => (
                     <div
                       key={activity.id}
-                      className="flex items-center justify-between rounded-lg border p-3"
+                      className="flex items-center justify-between rounded-xl border bg-card p-4 transition-all hover:bg-muted/30 hover:shadow-sm"
                     >
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
                         {activity.proof_url && (
-                          <a href={activity.proof_url} target="_blank" rel="noopener noreferrer">
+                          <a href={activity.proof_url} target="_blank" rel="noopener noreferrer" className="shrink-0 group relative overflow-hidden rounded-md border">
                             <img
                               src={activity.proof_url}
                               alt="Proof"
-                              className="w-12 h-12 rounded object-cover shrink-0 hover:opacity-80 transition-opacity"
+                              className="w-16 h-16 object-cover transition-transform duration-300 group-hover:scale-110"
                             />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <span className="text-white text-xs font-medium">View</span>
+                            </div>
                           </a>
                         )}
-                        <div className="space-y-1 flex-1 min-w-0">
-                          <p className="font-medium truncate">{activity.activity_name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {activity.committee_name} • {formatDate(activity.submitted_at)}
+                        <div className="space-y-1.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold truncate text-base">{activity.activity_name}</p>
+                            <span className={cn(
+                              "text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold",
+                              getStatusColor(activity.status)
+                            )}>
+                              {getStatusText(activity.status)}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 bg-muted/50 px-2 py-0.5 rounded text-xs">
+                              {activity.committee_name}
+                            </span>
+                            <span>•</span>
+                            <span>{formatDate(activity.submitted_at)}</span>
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-sm font-medium">+{activity.points}</span>
+                      <div className="flex items-center gap-3 shrink-0 pl-4 border-l ml-2">
+                        <div className="flex flex-col items-end">
+                          <span className="text-lg font-bold text-success">+{activity.points}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase">{isRTL ? 'أثر' : 'Impact'}</span>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -667,11 +814,82 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                     {isRTL ? 'سجل الغرامات' : 'Fines History'}
                   </CardTitle>
                   <CardDescription>
-                    {isRTL ? 'سجل الغرامات التلقائية لعدم ارتداء الـ Vest' : 'Automatic fines history for not wearing Vest'}
+                    {isRTL ? 'سجل الغرامات (التلقائية واليدوية)' : 'Fines history (Automatic & Manual)'}
                   </CardDescription>
                 </div>
-                <div className="text-2xl font-bold text-destructive">
-                  {fines.reduce((sum, f) => sum + f.amount, 0)} {isRTL ? 'ج.م' : 'EGP'}
+                <div className="flex items-center gap-4">
+                  <div className="text-2xl font-bold text-destructive">
+                    {fines.reduce((sum, f) => sum + f.amount, 0) + manualFines.filter(f => !f.is_paid).reduce((sum, f) => sum + Math.abs(f.points), 0)} {isRTL ? 'ج.م' : 'EGP'}
+                  </div>
+
+                  {isViewOnly && (hasRole('admin') || hasRole('head_hr') || hasRole('hr')) && (
+                    <Dialog open={isFineDialogOpen} onOpenChange={setIsFineDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="destructive" size="sm" className="gap-1">
+                          <Plus className="h-4 w-4" />
+                          {isRTL ? 'إضافة غرامة' : 'Add Fine'}
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>{isRTL ? 'إضافة غرامة يدوية' : 'Add Manual Fine'}</DialogTitle>
+                          <DialogDescription>
+                            {isRTL ? 'إضافة غرامة لهذا المتطوع. سيتم خصم الأثر من رصيده.' : 'Add a fine for this volunteer. Impact points will be deducted from their balance.'}
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4 py-4">
+                          <div className="space-y-2">
+                            <Label>{isRTL ? 'نوع الغرامة/المخالفة' : 'Violation Type'}</Label>
+                            <Select value={selectedFineType} onValueChange={setSelectedFineType}>
+                              <SelectTrigger>
+                                <SelectValue placeholder={isRTL ? 'اختر النوع' : 'Select type'} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {activityTypes.map(type => (
+                                  <SelectItem key={type.id} value={type.id}>
+                                    {isRTL ? type.name_ar : type.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>{isRTL ? 'قيمة الغرامة' : 'Fine Amount'}</Label>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={fineAmount}
+                              onChange={(e) => setFineAmount(e.target.value)}
+                              placeholder={isRTL ? 'مثال: 50' : 'e.g. 50'}
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>{isRTL ? 'ملاحظات (اختياري)' : 'Comments (Optional)'}</Label>
+                            <Textarea
+                              value={fineComment}
+                              onChange={(e) => setFineComment(e.target.value)}
+                              placeholder={isRTL ? 'سبب الغرامة...' : 'Reason for fine...'}
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsFineDialogOpen(false)} disabled={submittingFine}>
+                            {isRTL ? 'إلغاء' : 'Cancel'}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={handleAddFine}
+                            disabled={!selectedFineType || !fineAmount || submittingFine}
+                          >
+                            {submittingFine && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            {isRTL ? 'إضافة الغرامة' : 'Add Fine'}
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  )}
                 </div>
               </div>
             </CardHeader>
@@ -680,15 +898,16 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
-              ) : fines.length === 0 ? (
+              ) : (fines.length === 0 && manualFines.length === 0) ? (
                 <p className="text-muted-foreground text-center py-8">
                   {isRTL ? 'سجل نظيف! لا توجد غرامات.' : 'Clean record! No fines.'}
                 </p>
               ) : (
                 <div className="space-y-4 pt-4">
+                  {/* Automatic Fines */}
                   {fines.map((fine, index) => (
                     <div
-                      key={index}
+                      key={`auto-${index}`}
                       className="flex items-center justify-between rounded-lg border p-4 bg-destructive/5 border-destructive/20"
                     >
                       <div className="flex flex-col gap-1">
@@ -709,12 +928,60 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                       </div>
                     </div>
                   ))}
+
+                  {/* Manual Fines */}
+                  {manualFines.map((fine) => (
+                    <div
+                      key={fine.id}
+                      className={cn(
+                        "flex items-center justify-between rounded-lg border p-4",
+                        fine.is_paid ? "bg-muted/40 border-muted" : "bg-destructive/5 border-destructive/20"
+                      )}
+                    >
+                      <div className="flex flex-col gap-1">
+                        <span className={cn("font-semibold", fine.is_paid && "text-muted-foreground line-through")}>
+                          {fine.activity_name}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {fine.committee_name}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            {formatDate(fine.submitted_at)}
+                          </span>
+                          {fine.is_paid && (
+                            <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
+                              {isRTL ? 'تم الدفع' : 'Paid'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className={cn("font-bold", fine.is_paid ? "text-muted-foreground" : "text-destructive")}>
+                          {fine.points} {isRTL ? 'أثر' : 'Impact'}
+                        </div>
+
+                        {/* Payment Button */}
+                        {!fine.is_paid && !isViewOnly && (hasRole('admin') || hasRole('head_hr') || hasRole('hr')) && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 text-xs gap-1 hover:bg-green-50 hover:text-green-700 hover:border-green-200"
+                            onClick={() => handleMarkAsPaid(fine.id)}
+                          >
+                            <Check className="h-3 w-3" />
+                            {isRTL ? 'دفع' : 'Pay'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
+    </div >
   );
 }

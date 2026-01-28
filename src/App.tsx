@@ -43,6 +43,8 @@ const CallsManagement = lazy(() => import("./pages/ethics/CallsManagement"));
 const QuranManagement = lazy(() => import("./pages/admin/QuranManagement"));
 const BeneficiaryDetails = lazy(() => import("./pages/admin/BeneficiaryDetails"));
 const QuranCircles = lazy(() => import("./pages/admin/QuranCircles"));
+const QuranTeachers = lazy(() => import("./pages/admin/QuranTeachers"));
+const AshbalManagement = lazy(() => import("./pages/ashbal/AshbalManagement"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -99,6 +101,7 @@ function AppRoutes() {
       case 'head_fourth_year':
       case 'head_events':
       case 'head_caravans':
+      case 'head_ashbal':
         return '/leader';
       case 'head_ethics':
         return '/dashboard';
@@ -193,6 +196,10 @@ function AppRoutes() {
         <Route path="/admin/quran" element={<QuranManagement />} />
         <Route path="/admin/quran/:id" element={<BeneficiaryDetails />} />
         <Route path="/admin/quran-circles" element={<QuranCircles />} />
+        <Route path="/admin/quran-teachers" element={<QuranTeachers />} />
+
+        {/* Ashbal Routes */}
+        <Route path="/ashbal/management" element={<AshbalManagement />} />
       </Route>
 
       <Route path="*" element={<NotFound />} />

@@ -416,6 +416,73 @@ export type Database = {
                 }
                 Relationships: []
             }
+            course_ads: {
+                Row: {
+                    ad_date: string
+                    ad_number: number
+                    content: string | null
+                    content_done: boolean | null
+                    course_id: string
+                    created_at: string
+                    created_by: string | null
+                    id: string
+                    poster_done: boolean | null
+                    poster_url: string | null
+                    updated_at: string
+                    updated_by: string | null
+                }
+                Insert: {
+                    ad_date: string
+                    ad_number: number
+                    content?: string | null
+                    content_done?: boolean | null
+                    course_id: string
+                    created_at?: string
+                    created_by?: string | null
+                    id?: string
+                    poster_done?: boolean | null
+                    poster_url?: string | null
+                    updated_at?: string
+                    updated_by?: string | null
+                }
+                Update: {
+                    ad_date?: string
+                    ad_number?: number
+                    content?: string | null
+                    content_done?: boolean | null
+                    course_id?: string
+                    created_at?: string
+                    created_by?: string | null
+                    id?: string
+                    poster_done?: boolean | null
+                    poster_url?: string | null
+                    updated_at?: string
+                    updated_by?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "course_ads_course_id_fkey"
+                        columns: ["course_id"]
+                        isOneToOne: false
+                        referencedRelation: "courses"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "course_ads_created_by_fkey"
+                        columns: ["created_by"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "course_ads_updated_by_fkey"
+                        columns: ["updated_by"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            }
             course_attendance: {
                 Row: {
                     created_at: string | null
@@ -534,6 +601,42 @@ export type Database = {
                         columns: ["course_id"]
                         isOneToOne: false
                         referencedRelation: "courses"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            }
+            course_marketers: {
+                Row: {
+                    course_id: string
+                    created_at: string | null
+                    id: string
+                    volunteer_id: string | null
+                }
+                Insert: {
+                    course_id: string
+                    created_at?: string | null
+                    id?: string
+                    volunteer_id?: string | null
+                }
+                Update: {
+                    course_id?: string
+                    created_at?: string | null
+                    id?: string
+                    volunteer_id?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "course_marketers_course_id_fkey"
+                        columns: ["course_id"]
+                        isOneToOne: false
+                        referencedRelation: "courses"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "course_marketers_volunteer_id_fkey"
+                        columns: ["volunteer_id"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
                         referencedColumns: ["id"]
                     },
                 ]
@@ -907,6 +1010,7 @@ export type Database = {
                     full_name: string | null
                     full_name_ar: string | null
                     id: string
+                    is_ashbal: boolean | null
                     join_date: string
                     level: Database["public"]["Enums"]["volunteer_level"]
                     phone: string | null
@@ -925,6 +1029,7 @@ export type Database = {
                     full_name?: string | null
                     full_name_ar?: string | null
                     id: string
+                    is_ashbal?: boolean | null
                     join_date?: string
                     level?: Database["public"]["Enums"]["volunteer_level"]
                     phone?: string | null
@@ -943,6 +1048,7 @@ export type Database = {
                     full_name?: string | null
                     full_name_ar?: string | null
                     id?: string
+                    is_ashbal?: boolean | null
                     join_date?: string
                     level?: Database["public"]["Enums"]["volunteer_level"]
                     phone?: string | null
@@ -1014,6 +1120,7 @@ export type Database = {
                     date: string
                     guest_names: Json
                     created_at: string
+                    teacher_id: string | null
                 }
                 Insert: {
                     id?: string
@@ -1021,6 +1128,7 @@ export type Database = {
                     date?: string
                     guest_names?: Json
                     created_at?: string
+                    teacher_id?: string | null
                 }
                 Update: {
                     id?: string
@@ -1028,8 +1136,17 @@ export type Database = {
                     date?: string
                     guest_names?: Json
                     created_at?: string
+                    teacher_id?: string | null
                 }
-                Relationships: []
+                Relationships: [
+                    {
+                        foreignKeyName: "quran_circles_teacher_id_fkey"
+                        columns: ["teacher_id"]
+                        isOneToOne: false
+                        referencedRelation: "quran_teachers"
+                        referencedColumns: ["id"]
+                    }
+                ]
             }
             quran_circle_beneficiaries: {
                 Row: {
@@ -1229,6 +1346,27 @@ export type Database = {
                 }
                 Relationships: []
             }
+            quran_teachers: {
+                Row: {
+                    created_at: string
+                    id: string
+                    name: string
+                    phone: string
+                }
+                Insert: {
+                    created_at?: string
+                    id?: string
+                    name: string
+                    phone: string
+                }
+                Update: {
+                    created_at?: string
+                    id?: string
+                    name?: string
+                    phone?: string
+                }
+                Relationships: []
+            }
             volunteer_feedbacks: {
                 Row: {
                     author_id: string
@@ -1344,6 +1482,7 @@ export type Database = {
             | "head_events"
             | "head_ethics"
             | "head_quran"
+            | "head_ashbal"
             submission_status: "pending" | "approved" | "rejected"
             volunteer_level:
             | "bronze"
@@ -1494,10 +1633,6 @@ export const Constants = {
                 "head_fourth_year",
                 "head_events",
                 "head_ethics",
-<<<<<<< HEAD
-                "head_quran",
-=======
->>>>>>> e485d11fbbca9a0f16e2e67425898bcfc7c6e7c8
             ],
             submission_status: ["pending", "approved", "rejected"],
             volunteer_level: [

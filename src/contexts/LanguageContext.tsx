@@ -74,6 +74,7 @@ const translations: Record<Language, Record<string, string>> = {
     'common.head_caravans': 'Head of Caravans',
     'common.head_events': 'Head of Events',
     'common.head_ethics': 'Ethics Publishing Head',
+    'common.head_quran': 'Head of Quran Committee',
 
     // Ethics
     'ethics.competition': 'Individual Competition',
@@ -336,7 +337,8 @@ const translations: Record<Language, Record<string, string>> = {
     'common.head_fourth_year': 'هيد لجان سنة رابعة',
     'common.head_caravans': 'هيد لجنة قوافل',
     'common.head_events': 'هيد لجنة ايفنتات',
-    'common.head_ethics': 'هيد نشر اخلاقيات',
+    'common.head_ethics': 'هيد نشر اخلاقيات وتحقيق اماني',
+    'common.head_quran': 'هيد لجنة القرآن',
 
     // Ethics
     'ethics.competition': 'المسابقة الفردية',

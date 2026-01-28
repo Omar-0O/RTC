@@ -65,6 +65,22 @@ interface CourseBeneficiary {
     phone: string;
 }
 
+interface CourseAd {
+    id: string;
+    course_id: string;
+    ad_number: number;
+    ad_date: string;
+    poster_url: string | null;
+    content: string | null;
+    poster_done: boolean;
+    content_done: boolean;
+    created_by: string | null;
+    updated_by: string | null;
+    created_at: string;
+    updated_at: string;
+    updater?: { full_name: string, full_name_ar: string } | null;
+}
+
 const ROOMS: Record<string, { en: string; ar: string }> = {
     'lab_1': { en: 'Lab 1', ar: 'لاب 1' },
     'lab_2': { en: 'Lab 2', ar: 'لاب 2' },
@@ -99,6 +115,8 @@ export default function MyCourses() {
     // Beneficiary State
     const [newBeneficiary, setNewBeneficiary] = useState({ name: '', phone: '' });
     const [editingBeneficiary, setEditingBeneficiary] = useState<CourseBeneficiary | null>(null);
+    const [courseAds, setCourseAds] = useState<CourseAd[]>([]);
+    const [isMarketer, setIsMarketer] = useState(false);
 
 
     useEffect(() => {
@@ -116,18 +134,28 @@ export default function MyCourses() {
 
             if (orgError) throw orgError;
 
-            if (!organizerData || organizerData.length === 0) {
+            // Get courses where current user is a marketer
+            const { data: marketerData, error: mktError } = await supabase
+                .from('course_marketers')
+                .select('course_id')
+                .eq('volunteer_id', user?.id);
+
+            if (mktError) throw mktError;
+
+            const organizerIds = organizerData?.map(o => o.course_id) || [];
+            const marketerIds = marketerData?.map(m => m.course_id) || [];
+            const allCourseIds = Array.from(new Set([...organizerIds, ...marketerIds]));
+
+            if (allCourseIds.length === 0) {
                 setCourses([]);
                 setLoading(false);
                 return;
             }
 
-            const courseIds = organizerData.map(o => o.course_id);
-
             const { data, error } = await supabase
                 .from('courses')
                 .select('*, course_lectures(status)')
-                .in('id', courseIds)
+                .in('id', allCourseIds)
                 .order('start_date', { ascending: false });
 
             if (error) throw error;
@@ -140,9 +168,120 @@ export default function MyCourses() {
         }
     };
 
+    const handleAddAd = async () => {
+        if (!selectedCourse) return;
+
+        try {
+            const nextAdNumber = (courseAds.length > 0 ? Math.max(...courseAds.map(a => a.ad_number)) : 0) + 1;
+            const newAdData = {
+                course_id: selectedCourse.id,
+                ad_number: nextAdNumber,
+                ad_date: format(new Date(), 'yyyy-MM-dd'),
+                created_by: user?.id,
+                poster_done: false,
+                content_done: false
+            };
+
+            const { data, error } = await supabase
+                .from('course_ads')
+                .insert(newAdData)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setCourseAds([...courseAds, data as CourseAd]);
+            toast.success(isRTL ? 'تم إضافة إعلان جديد' : 'New ad added successfully');
+        } catch (error) {
+            console.error('Error adding ad:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء إضافة الإعلان' : 'Error adding ad');
+        }
+    };
+
+    const handleUpdateAd = async (adId: string, updates: Partial<CourseAd>) => {
+        try {
+            const { error } = await supabase
+                .from('course_ads')
+                .update({ ...updates, updated_by: user?.id, updated_at: new Date().toISOString() })
+                .eq('id', adId);
+
+            if (error) throw error;
+
+            setCourseAds(courseAds.map(ad => ad.id === adId ? { ...ad, ...updates } : ad));
+            toast.success(isRTL ? 'تم تحديث الإعلان' : 'Ad updated successfully');
+        } catch (error) {
+            console.error('Error updating ad:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء تحديث الإعلان' : 'Error updating ad');
+        }
+    };
+
+    const handleDeleteAd = async (adId: string) => {
+        if (!confirm(isRTL ? 'هل أنت متأكد من حذف هذا الإعلان؟' : 'Are you sure you want to delete this ad?')) return;
+
+        try {
+            const { error } = await supabase
+                .from('course_ads')
+                .delete()
+                .eq('id', adId);
+
+            if (error) throw error;
+
+            setCourseAds(courseAds.filter(ad => ad.id !== adId));
+            toast.success(isRTL ? 'تم حذف الإعلان' : 'Ad deleted successfully');
+        } catch (error) {
+            console.error('Error deleting ad:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء حذف الإعلان' : 'Error deleting ad');
+        }
+    };
+
+    const handleUploadPoster = async (file: File, adId: string) => {
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Math.random()}.${fileExt}`;
+            const filePath = `${selectedCourse?.id}/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('course-posters')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('course-posters')
+                .getPublicUrl(filePath);
+
+            await handleUpdateAd(adId, { poster_url: publicUrl, poster_done: true });
+        } catch (error) {
+            console.error('Error uploading poster:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء رفع البوستر' : 'Error uploading poster');
+        }
+    };
+
     const openCourseDetails = async (course: Course) => {
         setSelectedCourse(course);
         setIsDetailsOpen(true);
+        setCourseAds([]);
+        setIsMarketer(false);
+
+        // Check if user is marketer
+        const { data: mkt } = await supabase
+            .from('course_marketers')
+            .select('id')
+            .eq('course_id', course.id)
+            .eq('volunteer_id', user?.id)
+            .single();
+        setIsMarketer(!!mkt);
+
+        // Fetch Course Ads
+        const { data: adsData } = await supabase
+            .from('course_ads')
+            .select(`
+                *,
+                updater:updated_by(full_name, full_name_ar)
+            `)
+            .eq('course_id', course.id)
+            .order('ad_number');
+        if (adsData) setCourseAds(adsData);
 
         // Fetch lectures
         const { data: lecturesData } = await supabase
@@ -618,10 +757,13 @@ export default function MyCourses() {
 
                     <Tabs defaultValue="beneficiaries" className="w-full">
                         <div className="overflow-x-auto -mx-2 px-2">
-                            <TabsList className="grid w-full min-w-[300px] grid-cols-3">
+                            <TabsList className={`grid w-full min-w-[300px] ${isMarketer ? 'grid-cols-4' : 'grid-cols-3'}`}>
                                 <TabsTrigger value="beneficiaries" className="text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
                                 <TabsTrigger value="lectures" className="text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
                                 <TabsTrigger value="sheet" className="text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                                {isMarketer && (
+                                    <TabsTrigger value="marketing" className="text-xs sm:text-sm">{isRTL ? 'التسويق' : 'Marketing'}</TabsTrigger>
+                                )}
                             </TabsList>
                         </div>
 
@@ -863,6 +1005,104 @@ export default function MyCourses() {
                                 </Table>
                             </div>
                         </TabsContent>
+
+                        {/* Marketing Tab */}
+                        {isMarketer && (
+                            <TabsContent value="marketing" className="space-y-4 py-4">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-semibold">{isRTL ? 'إعلانات الكورس' : 'Course Ads'}</h3>
+                                    <Button onClick={handleAddAd} size="sm">
+                                        <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                        {isRTL ? 'إضافة إعلان' : 'Add Ad'}
+                                    </Button>
+                                </div>
+
+                                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                                    {courseAds.length === 0 ? (
+                                        <div className="col-span-full text-center py-8 text-muted-foreground border rounded-lg border-dashed">
+                                            {isRTL ? 'لا توجد إعلانات بعد' : 'No ads yet'}
+                                        </div>
+                                    ) : (
+                                        courseAds.map((ad) => (
+                                            <Card key={ad.id} className="overflow-hidden">
+                                                <CardHeader className="p-4 pb-2 bg-muted/20">
+                                                    <div className="flex justify-between items-center">
+                                                        <CardTitle className="text-base font-medium">#{ad.ad_number}</CardTitle>
+                                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteAd(ad.id)}>
+                                                            <Trash2 className="w-3 h-3" />
+                                                        </Button>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <Calendar className="w-3 h-3 text-muted-foreground" />
+                                                        <Input
+                                                            type="date"
+                                                            value={ad.ad_date}
+                                                            onChange={(e) => handleUpdateAd(ad.id, { ad_date: e.target.value })}
+                                                            className="h-7 w-auto text-xs p-1"
+                                                        />
+                                                    </div>
+                                                    {ad.updated_at && (
+                                                        <div className="text-[10px] text-muted-foreground mt-1">
+                                                            {isRTL ? 'آخر تحديث: ' : 'Updated: '}
+                                                            {format(new Date(ad.updated_at), 'MMM d, h:mm a')}
+                                                            {ad.updater && ` (${isRTL && ad.updater.full_name_ar ? ad.updater.full_name_ar : ad.updater.full_name})`}
+                                                        </div>
+                                                    )}
+                                                </CardHeader>
+                                                <CardContent className="p-4 space-y-4">
+                                                    {/* Poster */}
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between items-center">
+                                                            <Label className="text-xs font-medium">{isRTL ? 'البوستر' : 'Poster'}</Label>
+                                                            <Checkbox
+                                                                checked={ad.poster_done}
+                                                                onCheckedChange={(c) => handleUpdateAd(ad.id, { poster_done: !!c })}
+                                                            />
+                                                        </div>
+                                                        <div className="aspect-video relative bg-muted rounded-md border flex items-center justify-center overflow-hidden group">
+                                                            {ad.poster_url ? (
+                                                                <>
+                                                                    <img src={ad.poster_url} alt="Ad Poster" className="w-full h-full object-contain" />
+                                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                        <label className="cursor-pointer">
+                                                                            <Input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files && handleUploadPoster(e.target.files[0], ad.id)} />
+                                                                            <Button variant="secondary" size="sm" className="pointer-events-none" >{isRTL ? 'تغيير' : 'Change'}</Button>
+                                                                        </label>
+                                                                    </div>
+                                                                </>
+                                                            ) : (
+                                                                <label className="cursor-pointer flex flex-col items-center gap-1 p-4 text-muted-foreground hover:text-primary transition-colors">
+                                                                    <Input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files && handleUploadPoster(e.target.files[0], ad.id)} />
+                                                                    <Download className="w-6 h-6 rotate-180" />
+                                                                    <span className="text-xs">{isRTL ? 'رفع صورة' : 'Upload Image'}</span>
+                                                                </label>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Content */}
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between items-center">
+                                                            <Label className="text-xs font-medium">{isRTL ? 'المحتوى' : 'Content'}</Label>
+                                                            <Checkbox
+                                                                checked={ad.content_done}
+                                                                onCheckedChange={(c) => handleUpdateAd(ad.id, { content_done: !!c })}
+                                                            />
+                                                        </div>
+                                                        <textarea
+                                                            className="w-full min-h-[80px] p-2 text-sm rounded-md border bg-transparent resize-y focus:outline-none focus:ring-1 focus:ring-primary"
+                                                            placeholder={isRTL ? 'اكتب المحتوى هنا...' : 'Write content here...'}
+                                                            value={ad.content || ''}
+                                                            onChange={(e) => handleUpdateAd(ad.id, { content: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        ))
+                                    )}
+                                </div>
+                            </TabsContent>
+                        )}
                     </Tabs>
                 </DialogContent>
             </Dialog>

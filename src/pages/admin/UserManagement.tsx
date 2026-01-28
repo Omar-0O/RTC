@@ -82,6 +82,7 @@ interface UserWithDetails {
   phone?: string;
   attended_mini_camp?: boolean;
   attended_camp?: boolean;
+  is_ashbal?: boolean;
 }
 
 import Profile from '@/pages/volunteer/Profile';
@@ -269,6 +270,8 @@ export default function UserManagement() {
   const [formAvatarPreview, setFormAvatarPreview] = useState<string | null>(null);
   const [formAttendedMiniCamp, setFormAttendedMiniCamp] = useState(false);
   const [formAttendedCamp, setFormAttendedCamp] = useState(false);
+  const [formIsAshbal, setFormIsAshbal] = useState(false);
+  const [formJoinDate, setFormJoinDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [showPassword, setShowPassword] = useState(false);
 
   // Crop state
@@ -347,6 +350,7 @@ export default function UserManagement() {
         if (roles.includes('head_caravans')) return 'head_caravans';
         if (roles.includes('head_events')) return 'head_events';
         if (roles.includes('head_ethics')) return 'head_ethics';
+        if (roles.includes('head_quran')) return 'head_quran';
         return 'volunteer';
       };
 
@@ -387,6 +391,7 @@ export default function UserManagement() {
           phone: profile.phone,
           attended_mini_camp: profile.attended_mini_camp,
           attended_camp: profile.attended_camp,
+          is_ashbal: profile.is_ashbal,
         };
       });
 
@@ -426,6 +431,8 @@ export default function UserManagement() {
     setFormAvatarPreview(null);
     setFormAttendedMiniCamp(false);
     setFormAttendedCamp(false);
+    setFormIsAshbal(false);
+    setFormJoinDate(format(new Date(), 'yyyy-MM-dd'));
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -532,6 +539,7 @@ export default function UserManagement() {
           committeeId: formCommitteeId || null,
           phone: formPhone.trim() || null,
           level: formLevel,
+          joinDate: formJoinDate,
         },
       });
 
@@ -580,6 +588,10 @@ export default function UserManagement() {
           updates.attended_camp = formAttendedCamp;
         }
 
+        if (formIsAshbal) {
+          updates.is_ashbal = true;
+        }
+
         if (Object.keys(updates).length > 0) {
           updates.level = formLevel;
 
@@ -621,6 +633,9 @@ export default function UserManagement() {
     setFormCommitteeId(user.committee_id || '');
     setFormAttendedMiniCamp(user.attended_mini_camp || false);
     setFormAttendedCamp(user.attended_camp || false);
+    setFormAttendedCamp(user.attended_camp || false);
+    setFormIsAshbal(user.is_ashbal || false);
+    setFormJoinDate(user.join_date ? format(new Date(user.join_date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
     setIsCropping(false);
     setTempImageSrc(null);
     setFormAvatarFile(null);
@@ -651,6 +666,8 @@ export default function UserManagement() {
           level: formLevel as any,
           attended_mini_camp: formLevel === 'under_follow_up' ? formAttendedMiniCamp : null,
           attended_camp: formLevel === 'project_responsible' ? formAttendedCamp : null,
+          is_ashbal: formIsAshbal,
+          join_date: formJoinDate,
         })
         .eq('id', selectedUser.id);
 
@@ -778,6 +795,7 @@ export default function UserManagement() {
       case 'head_caravans':
       case 'head_events':
       case 'head_ethics':
+      case 'head_quran':
         return 'bg-blue-100 text-blue-700';
       default:
         return 'bg-muted text-muted-foreground';
@@ -794,6 +812,7 @@ export default function UserManagement() {
       case 'head_caravans': return t('common.head_caravans');
       case 'head_events': return t('common.head_events');
       case 'head_ethics': return t('common.head_ethics');
+      case 'head_quran': return t('common.head_quran');
       default: return t('common.volunteer');
     }
   };
@@ -996,6 +1015,7 @@ export default function UserManagement() {
                         <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
                         <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
                         <SelectItem value="head_ethics">{t('common.head_ethics')}</SelectItem>
+                        <SelectItem value="head_quran">{t('common.head_quran')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1137,6 +1157,31 @@ export default function UserManagement() {
                   </div>
                 </div>
               )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="join-date">{language === 'ar' ? 'تاريخ الانضمام لعائلة RTC 😊' : 'Join Date to RTC Family 😊'}</Label>
+                  <Input
+                    id="join-date"
+                    type="date"
+                    value={formJoinDate}
+                    onChange={(e) => setFormJoinDate(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-end pb-2">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="is-ashbal"
+                      checked={formIsAshbal}
+                      onCheckedChange={setFormIsAshbal}
+                    />
+                    <Label htmlFor="is-ashbal">
+                      {language === 'ar' ? 'من الأشبال؟' : 'Is Ashbal?'}
+                    </Label>
+                  </div>
+                </div>
+              </div>
+
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} className="w-full sm:w-auto">
                   {t('common.cancel')}
@@ -1346,6 +1391,30 @@ export default function UserManagement() {
                 </Select>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-join-date">{language === 'ar' ? 'تاريخ الانضمام لعائلة RTC 😊' : 'Join Date to RTC Family 😊'}</Label>
+                  <Input
+                    id="edit-join-date"
+                    type="date"
+                    value={formJoinDate}
+                    onChange={(e) => setFormJoinDate(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-end pb-2">
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="edit-is-ashbal"
+                      checked={formIsAshbal}
+                      onCheckedChange={setFormIsAshbal}
+                    />
+                    <Label htmlFor="edit-is-ashbal">
+                      {language === 'ar' ? 'من الأشبال؟' : 'Is Ashbal?'}
+                    </Label>
+                  </div>
+                </div>
+              </div>
+
               {(formLevel === 'under_follow_up' || formLevel === 'project_responsible') && (
                 <div className="border-t pt-4 mt-4 pb-4">
                   <h4 className="text-sm font-medium mb-4">{language === 'ar' ? 'حضور الكامب' : 'Camp Attendance'}</h4>
@@ -1379,6 +1448,9 @@ export default function UserManagement() {
               )}
 
             </div>
+
+
+
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto">
                 {t('common.cancel')}
@@ -1389,10 +1461,10 @@ export default function UserManagement() {
             </DialogFooter>
           </form>
         </DialogContent>
-      </Dialog>
+      </Dialog >
 
       {/* Filters */}
-      <Card>
+      < Card >
         <CardHeader>
           <CardTitle>{t('users.filters')}</CardTitle>
         </CardHeader>
@@ -1433,10 +1505,10 @@ export default function UserManagement() {
             </Select>
           </div>
         </CardContent>
-      </Card>
+      </Card >
 
       {/* Users Table */}
-      <Card>
+      < Card >
         <CardHeader>
           <CardTitle>{t('common.volunteers')} ({filteredUsers.length})</CardTitle>
         </CardHeader>
@@ -1656,9 +1728,8 @@ export default function UserManagement() {
                 ))}
               </div>
             </>
-          )
-          }
-        </CardContent >
+          )}
+        </CardContent>
       </Card >
 
       {/* Delete Confirmation */}
@@ -1686,7 +1757,8 @@ export default function UserManagement() {
       </AlertDialog >
 
       {/* View Profile Dialog */}
-      < Dialog open={!!viewProfileUser} onOpenChange={(open) => !open && setViewProfileUser(null)}>
+      < Dialog open={!!viewProfileUser
+      } onOpenChange={(open) => !open && setViewProfileUser(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>

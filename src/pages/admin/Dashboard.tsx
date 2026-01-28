@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 
 type DashboardStats = {
   totalVolunteers: number;
@@ -72,7 +73,7 @@ export default function AdminDashboard() {
         supabase.from('profiles').select('id, full_name, full_name_ar, total_points, level, committee_id'),
         supabase.from('activity_submissions').select('points_awarded'),
         supabase.from('committees').select('id, name, name_ar'),
-        supabase.from('activity_submissions')
+        (supabase.from('activity_submissions')
           .select(`
             id,
             points_awarded,
@@ -82,9 +83,10 @@ export default function AdminDashboard() {
             guest_name,
             trainer_id,
             volunteer:profiles!activity_submissions_volunteer_id_fkey(full_name, full_name_ar),
+            trainer:trainers(name_en, name_ar),
             activity:activity_types!activity_submissions_activity_type_id_fkey(name, name_ar),
             committee:committees!activity_submissions_committee_id_fkey(name, name_ar)
-          `)
+          `) as any)
           .neq('participant_type', 'guest')
           .order('submitted_at', { ascending: false })
           .limit(5),
@@ -129,7 +131,10 @@ export default function AdminDashboard() {
         let participantLabel = '';
 
         if (s.participant_type === 'trainer' || s.trainer_id) {
-          volunteerName = s.volunteer?.full_name_ar || s.volunteer?.full_name || s.guest_name || (isRTL ? 'مدرب' : 'Trainer');
+          // Use fetched trainer name, falling back to other fields
+          volunteerName = isRTL
+            ? (s.trainer?.name_ar || s.trainer?.name_en || s.guest_name || 'مدرب')
+            : (s.trainer?.name_en || s.trainer?.name_ar || s.guest_name || 'Trainer');
           participantLabel = isRTL ? 'مدرب' : 'Trainer';
         } else if (s.participant_type === 'guest' || (!s.volunteer && s.guest_name)) {
           volunteerName = s.guest_name || (isRTL ? 'ضيف' : 'Guest');
@@ -257,6 +262,8 @@ export default function AdminDashboard() {
           description={t('nav.committees')}
         />
       </div>
+
+      <CourseAdsTable />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Recent Participations */}

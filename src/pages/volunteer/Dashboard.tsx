@@ -11,6 +11,7 @@ import { Activity, Star, ArrowRight, Loader2, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import CourseSchedule from '@/components/courses/CourseSchedule';
+import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 
 type RecentSubmission = {
   id: string;
@@ -163,6 +164,9 @@ export default function VolunteerDashboard() {
 
       {/* Course Schedule */}
       <CourseSchedule />
+
+      {/* Course Ads Table */}
+      <CourseAdsTable />
 
       {/* Recent Participations */}
       <Card>

@@ -23,7 +23,8 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search } from 'lucide-react';
+import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search, Megaphone, AlertTriangle } from 'lucide-react';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, addDays, getDay } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -66,6 +67,7 @@ interface Course {
     committee_id: string | null;
     trainer_id: string | null;
     course_lectures?: { status: string }[];
+    course_organizers?: { id: string }[];
     has_certificates: boolean;
     certificate_status: 'pending' | 'printing' | 'ready' | 'delivered';
 }
@@ -92,6 +94,7 @@ interface Volunteer {
     full_name_ar: string | null;
     phone: string | null;
     avatar_url: string | null;
+    committee_id?: string | null;
 }
 
 interface Attendance {
@@ -118,6 +121,30 @@ interface Trainer {
     phone: string | null;
     image_url: string | null;
     committee_id?: string | null;
+}
+
+interface CourseAd {
+    id: string;
+    course_id: string;
+    ad_number: number;
+    ad_date: string;
+    poster_url: string | null;
+    content: string | null;
+    poster_done: boolean;
+    content_done: boolean;
+    created_by: string | null;
+    updated_by: string | null;
+    created_at: string;
+    updated_at: string;
+    updater?: { full_name: string, full_name_ar: string } | null;
+}
+
+interface CourseMarketer {
+    id?: string;
+    course_id?: string;
+    volunteer_id?: string;
+    name: string;
+    phone: string;
 }
 
 const ROOMS = [
@@ -158,6 +185,7 @@ export default function CourseManagement() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
     const [detailsOrganizers, setDetailsOrganizers] = useState<CourseOrganizer[]>([]);
+    const [detailsMarketers, setDetailsMarketers] = useState<CourseMarketer[]>([]);
     const [isDeleting, setIsDeleting] = useState(false);
     const [trainers, setTrainers] = useState<Trainer[]>([]);
     const [selectedTrainerId, setSelectedTrainerId] = useState<string>('');
@@ -165,6 +193,7 @@ export default function CourseManagement() {
     const [committees, setCommittees] = useState<{ id: string, name: string, name_ar: string, committee_type?: string | null }[]>([]);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+    const [courseAds, setCourseAds] = useState<CourseAd[]>([]);
 
     // roles and profile already destructured above
     const isRestricted = roles.includes('committee_leader') &&
@@ -200,6 +229,10 @@ export default function CourseManagement() {
     });
 
     const [organizers, setOrganizers] = useState<CourseOrganizer[]>([]);
+    const [marketers, setMarketers] = useState<CourseMarketer[]>([]);
+    const [plannedAds, setPlannedAds] = useState<string[]>([]);
+    const [marketerPopoverOpen, setMarketerPopoverOpen] = useState(false);
+    const [createTab, setCreateTab] = useState<'pre' | 'post'>('pre');
 
     useEffect(() => {
         if (isRestricted && profile?.committee_id) {
@@ -274,7 +307,7 @@ export default function CourseManagement() {
         try {
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id, full_name, full_name_ar, phone, avatar_url')
+                .select('id, full_name, full_name_ar, phone, avatar_url, committee_id')
                 .neq('full_name', 'RTC Admin')
                 .order('full_name');
             if (error) throw error;
@@ -308,7 +341,7 @@ export default function CourseManagement() {
         try {
             let query: any = supabase
                 .from('courses')
-                .select('*, course_lectures(status)')
+                .select('*, course_lectures(status), course_organizers(id)')
                 .order('start_date', { ascending: false });
 
             if (isRestricted && profile?.committee_id) {
@@ -345,6 +378,7 @@ export default function CourseManagement() {
             committee_id: isRestricted && profile?.committee_id ? profile.committee_id : null
         });
         setOrganizers([]);
+        setMarketers([]);
         setSelectedTrainerId('');
         setIsExternalTrainer(false);
     };
@@ -366,6 +400,23 @@ export default function CourseManagement() {
         setOrganizers(organizers.filter((_, i) => i !== index));
     };
 
+    const handleAddMarketer = (volunteer: Volunteer) => {
+        // Check if already added
+        if (marketers.some(m => m.volunteer_id === volunteer.id)) {
+            return;
+        }
+        setMarketers([...marketers, {
+            volunteer_id: volunteer.id,
+            name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
+            phone: volunteer.phone || ''
+        }]);
+        setMarketerPopoverOpen(false);
+    };
+
+    const removeMarketer = (index: number) => {
+        setMarketers(marketers.filter((_, i) => i !== index));
+    };
+
     const toggleDay = (day: string) => {
         if (formData.schedule_days.includes(day)) {
             setFormData({ ...formData, schedule_days: formData.schedule_days.filter(d => d !== day) });
@@ -377,11 +428,6 @@ export default function CourseManagement() {
     const handleCreateCourse = async () => {
         if (!formData.name || formData.schedule_days.length === 0 || !formData.committee_id) {
             toast.error(isRTL ? 'يرجى ملء البيانات المطلوبة واختيار اللجنة' : 'Please fill required fields and select a committee');
-            return;
-        }
-
-        if (organizers.length < 2) {
-            toast.error(isRTL ? 'يجب اختيار 2 منظمين على الأقل' : 'Must select at least 2 organizers');
             return;
         }
 
@@ -458,6 +504,38 @@ export default function CourseManagement() {
                 if (orgError) throw orgError;
             }
 
+            // Add marketers
+            if (marketers.length > 0) {
+                const { error: mktError } = await supabase
+                    .from('course_marketers')
+                    .insert(marketers.map(m => ({
+                        course_id: course.id,
+                        volunteer_id: m.volunteer_id
+                    })));
+
+                if (mktError) {
+                    console.error('Error adding marketers:', mktError);
+                }
+            }
+
+            // Add Planned Ads
+            if (plannedAds.length > 0) {
+                const adEntries = plannedAds.map((date, index) => ({
+                    course_id: course.id,
+                    ad_number: index + 1,
+                    ad_date: date,
+                    created_by: user?.id
+                }));
+
+                const { error: adsError } = await supabase
+                    .from('course_ads')
+                    .insert(adEntries);
+
+                if (adsError) {
+                    console.error('Error adding planned ads:', adsError);
+                }
+            }
+
             // Create lecture entries
             const lectureEntries = lectureDates.map((date, index) => ({
                 course_id: course.id,
@@ -515,6 +593,35 @@ export default function CourseManagement() {
             }
         };
         fetchCourseOrganizers();
+
+        // Fetch marketers for this course
+        const fetchCourseMarketers = async () => {
+            const { data: marketersData } = await supabase
+                .from('course_marketers')
+                .select(`
+                    id,
+                    course_id,
+                    volunteer_id,
+                    profiles:volunteer_id (
+                        full_name,
+                        full_name_ar,
+                        phone
+                    )
+                `)
+                .eq('course_id', course.id);
+
+            if (marketersData) {
+                const formattedMarketers = marketersData.map((m: any) => ({
+                    id: m.id,
+                    course_id: m.course_id,
+                    volunteer_id: m.volunteer_id,
+                    name: isRTL && m.profiles?.full_name_ar ? m.profiles.full_name_ar : m.profiles?.full_name || '',
+                    phone: m.profiles?.phone || ''
+                }));
+                setMarketers(formattedMarketers);
+            }
+        };
+        fetchCourseMarketers();
 
         setIsEditOpen(true);
     };
@@ -590,6 +697,18 @@ export default function CourseManagement() {
                     })));
             }
 
+            // Update marketers - delete all and re-insert
+            await supabase.from('course_marketers').delete().eq('course_id', editingCourseId);
+
+            if (marketers.length > 0) {
+                await supabase
+                    .from('course_marketers')
+                    .insert(marketers.map(m => ({
+                        course_id: editingCourseId,
+                        volunteer_id: m.volunteer_id
+                    })));
+            }
+
             // We assume lecture dates might need regeneration ONLY if schedule changed significantly,
             // but for now let's keep it simple: we update the course metadata.
             // Regenerating lectures is complex if attendance exists.
@@ -610,11 +729,145 @@ export default function CourseManagement() {
         }
     };
 
+    // Ad Management Functions
+    const handleAddAd = async () => {
+        if (!selectedCourse) return;
+
+        try {
+            const nextAdNumber = (courseAds.length > 0 ? Math.max(...courseAds.map(a => a.ad_number)) : 0) + 1;
+            const newAdData = {
+                course_id: selectedCourse.id,
+                ad_number: nextAdNumber,
+                ad_date: format(new Date(), 'yyyy-MM-dd'),
+                created_by: user?.id,
+                poster_done: false,
+                content_done: false
+            };
+
+            const { data, error } = await supabase
+                .from('course_ads')
+                .insert(newAdData)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            setCourseAds([...courseAds, data as CourseAd]);
+            toast.success(isRTL ? 'تم إضافة إعلان جديد' : 'New ad added successfully');
+        } catch (error) {
+            console.error('Error adding ad:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء إضافة الإعلان' : 'Error adding ad');
+        }
+    };
+
+    const recordMarketingActivity = async (type: 'poster' | 'content', courseName: string, adNumber: number) => {
+        try {
+            // Get Marketing Committee
+            const { data: committee } = await supabase
+                .from('committees')
+                .select('id')
+                .eq('name', 'Marketing')
+                .single();
+
+            if (!committee) {
+                console.error('Marketing committee not found');
+                return;
+            }
+
+            // Get Activity Type
+            const activityName = type === 'poster' ? 'Course Ad Poster' : 'Course Ad Content';
+            const { data: activityType } = await supabase
+                .from('activity_types')
+                .select('id, points')
+                .eq('name', activityName)
+                .single();
+
+            if (!activityType) {
+                console.error(`Activity type ${activityName} not found`);
+                return;
+            }
+
+            // Create Submission
+            const { error } = await supabase.from('activity_submissions').insert({
+                volunteer_id: user?.id,
+                committee_id: committee.id,
+                activity_type_id: activityType.id,
+                description: `${isRTL ? 'إعلان رقم' : 'Ad #'} ${adNumber} - ${courseName} (${type === 'poster' ? (isRTL ? 'بوستر' : 'Poster') : (isRTL ? 'محتوى' : 'Content')})`,
+                points_awarded: activityType.points,
+                status: 'approved',
+                location: 'remote',
+                proof_url: null
+            });
+
+            if (error) throw error;
+            toast.success(isRTL ? 'تم تسجيل نقاط النشاط بنجاح' : 'Activity points recorded successfully');
+
+        } catch (error) {
+            console.error('Error recording marketing activity:', error);
+            // Don't show toast error to user to avoid confusion if it's a backend config issue, just log it
+        }
+    };
+
+    const handleUpdateAd = async (adId: string, updates: Partial<CourseAd>) => {
+        try {
+            const { error } = await supabase
+                .from('course_ads')
+                .update({ ...updates, updated_by: user?.id, updated_at: new Date().toISOString() })
+                .eq('id', adId);
+
+            if (error) throw error;
+
+            const updatedAd = { ...courseAds.find(a => a.id === adId)!, ...updates };
+            setCourseAds(courseAds.map(ad => ad.id === adId ? updatedAd : ad));
+
+            // Function to check if we should record activity
+            if (selectedCourse && user) {
+                // If marking poster as done
+                if (updates.poster_done === true) {
+                    recordMarketingActivity('poster', selectedCourse.name, updatedAd.ad_number);
+                }
+                // If marking content as done
+                if (updates.content_done === true) {
+                    recordMarketingActivity('content', selectedCourse.name, updatedAd.ad_number);
+                }
+            }
+
+            toast.success(isRTL ? 'تم تحديث الإعلان' : 'Ad updated successfully');
+        } catch (error) {
+            console.error('Error updating ad:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء تحديث الإعلان' : 'Error updating ad');
+        }
+    };
+
+    const handleDeleteAd = async (adId: string) => {
+        if (!confirm(isRTL ? 'هل أنت متأكد من حذف هذا الإعلان؟' : 'Are you sure you want to delete this ad?')) return;
+
+        try {
+            const { error } = await supabase
+                .from('course_ads')
+                .delete()
+                .eq('id', adId);
+
+            if (error) throw error;
+
+            setCourseAds(courseAds.filter(ad => ad.id !== adId));
+            toast.success(isRTL ? 'تم حذف الإعلان' : 'Ad deleted successfully');
+        } catch (error) {
+            console.error('Error deleting ad:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء حذف الإعلان' : 'Error deleting ad');
+        }
+    };
+
+
+
     const openCourseDetails = async (course: Course) => {
         setSelectedCourse(course);
         setLectures([]);
         setAttendanceData({});
+        setLectures([]);
+        setAttendanceData({});
         setBeneficiaries([]);
+        setDetailsMarketers([]);
         setNewBeneficiary({ name: '', phone: '' });
         setEditingBeneficiary(null);
         try {
@@ -624,6 +877,20 @@ export default function CourseManagement() {
                 .select('*')
                 .eq('course_id', course.id)
                 .order('lecture_number');
+
+            // Fetch course ads
+            const { data: adsData } = await supabase
+                .from('course_ads')
+                .select(`
+                    *,
+                    updater:updated_by(full_name, full_name_ar)
+                `)
+                .eq('course_id', course.id)
+                .order('ad_number');
+
+            if (adsData) {
+                setCourseAds(adsData as any);
+            }
 
             // Fetch beneficiaries
             const { data: beneficiariesData } = await supabase
@@ -667,6 +934,32 @@ export default function CourseManagement() {
                 setDetailsOrganizers(organizersData);
             }
 
+            // Fetch course marketers
+            const { data: marketersData } = await supabase
+                .from('course_marketers')
+                .select(`
+                    id,
+                    course_id,
+                    volunteer_id,
+                    profiles:volunteer_id (
+                        full_name,
+                        full_name_ar,
+                        phone
+                    )
+                `)
+                .eq('course_id', course.id);
+
+            if (marketersData) {
+                const formattedMarketers = marketersData.map((m: any) => ({
+                    id: m.id,
+                    course_id: m.course_id,
+                    volunteer_id: m.volunteer_id,
+                    name: isRTL && m.profiles?.full_name_ar ? m.profiles.full_name_ar : m.profiles?.full_name || '',
+                    phone: m.profiles?.phone || ''
+                }));
+                setDetailsMarketers(formattedMarketers);
+            }
+
             setIsDetailsOpen(true);
         } catch (error) {
             console.error('Error fetching details:', error);
@@ -707,7 +1000,7 @@ export default function CourseManagement() {
                 .eq('id', course.trainer_id)
                 .single();
 
-            if (!trainerData?.user_id) return; // Trainer not linked to a user account
+            if (!(trainerData as any)?.user_id) return; // Trainer not linked to a user account
 
             // Get trainer committee
             const { data: committee } = await supabase
@@ -734,7 +1027,7 @@ export default function CourseManagement() {
 
             // Create activity submission for the trainer
             const { error: submitError } = await supabase.from('activity_submissions').insert({
-                volunteer_id: trainerData.user_id,
+                volunteer_id: (trainerData as any).user_id,
                 activity_type_id: activityType.id,
                 committee_id: committee.id,
                 description: `محاضرة ${lectureNum} في كورس: ${course.name}`,
@@ -1283,317 +1576,413 @@ export default function CourseManagement() {
                                     <DialogDescription>{isRTL ? 'أضف تفاصيل الكورس' : 'Add course details'}</DialogDescription>
                                 </DialogHeader>
 
-                                <div className="grid gap-6 py-4">
-                                    {/* Course Name & Room */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-3">
-                                            <Label className="text-base">{isRTL ? 'اسم الكورس *' : 'Course Name *'}</Label>
-                                            <Input
-                                                value={formData.name}
-                                                onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                                className="h-12"
-                                                placeholder={isRTL ? 'مثال: كورس الإسعافات الأولية' : 'e.g., First Aid Course'}
-                                            />
-                                        </div>
-                                        <div className="space-y-3">
-                                            <Label className="text-base">{isRTL ? 'القاعة *' : 'Room *'}</Label>
-                                            <Select value={formData.room} onValueChange={val => setFormData({ ...formData, room: val })}>
-                                                <SelectTrigger className="h-12">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {ROOMS.map(room => (
-                                                        <SelectItem key={room.value} value={room.value} className="py-3">
-                                                            {room.label[language as 'en' | 'ar']}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                <div className="py-4">
+                                    {/* View Toggle */}
+                                    <div className="flex justify-center mb-6">
+                                        <div className="bg-muted p-1 rounded-lg inline-flex">
+                                            <button
+                                                onClick={() => setCreateTab('pre')}
+                                                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${createTab === 'pre' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                            >
+                                                {isRTL ? 'ما قبل الكورس' : 'Pre-Course'}
+                                            </button>
+                                            <button
+                                                onClick={() => setCreateTab('post')}
+                                                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${createTab === 'post' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+                                            >
+                                                {isRTL ? 'ما بعد الكورس' : 'Post-Course'}
+                                            </button>
                                         </div>
                                     </div>
 
-                                    {/* Committee Selection */}
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{isRTL ? 'اللجنة' : 'Committee'}</Label>
-                                        <Select
-                                            value={formData.committee_id || ''}
-                                            onValueChange={val => setFormData({ ...formData, committee_id: val })}
-                                            disabled={isRestricted}
-                                        >
-                                            <SelectTrigger className="h-12">
-                                                <SelectValue placeholder={isRTL ? 'اختر اللجنة' : 'Select Committee'} />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {committees
-                                                    .filter(c => c.committee_type !== 'fourth_year')
-                                                    .map(committee => (
-                                                        <SelectItem key={committee.id} value={committee.id} className="py-3">
-                                                            {isRTL ? committee.name_ar : committee.name}
-                                                        </SelectItem>
-                                                    ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-
-                                    {/* Trainer Info */}
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-base">{isRTL ? 'المدرب' : 'Trainer'}</Label>
-                                            <div className="flex items-center gap-3">
-                                                <span className={`text-sm ${!isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
-                                                    {isRTL ? 'من الفرع' : 'Internal'}
-                                                </span>
-                                                <Switch
-                                                    checked={isExternalTrainer}
-                                                    onCheckedChange={(checked) => {
-                                                        setIsExternalTrainer(checked);
-                                                        if (checked) {
-                                                            setSelectedTrainerId('');
-                                                        } else {
-                                                            setFormData({ ...formData, trainer_name: '', trainer_phone: '' });
-                                                        }
-                                                    }}
-                                                />
-                                                <span className={`text-sm ${isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
-                                                    {isRTL ? 'خارجي' : 'External'}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {!isExternalTrainer ? (
-                                            // Internal trainer - dropdown
+                                    <div className="grid gap-6">
+                                        {/* Common Fields: Name & Room */}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-3">
-                                                <Select value={selectedTrainerId} onValueChange={setSelectedTrainerId}>
+                                                <Label className="text-base">{isRTL ? 'اسم الكورس *' : 'Course Name *'}</Label>
+                                                <Input
+                                                    value={formData.name}
+                                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                                    className="h-12"
+                                                    placeholder={isRTL ? 'مثال: كورس الإسعافات الأولية' : 'e.g., First Aid Course'}
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <Label className="text-base">{isRTL ? 'القاعة *' : 'Room *'}</Label>
+                                                <Select value={formData.room} onValueChange={val => setFormData({ ...formData, room: val })}>
                                                     <SelectTrigger className="h-12">
-                                                        <SelectValue placeholder={isRTL ? 'اختر مدرب من الفرع...' : 'Select trainer from branch...'} />
+                                                        <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {trainers.map(trainer => (
-                                                            <SelectItem key={trainer.id} value={trainer.id} className="py-3">
-                                                                <div className="flex items-center gap-2 w-full flex-row-reverse justify-end">
-                                                                    <div className="flex flex-col items-end">
-                                                                        <span>{isRTL ? trainer.name_ar : trainer.name_en}</span>
-                                                                        {trainer.phone && <span className="text-muted-foreground text-xs">{trainer.phone}</span>}
-                                                                    </div>
-                                                                    <Avatar className="h-8 w-8">
-                                                                        <AvatarImage src={trainer.image_url || undefined} />
-                                                                        <AvatarFallback>{(isRTL ? trainer.name_ar : trainer.name_en).charAt(0)}</AvatarFallback>
-                                                                    </Avatar>
-                                                                </div>
+                                                        {ROOMS.map(room => (
+                                                            <SelectItem key={room.value} value={room.value} className="py-3">
+                                                                {room.label[language as 'en' | 'ar']}
                                                             </SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
-                                                {trainers.length === 0 && (
-                                                    <p className="text-sm text-muted-foreground">
-                                                        {isRTL ? 'لا يوجد مدربين مسجلين. أضف مدربين من صفحة المدربين أولاً.' : 'No trainers registered. Add trainers from Trainers page first.'}
-                                                    </p>
-                                                )}
                                             </div>
-                                        ) : (
-                                            // External trainer - manual input
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div className="space-y-2">
-                                                    <Label>{isRTL ? 'اسم المدرب *' : 'Trainer Name *'}</Label>
-                                                    <Input
-                                                        value={formData.trainer_name}
-                                                        onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
-                                                        className="h-12"
-                                                        placeholder={isRTL ? 'أدخل اسم المدرب' : 'Enter trainer name'}
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label>{isRTL ? 'رقم المدرب' : 'Trainer Phone'}</Label>
-                                                    <Input
-                                                        value={formData.trainer_phone}
-                                                        onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
-                                                        className="h-12"
-                                                        placeholder="01xxxxxxxxx"
-                                                        dir="ltr"
-                                                    />
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                        </div>
 
-                                    {/* Schedule */}
-                                    <div className="space-y-3">
-                                        <Label className="text-base">{isRTL ? 'أيام الكورس *' : 'Course Days *'}</Label>
-                                        <div className="flex flex-wrap gap-3">
-                                            {DAYS.map(day => {
-                                                const isSelected = formData.schedule_days.includes(day.value);
-                                                return (
-                                                    <div
-                                                        key={day.value}
-                                                        onClick={() => toggleDay(day.value)}
-                                                        className={`
+                                        {/* Common Fields: Committee */}
+                                        <div className="space-y-3">
+                                            <Label className="text-base">{isRTL ? 'اللجنة' : 'Committee'}</Label>
+                                            <Select
+                                                value={formData.committee_id || ''}
+                                                onValueChange={val => setFormData({ ...formData, committee_id: val })}
+                                                disabled={isRestricted}
+                                            >
+                                                <SelectTrigger className="h-12">
+                                                    <SelectValue placeholder={isRTL ? 'اختر اللجنة' : 'Select Committee'} />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {committees
+                                                        .filter(c => c.committee_type !== 'fourth_year')
+                                                        .map(committee => (
+                                                            <SelectItem key={committee.id} value={committee.id} className="py-3">
+                                                                {isRTL ? committee.name_ar : committee.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {/* Common Fields: Trainer */}
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between">
+                                                <Label className="text-base">{isRTL ? 'المدرب' : 'Trainer'}</Label>
+                                                <div className="flex items-center gap-3">
+                                                    <span className={`text-sm ${!isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
+                                                        {isRTL ? 'من الفرع' : 'Internal'}
+                                                    </span>
+                                                    <Switch
+                                                        checked={isExternalTrainer}
+                                                        onCheckedChange={(checked) => {
+                                                            setIsExternalTrainer(checked);
+                                                            if (checked) {
+                                                                setSelectedTrainerId('');
+                                                            } else {
+                                                                setFormData({ ...formData, trainer_name: '', trainer_phone: '' });
+                                                            }
+                                                        }}
+                                                    />
+                                                    <span className={`text-sm ${isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
+                                                        {isRTL ? 'خارجي' : 'External'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {!isExternalTrainer ? (
+                                                <div className="space-y-3">
+                                                    <Select value={selectedTrainerId} onValueChange={setSelectedTrainerId}>
+                                                        <SelectTrigger className="h-12">
+                                                            <SelectValue placeholder={isRTL ? 'اختر مدرب من الفرع...' : 'Select trainer from branch...'} />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {trainers.map(trainer => (
+                                                                <SelectItem key={trainer.id} value={trainer.id} className="py-3">
+                                                                    <div className="flex items-center gap-2 w-full flex-row-reverse justify-end">
+                                                                        <div className="flex flex-col items-end">
+                                                                            <span>{isRTL ? trainer.name_ar : trainer.name_en}</span>
+                                                                            {trainer.phone && <span className="text-muted-foreground text-xs">{trainer.phone}</span>}
+                                                                        </div>
+                                                                        <Avatar className="h-8 w-8">
+                                                                            <AvatarImage src={trainer.image_url || undefined} />
+                                                                            <AvatarFallback>{(isRTL ? trainer.name_ar : trainer.name_en).charAt(0)}</AvatarFallback>
+                                                                        </Avatar>
+                                                                    </div>
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            ) : (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <Label>{isRTL ? 'اسم المدرب *' : 'Trainer Name *'}</Label>
+                                                        <Input
+                                                            value={formData.trainer_name}
+                                                            onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
+                                                            className="h-12"
+                                                            placeholder={isRTL ? 'أدخل اسم المدرب' : 'Enter trainer name'}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>{isRTL ? 'رقم المدرب' : 'Trainer Phone'}</Label>
+                                                        <Input
+                                                            value={formData.trainer_phone}
+                                                            onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
+                                                            className="h-12"
+                                                            placeholder="01xxxxxxxxx"
+                                                            dir="ltr"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Common Fields: Schedule */}
+                                        <div className="space-y-3">
+                                            <Label className="text-base">{isRTL ? 'أيام الكورس *' : 'Course Days *'}</Label>
+                                            <div className="flex flex-wrap gap-3">
+                                                {DAYS.map(day => {
+                                                    const isSelected = formData.schedule_days.includes(day.value);
+                                                    return (
+                                                        <div
+                                                            key={day.value}
+                                                            onClick={() => toggleDay(day.value)}
+                                                            className={`
                                                         flex items-center gap-2 px-4 py-3 border rounded-lg cursor-pointer transition-all
                                                         ${isSelected
-                                                                ? 'bg-primary text-primary-foreground border-primary'
-                                                                : 'hover:bg-accent hover:border-accent-foreground/50 bg-background'
-                                                            }
+                                                                    ? 'bg-primary text-primary-foreground border-primary'
+                                                                    : 'hover:bg-accent hover:border-accent-foreground/50 bg-background'
+                                                                }
                                                     `}
-                                                    >
-                                                        <span className="font-medium">{day.label[language as 'en' | 'ar']}</span>
-                                                    </div>
-                                                );
-                                            })}
+                                                        >
+                                                            <span className="font-medium">{day.label[language as 'en' | 'ar']}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                                        <div className="space-y-3">
-                                            <Label className="text-base">{isRTL ? 'وقت البداية' : 'Start Time'}</Label>
-                                            <Input
-                                                type="time"
-                                                value={formData.schedule_time}
-                                                onChange={e => setFormData({ ...formData, schedule_time: e.target.value })}
-                                                className="h-12"
-                                            />
-                                        </div>
-                                        <div className="space-y-3">
-                                            <Label className="text-base">{isRTL ? 'وقت الانتهاء' : 'End Time'}</Label>
-                                            <Input
-                                                type="time"
-                                                value={formData.schedule_end_time}
-                                                onChange={e => setFormData({ ...formData, schedule_end_time: e.target.value })}
-                                                className="h-12"
-                                            />
-                                        </div>
-                                        <div className="space-y-3">
-                                            <Label className="text-base">{isRTL ? 'عدد المحاضرات' : 'Total Lectures'}</Label>
-                                            <Input
-                                                type="number"
-                                                min={1}
-                                                value={formData.total_lectures}
-                                                onChange={e => setFormData({ ...formData, total_lectures: parseInt(e.target.value) || 1 })}
-                                                className="h-12"
-                                            />
-                                        </div>
-                                        <div className="space-y-3">
-                                            <Label className="text-base">{isRTL ? 'تاريخ البداية' : 'Start Date'}</Label>
-                                            <Input
-                                                type="date"
-                                                value={formData.start_date}
-                                                onChange={e => setFormData({ ...formData, start_date: e.target.value })}
-                                                className="h-12"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    {/* End Date (Read Only) */}
-                                    <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-dashed">
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-base text-muted-foreground">{isRTL ? 'تاريخ النهاية المتوقع' : 'Expected End Date'}</Label>
-                                            <Badge variant="outline" className="text-base px-3 py-1">
-                                                {formData.end_date || '-'}
-                                            </Badge>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground">
-                                            {isRTL
-                                                ? 'يتم حساب تاريخ النهاية تلقائياً بناءً على تاريخ البداية وعدد المحاضرات والأيام المختارة.'
-                                                : 'End date is calculated automatically based on start date, lectures count, and selected days.'}
-                                        </p>
-                                    </div>
-
-                                    {/* Interview */}
-                                    <div className="flex items-center gap-4 p-4 border rounded-lg bg-card">
-                                        <label className="flex items-center gap-3 cursor-pointer flex-1">
-                                            <Checkbox
-                                                checked={formData.has_interview}
-                                                onCheckedChange={(checked) => setFormData({ ...formData, has_interview: !!checked })}
-                                                className="h-5 w-5"
-                                            />
-                                            <span className="text-base font-medium">{isRTL ? 'يوجد انترفيو لهذا الكورس' : 'This course has an interview'}</span>
-                                        </label>
-                                        {formData.has_interview && (
-                                            <div className="w-1/3 min-w-[200px]">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                                            <div className="space-y-3">
+                                                <Label className="text-base">{isRTL ? 'وقت البداية' : 'Start Time'}</Label>
                                                 <Input
-                                                    type="date"
-                                                    value={formData.interview_date}
-                                                    onChange={e => setFormData({ ...formData, interview_date: e.target.value })}
-                                                    className="h-10"
+                                                    type="time"
+                                                    value={formData.schedule_time}
+                                                    onChange={e => setFormData({ ...formData, schedule_time: e.target.value })}
+                                                    className="h-12"
                                                 />
                                             </div>
-                                        )}
-                                    </div>
+                                            <div className="space-y-3">
+                                                <Label className="text-base">{isRTL ? 'وقت الانتهاء' : 'End Time'}</Label>
+                                                <Input
+                                                    type="time"
+                                                    value={formData.schedule_end_time}
+                                                    onChange={e => setFormData({ ...formData, schedule_end_time: e.target.value })}
+                                                    className="h-12"
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <Label className="text-base">{isRTL ? 'عدد المحاضرات' : 'Total Lectures'}</Label>
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    value={formData.total_lectures}
+                                                    onChange={e => setFormData({ ...formData, total_lectures: parseInt(e.target.value) || 1 })}
+                                                    className="h-12"
+                                                />
+                                            </div>
+                                            <div className="space-y-3">
+                                                <Label className="text-base">{isRTL ? 'تاريخ البداية' : 'Start Date'}</Label>
+                                                <Input
+                                                    type="date"
+                                                    value={formData.start_date}
+                                                    onChange={e => setFormData({ ...formData, start_date: e.target.value })}
+                                                    className="h-12"
+                                                />
+                                            </div>
+                                        </div>
 
-                                    {/* Certificates */}
-                                    <div className="flex items-center gap-4 p-4 border rounded-lg bg-card mb-6">
-                                        <label className="flex items-center gap-3 cursor-pointer flex-1">
-                                            <Checkbox
-                                                checked={formData.has_certificates}
-                                                onCheckedChange={(checked) => setFormData({ ...formData, has_certificates: !!checked })}
-                                                className="h-5 w-5"
-                                            />
-                                            <span className="text-base font-medium">{isRTL ? 'يوجد شهادات لهذا الكورس؟' : 'Does this course have certificates?'}</span>
-                                        </label>
-                                    </div>
+                                        {/* Pre-Course Only Fields */}
+                                        {createTab === 'pre' && (
+                                            <div className="space-y-6 pt-4 border-t animate-in fade-in slide-in-from-top-4 duration-300">
+                                                {/* Interview */}
+                                                <div className="flex items-center gap-4 p-4 border rounded-lg bg-card">
+                                                    <label className="flex items-center gap-3 cursor-pointer flex-1">
+                                                        <Checkbox
+                                                            checked={formData.has_interview}
+                                                            onCheckedChange={(checked) => setFormData({ ...formData, has_interview: !!checked })}
+                                                            className="h-5 w-5"
+                                                        />
+                                                        <span className="text-base font-medium">{isRTL ? 'يوجد انترفيو لهذا الكورس' : 'This course has an interview'}</span>
+                                                    </label>
+                                                    {formData.has_interview && (
+                                                        <div className="w-1/3 min-w-[200px]">
+                                                            <Input
+                                                                type="date"
+                                                                value={formData.interview_date}
+                                                                onChange={e => setFormData({ ...formData, interview_date: e.target.value })}
+                                                                className="h-10"
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
 
-                                    {/* Organizers */}
-                                    <div className="border-t pt-4">
-                                        <h3 className="text-base sm:text-lg font-medium mb-3">{isRTL ? 'المنظمين' : 'Organizers'}</h3>
-                                        <Popover open={organizerPopoverOpen} onOpenChange={setOrganizerPopoverOpen}>
-                                            <PopoverTrigger asChild>
-                                                <Button variant="outline" className="w-full justify-start text-sm">
-                                                    <Search className="w-4 h-4 ltr:mr-2 rtl:ml-2 shrink-0" />
-                                                    <span className="truncate">{isRTL ? 'بحث عن متطوع...' : 'Search volunteers...'}</span>
-                                                </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0" align="start" side="bottom">
-                                                <Command>
-                                                    <CommandInput placeholder={isRTL ? 'اكتب اسم المتطوع...' : 'Type volunteer name...'} />
-                                                    <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
-                                                        <CommandEmpty>{isRTL ? 'لا يوجد متطوعين' : 'No volunteers found'}</CommandEmpty>
-                                                        <CommandGroup heading={isRTL ? 'المتطوعين' : 'Volunteers'}>
-                                                            {volunteers.slice(0, 50).map(volunteer => (
-                                                                <CommandItem
-                                                                    key={volunteer.id}
-                                                                    value={`${volunteer.full_name} ${volunteer.full_name_ar || ''}`}
-                                                                    onSelect={() => handleAddOrganizer(volunteer)}
-                                                                >
-                                                                    <div className="flex items-center gap-2 w-full">
-                                                                        <Avatar className="h-8 w-8">
-                                                                            <AvatarImage src={volunteer.avatar_url || undefined} />
-                                                                            <AvatarFallback>{(volunteer.full_name?.[0] || '?').toUpperCase()}</AvatarFallback>
-                                                                        </Avatar>
-                                                                        <div className="flex flex-col min-w-0">
-                                                                            <span className="truncate font-medium">{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
-                                                                            <span className="text-xs text-muted-foreground">{volunteer.phone || '-'}</span>
-                                                                        </div>
+                                                {/* Ads Planning Section */}
+                                                <div className="space-y-3 pt-2 border-t">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label className="text-base font-semibold flex items-center gap-2">
+                                                            <Megaphone className="w-4 h-4" />
+                                                            {isRTL ? 'خطة الدعايا' : 'Ads Planning'}
+                                                        </Label>
+                                                        <Popover>
+                                                            <PopoverTrigger asChild>
+                                                                <Button variant="outline" size="sm" className="h-8">
+                                                                    <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                                    {isRTL ? 'إضافة موعد إعلان' : 'Add Ad Date'}
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-auto p-0" align="end">
+                                                                <CalendarComponent
+                                                                    mode="single"
+                                                                    selected={undefined}
+                                                                    onSelect={(date) => {
+                                                                        if (date) {
+                                                                            const dateStr = format(date, 'yyyy-MM-dd');
+                                                                            if (formData.start_date && dateStr > formData.start_date) {
+                                                                                toast.error(isRTL ? 'لا يمكن اختيار موعد بعد تاريخ البداية' : 'Cannot select date after start date');
+                                                                                return;
+                                                                            }
+                                                                            if (!plannedAds.includes(dateStr)) {
+                                                                                setPlannedAds(prev => [...prev, dateStr].sort());
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    disabled={(date) => formData.start_date ? format(date, 'yyyy-MM-dd') > formData.start_date : false}
+                                                                    initialFocus
+                                                                />
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    </div>
+
+                                                    {plannedAds.length > 0 ? (
+                                                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                                                            {plannedAds.map((date, index) => (
+                                                                <div key={`${date}-${index}`} className="flex items-center justify-between p-2 bg-muted rounded-md border text-sm">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <Badge variant="outline" className="h-5 w-5 flex items-center justify-center rounded-full p-0 text-xs">
+                                                                            {index + 1}
+                                                                        </Badge>
+                                                                        <span className="font-medium">{date}</span>
                                                                     </div>
-                                                                </CommandItem>
-                                                            ))}
-                                                        </CommandGroup>
-                                                    </CommandList>
-                                                </Command>
-                                            </PopoverContent>
-                                        </Popover>
-
-                                        {organizers.length > 0 && (
-                                            <div className="border rounded-md mt-3 overflow-x-auto">
-                                                <Table className="min-w-[280px]">
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead className="text-xs sm:text-sm">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                            <TableHead className="text-xs sm:text-sm">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
-                                                            <TableHead className="w-10"></TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {organizers.map((org, idx) => (
-                                                            <TableRow key={idx}>
-                                                                <TableCell className="text-xs sm:text-sm truncate max-w-[120px]">{org.name}</TableCell>
-                                                                <TableCell className="text-xs sm:text-sm">{org.phone || '-'}</TableCell>
-                                                                <TableCell>
-                                                                    <Button variant="ghost" size="sm" onClick={() => removeOrganizer(idx)}>
-                                                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                                                                        onClick={() => setPlannedAds(prev => prev.filter((_, i) => i !== index))}
+                                                                    >
+                                                                        <X className="w-3 h-3" />
                                                                     </Button>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-center p-4 border border-dashed rounded-lg text-muted-foreground text-sm">
+                                                            {isRTL ? 'لم يتم تحديد مواعيد إعلانات' : 'No ad dates scheduled'}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+
+
+                                                {/* Marketers */}
+                                                <div className="pt-2">
+                                                    <h3 className="text-base sm:text-lg font-medium mb-3">{isRTL ? 'فريق التسويق' : 'Marketing Team'}</h3>
+                                                    <Popover open={marketerPopoverOpen} onOpenChange={setMarketerPopoverOpen}>
+                                                        <PopoverTrigger asChild>
+                                                            <Button variant="outline" className="w-full justify-start text-sm h-11">
+                                                                <Search className="w-4 h-4 ltr:mr-2 rtl:ml-2 shrink-0" />
+                                                                <span className="truncate">{isRTL ? 'إضافة مسوق...' : 'Add Marketer...'}</span>
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="p-0" side="bottom" align="start">
+                                                            <Command>
+                                                                <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
+                                                                <CommandList>
+                                                                    <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results found.'}</CommandEmpty>
+                                                                    <CommandGroup>
+                                                                        {volunteers
+                                                                            .filter(v => {
+                                                                                const marketingCommittee = committees.find(c => c.name === 'Marketing' || c.name === 'marketing');
+                                                                                return marketingCommittee ? v.committee_id === marketingCommittee.id : true;
+                                                                            })
+                                                                            .map(volunteer => (
+                                                                                <CommandItem
+                                                                                    key={volunteer.id}
+                                                                                    value={volunteer.full_name}
+                                                                                    onSelect={() => handleAddMarketer(volunteer)}
+                                                                                >
+                                                                                    <div className="flex items-center gap-2">
+                                                                                        <Avatar className="h-6 w-6">
+                                                                                            <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                                            <AvatarFallback>{volunteer.full_name.charAt(0)}</AvatarFallback>
+                                                                                        </Avatar>
+                                                                                        <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
+                                                                                    </div>
+                                                                                    {marketers.some(m => m.volunteer_id === volunteer.id) && (
+                                                                                        <Check className="w-4 h-4 ml-auto" />
+                                                                                    )}
+                                                                                </CommandItem>
+                                                                            ))}
+                                                                    </CommandGroup>
+                                                                </CommandList>
+                                                            </Command>
+                                                        </PopoverContent>
+                                                    </Popover>
+
+                                                    {marketers.length > 0 && (
+                                                        <div className="mt-4 border rounded-md">
+                                                            <Table>
+                                                                <TableHeader>
+                                                                    <TableRow>
+                                                                        <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                                        <TableHead>{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                                                        <TableHead className="w-[50px]"></TableHead>
+                                                                    </TableRow>
+                                                                </TableHeader>
+                                                                <TableBody>
+                                                                    {marketers.map((mkt, idx) => (
+                                                                        <TableRow key={idx}>
+                                                                            <TableCell className="text-xs sm:text-sm truncate max-w-[120px]">{mkt.name}</TableCell>
+                                                                            <TableCell className="text-xs sm:text-sm">{mkt.phone || '-'}</TableCell>
+                                                                            <TableCell>
+                                                                                <Button variant="ghost" size="sm" onClick={() => removeMarketer(idx)}>
+                                                                                    <Trash2 className="w-4 h-4 text-destructive" />
+                                                                                </Button>
+                                                                            </TableCell>
+                                                                        </TableRow>
+                                                                    ))}
+                                                                </TableBody>
+                                                            </Table>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Post-Course Only Fields */}
+                                        {createTab === 'post' && (
+                                            <div className="space-y-6 pt-4 border-t animate-in fade-in slide-in-from-top-4 duration-300">
+
+                                                {/* End Date (Read Only - but emphasized for post-course) */}
+                                                <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-dashed">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label className="text-base text-muted-foreground">{isRTL ? 'تاريخ النهاية المتوقع' : 'Expected End Date'}</Label>
+                                                        <Badge variant="outline" className="text-base px-3 py-1">
+                                                            {formData.end_date || '-'}
+                                                        </Badge>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {isRTL
+                                                            ? 'يتم حساب تاريخ النهاية تلقائياً بناءً على تاريخ البداية وعدد المحاضرات والأيام المختارة.'
+                                                            : 'End date is calculated automatically based on start date, lectures count, and selected days.'}
+                                                    </p>
+                                                </div>
+
+                                                {/* Certificates */}
+                                                <div className="flex items-center gap-4 p-4 border rounded-lg bg-card mb-6">
+                                                    <label className="flex items-center gap-3 cursor-pointer flex-1">
+                                                        <Checkbox
+                                                            checked={formData.has_certificates}
+                                                            onCheckedChange={(checked) => setFormData({ ...formData, has_certificates: !!checked })}
+                                                            className="h-5 w-5"
+                                                        />
+                                                        <span className="text-base font-medium">{isRTL ? 'يوجد شهادات لهذا الكورس؟' : 'Does this course have certificates?'}</span>
+                                                    </label>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -1623,6 +2012,12 @@ export default function CourseManagement() {
                                     <div>
                                         <div className="flex items-center gap-2">
                                             <CardTitle className="text-lg">{course.name}</CardTitle>
+                                            {/* No Organizers Warning */}
+                                            {(!course.course_organizers || course.course_organizers.length === 0) && (
+                                                <div title={isRTL ? 'لا يوجد منظمين' : 'No organizers'}>
+                                                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                                </div>
+                                            )}
                                             {course.has_certificates && (() => {
                                                 // Check if all lectures are completed
                                                 const lectureStatuses = course.course_lectures || [];
@@ -2025,6 +2420,74 @@ export default function CourseManagement() {
                                 </div>
                             )}
                         </div>
+
+                        {/* Marketers */}
+                        <div className="border-t pt-4">
+                            <h3 className="text-base sm:text-lg font-medium mb-3">{isRTL ? 'فريق التسويق' : 'Marketing Team'}</h3>
+                            <Popover open={marketerPopoverOpen} onOpenChange={setMarketerPopoverOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-start text-sm">
+                                        <Search className="w-4 h-4 ltr:mr-2 rtl:ml-2 shrink-0" />
+                                        <span className="truncate">{isRTL ? 'بحث عن متطوع...' : 'Search volunteers...'}</span>
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[calc(100vw-2rem)] sm:w-[400px] p-0" align="start" side="bottom">
+                                    <Command>
+                                        <CommandInput placeholder={isRTL ? 'اكتب اسم المتطوع...' : 'Type volunteer name...'} />
+                                        <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
+                                            <CommandEmpty>{isRTL ? 'لا يوجد متطوعين' : 'No volunteers found'}</CommandEmpty>
+                                            <CommandGroup heading={isRTL ? 'المتطوعين' : 'Volunteers'}>
+                                                {volunteers.slice(0, 50).map(volunteer => (
+                                                    <CommandItem
+                                                        key={volunteer.id}
+                                                        value={`${volunteer.full_name} ${volunteer.full_name_ar || ''}`}
+                                                        onSelect={() => handleAddMarketer(volunteer)}
+                                                    >
+                                                        <div className="flex items-center gap-2 w-full">
+                                                            <Avatar className="h-8 w-8">
+                                                                <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                <AvatarFallback>{(volunteer.full_name?.[0] || '?').toUpperCase()}</AvatarFallback>
+                                                            </Avatar>
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="truncate font-medium">{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
+                                                                <span className="text-xs text-muted-foreground">{volunteer.phone || '-'}</span>
+                                                            </div>
+                                                        </div>
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+
+                            {marketers.length > 0 && (
+                                <div className="border rounded-md mt-3 overflow-x-auto">
+                                    <Table className="min-w-[280px]">
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="text-xs sm:text-sm">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                <TableHead className="text-xs sm:text-sm">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                                <TableHead className="w-10"></TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {marketers.map((mkt, idx) => (
+                                                <TableRow key={idx}>
+                                                    <TableCell className="text-xs sm:text-sm truncate max-w-[120px]">{mkt.name}</TableCell>
+                                                    <TableCell className="text-xs sm:text-sm">{mkt.phone || '-'}</TableCell>
+                                                    <TableCell>
+                                                        <Button variant="ghost" size="sm" onClick={() => removeMarketer(idx)}>
+                                                            <Trash2 className="w-4 h-4 text-destructive" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            )}
+                        </div>
                     </div>
                     <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 mt-6">
                         <Button variant="outline" onClick={() => setIsEditOpen(false)} className="h-12 px-6 w-full sm:w-auto mt-2 sm:mt-0">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
@@ -2106,6 +2569,9 @@ export default function CourseManagement() {
                                 <TabsTrigger value="sheet" className="text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
                                 {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor')) && (
                                     <TabsTrigger value="organizers" className="text-xs sm:text-sm">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
+                                )}
+                                {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || detailsMarketers.some(m => m.volunteer_id === user?.id)) && (
+                                    <TabsTrigger value="marketing" className="text-xs sm:text-sm">{isRTL ? 'التسويق' : 'Marketing'}</TabsTrigger>
                                 )}
                             </TabsList>
                         </div>
@@ -2452,6 +2918,90 @@ export default function CourseManagement() {
                                         </div>
                                     </CardContent>
                                 </Card>
+                            </TabsContent>
+                        )}
+                        {/* Marketing Tab */}
+                        {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || detailsMarketers.some(m => m.volunteer_id === user?.id)) && (
+                            <TabsContent value="marketing" className="space-y-4 py-4">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-semibold">{isRTL ? 'إعلانات الكورس' : 'Course Ads'}</h3>
+                                    <Button onClick={handleAddAd} size="sm">
+                                        <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                        {isRTL ? 'إضافة إعلان' : 'Add Ad'}
+                                    </Button>
+                                </div>
+
+                                <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                                    {courseAds.length === 0 ? (
+                                        <div className="col-span-full text-center py-8 text-muted-foreground border rounded-lg border-dashed">
+                                            {isRTL ? 'لا توجد إعلانات بعد' : 'No ads yet'}
+                                        </div>
+                                    ) : (
+                                        courseAds.map((ad) => (
+                                            <Card key={ad.id} className="overflow-hidden">
+                                                <CardHeader className="p-4 pb-2 bg-muted/20">
+                                                    <div className="flex justify-between items-center">
+                                                        <CardTitle className="text-base font-medium">#{ad.ad_number}</CardTitle>
+                                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive" onClick={() => handleDeleteAd(ad.id)}>
+                                                            <Trash2 className="w-3 h-3" />
+                                                        </Button>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <Calendar className="w-3 h-3 text-muted-foreground" />
+                                                        <Input
+                                                            type="date"
+                                                            value={ad.ad_date}
+                                                            onChange={(e) => handleUpdateAd(ad.id, { ad_date: e.target.value })}
+                                                            className="h-7 w-auto text-xs p-1"
+                                                        />
+                                                    </div>
+                                                    {ad.updated_at && (
+                                                        <div className="text-[10px] text-muted-foreground mt-1">
+                                                            {isRTL ? 'آخر تحديث: ' : 'Updated: '}
+                                                            {format(new Date(ad.updated_at), 'MMM d, h:mm a')}
+                                                            {ad.updater && ` (${isRTL && ad.updater.full_name_ar ? ad.updater.full_name_ar : ad.updater.full_name})`}
+                                                        </div>
+                                                    )}
+                                                </CardHeader>
+                                                <CardContent className="p-4 space-y-4">
+                                                    {/* Poster */}
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between items-center">
+                                                            <Label className="text-xs font-medium">{isRTL ? 'البوستر' : 'Poster'}</Label>
+                                                            <Checkbox
+                                                                checked={ad.poster_done}
+                                                                onCheckedChange={(c) => handleUpdateAd(ad.id, { poster_done: !!c })}
+                                                            />
+                                                        </div>
+                                                        <div className="aspect-video relative bg-muted rounded-md border flex items-center justify-center overflow-hidden">
+                                                            {ad.poster_url ? (
+                                                                <img src={ad.poster_url} alt="Ad Poster" className="w-full h-full object-contain" />
+                                                            ) : (
+                                                                <div className="flex flex-col items-center gap-1 text-muted-foreground opacity-50">
+                                                                    <span className="text-xs">{isRTL ? 'لا يوجد بوستر' : 'No Poster'}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Content */}
+                                                    <div className="space-y-2">
+                                                        <div className="flex justify-between items-center">
+                                                            <Label className="text-xs font-medium">{isRTL ? 'المحتوى' : 'Content'}</Label>
+                                                            <Checkbox
+                                                                checked={ad.content_done}
+                                                                onCheckedChange={(c) => handleUpdateAd(ad.id, { content_done: !!c })}
+                                                            />
+                                                        </div>
+                                                        <div className="w-full min-h-[80px] p-2 text-sm rounded-md border bg-muted/30 whitespace-pre-wrap">
+                                                            {ad.content || (isRTL ? 'لا يوجد محتوى' : 'No content')}
+                                                        </div>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        ))
+                                    )}
+                                </div>
                             </TabsContent>
                         )}
                     </Tabs>

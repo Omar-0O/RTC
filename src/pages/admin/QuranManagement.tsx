@@ -69,7 +69,7 @@ export default function QuranManagement() {
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
 
-    const [unit, setUnit] = useState<'quarter' | 'hizb' | 'juz'>('juz');
+    const [unit, setUnit] = useState<'page' | 'quarter' | 'hizb' | 'juz'>('juz');
 
     useEffect(() => {
         fetchBeneficiaries();
@@ -313,7 +313,7 @@ export default function QuranManagement() {
                             {isRTL ? 'إضافة مستفيد' : 'Add Beneficiary'}
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>{isEditMode ? (isRTL ? 'تعديل مستفيد' : 'Edit Beneficiary') : (isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary')}</DialogTitle>
                         </DialogHeader>
@@ -409,7 +409,7 @@ export default function QuranManagement() {
                                     <div className="flex items-center gap-2">
                                         <Label className="text-sm text-muted-foreground whitespace-nowrap">{isRTL ? 'وحدة الإدخال:' : 'Input Unit:'}</Label>
                                         <div className="flex bg-background rounded-md border p-1">
-                                            {(['quarter', 'hizb', 'juz'] as const).map((u) => (
+                                            {(['page', 'quarter', 'hizb', 'juz'] as const).map((u) => (
                                                 <button
                                                     key={u}
                                                     onClick={() => setUnit(u)}
@@ -418,9 +418,10 @@ export default function QuranManagement() {
                                                         : 'hover:bg-muted text-muted-foreground'
                                                         }`}
                                                 >
-                                                    {u === 'quarter' ? (isRTL ? 'ربع' : 'Quarter') :
-                                                        u === 'hizb' ? (isRTL ? 'حزب' : 'Hizb') :
-                                                            (isRTL ? 'جزء' : 'Juz')}
+                                                    {u === 'page' ? (isRTL ? 'صفحة' : 'Page') :
+                                                        u === 'quarter' ? (isRTL ? 'ربع' : 'Quarter') :
+                                                            u === 'hizb' ? (isRTL ? 'حزب' : 'Hizb') :
+                                                                (isRTL ? 'جزء' : 'Juz')}
                                                 </button>
                                             ))}
                                         </div>
@@ -437,23 +438,24 @@ export default function QuranManagement() {
                                             <Input
                                                 type="number"
                                                 min={0}
-                                                step={unit === 'juz' ? 0.125 : unit === 'hizb' ? 0.25 : 1}
-                                                value={formData.previous_parts === 0 ? '' : formData.previous_parts / (unit === 'juz' ? 8 : unit === 'hizb' ? 4 : 1)}
+                                                step={unit === 'page' ? 1 : unit === 'juz' ? 0.125 : unit === 'hizb' ? 0.25 : 1}
+                                                value={formData.previous_parts === 0 ? '' : Number((formData.previous_parts / (unit === 'page' ? 0.4 : unit === 'juz' ? 8 : unit === 'hizb' ? 4 : 1)).toFixed(2))}
                                                 onChange={e => {
                                                     const val = parseFloat(e.target.value) || 0;
-                                                    const multiplier = unit === 'juz' ? 8 : unit === 'hizb' ? 4 : 1;
+                                                    const multiplier = unit === 'page' ? 0.4 : unit === 'juz' ? 8 : unit === 'hizb' ? 4 : 1;
                                                     setFormData({ ...formData, previous_parts: val * multiplier });
                                                 }}
                                                 className="border-slate-300 focus-visible:ring-slate-400 font-bold text-lg h-12 bg-white dark:bg-black"
                                             />
                                             <span className="absolute end-3 top-3 text-xs text-muted-foreground font-medium bg-muted/50 px-2 py-0.5 rounded">
-                                                {unit === 'quarter' ? (isRTL ? 'ربع' : 'Qtr') :
-                                                    unit === 'hizb' ? (isRTL ? 'حزب' : 'Hizb') :
-                                                        (isRTL ? 'جزء' : 'Juz')}
+                                                {unit === 'page' ? (isRTL ? 'صفحة' : 'Page') :
+                                                    unit === 'quarter' ? (isRTL ? 'ربع' : 'Qtr') :
+                                                        unit === 'hizb' ? (isRTL ? 'حزب' : 'Hizb') :
+                                                            (isRTL ? 'جزء' : 'Juz')}
                                             </span>
                                         </div>
                                         <p className="text-xs text-muted-foreground text-end">
-                                            = {formData.previous_parts} {isRTL ? 'ربع' : 'Quarters'}
+                                            = {Number(formData.previous_parts.toFixed(2))} {isRTL ? 'ربع' : 'Quarters'}
                                         </p>
                                     </div>
 
@@ -466,23 +468,24 @@ export default function QuranManagement() {
                                             <Input
                                                 type="number"
                                                 min={0}
-                                                step={unit === 'juz' ? 0.125 : unit === 'hizb' ? 0.25 : 1}
-                                                value={formData.current_parts === 0 ? '' : formData.current_parts / (unit === 'juz' ? 8 : unit === 'hizb' ? 4 : 1)}
+                                                step={unit === 'page' ? 1 : unit === 'juz' ? 0.125 : unit === 'hizb' ? 0.25 : 1}
+                                                value={formData.current_parts === 0 ? '' : Number((formData.current_parts / (unit === 'page' ? 0.4 : unit === 'juz' ? 8 : unit === 'hizb' ? 4 : 1)).toFixed(2))}
                                                 onChange={e => {
                                                     const val = parseFloat(e.target.value) || 0;
-                                                    const multiplier = unit === 'juz' ? 8 : unit === 'hizb' ? 4 : 1;
+                                                    const multiplier = unit === 'page' ? 0.4 : unit === 'juz' ? 8 : unit === 'hizb' ? 4 : 1;
                                                     setFormData({ ...formData, current_parts: val * multiplier });
                                                 }}
                                                 className="border-amber-300 focus-visible:ring-amber-400 font-bold text-lg h-12 bg-white dark:bg-black"
                                             />
                                             <span className="absolute end-3 top-3 text-xs text-muted-foreground font-medium bg-muted/50 px-2 py-0.5 rounded">
-                                                {unit === 'quarter' ? (isRTL ? 'ربع' : 'Qtr') :
-                                                    unit === 'hizb' ? (isRTL ? 'حزب' : 'Hizb') :
-                                                        (isRTL ? 'جزء' : 'Juz')}
+                                                {unit === 'page' ? (isRTL ? 'صفحة' : 'Page') :
+                                                    unit === 'quarter' ? (isRTL ? 'ربع' : 'Qtr') :
+                                                        unit === 'hizb' ? (isRTL ? 'حزب' : 'Hizb') :
+                                                            (isRTL ? 'جزء' : 'Juz')}
                                             </span>
                                         </div>
                                         <p className="text-xs text-muted-foreground text-end">
-                                            = {formData.current_parts} {isRTL ? 'ربع' : 'Quarters'}
+                                            = {Number(formData.current_parts.toFixed(2))} {isRTL ? 'ربع' : 'Quarters'}
                                         </p>
                                     </div>
                                 </div>

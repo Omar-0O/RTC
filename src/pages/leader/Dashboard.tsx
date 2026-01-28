@@ -33,6 +33,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 
 interface Profile {
   id: string;
@@ -337,6 +338,8 @@ export default function CommitteeLeaderDashboard() {
           description={isRTL ? 'نقطة' : 'points'}
         />
       </div>
+
+      <CourseAdsTable />
 
       {/* Filters */}
       <Card>

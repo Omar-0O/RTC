@@ -135,6 +135,7 @@ export function AppSidebar() {
     { title: t('nav.events'), url: '/events', icon: Calendar },
     { title: isRTL ? 'إدارة القرآن' : 'Quran Management', url: '/admin/quran', icon: BookOpen },
     { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
+    { title: isRTL ? 'إدارة المحفظين' : 'Quran Teachers', url: '/admin/quran-teachers', icon: Users },
   ];
 
   const hrNavItems = [
@@ -207,6 +208,13 @@ export function AppSidebar() {
           { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/dashboard', icon: Home },
           { title: isRTL ? 'مستفيدين القرآن' : 'Quran Beneficiaries', url: '/admin/quran', icon: BookOpen },
           { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
+          { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
+          { title: t('nav.profile'), url: '/profile', icon: User },
+        ];
+      case 'head_ashbal':
+        return [
+          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/dashboard', icon: Home },
+          { title: isRTL ? 'إدارة الأشبال' : 'Ashbal Management', url: '/ashbal/management', icon: Users },
           { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/profile', icon: User },
         ];
