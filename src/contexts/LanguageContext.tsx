@@ -273,6 +273,10 @@ const translations: Record<Language, Record<string, string>> = {
     'app.name': 'برنامج تسجيل المشاركات',
     'app.tagline': 'Volunteer Portal',
     'app.language': 'Language',
+    'theme.toggle': 'Theme',
+    'theme.light': 'Light',
+    'theme.dark': 'Dark',
+    'theme.system': 'System',
   },
   ar: {
     // Navigation
@@ -538,6 +542,10 @@ const translations: Record<Language, Record<string, string>> = {
     'app.name': '',
     'app.tagline': 'تسجيل المشاركات',
     'app.language': 'اللغة',
+    'theme.toggle': 'المظهر',
+    'theme.light': 'فاتح',
+    'theme.dark': 'داكن',
+    'theme.system': 'النظام',
   },
 };
 
