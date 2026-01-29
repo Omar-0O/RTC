@@ -45,6 +45,7 @@ const BeneficiaryDetails = lazy(() => import("./pages/admin/BeneficiaryDetails")
 const QuranCircles = lazy(() => import("./pages/admin/QuranCircles"));
 const QuranTeachers = lazy(() => import("./pages/admin/QuranTeachers"));
 const AshbalManagement = lazy(() => import("./pages/ashbal/AshbalManagement"));
+const FineManagement = lazy(() => import("./pages/admin/FineManagement"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -197,6 +198,7 @@ function AppRoutes() {
         <Route path="/admin/quran/:id" element={<BeneficiaryDetails />} />
         <Route path="/admin/quran-circles" element={<QuranCircles />} />
         <Route path="/admin/quran-teachers" element={<QuranTeachers />} />
+        <Route path="/admin/fines" element={<FineManagement />} />
 
         {/* Ashbal Routes */}
         <Route path="/ashbal/management" element={<AshbalManagement />} />

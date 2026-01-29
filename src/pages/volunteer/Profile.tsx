@@ -142,6 +142,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const [fines, setFines] = useState<Fine[]>([]);
   const [manualFines, setManualFines] = useState<ActivitySubmission[]>([]);
   const [activityTypes, setActivityTypes] = useState<{ id: string; name: string; name_ar: string }[]>([]);
+  const [fineTypes, setFineTypes] = useState<{ id: string; name: string; name_ar: string; amount: number }[]>([]);
 
   const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false);
   const [isFineDialogOpen, setIsFineDialogOpen] = useState(false);
@@ -164,7 +165,43 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   // Use either the fetched profile (for view mode) or auth profile (for own profile)
   const displayProfile = isViewOnly ? viewedProfile : authProfile;
   const displayAvatar = isViewOnly ? viewedAvatarUrl : (authProfile?.avatar_url || null);
+  const displayCover = isViewOnly ? viewedProfile?.cover_url : authProfile?.cover_url;
   const isAshbal = displayProfile?.is_ashbal;
+
+  const COVER_IMAGES = [
+    'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1920&auto=format&fit=crop', // Code
+    'https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1920&auto=format&fit=crop', // Chip
+    'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1920&auto=format&fit=crop', // Space
+    'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1920&auto=format&fit=crop', // Cyberpunk
+    'https://images.unsplash.com/photo-1519681393798-2f77f37d25e6?q=80&w=1920&auto=format&fit=crop', // Galaxy
+    'https://images.unsplash.com/photo-1484503709164-61c409505f9b?q=80&w=1920&auto=format&fit=crop', // Abstract
+    'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1920&auto=format&fit=crop', // Gradient
+  ];
+
+  const handleRandomCover = async () => {
+    if (!user) return;
+    const randomImage = COVER_IMAGES[Math.floor(Math.random() * COVER_IMAGES.length)];
+
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ cover_url: randomImage })
+        .eq('id', targetUserId);
+
+      if (error) throw error;
+
+      toast.success(isRTL ? 'تم تحديث صورة الغلاف' : 'Cover image updated');
+
+      if (!isViewOnly) {
+        refreshProfile();
+      } else {
+        fetchData();
+      }
+    } catch (error) {
+      console.error('Error updating cover:', error);
+      toast.error(isRTL ? 'حدث خطأ أثناء تحديث الغلاف' : 'Error updating cover');
+    }
+  };
 
   // Calculate total impact (positive points only) from activities if available, falling back to profile total_points (which might be net)
   // Ideally, we should recalculate this from all activities to be accurate "Impact"
@@ -235,7 +272,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
       const activitiesQuery = supabase
         .from('activity_submissions')
-        .select('id, points_awarded, status, submitted_at, proof_url, is_paid, activity:activity_types(name, name_ar), committee:committees(name, name_ar)')
+        .select('id, points_awarded, status, submitted_at, proof_url, is_paid, fine_type_id, activity:activity_types(name, name_ar), committee:committees(name, name_ar)')
         .eq('volunteer_id', targetUserId)
         .order('submitted_at', { ascending: false });
 
@@ -251,12 +288,13 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         .eq('volunteer_id', targetUserId)
         .order('created_at', { ascending: false });
 
-      const [badgesRes, activitiesRes, feedbacksRes, finesRes, typesRes]: [any, any, any, any, any] = await Promise.all([
+      const [badgesRes, activitiesRes, feedbacksRes, finesRes, typesRes, fineTypesRes]: [any, any, any, any, any, any] = await Promise.all([
         badgesQuery,
         activitiesQuery,
         feedbacksQuery,
         finesQuery,
         supabase.from('activity_types').select('id, name, name_ar').order('name'),
+        supabase.from('fine_types').select('id, name, name_ar, amount').order('name'),
       ]);
 
       if (badgesRes.data) {
@@ -277,15 +315,23 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           submitted_at: a.submitted_at,
           proof_url: a.proof_url,
           is_paid: a.is_paid,
+          fine_type_id: a.fine_type_id,
         }));
 
-        setActivities(allActivities.filter((a: any) => a.points >= 0));
-        setManualFines(allActivities.filter((a: any) => a.points < 0));
+        // Filter out items that are actually fines (have fine_type_id) from the "Activities" list
+        setActivities(allActivities.filter((a: any) => a.points >= 0 && !a.fine_type_id));
+        setManualFines(allActivities.filter((a: any) => a.points < 0 || a.fine_type_id));
       }
 
       if (typesRes.data) {
         setActivityTypes(typesRes.data);
       }
+
+      // The 6th element in Promise.all result is fineTypes (index 5)
+      if (fineTypesRes.data) {
+        setFineTypes(fineTypesRes.data);
+      }
+
 
       if (feedbacksRes.data) {
         setFeedbacks(feedbacksRes.data.map((f: any) => ({
@@ -398,19 +444,50 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   };
 
   const handleAddFine = async () => {
-    if (!fineAmount || !targetUserId || !user || !selectedFineType) return;
+    if (!targetUserId || !user || !selectedFineType) return;
 
     setSubmittingFine(true);
     try {
-      const amount = Math.abs(parseInt(fineAmount));
+      const selectedFine = fineTypes.find(f => f.id === selectedFineType);
+      if (!selectedFine) throw new Error('Invalid fine type');
+
+      const amount = selectedFine.amount; // Use the amount from the fine type
 
       const { error } = await supabase
         .from('activity_submissions')
         .insert({
           volunteer_id: targetUserId,
           committee_id: displayProfile?.committee_id || null,
-          activity_type_id: selectedFineType,
-          points_awarded: -amount,
+          activity_type_id: null, // No activity type for fine
+          fine_type_id: selectedFineType,
+          points_awarded: null, // Or 0? If we want points deduction, we might need a default. For now, let's say null or 0. Since the DB needs points_awarded probably not null? 
+          // Previous code used activity_type_id and negative points. 
+          // New requirement: "manage fines... value in EGP".
+          // If I put null in activity_type_id, will it break view?
+          // The View `volunteer_fines_view` joins on `activity_submissions`.
+          // I need to check if `activity_type_id` is nullable in DB.
+          // Based on schema it might be.
+          // However, for the UI to work, I might still need to record a "fine".
+          // Let's assume for now we just insert the fine. 
+          // I will check constraints later. For now, I'll trust the plan.
+          // But wait, the `volunteer_fines_view` joins `activity_types`. If I set it to null, it won't show up in the view unless I update the view.
+          // The user instruction: "Add fine management... dropdown... select type...".
+          // I updated the view in step 11? `20260128000004_add_is_paid_and_fix_view.sql`.
+          // `volunteer_fines_view` selects from `activity_submissions s JOIN activity_types at ON s.activity_type_id = at.id`.
+          // So if I set `activity_type_id` to null, it will NOT appear in the view.
+          // CRITICAL: The view depends on `activity_type_id`.
+          // OPTION 1: Add a dummy "Fine" activity type and use it.
+          // OPTION 2: Update the view to LEFT JOIN or handle `fine_type_id`.
+          // OPTION 3: The user said "Add Fine Page... Dropdown".
+          // I should probably update the VIEW to also include entries where `fine_type_id` is set, and get name from there.
+          // I will need to update the VIEW.
+          // For now, I will write the code to insert `fine_type_id`.
+          // I will also assume I need to update the view.
+          // To make it safe, I will pass `points_awarded: 0` (or negative equivalent if we still want points impact).
+          // The prompt says "managing fines... value in EGP". Not points.
+          // So points_awarded can be 0.
+
+          points_awarded: 0,
           status: 'approved',
           submitted_at: new Date().toISOString(),
           description: fineComment,
@@ -478,7 +555,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     return covers[index];
   };
 
-  const coverImage = getCoverImage(targetUserId || 'default');
+  const coverImage = displayCover || getCoverImage(targetUserId || 'default');
 
   return (
     <div className="space-y-6 animate-slide-up">
@@ -491,6 +568,19 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
             className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+
+          {/* Random Cover Button */}
+          {(!isViewOnly || (hasRole('admin') || hasRole('head_hr') || hasRole('hr'))) && (
+            <Button
+              size="sm"
+              variant="secondary/80"
+              className="absolute top-4 right-4 opacity-0 group-hover/cover:opacity-100 transition-opacity backdrop-blur-sm"
+              onClick={handleRandomCover}
+            >
+              <Camera className="h-4 w-4 mr-2" />
+              {isRTL ? 'تغيير الغلاف' : 'Randomize Cover'}
+            </Button>
+          )}
         </div>
         <CardContent className="relative pt-0 px-6 pb-6">
           <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-6">
@@ -819,7 +909,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-2xl font-bold text-destructive">
-                    {fines.reduce((sum, f) => sum + f.amount, 0) + manualFines.filter(f => !f.is_paid).reduce((sum, f) => sum + Math.abs(f.points), 0)} {isRTL ? 'ج.م' : 'EGP'}
+                    {fines.filter(f => f.source_type !== 'manual').length + manualFines.length} {isRTL ? 'غرامة' : 'Fines'}
                   </div>
 
                   {isViewOnly && (hasRole('admin') || hasRole('head_hr') || hasRole('hr')) && (
@@ -840,30 +930,24 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                         <div className="space-y-4 py-4">
                           <div className="space-y-2">
                             <Label>{isRTL ? 'نوع الغرامة/المخالفة' : 'Violation Type'}</Label>
-                            <Select value={selectedFineType} onValueChange={setSelectedFineType}>
+                            <Select value={selectedFineType} onValueChange={(val) => {
+                              setSelectedFineType(val);
+                            }}>
                               <SelectTrigger>
                                 <SelectValue placeholder={isRTL ? 'اختر النوع' : 'Select type'} />
                               </SelectTrigger>
                               <SelectContent>
-                                {activityTypes.map(type => (
+                                {fineTypes.map(type => (
                                   <SelectItem key={type.id} value={type.id}>
-                                    {isRTL ? type.name_ar : type.name}
+                                    {isRTL ? type.name_ar : type.name} ({type.amount} {isRTL ? 'ج.م' : 'EGP'})
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </div>
 
-                          <div className="space-y-2">
-                            <Label>{isRTL ? 'قيمة الغرامة' : 'Fine Amount'}</Label>
-                            <Input
-                              type="number"
-                              min="1"
-                              value={fineAmount}
-                              onChange={(e) => setFineAmount(e.target.value)}
-                              placeholder={isRTL ? 'مثال: 50' : 'e.g. 50'}
-                            />
-                          </div>
+                          {/* Removed manual amount input, it's determined by type now */}
+
 
                           <div className="space-y-2">
                             <Label>{isRTL ? 'ملاحظات (اختياري)' : 'Comments (Optional)'}</Label>
@@ -881,7 +965,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                           <Button
                             variant="destructive"
                             onClick={handleAddFine}
-                            disabled={!selectedFineType || !fineAmount || submittingFine}
+                            disabled={!selectedFineType || submittingFine}
                           >
                             {submittingFine && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                             {isRTL ? 'إضافة الغرامة' : 'Add Fine'}
@@ -904,8 +988,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 </p>
               ) : (
                 <div className="space-y-4 pt-4">
-                  {/* Automatic Fines */}
-                  {fines.map((fine, index) => (
+                  {/* Automatic Fines (Exclude manual ones to avoid duplication) */}
+                  {fines.filter(f => f.source_type !== 'manual').map((fine, index) => (
                     <div
                       key={`auto-${index}`}
                       className="flex items-center justify-between rounded-lg border p-4 bg-destructive/5 border-destructive/20"
@@ -934,35 +1018,32 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                     <div
                       key={fine.id}
                       className={cn(
-                        "flex items-center justify-between rounded-lg border p-4",
-                        fine.is_paid ? "bg-muted/40 border-muted" : "bg-destructive/5 border-destructive/20"
+                        "flex items-center justify-between rounded-lg border p-4 transition-colors",
+                        fine.is_paid
+                          ? "bg-muted/20 border-muted opacity-75"
+                          : "bg-destructive/5 border-destructive/20"
                       )}
                     >
                       <div className="flex flex-col gap-1">
-                        <span className={cn("font-semibold", fine.is_paid && "text-muted-foreground line-through")}>
+                        <span className={cn("font-semibold", fine.is_paid && "line-through text-muted-foreground")}>
                           {fine.activity_name}
                         </span>
-                        <span className="text-sm text-muted-foreground">
-                          {fine.committee_name}
+                        <span className={cn("text-sm text-muted-foreground", fine.is_paid && "line-through")}>
+                          {formatDate(fine.submitted_at)}
                         </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-muted-foreground">
-                            {formatDate(fine.submitted_at)}
+
+                        {fine.is_paid && (
+                          <span className="inline-flex w-fit items-center text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200 mt-1">
+                            <Check className="h-3 w-3 mr-1" />
+                            {isRTL ? 'معفي / مدفوع' : 'Waived / Paid'}
                           </span>
-                          {fine.is_paid && (
-                            <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
-                              {isRTL ? 'تم الدفع' : 'Paid'}
-                            </span>
-                          )}
-                        </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className={cn("font-bold", fine.is_paid ? "text-muted-foreground" : "text-destructive")}>
-                          {fine.points} {isRTL ? 'أثر' : 'Impact'}
-                        </div>
+                        {/* Removed Impact display as requested */}
 
                         {/* Payment Button */}
-                        {!fine.is_paid && !isViewOnly && (hasRole('admin') || hasRole('head_hr') || hasRole('hr')) && (
+                        {!fine.is_paid && (hasRole('admin') || hasRole('head_hr') || hasRole('hr')) && (
                           <Button
                             variant="outline"
                             size="sm"

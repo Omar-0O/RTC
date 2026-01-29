@@ -64,20 +64,35 @@ export function AppSidebar() {
       setOpenMobile(false);
     }
   };
-  const [isOrganizer, setIsOrganizer] = useState(false);
+  const [isCourseAccess, setIsCourseAccess] = useState(false);
 
   // Check if user is a course organizer
   useEffect(() => {
-    const checkOrganizer = async () => {
+    const checkCourseAccess = async () => {
       if (!user?.id) return;
-      const { data } = await supabase
+
+      // Check if organizer
+      const { data: organizerData } = await supabase
         .from('course_organizers')
         .select('id')
         .eq('volunteer_id', user.id)
         .limit(1);
-      setIsOrganizer(data && data.length > 0);
+
+      if (organizerData && organizerData.length > 0) {
+        setIsCourseAccess(true);
+        return;
+      }
+
+      // Check if marketer
+      const { data: marketerData } = await supabase
+        .from('course_marketers')
+        .select('id')
+        .eq('volunteer_id', user.id)
+        .limit(1);
+
+      setIsCourseAccess(marketerData && marketerData.length > 0);
     };
-    checkOrganizer();
+    checkCourseAccess();
   }, [user?.id]);
 
   // Base volunteer nav items
@@ -87,8 +102,8 @@ export function AppSidebar() {
     { title: t('nav.profile'), url: '/profile', icon: User },
   ];
 
-  // Add My Courses only if user is an organizer
-  const volunteerNavItems = isOrganizer
+  // Add My Courses if user is an organizer or marketer
+  const volunteerNavItems = isCourseAccess
     ? [...baseVolunteerNavItems, { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap }]
     : baseVolunteerNavItems;
 
@@ -118,7 +133,7 @@ export function AppSidebar() {
   ];
 
   // Add My Courses only if user is an organizer
-  const leaderNavItems = isOrganizer
+  const leaderNavItems = isCourseAccess
     ? [...baseLeaderNavItems, { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap }]
     : baseLeaderNavItems;
 
@@ -136,6 +151,7 @@ export function AppSidebar() {
     { title: isRTL ? 'إدارة القرآن' : 'Quran Management', url: '/admin/quran', icon: BookOpen },
     { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
     { title: isRTL ? 'إدارة المحفظين' : 'Quran Teachers', url: '/admin/quran-teachers', icon: Users },
+    { title: isRTL ? 'إدارة الغرامات' : 'Fines Management', url: '/admin/fines', icon: FileCheck },
   ];
 
   const hrNavItems = [

@@ -351,6 +351,7 @@ export default function UserManagement() {
         if (roles.includes('head_events')) return 'head_events';
         if (roles.includes('head_ethics')) return 'head_ethics';
         if (roles.includes('head_quran')) return 'head_quran';
+        if (roles.includes('marketing_member')) return 'marketing_member';
         return 'volunteer';
       };
 
@@ -794,9 +795,12 @@ export default function UserManagement() {
       // Actually if existing users have it they will be migrated. But to avoid runtime error if data is stale:
       case 'head_caravans':
       case 'head_events':
+      case 'head_events':
       case 'head_ethics':
       case 'head_quran':
         return 'bg-blue-100 text-blue-700';
+      case 'marketing_member':
+        return 'bg-amber-100 text-amber-700';
       default:
         return 'bg-muted text-muted-foreground';
     }
@@ -1357,6 +1361,7 @@ export default function UserManagement() {
                       <SelectItem value="head_ethics">{t('common.head_ethics')}</SelectItem>
                       <SelectItem value="hr">{t('common.hr')}</SelectItem>
                       <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
+                      <SelectItem value="marketing_member">{language === 'ar' ? 'عضو لجنة تسويق' : 'Marketing Member'}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

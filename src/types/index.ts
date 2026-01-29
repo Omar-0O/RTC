@@ -1,4 +1,4 @@
-export type UserRole = 'volunteer' | 'supervisor' | 'admin' | 'committee_leader' | 'hr' | 'head_hr' | 'head_caravans' | 'head_events' | 'head_production' | 'head_fourth_year' | 'head_ethics' | 'head_quran';
+export type UserRole = 'volunteer' | 'supervisor' | 'admin' | 'committee_leader' | 'hr' | 'head_hr' | 'head_caravans' | 'head_events' | 'head_production' | 'head_fourth_year' | 'head_ethics' | 'head_quran' | 'marketing_member';
 
 export type VolunteerLevel = 'Newbie' | 'Active' | 'Silver' | 'Golden';
 
