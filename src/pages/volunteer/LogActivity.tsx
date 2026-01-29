@@ -382,7 +382,6 @@ export default function LogActivity() {
             committee_id: committeeId,
             guest_participants: null,
             excel_sheet_url: excelUrl,
-            excel_sheet_url: excelUrl,
             submitted_at: new Date(activityDate).toISOString()
           })
           .select()

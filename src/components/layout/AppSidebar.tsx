@@ -18,9 +18,13 @@ import {
   UserCheck,
   Award,
   PhoneCall,
-  BookOpen
+  BookOpen,
+  Sun,
+  Moon,
+  Laptop
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import logo from '@/assets/logo.png';
@@ -53,6 +57,7 @@ import { useState, useEffect } from 'react';
 export function AppSidebar() {
   const { user, profile, signOut, primaryRole } = useAuth();
   const { t, language, setLanguage, isRTL } = useLanguage();
+  const { setTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const { state, setOpenMobile, isMobile } = useSidebar();
@@ -293,7 +298,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Language Toggle */}
+        {/* Language Toggle & Theme Toggle */}
         <SidebarGroup>
           <SidebarGroupContent>
             <SidebarMenu>
@@ -305,6 +310,32 @@ export function AppSidebar() {
                   <Languages className="h-4 w-4" />
                   <span>{language === 'en' ? 'العربية' : 'English'}</span>
                 </SidebarMenuButton>
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton tooltip={t('theme.toggle')}>
+                      <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                      <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                      <span>{t('theme.toggle')}</span>
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem onClick={() => setTheme("light")}>
+                      <Sun className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                      {t('theme.light')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme("dark")}>
+                      <Moon className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                      {t('theme.dark')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme("system")}>
+                      <Laptop className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                      {t('theme.system')}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
