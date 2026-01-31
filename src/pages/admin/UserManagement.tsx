@@ -1020,6 +1020,9 @@ export default function UserManagement() {
                         <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
                         <SelectItem value="head_ethics">{t('common.head_ethics')}</SelectItem>
                         <SelectItem value="head_quran">{t('common.head_quran')}</SelectItem>
+                        <SelectItem value="head_marketing">{t('common.head_marketing')}</SelectItem>
+                        <SelectItem value="head_ashbal">{t('common.head_ashbal')}</SelectItem>
+                        <SelectItem value="marketing_member">{t('common.marketing_member')}</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1361,7 +1364,10 @@ export default function UserManagement() {
                       <SelectItem value="head_ethics">{t('common.head_ethics')}</SelectItem>
                       <SelectItem value="hr">{t('common.hr')}</SelectItem>
                       <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
-                      <SelectItem value="marketing_member">{language === 'ar' ? 'عضو لجنة تسويق' : 'Marketing Member'}</SelectItem>
+                      <SelectItem value="head_quran">{t('common.head_quran')}</SelectItem>
+                      <SelectItem value="head_marketing">{t('common.head_marketing')}</SelectItem>
+                      <SelectItem value="head_ashbal">{t('common.head_ashbal')}</SelectItem>
+                      <SelectItem value="marketing_member">{t('common.marketing_member')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

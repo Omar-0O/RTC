@@ -184,7 +184,12 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
   const handleRandomCover = async () => {
     if (!user) return;
-    const randomImage = COVER_IMAGES[Math.floor(Math.random() * COVER_IMAGES.length)];
+
+    // Get a random image that's different from the current one
+    let randomImage = COVER_IMAGES[Math.floor(Math.random() * COVER_IMAGES.length)];
+    while (randomImage === displayCover && COVER_IMAGES.length > 1) {
+      randomImage = COVER_IMAGES[Math.floor(Math.random() * COVER_IMAGES.length)];
+    }
 
     try {
       const { error } = await supabase

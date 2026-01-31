@@ -75,6 +75,9 @@ const translations: Record<Language, Record<string, string>> = {
     'common.head_events': 'Head of Events',
     'common.head_ethics': 'Ethics Publishing Head',
     'common.head_quran': 'Head of Quran Committee',
+    'common.head_marketing': 'Head of Marketing Committee',
+    'common.head_ashbal': 'Head of Ashbal Committee',
+    'common.marketing_member': 'Marketing Member',
 
     // Ethics
     'ethics.competition': 'Individual Competition',
@@ -343,6 +346,9 @@ const translations: Record<Language, Record<string, string>> = {
     'common.head_events': 'هيد لجنة ايفنتات',
     'common.head_ethics': 'هيد نشر اخلاقيات وتحقيق اماني',
     'common.head_quran': 'هيد لجنة القرآن',
+    'common.head_marketing': 'هيد لجنة التسويق',
+    'common.head_ashbal': 'هيد لجنة الأشبال',
+    'common.marketing_member': 'متطوع لجنة تسويق',
 
     // Ethics
     'ethics.competition': 'المسابقة الفردية',

@@ -376,6 +376,9 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
                 <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
                 <SelectItem value="head_ethics">{t('common.head_ethics')}</SelectItem>
                 <SelectItem value="head_quran">{t('common.head_quran')}</SelectItem>
+                <SelectItem value="head_marketing">{t('common.head_marketing')}</SelectItem>
+                <SelectItem value="head_ashbal">{t('common.head_ashbal')}</SelectItem>
+                <SelectItem value="marketing_member">{t('common.marketing_member')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
