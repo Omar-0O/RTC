@@ -62,10 +62,14 @@ type VolunteerFeedback = {
 
 type Fine = {
   source_type: string;
+  source_id: string;
   source_name: string;
   source_name_ar: string;
   created_at: string;
   amount: number;
+  is_paid: boolean;
+  reviewed_by_name: string | null;
+  reviewed_by_name_ar: string | null;
 };
 
 interface ProfileProps {
@@ -274,6 +278,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         .from('activity_submissions')
         .select('id, points_awarded, status, submitted_at, proof_url, is_paid, fine_type_id, activity:activity_types(name, name_ar), committee:committees(name, name_ar)')
         .eq('volunteer_id', targetUserId)
+        .is('fine_type_id', null) // Exclude fines from activities
+        .gte('points_awarded', 0) // Only positive activities
         .order('submitted_at', { ascending: false });
 
       const feedbacksQuery = supabase
@@ -306,7 +312,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       }
 
       if (activitiesRes.data) {
-        const allActivities = activitiesRes.data.map((a: any) => ({
+        // Since the query already filters out fines, we can directly set activities
+        setActivities(activitiesRes.data.map((a: any) => ({
           id: a.id,
           activity_name: isRTL ? (a.activity?.name_ar || a.activity?.name) : a.activity?.name,
           committee_name: isRTL ? (a.committee?.name_ar || a.committee?.name) : a.committee?.name,
@@ -315,12 +322,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           submitted_at: a.submitted_at,
           proof_url: a.proof_url,
           is_paid: a.is_paid,
-          fine_type_id: a.fine_type_id,
-        }));
-
-        // Filter out items that are actually fines (have fine_type_id) from the "Activities" list
-        setActivities(allActivities.filter((a: any) => a.points >= 0 && !a.fine_type_id));
-        setManualFines(allActivities.filter((a: any) => a.points < 0 || a.fine_type_id));
+        })));
+        // Note: manualFines is no longer used - all fines come from the View
       }
 
       if (typesRes.data) {
@@ -345,10 +348,14 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       if (finesRes.data) {
         setFines(finesRes.data.map((f: any) => ({
           source_type: f.source_type,
+          source_id: f.source_id,
           source_name: f.source_name,
           source_name_ar: f.source_name_ar,
           created_at: f.created_at,
           amount: f.amount,
+          is_paid: f.is_paid || false,
+          reviewed_by_name: f.reviewed_by_name,
+          reviewed_by_name_ar: f.reviewed_by_name_ar,
         })));
       }
     } catch (error) {
@@ -451,47 +458,16 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       const selectedFine = fineTypes.find(f => f.id === selectedFineType);
       if (!selectedFine) throw new Error('Invalid fine type');
 
-      const amount = selectedFine.amount; // Use the amount from the fine type
-
+      // Insert into the NEW volunteer_fines table (not activity_submissions)
       const { error } = await supabase
-        .from('activity_submissions')
+        .from('volunteer_fines')
         .insert({
           volunteer_id: targetUserId,
-          committee_id: displayProfile?.committee_id || null,
-          activity_type_id: null, // No activity type for fine
           fine_type_id: selectedFineType,
-          points_awarded: null, // Or 0? If we want points deduction, we might need a default. For now, let's say null or 0. Since the DB needs points_awarded probably not null? 
-          // Previous code used activity_type_id and negative points. 
-          // New requirement: "manage fines... value in EGP".
-          // If I put null in activity_type_id, will it break view?
-          // The View `volunteer_fines_view` joins on `activity_submissions`.
-          // I need to check if `activity_type_id` is nullable in DB.
-          // Based on schema it might be.
-          // However, for the UI to work, I might still need to record a "fine".
-          // Let's assume for now we just insert the fine. 
-          // I will check constraints later. For now, I'll trust the plan.
-          // But wait, the `volunteer_fines_view` joins `activity_types`. If I set it to null, it won't show up in the view unless I update the view.
-          // The user instruction: "Add fine management... dropdown... select type...".
-          // I updated the view in step 11? `20260128000004_add_is_paid_and_fix_view.sql`.
-          // `volunteer_fines_view` selects from `activity_submissions s JOIN activity_types at ON s.activity_type_id = at.id`.
-          // So if I set `activity_type_id` to null, it will NOT appear in the view.
-          // CRITICAL: The view depends on `activity_type_id`.
-          // OPTION 1: Add a dummy "Fine" activity type and use it.
-          // OPTION 2: Update the view to LEFT JOIN or handle `fine_type_id`.
-          // OPTION 3: The user said "Add Fine Page... Dropdown".
-          // I should probably update the VIEW to also include entries where `fine_type_id` is set, and get name from there.
-          // I will need to update the VIEW.
-          // For now, I will write the code to insert `fine_type_id`.
-          // I will also assume I need to update the view.
-          // To make it safe, I will pass `points_awarded: 0` (or negative equivalent if we still want points impact).
-          // The prompt says "managing fines... value in EGP". Not points.
-          // So points_awarded can be 0.
-
-          points_awarded: 0,
-          status: 'approved',
-          submitted_at: new Date().toISOString(),
-          description: fineComment,
-          reviewed_by: user.id
+          amount: selectedFine.amount,
+          description: fineComment || null,
+          is_paid: false,
+          created_by: user.id,
         });
 
       if (error) throw error;
@@ -512,17 +488,15 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
   const handleMarkAsPaid = async (fineId: string) => {
     try {
+      // Update the new volunteer_fines table
       const { error } = await supabase
-        .from('activity_submissions')
-        .update({ is_paid: true })
+        .from('volunteer_fines')
+        .update({ is_paid: true, paid_at: new Date().toISOString() })
         .eq('id', fineId);
 
       if (error) throw error;
 
       toast.success(isRTL ? 'تم تسجيل دفع الغرامة' : 'Fine marked as paid');
-
-      // Optimistic update
-      setManualFines(prev => prev.map(f => f.id === fineId ? { ...f, is_paid: true } : f));
       fetchData();
     } catch (error) {
       console.error('Error marking fine as paid:', error);
@@ -909,7 +883,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-2xl font-bold text-destructive">
-                    {fines.filter(f => f.source_type !== 'manual').length + manualFines.length} {isRTL ? 'غرامة' : 'Fines'}
+                    {fines.length} {isRTL ? 'غرامة' : 'Fines'}
                   </div>
 
                   {isViewOnly && (hasRole('admin') || hasRole('head_hr') || hasRole('hr')) && (
@@ -982,41 +956,16 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </div>
-              ) : (fines.length === 0 && manualFines.length === 0) ? (
+              ) : fines.length === 0 ? (
                 <p className="text-muted-foreground text-center py-8">
                   {isRTL ? 'سجل نظيف! لا توجد غرامات.' : 'Clean record! No fines.'}
                 </p>
               ) : (
                 <div className="space-y-4 pt-4">
-                  {/* Automatic Fines (Exclude manual ones to avoid duplication) */}
-                  {fines.filter(f => f.source_type !== 'manual').map((fine, index) => (
+                  {/* All Fines from View */}
+                  {fines.map((fine, index) => (
                     <div
-                      key={`auto-${index}`}
-                      className="flex items-center justify-between rounded-lg border p-4 bg-destructive/5 border-destructive/20"
-                    >
-                      <div className="flex flex-col gap-1">
-                        <span className="font-semibold">
-                          {isRTL ? 'عدم ارتداء الـ Vest' : 'No Vest Penalty'}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          {isRTL
-                            ? `في: ${fine.source_name_ar || fine.source_name}`
-                            : `In: ${fine.source_name}`}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDate(fine.created_at)}
-                        </span>
-                      </div>
-                      <div className="font-bold text-destructive">
-                        -{fine.amount} {isRTL ? 'ج.م' : 'EGP'}
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Manual Fines */}
-                  {manualFines.map((fine) => (
-                    <div
-                      key={fine.id}
+                      key={`fine-${fine.source_id || index}`}
                       className={cn(
                         "flex items-center justify-between rounded-lg border p-4 transition-colors",
                         fine.is_paid
@@ -1026,12 +975,29 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                     >
                       <div className="flex flex-col gap-1">
                         <span className={cn("font-semibold", fine.is_paid && "line-through text-muted-foreground")}>
-                          {fine.activity_name}
+                          {fine.source_type === 'manual'
+                            ? (isRTL ? (fine.source_name_ar || fine.source_name) : fine.source_name)
+                            : (isRTL ? 'عدم ارتداء الـ Vest' : 'No Vest Penalty')
+                          }
                         </span>
-                        <span className={cn("text-sm text-muted-foreground", fine.is_paid && "line-through")}>
-                          {formatDate(fine.submitted_at)}
+                        {fine.source_type !== 'manual' && (
+                          <span className="text-sm text-muted-foreground">
+                            {isRTL
+                              ? `في: ${fine.source_name_ar || fine.source_name}`
+                              : `At: ${fine.source_name}`}
+                          </span>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(fine.created_at)}
                         </span>
-
+                        {/* Show who added the fine for manual fines */}
+                        {fine.source_type === 'manual' && (fine.reviewed_by_name || fine.reviewed_by_name_ar) && (
+                          <span className="text-xs text-muted-foreground">
+                            {isRTL
+                              ? `أضافها: ${fine.reviewed_by_name_ar || fine.reviewed_by_name}`
+                              : `Added by: ${fine.reviewed_by_name}`}
+                          </span>
+                        )}
                         {fine.is_paid && (
                           <span className="inline-flex w-fit items-center text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200 mt-1">
                             <Check className="h-3 w-3 mr-1" />
@@ -1040,15 +1006,16 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                         )}
                       </div>
                       <div className="flex items-center gap-3">
-                        {/* Removed Impact display as requested */}
-
-                        {/* Payment Button */}
-                        {!fine.is_paid && (hasRole('admin') || hasRole('head_hr') || hasRole('hr')) && (
+                        <div className="font-bold text-destructive">
+                          -{fine.amount} {isRTL ? 'ج.م' : 'EGP'}
+                        </div>
+                        {/* Payment Button for manual fines */}
+                        {fine.source_type === 'manual' && !fine.is_paid && (hasRole('admin') || hasRole('head_hr') || hasRole('hr')) && (
                           <Button
                             variant="outline"
                             size="sm"
                             className="h-8 text-xs gap-1 hover:bg-green-50 hover:text-green-700 hover:border-green-200"
-                            onClick={() => handleMarkAsPaid(fine.id)}
+                            onClick={() => handleMarkAsPaid(fine.source_id)}
                           >
                             <Check className="h-3 w-3" />
                             {isRTL ? 'دفع' : 'Pay'}
