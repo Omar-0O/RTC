@@ -460,7 +460,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           committee_id: displayProfile?.committee_id || null,
           activity_type_id: null, // No activity type for fine
           fine_type_id: selectedFineType,
-          points_awarded: null, // Or 0? If we want points deduction, we might need a default. For now, let's say null or 0. Since the DB needs points_awarded probably not null? 
+          // points_awarded: null, // Removed duplicate key to fix build error
+
           // Previous code used activity_type_id and negative points. 
           // New requirement: "manage fines... value in EGP".
           // If I put null in activity_type_id, will it break view?
