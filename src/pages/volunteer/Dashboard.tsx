@@ -28,9 +28,27 @@ export default function VolunteerDashboard() {
   const [recentSubmissions, setRecentSubmissions] = useState<RecentSubmission[]>([]);
   const [badgeCount, setBadgeCount] = useState(0);
 
-  const points = profile?.total_points || 0;
+  const [impact, setImpact] = useState(0);
+
+  // const points = profile?.total_points || 0; // Deprecated, using dynamic impact calculation
   const activitiesCount = profile?.activities_count || 0;
   const [monthlyActivities, setMonthlyActivities] = useState(0);
+
+  useEffect(() => {
+    if (user?.id) {
+      refreshProfile();
+      fetchData();
+    }
+  }, [user?.id]);
+
+  // ... (fetchData is fine) ...
+
+  // UI Updates
+  // Line 133
+  // {t('dashboard.totalPoints')}: {impact}
+
+  // Line 149
+  // value={impact}
 
   useEffect(() => {
     if (user?.id) {
@@ -43,7 +61,7 @@ export default function VolunteerDashboard() {
     if (!user?.id) return;
     setLoading(true);
     try {
-      const [submissionsRes, badgesRes] = await Promise.all([
+      const [submissionsRes, badgesRes, allPointsRes] = await Promise.all([
         supabase
           .from('activity_submissions')
           .select(`
@@ -54,12 +72,18 @@ export default function VolunteerDashboard() {
             activity:activity_types(name, name_ar)
           `)
           .eq('volunteer_id', user.id)
+          .is('fine_type_id', null) // Exclude fines
           .order('submitted_at', { ascending: false })
           .limit(5),
         supabase
           .from('user_badges')
           .select('id', { count: 'exact' })
           .eq('user_id', user.id),
+        supabase
+          .from('activity_submissions')
+          .select('points_awarded')
+          .eq('volunteer_id', user.id)
+          .is('fine_type_id', null), // Exclude fines
       ]);
 
       if (submissionsRes.data) {
@@ -74,6 +98,12 @@ export default function VolunteerDashboard() {
 
       setBadgeCount(badgesRes.count || 0);
 
+      // Calculate total impact
+      if (allPointsRes.data) {
+        const totalImpact = allPointsRes.data.reduce((sum, item) => sum + Math.max(0, item.points_awarded || 0), 0);
+        setImpact(totalImpact);
+      }
+
       // Fetch monthly activities count (current month)
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -81,6 +111,7 @@ export default function VolunteerDashboard() {
         .from('activity_submissions')
         .select('id', { count: 'exact', head: true })
         .eq('volunteer_id', user.id)
+        .is('fine_type_id', null) // Exclude fines
         .gte('submitted_at', startOfMonth);
       setMonthlyActivities(monthlyCount || 0);
     } catch (error) {
@@ -130,7 +161,7 @@ export default function VolunteerDashboard() {
               {t('dashboard.welcome')}, {(isRTL ? (profile?.full_name_ar || profile?.full_name) : profile?.full_name)?.split(' ')[0] || (isRTL ? 'متطوع' : 'Volunteer')}! 👋
             </h1>
             <p className="text-sm text-muted-foreground">
-              {t('dashboard.totalPoints')}: {points}
+              {t('dashboard.totalPoints')}: {impact}
             </p>
           </div>
         </div>
@@ -146,7 +177,7 @@ export default function VolunteerDashboard() {
       <div className="grid gap-3 sm:gap-4 grid-cols-2">
         <StatsCard
           title={t('dashboard.totalPoints')}
-          value={points}
+          value={impact}
           icon={Star}
         />
         <StatsCard
