@@ -41,26 +41,11 @@ export default function VolunteerDashboard() {
     }
   }, [user?.id]);
 
-  // ... (fetchData is fine) ...
-
-  // UI Updates
-  // Line 133
-  // {t('dashboard.totalPoints')}: {impact}
-
-  // Line 149
-  // value={impact}
-
-  useEffect(() => {
-    if (user?.id) {
-      refreshProfile();
-      fetchData();
-    }
-  }, [user?.id]);
-
   const fetchData = async () => {
     if (!user?.id) return;
     setLoading(true);
     try {
+      console.log('Fetching dashboard data for user:', user.id);
       const [submissionsRes, badgesRes, allPointsRes] = await Promise.all([
         supabase
           .from('activity_submissions')
@@ -101,6 +86,7 @@ export default function VolunteerDashboard() {
       // Calculate total impact
       if (allPointsRes.data) {
         const totalImpact = allPointsRes.data.reduce((sum, item) => sum + Math.max(0, item.points_awarded || 0), 0);
+        console.log('Total impact calculated:', totalImpact, 'from', allPointsRes.data.length, 'activities');
         setImpact(totalImpact);
       }
 
