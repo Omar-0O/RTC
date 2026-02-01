@@ -280,7 +280,6 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           .from('activity_submissions')
           .select('points_awarded')
           .eq('volunteer_id', targetUserId)
-          .eq('status', 'approved')
           .is('fine_type_id', null) // Exclude fines
           .gte('submitted_at', startOfMonth);
 
@@ -305,7 +304,6 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         .from('activity_submissions')
         .select('id, points_awarded, status, submitted_at, proof_url, is_paid, fine_type_id, activity:activity_types(name, name_ar), committee:committees(name, name_ar)')
         .eq('volunteer_id', targetUserId)
-        .eq('status', 'approved') // Only approved activities
         .is('fine_type_id', null) // Exclude fines from activities
         .order('submitted_at', { ascending: false });
 
