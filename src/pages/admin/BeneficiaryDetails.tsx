@@ -4,10 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowRight, ArrowLeft, Loader2, Calendar, TrendingUp } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Loader2, Calendar, TrendingUp, BookOpen } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
+import { SurahProgressGrid } from '@/components/quran/SurahProgressGrid';
 import {
     BarChart,
     Bar,
@@ -265,6 +266,19 @@ export default function BeneficiaryDetails() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Surah Progress Grid */}
+            <Card className="shadow-md">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <BookOpen className="h-5 w-5 text-primary" />
+                        {isRTL ? 'تتبع السور' : 'Surah Progress Tracking'}
+                    </CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <SurahProgressGrid beneficiaryId={id!} />
+                </CardContent>
+            </Card>
         </div>
     );
 }

@@ -76,7 +76,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const roles = requesterRoles?.map(r => r.role) || []
-        const isAuthorized = roles.includes('admin') || roles.includes('head_hr') || roles.includes('supervisor')
+        const isAuthorized = roles.includes('admin') || roles.includes('head_hr') || roles.includes('supervisor') || roles.includes('head_ashbal')
 
         if (!isAuthorized) {
             // Log for debugging

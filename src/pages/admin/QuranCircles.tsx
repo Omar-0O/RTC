@@ -1,14 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import {
-
-} from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
@@ -17,76 +14,138 @@ import {
     DialogTrigger
 } from '@/components/ui/dialog';
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { Plus, Search, MoreVertical, Pencil, Trash2, Users, X } from 'lucide-react';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger
+} from '@/components/ui/popover';
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList
+} from '@/components/ui/command';
+import {
+    Plus, Search, MoreVertical, Pencil, Trash2, Users, Calendar,
+    Clock, User, CalendarDays, X, Check, UserPlus
+} from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { format } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Badge } from '@/components/ui/badge';
-
-interface Beneficiary {
-    id: string;
-    name_ar: string;
-    name_en: string;
-    image_url: string | null;
-}
-
-interface Guest {
-    name: string;
-    phone: string;
-}
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 
 interface Teacher {
     id: string;
     name: string;
 }
 
-interface QuranCircle {
+interface Volunteer {
     id: string;
-    name: string;
-    date: string;
-    teacher_id: string | null;
-    teacher_name?: string;
-    guest_names: Guest[];
-    beneficiaries_count?: number;
+    full_name: string;
+    full_name_ar: string | null;
+    phone: string | null;
+    avatar_url: string | null;
 }
 
+interface Organizer {
+    volunteer_id?: string;
+    name: string;
+    phone: string;
+}
+
+interface ScheduleItem {
+    day: number; // 0 = Sunday, 6 = Saturday
+    time: string; // HH:mm format
+}
+
+interface QuranCircle {
+    id: string;
+    teacher_id: string | null;
+    teacher_name?: string;
+    schedule: ScheduleItem[];
+    is_active: boolean;
+    organizers?: Organizer[];
+    enrolled_count?: number;
+}
+
+interface Beneficiary {
+    id: string;
+    name_ar: string;
+    name_en: string | null;
+    image_url: string | null;
+}
+
+const DAYS = [
+    { value: 6, label: { en: 'Saturday', ar: 'السبت' } },
+    { value: 0, label: { en: 'Sunday', ar: 'الأحد' } },
+    { value: 1, label: { en: 'Monday', ar: 'الإثنين' } },
+    { value: 2, label: { en: 'Tuesday', ar: 'الثلاثاء' } },
+    { value: 3, label: { en: 'Wednesday', ar: 'الأربعاء' } },
+    { value: 4, label: { en: 'Thursday', ar: 'الخميس' } },
+    { value: 5, label: { en: 'Friday', ar: 'الجمعة' } },
+];
+
 export default function QuranCircles() {
-    const { isRTL } = useLanguage();
+    const { isRTL, language } = useLanguage();
     const [circles, setCircles] = useState<QuranCircle[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [organizerPopoverOpen, setOrganizerPopoverOpen] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState({
-        name: '',
-        date: new Date().toISOString().split('T')[0],
         teacher_id: '',
-        guest_names: [] as Guest[]
+        schedule_days: [] as number[],
+        schedule_time: '18:00',
+        is_active: true
     });
-    const [guestNameInput, setGuestNameInput] = useState('');
-    const [guestPhoneInput, setGuestPhoneInput] = useState('');
+    const [organizers, setOrganizers] = useState<Organizer[]>([]);
 
-    // Store selected beneficiaries with their attendance type
-    const [selectedBeneficiaries, setSelectedBeneficiaries] = useState<{ id: string, type: 'memorization' | 'revision' }[]>([]);
-
-    // Beneficiaries Selection State
-    const [allBeneficiaries, setAllBeneficiaries] = useState<Beneficiary[]>([]);
+    // Reference data
     const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
+    const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+
+    // Enrollment management
+    const [isEnrollmentOpen, setIsEnrollmentOpen] = useState(false);
+    const [enrollmentCircle, setEnrollmentCircle] = useState<QuranCircle | null>(null);
+    const [enrolledBeneficiaries, setEnrolledBeneficiaries] = useState<Beneficiary[]>([]);
+    const [allBeneficiaries, setAllBeneficiaries] = useState<Beneficiary[]>([]);
     const [beneficiarySearch, setBeneficiarySearch] = useState('');
+    const [enrollmentLoading, setEnrollmentLoading] = useState(false);
 
     useEffect(() => {
         fetchCircles();
-        fetchBeneficiaries();
         fetchTeachers();
+        fetchVolunteers();
     }, []);
 
     const fetchCircles = async () => {
@@ -95,31 +154,22 @@ export default function QuranCircles() {
             const { data, error } = await supabase
                 .from('quran_circles')
                 .select(`
-                        *,
-                        teacher: quran_teachers(name),
-                        quran_circle_beneficiaries(count)
-                            `)
-                .order('date', { ascending: false });
+                    *,
+                    teacher: trainers(name_ar),
+                    quran_circle_organizers(volunteer_id, name, phone)
+                `)
+                .order('created_at', { ascending: false });
 
             if (error) throw error;
 
-            const formattedData = data.map((circle: any) => {
-                // Handle legacy data (array of strings) or new data (array of objects)
-                const rawGuests = circle.guest_names || [];
-                const formattedGuests: Guest[] = rawGuests.map((g: any) =>
-                    typeof g === 'string' ? { name: g, phone: '' } : g
-                );
-
-                return {
-                    id: circle.id,
-                    name: circle.name,
-                    date: circle.date,
-                    teacher_id: circle.teacher_id,
-                    teacher_name: circle.teacher?.name,
-                    guest_names: formattedGuests,
-                    beneficiaries_count: circle.quran_circle_beneficiaries[0]?.count || 0
-                };
-            });
+            const formattedData = data?.map((circle: any) => ({
+                id: circle.id,
+                teacher_id: circle.teacher_id,
+                teacher_name: circle.teacher?.name_ar,
+                schedule: circle.schedule || [],
+                is_active: circle.is_active ?? true,
+                organizers: circle.quran_circle_organizers || []
+            })) || [];
 
             setCircles(formattedData);
         } catch (error) {
@@ -130,99 +180,141 @@ export default function QuranCircles() {
         }
     };
 
-    const fetchBeneficiaries = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('quran_beneficiaries')
-                .select('id, name_ar, name_en, image_url')
-                .order('name_ar');
-
-            if (error) throw error;
-            setAllBeneficiaries(data || []);
-        } catch (error) {
-            console.error('Error fetching beneficiaries:', error);
-        }
-    };
-
     const fetchTeachers = async () => {
         try {
             const { data, error } = await supabase
-                .from('quran_teachers')
-                .select('id, name')
-                .order('name');
+                .from('trainers')
+                .select('id, name_ar')
+                .eq('type', 'quran_teacher')
+                .order('name_ar');
 
             if (error) throw error;
-            setAllTeachers(data || []);
+
+            // Map to existing interface
+            const teachers = data?.map((t: any) => ({
+                id: t.id,
+                name: t.name_ar
+            })) || [];
+
+            setAllTeachers(teachers);
         } catch (error) {
             console.error('Error fetching teachers:', error);
         }
     };
 
+    const fetchVolunteers = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('id, full_name, full_name_ar, phone, avatar_url')
+                .neq('full_name', 'RTC Admin')
+                .order('full_name');
+            if (error) throw error;
+            setVolunteers(data || []);
+        } catch (error) {
+            console.error('Error fetching volunteers:', error);
+        }
+    };
+
+    const getCircleName = (circle: QuranCircle) => {
+        if (circle.teacher_name) {
+            return isRTL ? `حلقة المحفظ ${circle.teacher_name}` : `${circle.teacher_name}'s Circle`;
+        }
+        return isRTL ? 'حلقة قرآن' : 'Quran Circle';
+    };
+
+    const getScheduleDisplay = (schedule: ScheduleItem[]) => {
+        if (!schedule || schedule.length === 0) return isRTL ? 'لم يتم تحديد موعد' : 'No schedule set';
+
+        return schedule.map(s => {
+            const day = DAYS.find(d => d.value === s.day);
+            return `${day?.label[language as 'en' | 'ar'] || ''} ${s.time}`;
+        }).join(' • ');
+    };
+
+    const handleAddOrganizer = (volunteer: Volunteer) => {
+        if (organizers.some(o => o.volunteer_id === volunteer.id)) return;
+
+        setOrganizers([...organizers, {
+            volunteer_id: volunteer.id,
+            name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
+            phone: volunteer.phone || ''
+        }]);
+        setOrganizerPopoverOpen(false);
+    };
+
+    const removeOrganizer = (index: number) => {
+        setOrganizers(organizers.filter((_, i) => i !== index));
+    };
+
+    const toggleDay = (day: number) => {
+        if (formData.schedule_days.includes(day)) {
+            setFormData({ ...formData, schedule_days: formData.schedule_days.filter(d => d !== day) });
+        } else {
+            setFormData({ ...formData, schedule_days: [...formData.schedule_days, day] });
+        }
+    };
+
     const handleSave = async () => {
-        if (!formData.name || !formData.date) {
-            toast.error(isRTL ? 'يرجى ملء الحقول المطلوبة' : 'Please fill required fields');
+        if (!formData.teacher_id) {
+            toast.error(isRTL ? 'يرجى اختيار المحفظ' : 'Please select a teacher');
+            return;
+        }
+        if (formData.schedule_days.length === 0) {
+            toast.error(isRTL ? 'يرجى اختيار يوم واحد على الأقل' : 'Please select at least one day');
             return;
         }
 
         try {
+            // Build schedule array from selected days and time
+            const schedule = formData.schedule_days.map(day => ({
+                day,
+                time: formData.schedule_time
+            }));
+
+            const dataToSave = {
+                teacher_id: formData.teacher_id,
+                schedule: schedule,
+                is_active: formData.is_active,
+                name: 'auto', // Legacy
+                date: new Date().toISOString().split('T')[0] // Legacy
+            };
+
             let circleId = selectedId;
 
             if (isEditMode && selectedId) {
-                // Update Circle
                 const { error } = await supabase
                     .from('quran_circles')
-                    .update({
-                        name: formData.name,
-                        date: formData.date,
-                        teacher_id: formData.teacher_id || null,
-                        guest_names: formData.guest_names as any
-                    })
+                    .update(dataToSave)
                     .eq('id', selectedId);
-
                 if (error) throw error;
             } else {
-                // Create Circle
                 const { data, error } = await supabase
                     .from('quran_circles')
-                    .insert({
-                        name: formData.name,
-                        date: formData.date,
-                        teacher_id: formData.teacher_id || null,
-                        guest_names: formData.guest_names as any
-                    })
+                    .insert(dataToSave)
                     .select()
                     .single();
-
                 if (error) throw error;
                 circleId = data.id;
             }
 
-            // Sync Beneficiaries
-            // 1. Delete existing connections for this circle
-            if (isEditMode) {
-                const { error: deleteError } = await supabase
-                    .from('quran_circle_beneficiaries')
-                    .delete()
-                    .eq('circle_id', circleId);
-                if (deleteError) throw deleteError;
+            // Update organizers - delete all and re-insert
+            if (circleId) {
+                await supabase.from('quran_circle_organizers').delete().eq('circle_id', circleId);
+
+                if (organizers.length > 0) {
+                    await supabase.from('quran_circle_organizers').insert(
+                        organizers.map(o => ({
+                            circle_id: circleId,
+                            volunteer_id: o.volunteer_id || null,
+                            name: o.name,
+                            phone: o.phone
+                        }))
+                    );
+                }
             }
 
-            // 2. Insert new connections
-            if (selectedBeneficiaries.length > 0 && circleId) {
-                const relations = selectedBeneficiaries.map(b => ({
-                    circle_id: circleId,
-                    beneficiary_id: b.id,
-                    attendance_type: b.type
-                }));
-
-                const { error: insertError } = await supabase
-                    .from('quran_circle_beneficiaries')
-                    .insert(relations);
-
-                if (insertError) throw insertError;
-            }
-
-            toast.success(isEditMode ? (isRTL ? 'تم التحديث بنجاح' : 'Updated successfully') : (isRTL ? 'تم إنشاء الحلقة بنجاح' : 'Circle created successfully'));
+            toast.success(isRTL ? (isEditMode ? 'تم التحديث بنجاح' : 'تم إنشاء الحلقة بنجاح') : (isEditMode ? 'Updated successfully' : 'Circle created successfully'));
             setIsCreateOpen(false);
             resetForm();
             fetchCircles();
@@ -232,14 +324,14 @@ export default function QuranCircles() {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm(isRTL ? 'هل أنت متأكد؟' : 'Are you sure?')) return;
+    const handleDelete = async () => {
+        if (!deleteId) return;
 
         try {
             const { error } = await supabase
                 .from('quran_circles')
                 .delete()
-                .eq('id', id);
+                .eq('id', deleteId);
 
             if (error) throw error;
             toast.success(isRTL ? 'تم الحذف' : 'Deleted');
@@ -247,28 +339,35 @@ export default function QuranCircles() {
         } catch (error) {
             console.error('Error deleting:', error);
             toast.error('Failed to delete');
+        } finally {
+            setDeleteId(null);
         }
     };
 
     const handleEdit = async (circle: QuranCircle) => {
-        // Fetch relations for this circle
-        const { data } = await supabase
-            .from('quran_circle_beneficiaries')
-            .select('beneficiary_id, attendance_type')
-            .eq('circle_id', circle.id);
-
-        const loadedBeneficiaries = data?.map((r: any) => ({
-            id: r.beneficiary_id,
-            type: r.attendance_type || 'memorization'
-        })) || [];
+        // Extract days from schedule
+        const scheduleDays = circle.schedule.map(s => s.day);
+        const scheduleTime = circle.schedule[0]?.time || '18:00';
 
         setFormData({
-            name: circle.name,
-            date: circle.date,
             teacher_id: circle.teacher_id || '',
-            guest_names: circle.guest_names
+            schedule_days: scheduleDays,
+            schedule_time: scheduleTime,
+            is_active: circle.is_active
         });
-        setSelectedBeneficiaries(loadedBeneficiaries);
+
+        // Fetch organizers
+        const { data: orgData } = await supabase
+            .from('quran_circle_organizers')
+            .select('*')
+            .eq('circle_id', circle.id);
+
+        setOrganizers(orgData?.map((o: any) => ({
+            volunteer_id: o.volunteer_id,
+            name: o.name,
+            phone: o.phone || ''
+        })) || []);
+
         setSelectedId(circle.id);
         setIsEditMode(true);
         setIsCreateOpen(true);
@@ -276,60 +375,113 @@ export default function QuranCircles() {
 
     const resetForm = () => {
         setFormData({
-            name: '',
-            date: new Date().toISOString().split('T')[0],
             teacher_id: '',
-            guest_names: []
+            schedule_days: [],
+            schedule_time: '18:00',
+            is_active: true
         });
-        setSelectedBeneficiaries([]);
-        setGuestNameInput('');
-        setGuestPhoneInput('');
+        setOrganizers([]);
         setIsEditMode(false);
         setSelectedId(null);
     };
 
-    const addGuest = () => {
-        if (guestNameInput.trim()) {
-            setFormData(prev => ({
-                ...prev,
-                guest_names: [...prev.guest_names, { name: guestNameInput.trim(), phone: guestPhoneInput.trim() }]
-            }));
-            setGuestNameInput('');
-            setGuestPhoneInput('');
+    // Enrollment functions
+    const fetchAllBeneficiaries = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('quran_beneficiaries')
+                .select('id, name_ar, name_en, image_url')
+                .order('name_ar');
+            if (error) throw error;
+            setAllBeneficiaries(data || []);
+        } catch (error) {
+            console.error('Error fetching beneficiaries:', error);
         }
     };
 
-    const removeGuest = (index: number) => {
-        setFormData(prev => ({
-            ...prev,
-            guest_names: prev.guest_names.filter((_, i) => i !== index)
-        }));
+    const fetchEnrollments = async (circleId: string) => {
+        setEnrollmentLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('quran_enrollments')
+                .select(`
+                    beneficiary_id,
+                    quran_beneficiaries!inner(id, name_ar, name_en, image_url)
+                `)
+                .eq('circle_id', circleId)
+                .eq('status', 'active');
+
+            if (error) throw error;
+
+            const beneficiaries = data?.map((e: any) => ({
+                id: e.quran_beneficiaries.id,
+                name_ar: e.quran_beneficiaries.name_ar,
+                name_en: e.quran_beneficiaries.name_en,
+                image_url: e.quran_beneficiaries.image_url
+            })) || [];
+
+            setEnrolledBeneficiaries(beneficiaries);
+        } catch (error) {
+            console.error('Error fetching enrollments:', error);
+        } finally {
+            setEnrollmentLoading(false);
+        }
     };
 
-    const toggleBeneficiary = (id: string) => {
-        setSelectedBeneficiaries(prev => {
-            const exists = prev.find(b => b.id === id);
-            if (exists) {
-                return prev.filter(b => b.id !== id);
-            } else {
-                return [...prev, { id, type: 'memorization' }];
-            }
-        });
+    const openEnrollmentDialog = async (circle: QuranCircle) => {
+        setEnrollmentCircle(circle);
+        setIsEnrollmentOpen(true);
+        await fetchAllBeneficiaries();
+        await fetchEnrollments(circle.id);
     };
 
-    const updateAttendanceType = (id: string, type: 'memorization' | 'revision') => {
-        setSelectedBeneficiaries(prev =>
-            prev.map(b => b.id === id ? { ...b, type } : b)
-        );
+    const handleEnroll = async (beneficiaryId: string) => {
+        if (!enrollmentCircle) return;
+        try {
+            const { error } = await supabase
+                .from('quran_enrollments')
+                .insert({
+                    circle_id: enrollmentCircle.id,
+                    beneficiary_id: beneficiaryId,
+                    status: 'active'
+                });
+
+            if (error) throw error;
+            toast.success(isRTL ? 'تم تسجيل المستفيد' : 'Beneficiary enrolled');
+            await fetchEnrollments(enrollmentCircle.id);
+            fetchCircles(); // Refresh count
+        } catch (error: any) {
+            console.error('Error enrolling:', error);
+            toast.error(error.message || 'Error enrolling');
+        }
     };
 
-    const filteredBeneficiaries = allBeneficiaries.filter(b =>
+    const handleUnenroll = async (beneficiaryId: string) => {
+        if (!enrollmentCircle) return;
+        try {
+            const { error } = await supabase
+                .from('quran_enrollments')
+                .delete()
+                .eq('circle_id', enrollmentCircle.id)
+                .eq('beneficiary_id', beneficiaryId);
+
+            if (error) throw error;
+            toast.success(isRTL ? 'تم إلغاء التسجيل' : 'Enrollment removed');
+            await fetchEnrollments(enrollmentCircle.id);
+            fetchCircles(); // Refresh count
+        } catch (error: any) {
+            console.error('Error unenrolling:', error);
+            toast.error(error.message || 'Error unenrolling');
+        }
+    };
+
+    const filteredBeneficiariesForEnrollment = allBeneficiaries.filter(b =>
         b.name_ar.toLowerCase().includes(beneficiarySearch.toLowerCase()) ||
-        b.name_en.toLowerCase().includes(beneficiarySearch.toLowerCase())
+        (b.name_en?.toLowerCase() || '').includes(beneficiarySearch.toLowerCase())
     );
 
     const filteredCircles = circles.filter(c =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase())
+        getCircleName(c).toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
@@ -338,8 +490,11 @@ export default function QuranCircles() {
                 <div>
                     <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
                         <Users className="h-8 w-8 text-primary" />
-                        {isRTL ? 'إدارة حلقات القرآن' : 'Quran Circles'}
+                        {isRTL ? 'إدارة حلقات القرآن' : 'Quran Circles Management'}
                     </h1>
+                    <p className="text-muted-foreground mt-1">
+                        {isRTL ? 'إنشاء وإدارة الحلقات الأسبوعية المتكررة' : 'Create and manage recurring weekly circles'}
+                    </p>
                 </div>
 
                 <Dialog open={isCreateOpen} onOpenChange={(open) => {
@@ -352,174 +507,181 @@ export default function QuranCircles() {
                             {isRTL ? 'إضافة حلقة' : 'Add Circle'}
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
-                            <DialogTitle>{isEditMode ? (isRTL ? 'تعديل الحلقة' : 'Edit Circle') : (isRTL ? 'إضافة حلقة جديدة' : 'Add New Circle')}</DialogTitle>
+                            <DialogTitle>
+                                {isEditMode
+                                    ? (isRTL ? 'تعديل الحلقة' : 'Edit Circle')
+                                    : (isRTL ? 'إضافة حلقة جديدة' : 'Add New Circle')}
+                            </DialogTitle>
                         </DialogHeader>
 
                         <div className="space-y-6 py-4">
-                            {/* Basic Info */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label>{isRTL ? 'اسم الحلقة' : 'Circle Name'} <span className="text-destructive">*</span></Label>
-                                    <Input
-                                        value={formData.name}
-                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                        placeholder={isRTL ? 'مثال: حلقة الفجر' : 'Ex: Fajr Circle'}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label>{isRTL ? 'التاريخ' : 'Date'} <span className="text-destructive">*</span></Label>
-                                    <Input
-                                        type="date"
-                                        value={formData.date}
-                                        onChange={e => setFormData({ ...formData, date: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label>{isRTL ? 'المحفظ' : 'Teacher'}</Label>
-                                <select
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            {/* Teacher Selection */}
+                            <div className="grid gap-2">
+                                <Label className="flex items-center gap-2">
+                                    <User className="h-4 w-4" />
+                                    {isRTL ? 'المحفظ' : 'Teacher'} <span className="text-destructive">*</span>
+                                </Label>
+                                <Select
                                     value={formData.teacher_id}
-                                    onChange={e => setFormData({ ...formData, teacher_id: e.target.value })}
+                                    onValueChange={val => setFormData({ ...formData, teacher_id: val })}
                                 >
-                                    <option value="">{isRTL ? 'اختر محفظ...' : 'Select Teacher...'}</option>
-                                    {allTeachers.map(t => (
-                                        <option key={t.id} value={t.id}>{t.name}</option>
-                                    ))}
-                                </select>
+                                    <SelectTrigger className="h-12">
+                                        <SelectValue placeholder={isRTL ? 'اختر المحفظ...' : 'Select teacher...'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {allTeachers.map(t => (
+                                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    {isRTL ? 'اسم الحلقة سيكون "حلقة المحفظ [الاسم]" تلقائياً' : 'Circle name will be auto-generated from teacher name'}
+                                </p>
                             </div>
 
-                            {/* Beneficiaries Selection */}
-                            <div className="space-y-2 border p-4 rounded-lg bg-muted/20">
-                                <div className="flex justify-between items-center mb-2">
-                                    <Label className="text-base font-semibold">{isRTL ? 'المستفيدين المسجلين' : 'Registered Beneficiaries'}</Label>
-                                    <span className="text-sm text-muted-foreground">{selectedBeneficiaries.length} {isRTL ? 'محدد' : 'Selected'}</span>
+                            {/* Schedule Days */}
+                            <div className="grid gap-3">
+                                <Label className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4" />
+                                    {isRTL ? 'أيام الحلقة' : 'Circle Days'} <span className="text-destructive">*</span>
+                                </Label>
+                                <div className="flex flex-wrap gap-2">
+                                    {DAYS.map(day => (
+                                        <div
+                                            key={day.value}
+                                            onClick={() => toggleDay(day.value)}
+                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-all ${formData.schedule_days.includes(day.value)
+                                                ? 'bg-primary text-primary-foreground border-primary'
+                                                : 'bg-background hover:bg-muted border-input'
+                                                }`}
+                                        >
+                                            <Checkbox
+                                                checked={formData.schedule_days.includes(day.value)}
+                                                className="pointer-events-none"
+                                            />
+                                            <span className="font-medium">{day.label[language as 'en' | 'ar']}</span>
+                                        </div>
+                                    ))}
                                 </div>
+                            </div>
+
+                            {/* Schedule Time */}
+                            <div className="grid gap-2">
+                                <Label className="flex items-center gap-2">
+                                    <Clock className="h-4 w-4" />
+                                    {isRTL ? 'وقت الحلقة' : 'Circle Time'}
+                                </Label>
                                 <Input
-                                    placeholder={isRTL ? 'بحث عن مستفيد...' : 'Search beneficiaries...'}
-                                    value={beneficiarySearch}
-                                    onChange={e => setBeneficiarySearch(e.target.value)}
-                                    className="mb-2"
+                                    type="time"
+                                    value={formData.schedule_time}
+                                    onChange={e => setFormData({ ...formData, schedule_time: e.target.value })}
+                                    className="h-12 w-48"
                                 />
-                                <ScrollArea className="h-[200px] border rounded-md bg-background p-2">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                        {filteredBeneficiaries.map(b => {
-                                            const isSelected = selectedBeneficiaries.some(sb => sb.id === b.id);
-                                            const selectedData = selectedBeneficiaries.find(sb => sb.id === b.id);
-
-                                            return (
-                                                <div
-                                                    key={b.id}
-                                                    className={`flex flex - col sm: flex - row sm: items - center justify - between gap - 2 p - 2 rounded - md transition - colors ${isSelected ? 'bg-primary/5 border-primary/20 border' : 'hover:bg-muted border border-transparent'}`}
-                                                >
-                                                    <div className="flex items-center gap-2 flex-1 cursor-pointer" onClick={() => toggleBeneficiary(b.id)}>
-                                                        <Checkbox checked={isSelected} />
-                                                        <Avatar className="h-8 w-8">
-                                                            <AvatarImage src={b.image_url || undefined} />
-                                                            <AvatarFallback>{b.name_en?.slice(0, 1) || 'B'}</AvatarFallback>
-                                                        </Avatar>
-                                                        <span className="text-sm font-medium">{b.name_ar}</span>
-                                                    </div>
-
-                                                    {isSelected && (
-                                                        <div className="flex items-center gap-1 bg-background rounded-md border p-0.5">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => updateAttendanceType(b.id, 'memorization')}
-                                                                className={`px - 3 py - 1 text - xs font - medium rounded - sm transition - all ${selectedData?.type === 'memorization'
-                                                                    ? 'bg-primary text-primary-foreground shadow-sm'
-                                                                    : 'hover:bg-muted text-muted-foreground'
-                                                                    }`}
-                                                            >
-                                                                {isRTL ? 'حفظ' : 'Memorization'}
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => updateAttendanceType(b.id, 'revision')}
-                                                                className={`px - 3 py - 1 text - xs font - medium rounded - sm transition - all ${selectedData?.type === 'revision'
-                                                                        ? 'bg-amber-500 text-white shadow-sm'
-                                                                        : 'hover:bg-muted text-muted-foreground'
-                                                                    } `}
-                                                            >
-                                                                {isRTL ? 'مراجعة' : 'Revision'}
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </ScrollArea>
                             </div>
 
-                            {/* Guests Input */}
-                            <div className="space-y-2 border p-4 rounded-lg bg-muted/20">
-                                <Label className="text-base font-semibold">{isRTL ? 'الضيوف (من خارج النظام)' : 'Guests'}</Label>
-                                <div className="flex gap-2 items-end">
-                                    <div className="flex-1 space-y-1">
-                                        <Label className="text-xs text-muted-foreground">{isRTL ? 'الاسم' : 'Name'}</Label>
-                                        <Input
-                                            value={guestNameInput}
-                                            onChange={e => setGuestNameInput(e.target.value)}
-                                            placeholder={isRTL ? 'اسم الضيف' : 'Guest Name'}
-                                            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addGuest())}
-                                        />
+                            {/* Organizers */}
+                            <div className="grid gap-3">
+                                <Label className="flex items-center gap-2">
+                                    <Users className="h-4 w-4" />
+                                    {isRTL ? 'المنظمين' : 'Organizers'}
+                                </Label>
+
+                                <Popover open={organizerPopoverOpen} onOpenChange={setOrganizerPopoverOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="h-12 justify-start gap-2">
+                                            <Plus className="h-4 w-4" />
+                                            {isRTL ? 'إضافة منظم' : 'Add Organizer'}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80 p-0" align="start">
+                                        <Command>
+                                            <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
+                                            <CommandList>
+                                                <CommandEmpty>{isRTL ? 'لم يتم العثور على نتائج' : 'No results found'}</CommandEmpty>
+                                                <CommandGroup>
+                                                    {volunteers.map(v => (
+                                                        <CommandItem
+                                                            key={v.id}
+                                                            onSelect={() => handleAddOrganizer(v)}
+                                                            className="flex items-center gap-2 cursor-pointer"
+                                                        >
+                                                            <Avatar className="h-8 w-8">
+                                                                <AvatarImage src={v.avatar_url || undefined} />
+                                                                <AvatarFallback>{v.full_name?.slice(0, 2)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <div className="flex-1">
+                                                                <p className="font-medium">{isRTL && v.full_name_ar ? v.full_name_ar : v.full_name}</p>
+                                                                <p className="text-xs text-muted-foreground">{v.phone}</p>
+                                                            </div>
+                                                            {organizers.some(o => o.volunteer_id === v.id) && (
+                                                                <Check className="h-4 w-4 text-primary" />
+                                                            )}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+
+                                {organizers.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {organizers.map((org, idx) => (
+                                            <Badge key={idx} variant="secondary" className="px-3 py-2 gap-2">
+                                                <span>{org.name}</span>
+                                                <button onClick={() => removeOrganizer(idx)} className="hover:text-destructive">
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            </Badge>
+                                        ))}
                                     </div>
-                                    <div className="flex-1 space-y-1">
-                                        <Label className="text-xs text-muted-foreground">{isRTL ? 'الهاتف' : 'Phone'}</Label>
-                                        <Input
-                                            value={guestPhoneInput}
-                                            onChange={e => setGuestPhoneInput(e.target.value)}
-                                            placeholder={isRTL ? 'رقم الهاتف' : 'Phone Number'}
-                                            onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addGuest())}
-                                        />
-                                    </div>
-                                    <Button onClick={addGuest} variant="secondary" type="button" className="mb-0.5">{isRTL ? 'إضافة' : 'Add'}</Button>
-                                </div>
-                                <div className="flex flex-wrap gap-2 mt-2">
-                                    {formData.guest_names.map((guest, idx) => (
-                                        <Badge key={idx} variant="outline" className="pl-1 pr-2 py-1 gap-1 flex items-center">
-                                            <X className="h-3 w-3 cursor-pointer hover:text-destructive" onClick={() => removeGuest(idx)} />
-                                            <span>{guest.name}</span>
-                                            {guest.phone && <span className="text-muted-foreground text-[10px] ml-1">({guest.phone})</span>}
-                                        </Badge>
-                                    ))}
-                                    {formData.guest_names.length === 0 && <span className="text-xs text-muted-foreground">{isRTL ? 'لا يوجد ضيوف' : 'No guests added'}</span>}
-                                </div>
+                                )}
                             </div>
 
-                            {/* Total Summary */}
-                            <div className="flex justify-end items-center gap-4 pt-2 border-t">
-                                <div className="text-sm text-muted-foreground">
-                                    {isRTL ? 'إجمالي الحضور:' : 'Total Attendance:'} <span className="font-bold text-foreground text-lg">{selectedBeneficiaries.length + formData.guest_names.length}</span>
+                            {/* Active Toggle */}
+                            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                                <div>
+                                    <Label>{isRTL ? 'الحلقة نشطة' : 'Circle Active'}</Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        {isRTL ? 'إيقاف الحلقة مؤقتاً بدون حذفها' : 'Temporarily disable without deleting'}
+                                    </p>
                                 </div>
+                                <Switch
+                                    checked={formData.is_active}
+                                    onCheckedChange={checked => setFormData({ ...formData, is_active: checked })}
+                                />
                             </div>
                         </div>
 
-                        <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>{isRTL ? 'إلغاء' : 'Cancel'}</Button>
-                            <Button onClick={handleSave}>{isRTL ? 'حفظ' : 'Save'}</Button>
+                        <div className="flex justify-end gap-2 border-t pt-4">
+                            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                                {isRTL ? 'إلغاء' : 'Cancel'}
+                            </Button>
+                            <Button onClick={handleSave} className="px-6">
+                                {isRTL ? 'حفظ' : 'Save'}
+                            </Button>
                         </div>
                     </DialogContent>
                 </Dialog>
             </div>
 
+            {/* Search */}
             <div className="flex items-center gap-2 max-w-sm">
                 <Search className="h-4 w-4 text-muted-foreground" />
                 <Input
-                    placeholder={isRTL ? 'بحث باسم الحلقة...' : 'Search circle name...'}
+                    placeholder={isRTL ? 'بحث...' : 'Search...'}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                 />
             </div>
 
+            {/* Circles Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {loading ? (
                     [1, 2, 3].map(i => (
-                        <div key={i} className="h-40 rounded-lg border bg-card text-card-foreground shadow-sm animate-pulse bg-muted/20" />
+                        <div key={i} className="h-48 rounded-lg border bg-card animate-pulse bg-muted/20" />
                     ))
                 ) : filteredCircles.length === 0 ? (
                     <div className="col-span-full text-center py-12 text-muted-foreground border rounded-lg bg-muted/10">
@@ -528,63 +690,192 @@ export default function QuranCircles() {
                     </div>
                 ) : (
                     filteredCircles.map((c) => (
-                        <div key={c.id} className="group relative overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm transition-all hover:shadow-md hover:border-primary/50">
-                            <div className="p-6 space-y-4">
+                        <Card
+                            key={c.id}
+                            className={`group relative overflow-hidden transition-all hover:shadow-md ${c.is_active ? 'hover:border-primary/50' : 'opacity-60'
+                                }`}
+                        >
+                            <CardHeader className="pb-2">
                                 <div className="flex justify-between items-start">
-                                    <div className="space-y-1">
-                                        <h3 className="font-semibold text-lg leading-none tracking-tight">{c.name}</h3>
-                                        <div className="flex items-center text-sm text-muted-foreground">
-                                            <span className="flex items-center gap-1">
-                                                {format(new Date(c.date), 'yyyy-MM-dd')}
-                                            </span>
-                                            {c.teacher_name && (
-                                                <>
-                                                    <span>•</span>
-                                                    <span className="flex items-center gap-1 font-medium text-primary">
-                                                        {c.teacher_name}
-                                                    </span>
-                                                </>
+                                    <div className="space-y-1 flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <CardTitle className="text-lg leading-tight">
+                                                {getCircleName(c)}
+                                            </CardTitle>
+                                            {!c.is_active && (
+                                                <Badge variant="secondary" className="text-xs">
+                                                    {isRTL ? 'متوقفة' : 'Inactive'}
+                                                </Badge>
                                             )}
                                         </div>
+                                        <CardDescription className="flex items-center gap-2">
+                                            <CalendarDays className="h-3.5 w-3.5" />
+                                            <span>{getScheduleDisplay(c.schedule)}</span>
+                                        </CardDescription>
                                     </div>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8">
                                                 <MoreVertical className="h-4 w-4" />
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => openEnrollmentDialog(c)}>
+                                                <UserPlus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'إدارة المسجلين' : 'Manage Students'}
+                                            </DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => handleEdit(c)}>
                                                 <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'تعديل' : 'Edit'}
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(c.id)}>
+                                            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(c.id)}>
                                                 <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'حذف' : 'Delete'}
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>
-
-                                <div className="flex items-center gap-4 pt-2">
-                                    <div className="flex items-center gap-2 bg-primary/5 px-3 py-1.5 rounded-full text-sm font-medium text-primary">
-                                        <Users className="h-4 w-4" />
-                                        <span>
-                                            {(c.beneficiaries_count || 0) + c.guest_names.length} {isRTL ? 'حضور' : 'Attendees'}
-                                        </span>
+                            </CardHeader>
+                            <CardContent>
+                                {/* Organizers */}
+                                {c.organizers && c.organizers.length > 0 && (
+                                    <div className="flex items-center gap-2 pt-2 border-t">
+                                        <div className="flex -space-x-2">
+                                            {c.organizers.slice(0, 3).map((org, idx) => (
+                                                <Avatar key={idx} className="h-7 w-7 border-2 border-background">
+                                                    <AvatarFallback className="text-xs">
+                                                        {org.name?.slice(0, 2)}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                            ))}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm text-muted-foreground truncate">
+                                                {c.organizers.length === 1
+                                                    ? c.organizers[0].name
+                                                    : `${c.organizers.length} ${isRTL ? 'منظمين' : 'organizers'}`}
+                                            </p>
+                                        </div>
                                     </div>
-                                    {(c.guest_names.length > 0) && (
-                                        <span className="text-xs text-muted-foreground">
-                                            ({c.guest_names.length} {isRTL ? 'ضيوف' : 'Guests'})
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="absolute inset-x-0 bottom-0 h-1 bg-primary/10 group-hover:bg-primary transition-colors" />
-                        </div>
+                                )}
+                            </CardContent>
+                            <div className={`absolute inset-x-0 bottom-0 h-1 ${c.is_active ? 'bg-primary' : 'bg-muted'}`} />
+                        </Card>
                     ))
                 )}
             </div>
-        </div >
+
+            {/* Delete Confirmation */}
+            <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{isRTL ? 'تأكيد الحذف' : 'Confirm Delete'}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {isRTL
+                                ? 'هل أنت متأكد من حذف هذه الحلقة؟ سيتم حذف جميع الجلسات المرتبطة بها.'
+                                : 'Are you sure? All associated sessions will be deleted.'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            {isRTL ? 'حذف' : 'Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Enrollment Management Dialog */}
+            <Dialog open={isEnrollmentOpen} onOpenChange={setIsEnrollmentOpen}>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <UserPlus className="h-5 w-5" />
+                            {isRTL ? 'إدارة المسجلين في الحلقة' : 'Manage Circle Enrollments'}
+                        </DialogTitle>
+                        {enrollmentCircle && (
+                            <p className="text-sm text-muted-foreground">
+                                {getCircleName(enrollmentCircle)}
+                            </p>
+                        )}
+                    </DialogHeader>
+
+                    <div className="space-y-4 py-4">
+                        {/* Enrolled count */}
+                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                            <span>{isRTL ? 'عدد المسجلين:' : 'Enrolled Students:'}</span>
+                            <Badge className="text-lg px-3">{enrolledBeneficiaries.length}</Badge>
+                        </div>
+
+                        {/* Search */}
+                        <Input
+                            placeholder={isRTL ? 'بحث عن مستفيد...' : 'Search beneficiaries...'}
+                            value={beneficiarySearch}
+                            onChange={e => setBeneficiarySearch(e.target.value)}
+                        />
+
+                        {/* Beneficiaries List */}
+                        <ScrollArea className="h-[400px] border rounded-md p-2">
+                            {enrollmentLoading ? (
+                                <div className="flex items-center justify-center h-32">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+                                </div>
+                            ) : (
+                                <div className="space-y-1">
+                                    {filteredBeneficiariesForEnrollment.map(b => {
+                                        const isEnrolled = enrolledBeneficiaries.some(e => e.id === b.id);
+
+                                        return (
+                                            <div
+                                                key={b.id}
+                                                className={`flex items-center justify-between p-2 rounded-md ${isEnrolled
+                                                    ? 'bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800'
+                                                    : 'hover:bg-muted'
+                                                    }`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <Avatar className="h-8 w-8">
+                                                        <AvatarImage src={b.image_url || undefined} />
+                                                        <AvatarFallback>{b.name_ar?.slice(0, 2)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span className="font-medium">{b.name_ar}</span>
+                                                </div>
+                                                {isEnrolled ? (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleUnenroll(b.id)}
+                                                        className="text-destructive hover:text-destructive"
+                                                    >
+                                                        <X className="h-4 w-4 ltr:mr-1 rtl:ml-1" />
+                                                        {isRTL ? 'إلغاء' : 'Remove'}
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleEnroll(b.id)}
+                                                        className="text-primary"
+                                                    >
+                                                        <Plus className="h-4 w-4 ltr:mr-1 rtl:ml-1" />
+                                                        {isRTL ? 'تسجيل' : 'Enroll'}
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </ScrollArea>
+                    </div>
+
+                    <div className="flex justify-end border-t pt-4">
+                        <Button variant="outline" onClick={() => setIsEnrollmentOpen(false)}>
+                            {isRTL ? 'إغلاق' : 'Close'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </div>
     );
 }

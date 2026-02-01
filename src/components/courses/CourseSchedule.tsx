@@ -30,12 +30,20 @@ interface CourseOrganizer {
     phone: string;
 }
 
+interface QuranCircle {
+    id: string;
+    teacher_name?: string;
+    schedule: { day: number; time: string }[];
+    is_active: boolean;
+}
+
 const ROOMS: Record<string, { en: string; ar: string; color: string; bg: string }> = {
     'lab_1': { en: 'Lab 1', ar: 'لاب 1', color: 'bg-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30 border-blue-300' },
     'lab_2': { en: 'Lab 2', ar: 'لاب 2', color: 'bg-green-500', bg: 'bg-green-100 dark:bg-green-900/30 border-green-300' },
     'lab_3': { en: 'Lab 3', ar: 'لاب 3', color: 'bg-purple-500', bg: 'bg-purple-100 dark:bg-purple-900/30 border-purple-300' },
     'lab_4': { en: 'Lab 4', ar: 'لاب 4', color: 'bg-orange-500', bg: 'bg-orange-100 dark:bg-orange-900/30 border-orange-300' },
     'impact_hall': { en: 'Impact Hall', ar: 'قاعة الأثر', color: 'bg-pink-500', bg: 'bg-pink-100 dark:bg-pink-900/30 border-pink-300' },
+    'quran_circle': { en: 'Quran Circle', ar: 'حلقة قرآن', color: 'bg-teal-500', bg: 'bg-teal-100 dark:bg-teal-900/30 border-teal-300' },
 };
 
 const DAY_MAP: Record<number, string> = {
@@ -64,6 +72,7 @@ export default function CourseSchedule() {
     const { primaryRole } = useAuth();
     const { isRTL, language } = useLanguage();
     const [courses, setCourses] = useState<Course[]>([]);
+    const [circles, setCircles] = useState<QuranCircle[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
     const [organizers, setOrganizers] = useState<CourseOrganizer[]>([]);
@@ -75,6 +84,7 @@ export default function CourseSchedule() {
 
     useEffect(() => {
         fetchCourses();
+        fetchCircles();
     }, []);
 
     const fetchCourses = async () => {
@@ -91,6 +101,30 @@ export default function CourseSchedule() {
             console.error('Error fetching courses:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchCircles = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('quran_circles')
+                .select(`
+                    id,
+                    schedule,
+                    is_active,
+                    teacher: trainers(name_ar)
+                `)
+                .eq('is_active', true);
+
+            if (error) throw error;
+            setCircles(data?.map((c: any) => ({
+                id: c.id,
+                teacher_name: c.teacher?.name_ar,
+                schedule: c.schedule || [],
+                is_active: c.is_active
+            })) || []);
+        } catch (error) {
+            console.error('Error fetching circles:', error);
         }
     };
 
@@ -206,6 +240,17 @@ export default function CourseSchedule() {
         });
     };
 
+    // Get circles for a specific date based on their recurring schedule
+    const getCirclesForDate = (date: Date) => {
+        const dayOfWeek = getDay(date); // 0 = Sunday, 6 = Saturday
+        return circles.filter(c =>
+            c.schedule.some(s => s.day === dayOfWeek)
+        ).map(c => ({
+            ...c,
+            time: c.schedule.find(s => s.day === dayOfWeek)?.time || ''
+        }));
+    };
+
     // Generate calendar days
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
@@ -307,6 +352,21 @@ export default function CourseSchedule() {
                                                             </div>
                                                         </div>
                                                     ))}
+                                                    {/* Quran Circles */}
+                                                    {getCirclesForDate(day).map(circle => (
+                                                        <div
+                                                            key={`circle-${circle.id}`}
+                                                            className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 group transition-all ${getRoomBg('quran_circle')}`}
+                                                            title={`${circle.teacher_name ? (isRTL ? 'حلقة المحفظ ' : '') + circle.teacher_name : (isRTL ? 'حلقة قرآن' : 'Quran Circle')} - ${circle.time}`}
+                                                        >
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <span className="font-medium truncate flex-1">{circle.teacher_name ? (isRTL ? 'حلقة المحفظ ' + circle.teacher_name : circle.teacher_name + "'s Circle") : (isRTL ? 'حلقة قرآن' : 'Quran Circle')}</span>
+                                                                <span className="text-[10px] opacity-70 group-hover:opacity-100 whitespace-nowrap">
+                                                                    {formatTime(circle.time)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
                                                     {dayCourses.length > 10 && (
                                                         <p className="text-[10px] text-muted-foreground text-center pt-1 font-medium">
                                                             +{dayCourses.length - 10} {isRTL ? 'المزيد' : 'more'}
@@ -362,6 +422,29 @@ export default function CourseSchedule() {
                                                         </div>
                                                     </div>
                                                 ))}
+                                                {/* Quran Circles for mobile */}
+                                                {getCirclesForDate(day).map(circle => (
+                                                    <div
+                                                        key={`circle-${circle.id}`}
+                                                        className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${getRoomBg('quran_circle')}`}
+                                                    >
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-semibold text-sm truncate mb-1">{circle.teacher_name ? (isRTL ? 'حلقة المحفظ ' + circle.teacher_name : circle.teacher_name + "'s Circle") : (isRTL ? 'حلقة قرآن' : 'Quran Circle')}</p>
+                                                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                                                <div className="flex items-center gap-1">
+                                                                    <Clock className="h-3 w-3" />
+                                                                    {formatTime(circle.time)}
+                                                                </div>
+                                                                {isHead && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <MapPin className="h-3 w-3" />
+                                                                        {getRoomLabel('quran_circle')}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
                                     );
@@ -381,6 +464,11 @@ export default function CourseSchedule() {
                                             <span>{val[language as 'en' | 'ar']}</span>
                                         </div>
                                     ))}
+                                    {/* Circle Legend */}
+                                    <div className="flex items-center gap-2 text-sm">
+                                        <div className="w-4 h-4 rounded bg-teal-500"></div>
+                                        <span>{isRTL ? 'حلقات القرآن' : 'Quran Circles'}</span>
+                                    </div>
                                 </div>
                             )}
                         </>

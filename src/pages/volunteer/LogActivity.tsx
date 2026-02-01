@@ -34,7 +34,8 @@ interface ActivityType {
   points_with_vest: number | null; // Points if wore vest
   points_without_vest: number | null; // Points if didn't wear vest
   mode: 'individual' | 'group';
-  committee_id: string | null;
+  committee_id: string | null; // Deprecated, use committee_ids
+  committee_ids: string[]; // Committee IDs from activity_type_committees
   created_at: string;
 }
 
@@ -92,7 +93,7 @@ export default function LogActivity() {
   const [openCombobox, setOpenCombobox] = useState(false);
   const [includeMe, setIncludeMe] = useState(false);
 
-  const isLeader = primaryRole === 'committee_leader' || primaryRole === 'head_hr' || primaryRole === 'admin' || primaryRole === 'supervisor' || primaryRole === 'head_caravans' || primaryRole === 'head_events' || primaryRole === 'head_ethics';
+  const isLeader = primaryRole === 'committee_leader' || primaryRole === 'head_hr' || primaryRole === 'admin' || primaryRole === 'supervisor' || primaryRole === 'head_caravans' || primaryRole === 'head_events' || primaryRole === 'head_ethics' || primaryRole === 'head_quran' || primaryRole === 'head_ashbal';
 
   useEffect(() => {
     fetchData();
@@ -151,9 +152,10 @@ export default function LogActivity() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [committeesRes, activitiesRes, submissionsRes] = await Promise.all([
+      const [committeesRes, activitiesRes, activityCommitteesRes, submissionsRes] = await Promise.all([
         supabase.from('committees').select('id, name, name_ar').order('name'),
         supabase.from('activity_types').select('*').order('name'),
+        supabase.from('activity_type_committees').select('activity_type_id, committee_id'),
         user?.id
           ? supabase
             .from('activity_submissions')
@@ -173,7 +175,25 @@ export default function LogActivity() {
       ]);
 
       if (committeesRes.data) setCommittees(committeesRes.data);
-      if (activitiesRes.data) setActivityTypes(activitiesRes.data);
+
+      // Build activity_type_id -> committee_ids map
+      const activityCommitteeMap = new Map<string, string[]>();
+      if (activityCommitteesRes.data) {
+        activityCommitteesRes.data.forEach((ac: any) => {
+          if (!activityCommitteeMap.has(ac.activity_type_id)) {
+            activityCommitteeMap.set(ac.activity_type_id, []);
+          }
+          activityCommitteeMap.get(ac.activity_type_id)!.push(ac.committee_id);
+        });
+      }
+
+      if (activitiesRes.data) {
+        const activitiesWithCommittees = activitiesRes.data.map((a: any) => ({
+          ...a,
+          committee_ids: activityCommitteeMap.get(a.id) || []
+        }));
+        setActivityTypes(activitiesWithCommittees);
+      }
       if (submissionsRes.data) {
         setSubmissions(submissionsRes.data.map((s: any) => ({
           id: s.id,
@@ -198,7 +218,11 @@ export default function LogActivity() {
 
   const filteredActivities = activityTypes.filter(
     a => {
-      const matchesCommittee = !a.committee_id || a.committee_id === committeeId;
+      // If 'general' is selected, show only activities without committee restrictions
+      // If a specific committee is selected, show activities with no restrictions OR that include this committee
+      const matchesCommittee = committeeId === 'general'
+        ? a.committee_ids.length === 0  // Only general activities
+        : a.committee_ids.length === 0 || a.committee_ids.includes(committeeId);  // General + committee-specific
       const matchesMode = isGroupSubmission ? a.mode === 'group' : a.mode === 'individual';
       return matchesCommittee && matchesMode;
     }
@@ -618,6 +642,9 @@ export default function LogActivity() {
                     <SelectValue placeholder={t('activityLog.selectCommittee')} />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem key="general" value="general" className="text-base py-3 font-medium">
+                      {isRTL ? 'عام (بدون لجنة)' : 'General (No Committee)'}
+                    </SelectItem>
                     {committees.map((committee) => (
                       <SelectItem key={committee.id} value={committee.id} className="text-base py-3">
                         {isRTL ? committee.name_ar : committee.name}
@@ -1094,16 +1121,6 @@ export default function LogActivity() {
                     <div className="flex flex-col items-end gap-2 shrink-0 pl-2">
                       <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
                         +{submission.points}
-                      </span>
-                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border ${submission.status === 'approved'
-                        ? 'bg-success/5 text-success border-success/20'
-                        : submission.status === 'rejected'
-                          ? 'bg-destructive/5 text-destructive border-destructive/20'
-                          : 'bg-warning/5 text-warning border-warning/20'
-                        }`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${submission.status === 'approved' ? 'bg-success' : submission.status === 'rejected' ? 'bg-destructive' : 'bg-warning'
-                          }`} />
-                        {getStatusText(submission.status)}
                       </span>
                     </div>
                   </div>

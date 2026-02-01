@@ -1,0 +1,146 @@
+// Complete list of all 114 Quran Surahs with metadata
+export interface QuranSurah {
+    number: number;
+    name_ar: string;
+    name_en: string;
+    ayah_count: number;
+    juz_start: number; // Starting Juz of this surah
+    revelation_type: 'meccan' | 'medinan';
+}
+
+export const QURAN_SURAHS: QuranSurah[] = [
+    { number: 1, name_ar: 'الفاتحة', name_en: 'Al-Fatiha', ayah_count: 7, juz_start: 1, revelation_type: 'meccan' },
+    { number: 2, name_ar: 'البقرة', name_en: 'Al-Baqara', ayah_count: 286, juz_start: 1, revelation_type: 'medinan' },
+    { number: 3, name_ar: 'آل عمران', name_en: 'Aal-Imran', ayah_count: 200, juz_start: 3, revelation_type: 'medinan' },
+    { number: 4, name_ar: 'النساء', name_en: 'An-Nisa', ayah_count: 176, juz_start: 4, revelation_type: 'medinan' },
+    { number: 5, name_ar: 'المائدة', name_en: 'Al-Maida', ayah_count: 120, juz_start: 6, revelation_type: 'medinan' },
+    { number: 6, name_ar: 'الأنعام', name_en: 'Al-Anam', ayah_count: 165, juz_start: 7, revelation_type: 'meccan' },
+    { number: 7, name_ar: 'الأعراف', name_en: 'Al-Araf', ayah_count: 206, juz_start: 8, revelation_type: 'meccan' },
+    { number: 8, name_ar: 'الأنفال', name_en: 'Al-Anfal', ayah_count: 75, juz_start: 9, revelation_type: 'medinan' },
+    { number: 9, name_ar: 'التوبة', name_en: 'At-Tawba', ayah_count: 129, juz_start: 10, revelation_type: 'medinan' },
+    { number: 10, name_ar: 'يونس', name_en: 'Yunus', ayah_count: 109, juz_start: 11, revelation_type: 'meccan' },
+    { number: 11, name_ar: 'هود', name_en: 'Hud', ayah_count: 123, juz_start: 11, revelation_type: 'meccan' },
+    { number: 12, name_ar: 'يوسف', name_en: 'Yusuf', ayah_count: 111, juz_start: 12, revelation_type: 'meccan' },
+    { number: 13, name_ar: 'الرعد', name_en: 'Ar-Rad', ayah_count: 43, juz_start: 13, revelation_type: 'medinan' },
+    { number: 14, name_ar: 'إبراهيم', name_en: 'Ibrahim', ayah_count: 52, juz_start: 13, revelation_type: 'meccan' },
+    { number: 15, name_ar: 'الحجر', name_en: 'Al-Hijr', ayah_count: 99, juz_start: 14, revelation_type: 'meccan' },
+    { number: 16, name_ar: 'النحل', name_en: 'An-Nahl', ayah_count: 128, juz_start: 14, revelation_type: 'meccan' },
+    { number: 17, name_ar: 'الإسراء', name_en: 'Al-Isra', ayah_count: 111, juz_start: 15, revelation_type: 'meccan' },
+    { number: 18, name_ar: 'الكهف', name_en: 'Al-Kahf', ayah_count: 110, juz_start: 15, revelation_type: 'meccan' },
+    { number: 19, name_ar: 'مريم', name_en: 'Maryam', ayah_count: 98, juz_start: 16, revelation_type: 'meccan' },
+    { number: 20, name_ar: 'طه', name_en: 'Ta-Ha', ayah_count: 135, juz_start: 16, revelation_type: 'meccan' },
+    { number: 21, name_ar: 'الأنبياء', name_en: 'Al-Anbiya', ayah_count: 112, juz_start: 17, revelation_type: 'meccan' },
+    { number: 22, name_ar: 'الحج', name_en: 'Al-Hajj', ayah_count: 78, juz_start: 17, revelation_type: 'medinan' },
+    { number: 23, name_ar: 'المؤمنون', name_en: 'Al-Muminun', ayah_count: 118, juz_start: 18, revelation_type: 'meccan' },
+    { number: 24, name_ar: 'النور', name_en: 'An-Nur', ayah_count: 64, juz_start: 18, revelation_type: 'medinan' },
+    { number: 25, name_ar: 'الفرقان', name_en: 'Al-Furqan', ayah_count: 77, juz_start: 18, revelation_type: 'meccan' },
+    { number: 26, name_ar: 'الشعراء', name_en: 'Ash-Shuara', ayah_count: 227, juz_start: 19, revelation_type: 'meccan' },
+    { number: 27, name_ar: 'النمل', name_en: 'An-Naml', ayah_count: 93, juz_start: 19, revelation_type: 'meccan' },
+    { number: 28, name_ar: 'القصص', name_en: 'Al-Qasas', ayah_count: 88, juz_start: 20, revelation_type: 'meccan' },
+    { number: 29, name_ar: 'العنكبوت', name_en: 'Al-Ankabut', ayah_count: 69, juz_start: 20, revelation_type: 'meccan' },
+    { number: 30, name_ar: 'الروم', name_en: 'Ar-Rum', ayah_count: 60, juz_start: 21, revelation_type: 'meccan' },
+    { number: 31, name_ar: 'لقمان', name_en: 'Luqman', ayah_count: 34, juz_start: 21, revelation_type: 'meccan' },
+    { number: 32, name_ar: 'السجدة', name_en: 'As-Sajda', ayah_count: 30, juz_start: 21, revelation_type: 'meccan' },
+    { number: 33, name_ar: 'الأحزاب', name_en: 'Al-Ahzab', ayah_count: 73, juz_start: 21, revelation_type: 'medinan' },
+    { number: 34, name_ar: 'سبأ', name_en: 'Saba', ayah_count: 54, juz_start: 22, revelation_type: 'meccan' },
+    { number: 35, name_ar: 'فاطر', name_en: 'Fatir', ayah_count: 45, juz_start: 22, revelation_type: 'meccan' },
+    { number: 36, name_ar: 'يس', name_en: 'Ya-Sin', ayah_count: 83, juz_start: 22, revelation_type: 'meccan' },
+    { number: 37, name_ar: 'الصافات', name_en: 'As-Saffat', ayah_count: 182, juz_start: 23, revelation_type: 'meccan' },
+    { number: 38, name_ar: 'ص', name_en: 'Sad', ayah_count: 88, juz_start: 23, revelation_type: 'meccan' },
+    { number: 39, name_ar: 'الزمر', name_en: 'Az-Zumar', ayah_count: 75, juz_start: 23, revelation_type: 'meccan' },
+    { number: 40, name_ar: 'غافر', name_en: 'Ghafir', ayah_count: 85, juz_start: 24, revelation_type: 'meccan' },
+    { number: 41, name_ar: 'فصلت', name_en: 'Fussilat', ayah_count: 54, juz_start: 24, revelation_type: 'meccan' },
+    { number: 42, name_ar: 'الشورى', name_en: 'Ash-Shura', ayah_count: 53, juz_start: 25, revelation_type: 'meccan' },
+    { number: 43, name_ar: 'الزخرف', name_en: 'Az-Zukhruf', ayah_count: 89, juz_start: 25, revelation_type: 'meccan' },
+    { number: 44, name_ar: 'الدخان', name_en: 'Ad-Dukhan', ayah_count: 59, juz_start: 25, revelation_type: 'meccan' },
+    { number: 45, name_ar: 'الجاثية', name_en: 'Al-Jathiya', ayah_count: 37, juz_start: 25, revelation_type: 'meccan' },
+    { number: 46, name_ar: 'الأحقاف', name_en: 'Al-Ahqaf', ayah_count: 35, juz_start: 26, revelation_type: 'meccan' },
+    { number: 47, name_ar: 'محمد', name_en: 'Muhammad', ayah_count: 38, juz_start: 26, revelation_type: 'medinan' },
+    { number: 48, name_ar: 'الفتح', name_en: 'Al-Fath', ayah_count: 29, juz_start: 26, revelation_type: 'medinan' },
+    { number: 49, name_ar: 'الحجرات', name_en: 'Al-Hujurat', ayah_count: 18, juz_start: 26, revelation_type: 'medinan' },
+    { number: 50, name_ar: 'ق', name_en: 'Qaf', ayah_count: 45, juz_start: 26, revelation_type: 'meccan' },
+    { number: 51, name_ar: 'الذاريات', name_en: 'Adh-Dhariyat', ayah_count: 60, juz_start: 26, revelation_type: 'meccan' },
+    { number: 52, name_ar: 'الطور', name_en: 'At-Tur', ayah_count: 49, juz_start: 27, revelation_type: 'meccan' },
+    { number: 53, name_ar: 'النجم', name_en: 'An-Najm', ayah_count: 62, juz_start: 27, revelation_type: 'meccan' },
+    { number: 54, name_ar: 'القمر', name_en: 'Al-Qamar', ayah_count: 55, juz_start: 27, revelation_type: 'meccan' },
+    { number: 55, name_ar: 'الرحمن', name_en: 'Ar-Rahman', ayah_count: 78, juz_start: 27, revelation_type: 'medinan' },
+    { number: 56, name_ar: 'الواقعة', name_en: 'Al-Waqia', ayah_count: 96, juz_start: 27, revelation_type: 'meccan' },
+    { number: 57, name_ar: 'الحديد', name_en: 'Al-Hadid', ayah_count: 29, juz_start: 27, revelation_type: 'medinan' },
+    { number: 58, name_ar: 'المجادلة', name_en: 'Al-Mujadila', ayah_count: 22, juz_start: 28, revelation_type: 'medinan' },
+    { number: 59, name_ar: 'الحشر', name_en: 'Al-Hashr', ayah_count: 24, juz_start: 28, revelation_type: 'medinan' },
+    { number: 60, name_ar: 'الممتحنة', name_en: 'Al-Mumtahina', ayah_count: 13, juz_start: 28, revelation_type: 'medinan' },
+    { number: 61, name_ar: 'الصف', name_en: 'As-Saff', ayah_count: 14, juz_start: 28, revelation_type: 'medinan' },
+    { number: 62, name_ar: 'الجمعة', name_en: 'Al-Jumua', ayah_count: 11, juz_start: 28, revelation_type: 'medinan' },
+    { number: 63, name_ar: 'المنافقون', name_en: 'Al-Munafiqun', ayah_count: 11, juz_start: 28, revelation_type: 'medinan' },
+    { number: 64, name_ar: 'التغابن', name_en: 'At-Taghabun', ayah_count: 18, juz_start: 28, revelation_type: 'medinan' },
+    { number: 65, name_ar: 'الطلاق', name_en: 'At-Talaq', ayah_count: 12, juz_start: 28, revelation_type: 'medinan' },
+    { number: 66, name_ar: 'التحريم', name_en: 'At-Tahrim', ayah_count: 12, juz_start: 28, revelation_type: 'medinan' },
+    { number: 67, name_ar: 'الملك', name_en: 'Al-Mulk', ayah_count: 30, juz_start: 29, revelation_type: 'meccan' },
+    { number: 68, name_ar: 'القلم', name_en: 'Al-Qalam', ayah_count: 52, juz_start: 29, revelation_type: 'meccan' },
+    { number: 69, name_ar: 'الحاقة', name_en: 'Al-Haaqqa', ayah_count: 52, juz_start: 29, revelation_type: 'meccan' },
+    { number: 70, name_ar: 'المعارج', name_en: 'Al-Maarij', ayah_count: 44, juz_start: 29, revelation_type: 'meccan' },
+    { number: 71, name_ar: 'نوح', name_en: 'Nuh', ayah_count: 28, juz_start: 29, revelation_type: 'meccan' },
+    { number: 72, name_ar: 'الجن', name_en: 'Al-Jinn', ayah_count: 28, juz_start: 29, revelation_type: 'meccan' },
+    { number: 73, name_ar: 'المزمل', name_en: 'Al-Muzzammil', ayah_count: 20, juz_start: 29, revelation_type: 'meccan' },
+    { number: 74, name_ar: 'المدثر', name_en: 'Al-Muddaththir', ayah_count: 56, juz_start: 29, revelation_type: 'meccan' },
+    { number: 75, name_ar: 'القيامة', name_en: 'Al-Qiyama', ayah_count: 40, juz_start: 29, revelation_type: 'meccan' },
+    { number: 76, name_ar: 'الإنسان', name_en: 'Al-Insan', ayah_count: 31, juz_start: 29, revelation_type: 'medinan' },
+    { number: 77, name_ar: 'المرسلات', name_en: 'Al-Mursalat', ayah_count: 50, juz_start: 29, revelation_type: 'meccan' },
+    { number: 78, name_ar: 'النبأ', name_en: 'An-Naba', ayah_count: 40, juz_start: 30, revelation_type: 'meccan' },
+    { number: 79, name_ar: 'النازعات', name_en: 'An-Naziat', ayah_count: 46, juz_start: 30, revelation_type: 'meccan' },
+    { number: 80, name_ar: 'عبس', name_en: 'Abasa', ayah_count: 42, juz_start: 30, revelation_type: 'meccan' },
+    { number: 81, name_ar: 'التكوير', name_en: 'At-Takwir', ayah_count: 29, juz_start: 30, revelation_type: 'meccan' },
+    { number: 82, name_ar: 'الانفطار', name_en: 'Al-Infitar', ayah_count: 19, juz_start: 30, revelation_type: 'meccan' },
+    { number: 83, name_ar: 'المطففين', name_en: 'Al-Mutaffifin', ayah_count: 36, juz_start: 30, revelation_type: 'meccan' },
+    { number: 84, name_ar: 'الانشقاق', name_en: 'Al-Inshiqaq', ayah_count: 25, juz_start: 30, revelation_type: 'meccan' },
+    { number: 85, name_ar: 'البروج', name_en: 'Al-Buruj', ayah_count: 22, juz_start: 30, revelation_type: 'meccan' },
+    { number: 86, name_ar: 'الطارق', name_en: 'At-Tariq', ayah_count: 17, juz_start: 30, revelation_type: 'meccan' },
+    { number: 87, name_ar: 'الأعلى', name_en: 'Al-Ala', ayah_count: 19, juz_start: 30, revelation_type: 'meccan' },
+    { number: 88, name_ar: 'الغاشية', name_en: 'Al-Ghashiya', ayah_count: 26, juz_start: 30, revelation_type: 'meccan' },
+    { number: 89, name_ar: 'الفجر', name_en: 'Al-Fajr', ayah_count: 30, juz_start: 30, revelation_type: 'meccan' },
+    { number: 90, name_ar: 'البلد', name_en: 'Al-Balad', ayah_count: 20, juz_start: 30, revelation_type: 'meccan' },
+    { number: 91, name_ar: 'الشمس', name_en: 'Ash-Shams', ayah_count: 15, juz_start: 30, revelation_type: 'meccan' },
+    { number: 92, name_ar: 'الليل', name_en: 'Al-Layl', ayah_count: 21, juz_start: 30, revelation_type: 'meccan' },
+    { number: 93, name_ar: 'الضحى', name_en: 'Ad-Dhuha', ayah_count: 11, juz_start: 30, revelation_type: 'meccan' },
+    { number: 94, name_ar: 'الشرح', name_en: 'Ash-Sharh', ayah_count: 8, juz_start: 30, revelation_type: 'meccan' },
+    { number: 95, name_ar: 'التين', name_en: 'At-Tin', ayah_count: 8, juz_start: 30, revelation_type: 'meccan' },
+    { number: 96, name_ar: 'العلق', name_en: 'Al-Alaq', ayah_count: 19, juz_start: 30, revelation_type: 'meccan' },
+    { number: 97, name_ar: 'القدر', name_en: 'Al-Qadr', ayah_count: 5, juz_start: 30, revelation_type: 'meccan' },
+    { number: 98, name_ar: 'البينة', name_en: 'Al-Bayyina', ayah_count: 8, juz_start: 30, revelation_type: 'medinan' },
+    { number: 99, name_ar: 'الزلزلة', name_en: 'Az-Zalzala', ayah_count: 8, juz_start: 30, revelation_type: 'medinan' },
+    { number: 100, name_ar: 'العاديات', name_en: 'Al-Adiyat', ayah_count: 11, juz_start: 30, revelation_type: 'meccan' },
+    { number: 101, name_ar: 'القارعة', name_en: 'Al-Qaria', ayah_count: 11, juz_start: 30, revelation_type: 'meccan' },
+    { number: 102, name_ar: 'التكاثر', name_en: 'At-Takathur', ayah_count: 8, juz_start: 30, revelation_type: 'meccan' },
+    { number: 103, name_ar: 'العصر', name_en: 'Al-Asr', ayah_count: 3, juz_start: 30, revelation_type: 'meccan' },
+    { number: 104, name_ar: 'الهمزة', name_en: 'Al-Humaza', ayah_count: 9, juz_start: 30, revelation_type: 'meccan' },
+    { number: 105, name_ar: 'الفيل', name_en: 'Al-Fil', ayah_count: 5, juz_start: 30, revelation_type: 'meccan' },
+    { number: 106, name_ar: 'قريش', name_en: 'Quraysh', ayah_count: 4, juz_start: 30, revelation_type: 'meccan' },
+    { number: 107, name_ar: 'الماعون', name_en: 'Al-Maun', ayah_count: 7, juz_start: 30, revelation_type: 'meccan' },
+    { number: 108, name_ar: 'الكوثر', name_en: 'Al-Kawthar', ayah_count: 3, juz_start: 30, revelation_type: 'meccan' },
+    { number: 109, name_ar: 'الكافرون', name_en: 'Al-Kafirun', ayah_count: 6, juz_start: 30, revelation_type: 'meccan' },
+    { number: 110, name_ar: 'النصر', name_en: 'An-Nasr', ayah_count: 3, juz_start: 30, revelation_type: 'medinan' },
+    { number: 111, name_ar: 'المسد', name_en: 'Al-Masad', ayah_count: 5, juz_start: 30, revelation_type: 'meccan' },
+    { number: 112, name_ar: 'الإخلاص', name_en: 'Al-Ikhlas', ayah_count: 4, juz_start: 30, revelation_type: 'meccan' },
+    { number: 113, name_ar: 'الفلق', name_en: 'Al-Falaq', ayah_count: 5, juz_start: 30, revelation_type: 'meccan' },
+    { number: 114, name_ar: 'الناس', name_en: 'An-Nas', ayah_count: 6, juz_start: 30, revelation_type: 'meccan' },
+];
+
+// Helper function to get surah by number
+export const getSurahByNumber = (number: number): QuranSurah | undefined => {
+    return QURAN_SURAHS.find(s => s.number === number);
+};
+
+// Get surahs by Juz
+export const getSurahsByJuz = (juz: number): QuranSurah[] => {
+    return QURAN_SURAHS.filter(s => s.juz_start === juz);
+};
+
+// Status colors for surah progress
+export const SURAH_STATUS_COLORS = {
+    not_started: 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700',
+    in_progress: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700',
+    completed: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700',
+    revision: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-700',
+};
+
+export type SurahStatus = 'not_started' | 'in_progress' | 'completed' | 'revision';

@@ -299,8 +299,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         .from('activity_submissions')
         .select('id, points_awarded, status, submitted_at, proof_url, is_paid, fine_type_id, activity:activity_types(name, name_ar), committee:committees(name, name_ar)')
         .eq('volunteer_id', targetUserId)
+        .eq('status', 'approved') // Only approved activities
         .is('fine_type_id', null) // Exclude fines from activities
-        .gte('points_awarded', 0) // Only positive activities
         .order('submitted_at', { ascending: false });
 
       const feedbacksQuery = supabase
@@ -661,7 +661,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 </span>
               </div>
               <div className="flex flex-col items-center bg-muted/30 p-3 rounded-xl min-w-[100px] border">
-                <span className="text-2xl font-bold text-primary">{activities.filter(a => a.status === 'approved').length}</span>
+                <span className="text-2xl font-bold text-primary">{activities.length}</span>
                 <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
                   {isRTL ? 'مشاركات' : 'Participations'}
                 </span>

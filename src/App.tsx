@@ -46,6 +46,7 @@ const QuranManagement = lazy(() => import("./pages/admin/QuranManagement"));
 const BeneficiaryDetails = lazy(() => import("./pages/admin/BeneficiaryDetails"));
 const QuranCircles = lazy(() => import("./pages/admin/QuranCircles"));
 const QuranTeachers = lazy(() => import("./pages/admin/QuranTeachers"));
+const MyQuranCircles = lazy(() => import("./pages/quran/MyQuranCircles"));
 const AshbalManagement = lazy(() => import("./pages/ashbal/AshbalManagement"));
 const FineManagement = lazy(() => import("./pages/admin/FineManagement"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -201,6 +202,7 @@ function AppRoutes() {
         <Route path="/admin/quran/:id" element={<BeneficiaryDetails />} />
         <Route path="/admin/quran-circles" element={<QuranCircles />} />
         <Route path="/admin/quran-teachers" element={<QuranTeachers />} />
+        <Route path="/my-quran-circles" element={<MyQuranCircles />} />
         <Route path="/admin/fines" element={<FineManagement />} />
 
         {/* Ashbal Routes */}

@@ -70,6 +70,7 @@ export function AppSidebar() {
     }
   };
   const [isCourseAccess, setIsCourseAccess] = useState(false);
+  const [isCircleOrganizer, setIsCircleOrganizer] = useState(false);
 
   // Check if user is a course organizer
   useEffect(() => {
@@ -98,6 +99,33 @@ export function AppSidebar() {
       setIsCourseAccess(marketerData && marketerData.length > 0);
     };
     checkCourseAccess();
+
+    // Check if user is a circle organizer OR enrolled in a circle
+    const checkCircleOrganizer = async () => {
+      if (!user?.id) return;
+
+      // Check if organizer
+      const { data: organizerData } = await supabase
+        .from('quran_circle_organizers')
+        .select('id')
+        .eq('volunteer_id', user.id)
+        .limit(1);
+
+      if (organizerData && organizerData.length > 0) {
+        setIsCircleOrganizer(true);
+        return;
+      }
+
+      // Check if enrolled in any circle (as a beneficiary linked to volunteer)
+      const { data: enrollmentData } = await supabase
+        .from('quran_circle_enrollments')
+        .select('id, beneficiary:quran_beneficiaries!inner(volunteer_id)')
+        .eq('beneficiary.volunteer_id', user.id)
+        .limit(1);
+
+      setIsCircleOrganizer(enrollmentData && enrollmentData.length > 0);
+    };
+    checkCircleOrganizer();
   }, [user?.id]);
 
   // Base volunteer nav items
@@ -108,9 +136,14 @@ export function AppSidebar() {
   ];
 
   // Add My Courses if user is an organizer or marketer
-  const volunteerNavItems = isCourseAccess
+  let volunteerNavItems = isCourseAccess
     ? [...baseVolunteerNavItems, { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap }]
     : baseVolunteerNavItems;
+
+  // Add My Quran Circles if user is a circle organizer
+  if (isCircleOrganizer) {
+    volunteerNavItems = [...volunteerNavItems, { title: isRTL ? 'حلقاتي' : 'My Circles', url: '/my-quran-circles', icon: BookOpen }];
+  }
 
   const supervisorNavItems = [
     { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/supervisor', icon: Home },
@@ -139,9 +172,14 @@ export function AppSidebar() {
   ];
 
   // Add My Courses only if user is an organizer
-  const leaderNavItems = isCourseAccess
+  let leaderNavItems = isCourseAccess
     ? [...baseLeaderNavItems, { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap }]
     : baseLeaderNavItems;
+
+  // Add My Quran Circles if user is a circle organizer
+  if (isCircleOrganizer) {
+    leaderNavItems = [...leaderNavItems, { title: isRTL ? 'حلقاتي' : 'My Circles', url: '/my-quran-circles', icon: BookOpen }];
+  }
 
   const adminNavItems = [
     { title: t('nav.dashboard'), url: '/admin', icon: Home },
@@ -245,7 +283,16 @@ export function AppSidebar() {
     }
   };
 
-  const navItems = getNavItems();
+  let navItems = getNavItems();
+
+  // Ensure organizers always see their management pages regardless of role
+  if (isCourseAccess && !navItems.some(i => i.url === '/my-courses')) {
+    navItems = [...navItems, { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap }];
+  }
+
+  if (isCircleOrganizer && !navItems.some(i => i.url === '/my-quran-circles')) {
+    navItems = [...navItems, { title: isRTL ? 'حلقاتي' : 'My Circles', url: '/my-quran-circles', icon: BookOpen }];
+  }
   const displayName = profile?.full_name || user?.email || 'User';
   const userInitials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
 

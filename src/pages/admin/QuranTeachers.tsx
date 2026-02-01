@@ -26,18 +26,39 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { Plus, Search, MoreVertical, Pencil, Trash2, Users } from 'lucide-react';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Plus, Search, MoreVertical, Pencil, Trash2, Users, Link as LinkIcon, AlertCircle } from 'lucide-react';
 
 interface QuranTeacher {
     id: string;
-    name: string;
+    name_ar: string;
+    name_en: string;
     phone: string;
+    user_id?: string;
+    linked_user?: {
+        full_name: string;
+        full_name_ar: string;
+    };
     created_at: string;
+}
+
+interface Profile {
+    id: string;
+    full_name: string;
+    full_name_ar: string;
+    email: string;
 }
 
 export default function QuranTeachers() {
     const { isRTL } = useLanguage();
     const [teachers, setTeachers] = useState<QuranTeacher[]>([]);
+    const [profiles, setProfiles] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -47,25 +68,40 @@ export default function QuranTeachers() {
     const [formData, setFormData] = useState({
         name: '',
         phone: '',
+        volunteer_id: 'none',
     });
 
     useEffect(() => {
         fetchTeachers();
+        fetchProfiles();
     }, []);
+
+    const fetchProfiles = async () => {
+        try {
+            const { data } = await supabase
+                .from('profiles')
+                .select('id, full_name, full_name_ar, email')
+                .order('full_name');
+            setProfiles(data || []);
+        } catch (error) {
+            console.error('Error fetching profiles:', error);
+        }
+    };
 
     const fetchTeachers = async () => {
         setLoading(true);
         try {
             const { data, error } = await supabase
-                .from('quran_teachers')
-                .select('*')
-                .order('name');
+                .from('trainers')
+                .select('*, linked_user:profiles(full_name, full_name_ar)')
+                .eq('type', 'quran_teacher')
+                .order('name_ar');
 
             if (error) throw error;
-            setTeachers(data || []);
+            setTeachers(data as any || []);
         } catch (error) {
             console.error('Error fetching teachers:', error);
-            toast.error(isRTL ? 'فشل تحميل المحفظين' : 'Failed to fetch teachers');
+            // toast.error(isRTL ? 'فشل تحميل المحفظين' : 'Failed to fetch teachers');
         } finally {
             setLoading(false);
         }
@@ -78,18 +114,26 @@ export default function QuranTeachers() {
         }
 
         try {
+            const commonData = {
+                name_ar: formData.name,
+                name_en: formData.name, // Using same name for EN/AR for simplicity in this view
+                phone: formData.phone,
+                type: 'quran_teacher',
+                user_id: formData.volunteer_id === 'none' ? null : formData.volunteer_id
+            };
+
             if (isEditMode && selectedId) {
                 const { error } = await supabase
-                    .from('quran_teachers')
-                    .update(formData)
+                    .from('trainers')
+                    .update(commonData)
                     .eq('id', selectedId);
 
                 if (error) throw error;
                 toast.success(isRTL ? 'تم التحديث بنجاح' : 'Updated successfully');
             } else {
                 const { error } = await supabase
-                    .from('quran_teachers')
-                    .insert(formData);
+                    .from('trainers')
+                    .insert(commonData);
 
                 if (error) throw error;
                 toast.success(isRTL ? 'تم الإضافة بنجاح' : 'Added successfully');
@@ -109,7 +153,7 @@ export default function QuranTeachers() {
 
         try {
             const { error } = await supabase
-                .from('quran_teachers')
+                .from('trainers')
                 .delete()
                 .eq('id', id);
 
@@ -126,6 +170,7 @@ export default function QuranTeachers() {
         setFormData({
             name: '',
             phone: '',
+            volunteer_id: 'none',
         });
         setIsEditMode(false);
         setSelectedId(null);
@@ -133,8 +178,9 @@ export default function QuranTeachers() {
 
     const handleEdit = (t: QuranTeacher) => {
         setFormData({
-            name: t.name,
+            name: t.name_ar, // Assuming name_ar is primary
             phone: t.phone,
+            volunteer_id: t.user_id || 'none',
         });
         setSelectedId(t.id);
         setIsEditMode(true);
@@ -142,8 +188,8 @@ export default function QuranTeachers() {
     };
 
     const filteredTeachers = teachers.filter(t =>
-        t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        t.phone.includes(searchQuery)
+        t.name_ar.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.phone?.includes(searchQuery)
     );
 
     return (
@@ -186,6 +232,32 @@ export default function QuranTeachers() {
                                     onChange={e => setFormData({ ...formData, phone: e.target.value })}
                                 />
                             </div>
+
+                            <div className="space-y-2">
+                                <Label>{isRTL ? 'ربط بحساب متطوع (اختياري)' : 'Link to Volunteer Account (Optional)'}</Label>
+                                <Select
+                                    value={formData.volunteer_id}
+                                    onValueChange={(val) => setFormData({ ...formData, volunteer_id: val })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={isRTL ? 'اختر متطوع...' : 'Select volunteer...'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">{isRTL ? 'بدون ربط' : 'No Link'}</SelectItem>
+                                        {profiles.map(profile => (
+                                            <SelectItem key={profile.id} value={profile.id}>
+                                                {isRTL ? profile.full_name_ar || profile.full_name : profile.full_name || profile.full_name_ar}
+                                                {profile.email && ` (${profile.email})`}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    {isRTL
+                                        ? 'ربط المحفظ بحساب متطوع يسمح بتسجيل المشاركات له تلقائياً.'
+                                        : 'Linking to a volunteer account allows automatic participation logging.'}
+                                </p>
+                            </div>
                         </div>
 
                         <div className="flex justify-end gap-2">
@@ -226,7 +298,23 @@ export default function QuranTeachers() {
                         ) : (
                             filteredTeachers.map((t) => (
                                 <TableRow key={t.id}>
-                                    <TableCell className="font-medium">{t.name}</TableCell>
+                                    <TableCell className="font-medium">
+                                        <div className="flex flex-col">
+                                            <span>{t.name_ar}</span>
+                                            {t.linked_user && (
+                                                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                                                    <LinkIcon className="h-3 w-3" />
+                                                    <span>{isRTL ? t.linked_user.full_name_ar : t.linked_user.full_name}</span>
+                                                </div>
+                                            )}
+                                            {!t.linked_user && (
+                                                <div className="flex items-center gap-1 text-xs text-amber-600/70 mt-0.5" title={isRTL ? 'غير مربوط بحساب' : 'Not linked to account'}>
+                                                    <AlertCircle className="h-3 w-3" />
+                                                    <span>{isRTL ? 'غير مربوط' : 'Unlinked'}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </TableCell>
                                     <TableCell>{t.phone}</TableCell>
                                     <TableCell>
                                         <DropdownMenu>

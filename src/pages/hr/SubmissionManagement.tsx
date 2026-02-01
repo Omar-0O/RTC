@@ -886,16 +886,6 @@ export default function SubmissionManagement() {
                                                 <Badge variant={submission.status === 'approved' ? 'default' : 'secondary'} className="h-6">
                                                     {submission.points_awarded} {isRTL ? 'أثر' : 'Impact'}
                                                 </Badge>
-                                                <Badge variant="outline" className={cn(
-                                                    "capitalize h-6",
-                                                    submission.status === 'approved' && "text-green-600 border-green-200 bg-green-50",
-                                                    submission.status === 'pending' && "text-yellow-600 border-yellow-200 bg-yellow-50",
-                                                    submission.status === 'rejected' && "text-red-600 border-red-200 bg-red-50",
-                                                )}>
-                                                    {submission.status === 'approved' ? (isRTL ? 'معتمد' : 'Approved') :
-                                                        submission.status === 'pending' ? (isRTL ? 'قيد الانتظار' : 'Pending') :
-                                                            (isRTL ? 'مرفوض' : 'Rejected')}
-                                                </Badge>
                                             </div>
                                         </div>
                                     </div>

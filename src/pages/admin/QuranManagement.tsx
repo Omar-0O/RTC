@@ -23,6 +23,16 @@ import {
     DialogTrigger
 } from '@/components/ui/dialog';
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
@@ -112,8 +122,17 @@ export default function QuranManagement() {
     };
 
     const handleSave = async () => {
+        const MAX_PARTS = 240; // 30 Juz * 8 quarters = 240 quarters
+
         if (!formData.name_ar || !formData.phone) {
             toast.error(isRTL ? 'يرجى ملء الحقول المطلوبة' : 'Please fill required fields');
+            return;
+        }
+
+        // Validate max 30 juz
+        const totalParts = formData.previous_parts + formData.current_parts;
+        if (totalParts > MAX_PARTS) {
+            toast.error(isRTL ? 'الحد الأقصى للحفظ هو 30 جزء' : 'Maximum memorization is 30 Juz');
             return;
         }
 
@@ -189,14 +208,16 @@ export default function QuranManagement() {
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm(isRTL ? 'هل أنت متأكد؟' : 'Are you sure?')) return;
+    const [deleteId, setDeleteId] = useState<string | null>(null);
+
+    const handleDelete = async () => {
+        if (!deleteId) return;
 
         try {
             const { error } = await supabase
                 .from('quran_beneficiaries')
                 .delete()
-                .eq('id', id);
+                .eq('id', deleteId);
 
             if (error) throw error;
             toast.success(isRTL ? 'تم الحذف' : 'Deleted');
@@ -204,6 +225,8 @@ export default function QuranManagement() {
         } catch (error) {
             console.error('Error deleting:', error);
             toast.error('Failed to delete');
+        } finally {
+            setDeleteId(null);
         }
     };
 
@@ -256,8 +279,19 @@ export default function QuranManagement() {
     const [quickAddValues, setQuickAddValues] = useState<{ [key: string]: string }>({});
 
     const handleQuickAdd = async (id: string, currentParts: number) => {
+        const MAX_PARTS = 240; // 30 Juz * 8 quarters = 240 quarters
         const val = parseFloat(quickAddValues[id]);
         if (!val || isNaN(val)) return;
+
+        // Check if adding would exceed 30 juz
+        const beneficiary = beneficiaries.find(b => b.id === id);
+        if (beneficiary) {
+            const totalAfterAdd = beneficiary.previous_parts + currentParts + val;
+            if (totalAfterAdd > MAX_PARTS) {
+                toast.error(isRTL ? 'الحد الأقصى للحفظ هو 30 جزء' : 'Maximum memorization is 30 Juz');
+                return;
+            }
+        }
 
         try {
             // Default assumes quarters if unit is not specified, but here we just add to the existing parts
@@ -623,7 +657,7 @@ export default function QuranManagement() {
                                                     <MessageCircle className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                     {isRTL ? 'واتساب' : 'WhatsApp'}
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(b.id)}>
+                                                <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(b.id)}>
                                                     <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                     {isRTL ? 'حذف' : 'Delete'}
                                                 </DropdownMenuItem>
@@ -636,6 +670,26 @@ export default function QuranManagement() {
                     </TableBody>
                 </Table>
             </div>
+
+            {/* Delete Confirmation Dialog */}
+            <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{isRTL ? 'تأكيد الحذف' : 'Confirm Delete'}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {isRTL
+                                ? 'هل أنت متأكد من حذف هذا المستفيد؟ لا يمكن التراجع عن هذا الإجراء.'
+                                : 'Are you sure you want to delete this beneficiary? This action cannot be undone.'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            {isRTL ? 'حذف' : 'Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

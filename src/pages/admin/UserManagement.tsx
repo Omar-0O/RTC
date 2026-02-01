@@ -692,10 +692,18 @@ export default function UserManagement() {
 
       // Update role if changed
       if (formRole !== selectedUser.role) {
-        // Use upsert to handle cases where user doesn't have a role entry
+        // First, delete all existing roles for this user
+        const { error: deleteError } = await supabase
+          .from('user_roles')
+          .delete()
+          .eq('user_id', selectedUser.id);
+
+        if (deleteError) throw deleteError;
+
+        // Then, insert the new role
         const { error: roleError } = await supabase
           .from('user_roles')
-          .upsert({ user_id: selectedUser.id, role: formRole as AppRole }, { onConflict: 'user_id' });
+          .insert({ user_id: selectedUser.id, role: formRole as AppRole });
 
         if (roleError) throw roleError;
       }
@@ -765,12 +773,20 @@ export default function UserManagement() {
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
     try {
-      // Use upsert to handle cases where user doesn't have a role entry
-      const { error } = await supabase
+      // First, delete all existing roles for this user
+      const { error: deleteError } = await supabase
         .from('user_roles')
-        .upsert({ user_id: userId, role: newRole as AppRole }, { onConflict: 'user_id' });
+        .delete()
+        .eq('user_id', userId);
 
-      if (error) throw error;
+      if (deleteError) throw deleteError;
+
+      // Then, insert the new role
+      const { error: insertError } = await supabase
+        .from('user_roles')
+        .insert({ user_id: userId, role: newRole as AppRole });
+
+      if (insertError) throw insertError;
 
       toast.success('Role updated successfully');
       fetchData();
