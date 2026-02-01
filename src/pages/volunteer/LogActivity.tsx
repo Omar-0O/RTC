@@ -348,7 +348,7 @@ export default function LogActivity() {
 
       const submissionData = {
         activity_type_id: activityId,
-        committee_id: committeeId,
+        committee_id: committeeId === 'general' ? null : committeeId,
         description: description.trim(),
         location: location,
         wore_vest: location === 'branch' ? woreVest : false, // Only track vest for branch activities
@@ -404,7 +404,7 @@ export default function LogActivity() {
           .insert({
             leader_id: user.id,
             activity_type_id: activityId,
-            committee_id: committeeId,
+            committee_id: committeeId === 'general' ? null : committeeId,
             guest_participants: null,
             excel_sheet_url: excelUrl,
             submitted_at: new Date(activityDate).toISOString()
