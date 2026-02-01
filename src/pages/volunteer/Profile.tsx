@@ -276,14 +276,20 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-        const { data: monthlyData } = await supabase
+        const { data: monthlyData, error: monthlyError } = await supabase
           .from('activity_submissions')
           .select('points_awarded')
           .eq('volunteer_id', targetUserId)
           .eq('status', 'approved')
+          .is('fine_type_id', null) // Exclude fines
           .gte('submitted_at', startOfMonth);
 
+        if (monthlyError) {
+          console.error('Error fetching monthly points:', monthlyError);
+        }
+
         const mPoints = monthlyData?.reduce((sum, item) => sum + Math.max(0, item.points_awarded || 0), 0) || 0;
+        console.log('Monthly points calculated:', mPoints, 'from', monthlyData?.length, 'activities');
         setMonthlyPoints(mPoints);
       }
 
@@ -333,6 +339,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       }
 
       if (activitiesRes.data) {
+        console.log('Activities fetched:', activitiesRes.data.length, 'Total points:', activitiesRes.data.reduce((sum: number, a: any) => sum + (a.points_awarded || 0), 0));
         // Since the query already filters out fines, we can directly set activities
         setActivities(activitiesRes.data.map((a: any) => ({
           id: a.id,
@@ -345,6 +352,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           is_paid: a.is_paid,
         })));
         // Note: manualFines is no longer used - all fines come from the View
+      } else if (activitiesRes.error) {
+        console.error('Error fetching activities:', activitiesRes.error);
       }
 
       if (typesRes.data) {
