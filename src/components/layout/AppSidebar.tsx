@@ -113,10 +113,10 @@ export function AppSidebar() {
     : baseVolunteerNavItems;
 
   const supervisorNavItems = [
-    { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/supervisor', icon: Home },
-    { title: isRTL ? 'نظرة عامة' : 'Overview', url: '/supervisor/dashboard', icon: BarChart3 },
-    { title: t('nav.activities'), url: '/supervisor/activities', icon: Activity },
-    { title: t('nav.committees'), url: '/supervisor/committees', icon: Settings },
+    { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/supervisor', icon: Home },
+    { title: isRTL ? 'داشبورد الفرع' : 'Branch Dashboard', url: '/supervisor/dashboard', icon: BarChart3 },
+    { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
+    { title: t('nav.committees'), url: '/admin/committees', icon: Settings },
     { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
@@ -128,9 +128,10 @@ export function AppSidebar() {
 
   // Base leader nav items
   const baseLeaderNavItems = [
-    { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
+    { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
     { title: t('leader.dashboard'), url: '/leader/committee', icon: Building2 },
     { title: t('leader.members'), url: '/leader/members', icon: Users },
+    { title: t('nav.badges'), url: '/leader/badges', icon: Trophy },
     { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/leader/profile', icon: User },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
@@ -190,7 +191,7 @@ export function AppSidebar() {
         ];
       case 'head_caravans':
         return [
-          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
+          { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
           { title: t('nav.caravans'), url: '/caravans', icon: Bus },
           { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
@@ -198,7 +199,7 @@ export function AppSidebar() {
         ];
       case 'head_events':
         return [
-          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
+          { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
           { title: t('nav.events'), url: '/events', icon: Calendar },
           { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
@@ -208,7 +209,7 @@ export function AppSidebar() {
       case 'head_production':
       case 'head_fourth_year':
         return [
-          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/leader', icon: Home },
+          { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
           { title: t('leader.dashboard'), url: '/leader/committee', icon: Building2 },
           { title: t('leader.members'), url: '/leader/members', icon: Users },
           { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
@@ -218,7 +219,7 @@ export function AppSidebar() {
         ];
       case 'head_ethics':
         return [
-          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/dashboard', icon: Home },
+          { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/dashboard', icon: Home },
           { title: t('ethics.competition'), url: '/ethics/competition', icon: Award },
           { title: t('ethics.calls'), url: '/ethics/calls', icon: PhoneCall },
           { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
@@ -226,7 +227,7 @@ export function AppSidebar() {
         ];
       case 'head_quran':
         return [
-          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/dashboard', icon: Home },
+          { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/dashboard', icon: Home },
           { title: isRTL ? 'مستفيدين القرآن' : 'Quran Beneficiaries', url: '/admin/quran', icon: BookOpen },
           { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
           { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
@@ -234,7 +235,7 @@ export function AppSidebar() {
         ];
       case 'head_ashbal':
         return [
-          { title: isRTL ? 'لوحتي الشخصية' : 'My Dashboard', url: '/dashboard', icon: Home },
+          { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/dashboard', icon: Home },
           { title: isRTL ? 'إدارة الأشبال' : 'Ashbal Management', url: '/ashbal/management', icon: Users },
           { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/profile', icon: User },

@@ -143,7 +143,7 @@ export default function VolunteerDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2">
         <StatsCard
           title={t('dashboard.totalPoints')}
           value={points}
@@ -153,12 +153,6 @@ export default function VolunteerDashboard() {
           title={isRTL ? 'إجمالي مشاركاتك خلال الشهر' : 'Activities This Month'}
           value={monthlyActivities}
           icon={Activity}
-        />
-        <StatsCard
-          title={t('profile.badges')}
-          value={badgeCount}
-          icon={Award}
-          className="col-span-2 lg:col-span-1"
         />
       </div>
 
@@ -202,7 +196,7 @@ export default function VolunteerDashboard() {
                     <p className="text-xs text-muted-foreground">{formatDate(submission.submitted_at)}</p>
                   </div>
                   <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <span className="text-sm font-medium text-primary whitespace-nowrap">+{submission.points} {isRTL ? 'نقطة' : 'pts'}</span>
+                    <span className="text-sm font-medium text-primary whitespace-nowrap">+{submission.points} {isRTL ? 'أثر' : 'pts'}</span>
                   </div>
                 </div>
               ))}

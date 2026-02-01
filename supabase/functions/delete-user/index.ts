@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
         }
 
         const roles = requesterRoles?.map(r => r.role) || []
-        const isAuthorized = roles.includes('admin') || roles.includes('head_hr')
+        const isAuthorized = roles.includes('admin') || roles.includes('head_hr') || roles.includes('supervisor')
 
         if (!isAuthorized) {
             console.log(`User ${requester.id} attempted to delete user but has roles: ${roles.join(', ')}`)

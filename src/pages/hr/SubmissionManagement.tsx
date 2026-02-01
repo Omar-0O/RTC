@@ -133,6 +133,7 @@ export default function SubmissionManagement() {
     // Filters
     const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
     const [selectedLevel, setSelectedLevel] = useState('all');
+    const [selectedType, setSelectedType] = useState('all');
     const [showLowParticipationDialog, setShowLowParticipationDialog] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [submissionToDelete, setSubmissionToDelete] = useState<string | null>(null);
@@ -157,7 +158,7 @@ export default function SubmissionManagement() {
         if (isHeadHR) {
             fetchGuestParticipations();
         }
-    }, [selectedMonth, selectedLevel, selectedVolunteer, isHeadHR]);
+    }, [selectedMonth, selectedLevel, selectedType, selectedVolunteer, isHeadHR]);
 
     const fetchVolunteers = async () => {
         try {
@@ -266,6 +267,13 @@ export default function SubmissionManagement() {
                     }
                     return volunteerLevel === selectedLevel;
                 }
+
+                // Apply Participant Type Filter
+                if (selectedType !== 'all') {
+                    const type = s.participant_type || (s.volunteer_id ? 'volunteer' : 'guest');
+                    if (selectedType !== type) return false;
+                }
+
                 return true;
             });
 
@@ -487,20 +495,32 @@ export default function SubmissionManagement() {
         if (!submissionToDelete) return;
 
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('activity_submissions')
                 .delete()
-                .eq('id', submissionToDelete);
+                .eq('id', submissionToDelete)
+                .select();
 
             if (error) throw error;
+
+            if (!data || data.length === 0) {
+                throw new Error('NOT_FOUND_OR_FORBIDDEN');
+            }
 
             toast.success(isRTL ? 'تم حذف المشاركة بنجاح' : 'Submission deleted successfully');
 
             // Re-fetch submissions to get fresh data including any database-level updates
             await fetchSubmissions();
         } catch (error) {
-            console.error('Error deleting submission:', error);
-            toast.error(isRTL ? 'فشل في حذف المشاركة' : 'Failed to delete submission');
+            if (error instanceof Error && error.message === 'NOT_FOUND_OR_FORBIDDEN') {
+                toast.error(isRTL
+                    ? 'تعذر حذف المشاركة. قد لا تملك الصلاحية أو تم حذفها بالفعل.'
+                    : 'Could not delete. You might lack permissions or it was already deleted.'
+                );
+            } else {
+                console.error('Error deleting submission:', error);
+                toast.error(isRTL ? 'فشل في حذف المشاركة' : 'Failed to delete submission');
+            }
         } finally {
             setDeleteDialogOpen(false);
             setSubmissionToDelete(null);
@@ -603,6 +623,20 @@ export default function SubmissionManagement() {
                                         {level.label[language as 'en' | 'ar']}
                                     </SelectItem>
                                 ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>{isRTL ? 'نوع المشاركة' : 'Participant Type'}</Label>
+                        <Select value={selectedType} onValueChange={setSelectedType}>
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">{isRTL ? 'الكل' : 'All'}</SelectItem>
+                                <SelectItem value="volunteer">{isRTL ? 'متطوع' : 'Volunteer'}</SelectItem>
+                                <SelectItem value="trainer">{isRTL ? 'مدرب' : 'Trainer'}</SelectItem>
+                                <SelectItem value="guest">{isRTL ? 'ضيف' : 'Guest'}</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>

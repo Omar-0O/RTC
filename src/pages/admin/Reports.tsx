@@ -639,7 +639,7 @@ export default function Reports() {
             <Card>
               <CardHeader>
                 <CardTitle>{t('reports.levelDistribution')}</CardTitle>
-                <CardDescription>{t('reports.levelDistributionDesc')}</CardDescription>
+
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -682,7 +682,7 @@ export default function Reports() {
             <Card>
               <CardHeader>
                 <CardTitle>{t('reports.activityTrend')}</CardTitle>
-                <CardDescription>{t('reports.activityTrendDesc')}</CardDescription>
+
               </CardHeader>
               <CardContent>
                 <div className="h-[300px]">
@@ -730,7 +730,7 @@ export default function Reports() {
             <Card>
               <CardHeader>
                 <CardTitle>{t('reports.topActivities')}</CardTitle>
-                <CardDescription>{t('reports.topActivitiesDesc')}</CardDescription>
+
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">

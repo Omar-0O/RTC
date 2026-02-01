@@ -14,12 +14,12 @@ const translations: Record<Language, Record<string, string>> = {
     // Navigation
     'nav.dashboard': 'Dashboard',
     'nav.logActivity': 'Log Activity',
-    'nav.leaderboard': 'Leaderboard',
+    'nav.leaderboard': 'Race of Goodness',
     'nav.profile': 'My Profile',
     'nav.reviewSubmissions': 'Review Submissions',
     'nav.userManagement': 'Volunteer Management',
     'nav.committees': 'Committees',
-    'nav.activities': 'Activities',
+    'nav.activities': 'Task Types Management',
     'nav.badges': 'Badges',
     'nav.reports': 'Reports',
     'nav.navigation': 'Navigation',
@@ -226,7 +226,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.monthlyReport': 'Monthly Report (CSV)',
 
     // Leaderboard
-    'leaderboard.title': 'Leaderboard',
+    'leaderboard.title': 'Race of Goodness',
     'leaderboard.subtitle': 'Top performing volunteers',
     'leaderboard.rank': 'Rank',
     'leaderboard.name': 'Name',
@@ -285,12 +285,12 @@ const translations: Record<Language, Record<string, string>> = {
     // Navigation
     'nav.dashboard': 'لوحة التحكم',
     'nav.logActivity': 'تسجيل مشاركة',
-    'nav.leaderboard': 'المتصدرين',
-    'nav.profile': 'ملفي الشخصي',
+    'nav.leaderboard': 'سباق الخير',
+    'nav.profile': 'بروفايل',
     'nav.reviewSubmissions': 'مراجعة الطلبات',
     'nav.userManagement': 'إدارة المتطوعين',
     'nav.committees': 'اللجان',
-    'nav.activities': 'الأنشطة',
+    'nav.activities': 'إدارة أنواع المهام',
     'nav.badges': 'الشارات',
     'nav.reports': 'التقارير',
     'nav.navigation': 'التنقل',
@@ -361,7 +361,7 @@ const translations: Record<Language, Record<string, string>> = {
     'ethics.driveLink': 'لينك الدرايف',
 
     // Committee Leader
-    'leader.dashboard': 'لوحة تحكم اللجنة',
+    'leader.dashboard': 'إدارة مشاركات اللجنة',
     'leader.overview': 'إدارة أعضاء لجنتك ومتابعة تقدمهم',
     'leader.myCommittee': 'لجنتي',
     'leader.members': 'أعضاء اللجنة',
@@ -487,7 +487,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.levelDistributionDesc': 'تفصيل المتطوعين حسب المستوى',
     'reports.committeePerformance': 'أداء اللجان',
     'reports.committeePerformanceDesc': 'الأثر المحقق حسب اللجنة',
-    'reports.topActivities': 'أكثر أنواع المشاركات',
+    'reports.topActivities': 'أكثر أنواع المهام مشاركة',
     'reports.topActivitiesDesc': 'أكثر أنواع الأنشطة تقديماً',
     'reports.exportData': 'تصدير البيانات',
     'reports.exportDataDesc': 'تنزيل التقارير بتنسيقات مختلفة',
@@ -497,7 +497,7 @@ const translations: Record<Language, Record<string, string>> = {
     'reports.monthlyReport': 'التقرير الشهري (CSV)',
 
     // Leaderboard
-    'leaderboard.title': 'المتصدرين',
+    'leaderboard.title': 'سباق الخير',
     'leaderboard.subtitle': 'أفضل المتطوعين أداءً',
     'leaderboard.rank': 'الترتيب',
     'leaderboard.name': 'الاسم',

@@ -78,7 +78,7 @@ interface CourseAd {
     updated_by: string | null;
     created_at: string;
     updated_at: string;
-    updater?: { full_name: string, full_name_ar: string } | null;
+    updater?: { full_name: string | null, full_name_ar: string | null } | null;
 }
 
 const ROOMS: Record<string, { en: string; ar: string }> = {
@@ -277,7 +277,7 @@ export default function MyCourses() {
             .from('course_ads')
             .select(`
                 *,
-                updater:updated_by(full_name, full_name_ar)
+                updater:profiles!course_ads_updated_by_fkey(full_name, full_name_ar)
             `)
             .eq('course_id', course.id)
             .order('ad_number');
@@ -344,7 +344,7 @@ export default function MyCourses() {
             // Get trainer info to find user_id
             const { data: trainerData } = await supabase
                 .from('trainers')
-                .select('user_id, name')
+                .select('user_id')
                 .eq('id', course.trainer_id)
                 .single();
 

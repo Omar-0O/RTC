@@ -119,6 +119,7 @@ export default function BadgeManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [openCombobox, setOpenCombobox] = useState(false);
+  const [usersWithBadge, setUsersWithBadge] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -164,6 +165,27 @@ export default function BadgeManagement() {
     return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (description || '').toLowerCase().includes(searchQuery.toLowerCase());
   });
+
+  // Fetch users who already have the selected badge
+  const fetchUsersWithBadge = async (badgeId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_badges')
+        .select('user_id')
+        .eq('badge_id', badgeId);
+
+      if (error) throw error;
+      setUsersWithBadge(data?.map(ub => ub.user_id) || []);
+    } catch (error) {
+      console.error('Failed to fetch users with badge:', error);
+      setUsersWithBadge([]);
+    }
+  };
+
+  // Filter out profiles who already have the selected badge
+  const eligibleProfiles = profiles.filter(
+    profile => !usersWithBadge.includes(profile.id)
+  );
 
   const resetForm = () => {
     setFormData({
@@ -332,6 +354,8 @@ export default function BadgeManagement() {
       }
 
       toast.success(isRTL ? 'تم منح الشارة بنجاح' : 'Badge awarded successfully');
+      // Update the usersWithBadge list to include the newly awarded user
+      setUsersWithBadge(prev => [...prev, selectedUserId]);
       setIsAwardDialogOpen(false);
       setSelectedBadge(null);
       setSelectedUserId('');
@@ -592,6 +616,7 @@ export default function BadgeManagement() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => {
                               setSelectedBadge(badge);
+                              fetchUsersWithBadge(badge.id);
                               setIsAwardDialogOpen(true);
                             }}>
                               <UserPlus className="mr-2 h-4 w-4" />
@@ -733,6 +758,7 @@ export default function BadgeManagement() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => {
                                 setSelectedBadge(badge);
+                                fetchUsersWithBadge(badge.id);
                                 setIsAwardDialogOpen(true);
                               }}>
                                 <UserPlus className="mr-2 h-4 w-4" />
@@ -941,7 +967,7 @@ export default function BadgeManagement() {
                   <CommandList>
                     <CommandEmpty>{isRTL ? 'لا يوجد متطوعين' : 'No volunteer found.'}</CommandEmpty>
                     <CommandGroup>
-                      {profiles.map((profile) => (
+                      {eligibleProfiles.map((profile) => (
                         <CommandItem
                           key={profile.id}
                           value={profile.full_name || profile.email}

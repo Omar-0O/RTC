@@ -13,7 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toast } from 'sonner';
-import { CheckCircle2, Loader2, History, Upload, X, Image as ImageIcon, Check, ChevronsUpDown, Users } from 'lucide-react';
+import { CheckCircle2, Loader2, History, Upload, X, Image as ImageIcon, Check, ChevronsUpDown, Users, Building2, Calendar, Activity, FileText, MapPin, Shirt, Sparkles, ClipboardList } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { generateGroupSubmissionCSV } from '@/utils/excel';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -90,8 +90,9 @@ export default function LogActivity() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [selectedVolunteers, setSelectedVolunteers] = useState<string[]>([]);
   const [openCombobox, setOpenCombobox] = useState(false);
+  const [includeMe, setIncludeMe] = useState(false);
 
-  const isLeader = primaryRole === 'committee_leader' || primaryRole === 'head_hr' || primaryRole === 'admin' || primaryRole === 'supervisor' || primaryRole === 'head_caravans' || primaryRole === 'head_events';
+  const isLeader = primaryRole === 'committee_leader' || primaryRole === 'head_hr' || primaryRole === 'admin' || primaryRole === 'supervisor' || primaryRole === 'head_caravans' || primaryRole === 'head_events' || primaryRole === 'head_ethics';
 
   useEffect(() => {
     fetchData();
@@ -483,13 +484,7 @@ export default function LogActivity() {
     );
   };
 
-  // Logic to include leader
-  const [includeMe, setIncludeMe] = useState(false);
 
-  // Effect to add/remove leader from selection if 'Include Me' is toggled (special handling)
-  // Actually easier to just handle it in submit logic, but let's visualize it.
-  // Or just add "Me" to the list? No, "Me" is the logged in user.
-  // Let's handle it in submit logic as a separate insert or add to batch.
 
   if (loading) {
     return (
@@ -501,81 +496,125 @@ export default function LogActivity() {
 
   if (isSubmitted) {
     return (
-      <div className="max-w-2xl mx-auto animate-slide-up">
-        <Card className="overflow-hidden border-2 border-primary/20">
-          <div className="bg-gradient-to-br from-primary/10 via-success/10 to-accent/10 pt-8 pb-4">
-            <CardContent>
-              <div className="text-center">
-                <div className="inline-flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-success to-success/80 mb-4 animate-bounce shadow-lg">
-                  <CheckCircle2 className="h-10 w-10 text-white" />
-                </div>
-                <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-primary via-success to-accent bg-clip-text text-transparent">
-                  {isRTL ? 'شكرا لأنك عضو فعال في RTC ❤️' : 'Thank you for being an active member in RTC ❤️'}
-                </h2>
+      <div className="max-w-2xl mx-auto animate-slide-up py-10">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-card via-card to-secondary/5 border border-primary/20 shadow-2xl">
+          <div className="absolute top-0 w-full h-2 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
 
-                {isGroupSubmission && (
-                  <p className="text-muted-foreground mb-4">
-                    {isRTL ? 'تم إنشاء تقرير المجموعة بنجاح' : 'Group report generated successfully'}
-                  </p>
-                )}
-
-                <Button
-                  onClick={handleReset}
-                  size="lg"
-                  className="w-full sm:w-auto mt-6"
-                >
-                  <span className="text-lg">
-                    {isRTL ? '➕ تسجيل مشاركة جديدة' : '➕ Log Another Participation'}
-                  </span>
-                </Button>
+          <div className="flex flex-col items-center justify-center p-12 text-center space-y-6">
+            <div className="relative">
+              <div className="absolute inset-0 rounded-full bg-success/20 blur-xl p-4 animate-pulse" />
+              <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-success to-emerald-600 flex items-center justify-center shadow-lg float-start ring-8 ring-success/10">
+                <CheckCircle2 className="h-12 w-12 text-white" />
               </div>
-            </CardContent>
+            </div>
+
+            <div className="space-y-2 max-w-lg">
+              <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-success to-emerald-600">
+                {isRTL ? 'شكرا لأنك عضو فعال في RTC ❤️' : 'Thank you for being an active member in RTC ❤️'}
+              </h2>
+              <p className="text-muted-foreground text-lg">
+                {isRTL ? 'تم تسجيل مشاركتك بنجاح! جميع جهودك مقدرة.' : 'Participation logged successfully! Your efforts are appreciated.'}
+              </p>
+            </div>
+
+            {isGroupSubmission && (
+              <div className="bg-primary/5 border border-primary/10 rounded-xl p-4 w-full flex items-center justify-center gap-3">
+                <Users className="h-5 w-5 text-primary" />
+                <p className="font-medium text-primary">
+                  {isRTL ? 'تم إنشاء تقرير المجموعة بنجاح' : 'Group report generated successfully'}
+                </p>
+              </div>
+            )}
+
+            <div className="pt-8">
+              <Button
+                onClick={handleReset}
+                size="lg"
+                className="rounded-full px-8 h-14 text-lg font-semibold shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all bg-gradient-to-r from-primary to-emerald-600"
+              >
+                <span className="flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5" />
+                  {isRTL ? 'تسجيل مشاركة جديدة' : 'Log Another Participation'}
+                </span>
+              </Button>
+            </div>
           </div>
-        </Card>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6 animate-slide-up">
-      <div>
-        <h1 className="text-2xl font-bold">{t('activityLog.title')}</h1>
+      {/* Header Section */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-accent/5 to-success/10 p-6 border border-primary/10">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-24 h-24 bg-success/5 rounded-full translate-y-1/2 -translate-x-1/2" />
+        <div className="relative z-10 flex items-center gap-4">
+          <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg">
+            <ClipboardList className="h-7 w-7 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">{t('activityLog.title')}</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {isRTL ? 'سجّل مشاركتك واحصل على نقاطك!' : 'Log your participation and earn points!'}
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-8 lg:grid-cols-2">
-        <Card className="border-0 shadow-lg bg-card/50 backdrop-blur-sm">
-          <CardHeader className="pb-6">
-            <CardTitle className="text-2xl">{isRTL ? 'تسجيل مشاركة جديدة' : 'Log New Participation'}</CardTitle>
+        <Card className="border-0 shadow-xl bg-gradient-to-b from-card to-card/95 overflow-hidden">
+          <CardHeader className="pb-4 border-b border-border/50 bg-muted/30">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Sparkles className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-xl">{isRTL ? 'تسجيل مشاركة جديدة' : 'Log New Participation'}</CardTitle>
+                <CardDescription className="text-sm">
+                  {isRTL ? 'املأ البيانات التالية لتسجيل مشاركتك' : 'Fill in the details to log your participation'}
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent className="space-y-8">
-            <form onSubmit={handleSubmit} className="space-y-8">
+          <CardContent className="p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
 
               {/* Leader Group Toggle */}
               {isLeader && (
-                <div className="flex items-center justify-between p-6 border rounded-xl bg-accent/5 hover:bg-accent/10 transition-colors">
-                  <div className="space-y-1">
-                    <Label htmlFor="group-toggle" className="text-lg font-medium cursor-pointer">{isRTL ? 'مشاركة جماعية' : 'Group Submission'}</Label>
-                    <p className="text-sm text-muted-foreground">
-                      {isRTL ? 'تسجيل مشاركة لمجموعة من المتطوعين' : 'Log participation for a group of volunteers'}
-                    </p>
+                <div className="relative flex items-center justify-between p-5 border-2 rounded-xl bg-gradient-to-r from-accent/5 to-primary/5 hover:border-primary/30 transition-all group">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center group-hover:scale-105 transition-transform">
+                      <Users className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="space-y-0.5">
+                      <Label htmlFor="group-toggle" className="text-base font-semibold cursor-pointer">{isRTL ? 'مشاركة جماعية' : 'Group Submission'}</Label>
+                      <p className="text-sm text-muted-foreground">
+                        {isRTL ? 'تسجيل مشاركة لمجموعة من المتطوعين' : 'Log participation for a group of volunteers'}
+                      </p>
+                    </div>
                   </div>
                   <Switch
                     id="group-toggle"
                     checked={isGroupSubmission}
                     onCheckedChange={setIsGroupSubmission}
-                    className="scale-125"
+                    className="scale-110"
                   />
                 </div>
               )}
 
               {/* Committee Selection */}
-              <div className="space-y-3">
-                <Label className="text-base font-medium">{t('activityLog.selectCommittee')} <span className="text-destructive">*</span></Label>
+              <div className="space-y-2.5">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  {t('activityLog.selectCommittee')} <span className="text-destructive">*</span>
+                </Label>
                 <Select value={committeeId} onValueChange={(value) => {
                   setCommitteeId(value);
                   setActivityId('');
                 }}>
-                  <SelectTrigger className="h-12 text-base px-4">
+                  <SelectTrigger className="h-12 text-base px-4 border-2 hover:border-primary/50 transition-colors">
                     <SelectValue placeholder={t('activityLog.selectCommittee')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -589,24 +628,33 @@ export default function LogActivity() {
               </div>
 
               {/* Activity Date */}
-              <div className="space-y-3">
-                <Label className="text-base font-medium">{isRTL ? 'تاريخ النشاط' : 'Activity Date'} <span className="text-destructive">*</span></Label>
+              <div className="space-y-2.5">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  {isRTL ? 'تاريخ النشاط' : 'Activity Date'} <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   type="date"
                   value={activityDate}
                   onChange={(e) => setActivityDate(e.target.value)}
                   max={new Date().toISOString().split('T')[0]}
-                  className="h-12 text-base px-4"
+                  className="h-12 text-base px-4 border-2 hover:border-primary/50 transition-colors"
                 />
               </div>
 
 
 
               {/* Activity Type */}
-              <div className="space-y-3">
-                <Label className="text-base font-medium">{t('activityLog.selectActivity')} <span className="text-destructive">*</span></Label>
+              <div className="space-y-2.5">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-muted-foreground" />
+                  {t('activityLog.selectActivity')} <span className="text-destructive">*</span>
+                </Label>
                 <Select value={activityId} onValueChange={setActivityId} disabled={!committeeId}>
-                  <SelectTrigger className="h-12 text-base px-4">
+                  <SelectTrigger className={cn(
+                    "h-12 text-base px-4 border-2 transition-colors",
+                    !committeeId ? "opacity-50" : "hover:border-primary/50"
+                  )}>
                     <SelectValue placeholder={committeeId ? t('activityLog.selectActivity') : t('activityLog.selectCommittee')} />
                   </SelectTrigger>
                   <SelectContent>
@@ -614,8 +662,8 @@ export default function LogActivity() {
                       <SelectItem key={activity.id} value={activity.id} className="py-3">
                         <div className="flex items-center justify-between w-full gap-4">
                           <span className="text-base font-medium">{isRTL ? activity.name_ar : activity.name}</span>
-                          <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                            +{activity.points} {isRTL ? 'نقطة' : 'pts'}
+                          <span className="inline-flex items-center rounded-full bg-gradient-to-r from-primary/20 to-success/20 px-3 py-1 text-xs font-bold text-primary">
+                            +{activity.points} {isRTL ? 'أثر' : 'pts'}
                           </span>
                         </div>
                       </SelectItem>
@@ -623,31 +671,47 @@ export default function LogActivity() {
                   </SelectContent>
                 </Select>
                 {selectedActivity?.description && (
-                  <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg border border-dashed">
-                    {isRTL ? selectedActivity.description_ar : selectedActivity.description}
-                  </p>
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/50 border border-dashed">
+                    <FileText className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <p className="text-sm text-muted-foreground">
+                      {isRTL ? selectedActivity.description_ar : selectedActivity.description}
+                    </p>
+                  </div>
                 )}
               </div>
 
               {/* Group Submission Fields */}
               {isGroupSubmission ? (
-                <div className="space-y-6 border-t pt-4">
+                <div className="space-y-4 p-4 rounded-xl border-2 border-dashed border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+                  <h3 className="font-semibold flex items-center gap-2 text-primary">
+                    <Users className="h-4 w-4" />
+                    {isRTL ? 'إعدادات المجموعة' : 'Group Settings'}
+                  </h3>
+
                   {/* Participate Self */}
-                  <div className="flex items-center space-x-2 space-x-reverse bg-accent/5 p-4 rounded-lg border">
-                    <Switch id="include-me" checked={includeMe} onCheckedChange={setIncludeMe} className="scale-110" />
-                    <Label htmlFor="include-me" className="text-base font-medium cursor-pointer flex-1">{isRTL ? 'مشاركتي ضمن المجموعة' : 'Include my participation'}</Label>
+                  <div className="flex items-center justify-between p-4 rounded-lg bg-background border hover:border-primary/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-lg bg-success/10 flex items-center justify-center">
+                        <Check className="h-4 w-4 text-success" />
+                      </div>
+                      <Label htmlFor="include-me" className="text-sm font-medium cursor-pointer">{isRTL ? 'مشاركتي ضمن المجموعة' : 'Include my participation'}</Label>
+                    </div>
+                    <Switch id="include-me" checked={includeMe} onCheckedChange={setIncludeMe} />
                   </div>
 
                   {/* Select Volunteers */}
                   <div className="space-y-2">
-                    <Label>{isRTL ? 'اختر المتطوعين' : 'Select Volunteers'}</Label>
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      {isRTL ? 'اختر المتطوعين' : 'Select Volunteers'} <span className="text-destructive">*</span>
+                    </Label>
                     <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           role="combobox"
                           aria-expanded={openCombobox}
-                          className="w-full justify-between h-12 text-base px-4"
+                          className="w-full justify-between h-12 text-base px-4 border-2 hover:border-primary/50 transition-colors"
                         >
                           {selectedVolunteers.length > 0
                             ? isRTL
@@ -657,7 +721,7 @@ export default function LogActivity() {
                           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-full p-0">
+                      <PopoverContent className="w-full p-0" align="start">
                         <Command>
                           <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
                           <CommandList>
@@ -666,20 +730,20 @@ export default function LogActivity() {
                               {volunteers.map((volunteer) => (
                                 <CommandItem
                                   key={volunteer.id}
-                                  value={`${volunteer.full_name}-${volunteer.id}`} // Ensure unique value
+                                  value={`${volunteer.full_name}-${volunteer.id}`}
                                   onSelect={() => toggleVolunteer(volunteer.id)}
                                   className="cursor-pointer"
                                 >
                                   <Check
                                     className={cn(
                                       "mr-2 h-4 w-4",
-                                      selectedVolunteers.includes(volunteer.id) ? "opacity-100" : "opacity-0"
+                                      selectedVolunteers.includes(volunteer.id) ? "opacity-100 text-success" : "opacity-0"
                                     )}
                                   />
                                   <div className="flex items-center gap-2">
-                                    <Avatar className="h-6 w-6">
+                                    <Avatar className="h-7 w-7 border">
                                       <AvatarImage src={volunteer.avatar_url || undefined} />
-                                      <AvatarFallback className="text-[10px]">
+                                      <AvatarFallback className="text-xs bg-primary/10">
                                         {(volunteer.full_name && volunteer.full_name.length > 0)
                                           ? volunteer.full_name.charAt(0).toUpperCase()
                                           : '?'}
@@ -694,60 +758,134 @@ export default function LogActivity() {
                         </Command>
                       </PopoverContent>
                     </Popover>
+
+                    {/* Selected volunteers chips */}
+                    {selectedVolunteers.length > 0 && (
+                      <div className="flex flex-wrap gap-2 pt-2">
+                        {selectedVolunteers.slice(0, 5).map(id => {
+                          const v = volunteers.find(v => v.id === id);
+                          return v ? (
+                            <span key={id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-xs font-medium text-primary">
+                              {v.full_name?.split(' ')[0]}
+                              <button type="button" onClick={() => toggleVolunteer(id)} className="hover:bg-primary/20 rounded-full p-0.5 transition-colors">
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ) : null;
+                        })}
+                        {selectedVolunteers.length > 5 && (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-muted text-xs font-medium">
+                            +{selectedVolunteers.length - 5} {isRTL ? 'آخرين' : 'more'}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
                 /* Individual Fields */
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Location Selection */}
-                    <div className="space-y-3">
-                      <Label>{t('activityLog.location')}</Label>
-                      <RadioGroup value={location} onValueChange={(val) => {
-                        setLocation(val);
-                        if (val !== 'branch') setWoreVest(false); // Reset vest if not branch
-                      }} className="flex gap-4">
-                        <div className="flex items-center space-x-2 space-x-reverse">
-                          <RadioGroupItem value="branch" id="branch" />
-                          <Label htmlFor="branch" className="cursor-pointer">{t('activityLog.branch')}</Label>
-                        </div>
-                        <div className="flex items-center space-x-2 space-x-reverse">
-                          <RadioGroupItem value="home" id="home" />
-                          <Label htmlFor="home" className="cursor-pointer">{t('activityLog.home')}</Label>
-                        </div>
-                      </RadioGroup>
+                <div className="space-y-4">
+                  {/* Location Selection - as cards */}
+                  <div className="space-y-2.5">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      {t('activityLog.location')}
+                    </Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => { setLocation('branch'); }}
+                        className={cn(
+                          "relative p-4 rounded-xl border-2 text-center transition-all",
+                          location === 'branch'
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border hover:border-primary/30 hover:bg-muted/50"
+                        )}
+                      >
+                        <Building2 className={cn(
+                          "h-6 w-6 mx-auto mb-2",
+                          location === 'branch' ? "text-primary" : "text-muted-foreground"
+                        )} />
+                        <span className={cn(
+                          "text-sm font-medium",
+                          location === 'branch' ? "text-primary" : "text-foreground"
+                        )}>
+                          {t('activityLog.branch')}
+                        </span>
+                        {location === 'branch' && (
+                          <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setLocation('home'); setWoreVest(false); }}
+                        className={cn(
+                          "relative p-4 rounded-xl border-2 text-center transition-all",
+                          location === 'home'
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border hover:border-primary/30 hover:bg-muted/50"
+                        )}
+                      >
+                        <svg className={cn(
+                          "h-6 w-6 mx-auto mb-2",
+                          location === 'home' ? "text-primary" : "text-muted-foreground"
+                        )} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        <span className={cn(
+                          "text-sm font-medium",
+                          location === 'home' ? "text-primary" : "text-foreground"
+                        )}>
+                          {t('activityLog.home')}
+                        </span>
+                        {location === 'home' && (
+                          <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                      </button>
                     </div>
-
-                    {selectedActivity?.mode === 'group' && (
-                      <div className="space-y-2">
-                        <Label>{isRTL ? 'عدد المشاركين' : 'Participants'}</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={participantsCount}
-                          onChange={(e) => setParticipantsCount(e.target.value)}
-                        />
-                      </div>
-                    )}
                   </div>
+
+                  {selectedActivity?.mode === 'group' && (
+                    <div className="space-y-2.5">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        {isRTL ? 'عدد المشاركين' : 'Participants'}
+                      </Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={participantsCount}
+                        onChange={(e) => setParticipantsCount(e.target.value)}
+                        className="h-12 border-2 hover:border-primary/50 transition-colors"
+                      />
+                    </div>
+                  )}
 
                   {/* Vest Checkbox - Only for branch activities */}
                   {location === 'branch' && (
-                    <div className="space-y-3 p-4 border rounded-lg bg-warning/5 border-warning/20">
-                      <div className="flex items-center space-x-2 space-x-reverse">
+                    <div className="space-y-3 p-4 rounded-xl border-2 border-warning/30 bg-gradient-to-br from-warning/5 to-orange-500/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-warning/20 flex items-center justify-center">
+                            <Shirt className="h-5 w-5 text-warning" />
+                          </div>
+                          <Label htmlFor="wore-vest" className="text-sm font-semibold cursor-pointer">
+                            {isRTL ? 'كنت أرتدي الـ Vest' : 'I wore the vest'}
+                          </Label>
+                        </div>
                         <Switch
                           id="wore-vest"
                           checked={woreVest}
                           onCheckedChange={setWoreVest}
-                          className="scale-110"
                         />
-                        <Label htmlFor="wore-vest" className="text-base font-medium cursor-pointer flex-1">
-                          {isRTL ? 'كنت أرتدي الـ Vest' : 'I wore the vest'}
-                        </Label>
                       </div>
-                      <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/30 rounded-lg">
+                      <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
                         <span className="text-lg">⚠️</span>
-                        <p className="text-sm text-foreground">
+                        <p className="text-xs text-foreground">
                           {isRTL
                             ? 'يجب إرسال صورتك بالـ Vest للـ HR المسؤول وإلا ستكون المشاركة غير مقبولة!'
                             : 'You must send your photo wearing the vest to the responsible HR, otherwise your participation will be rejected!'}
@@ -759,19 +897,28 @@ export default function LogActivity() {
               )}
 
               {/* Notes */}
-              <div className="space-y-3">
-                <Label className="text-base font-medium">{t('activityLog.notes')}</Label>
+              <div className="space-y-2.5">
+                <Label className="text-sm font-medium flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  {t('activityLog.notes')}
+                  <span className="text-xs text-muted-foreground font-normal">({isRTL ? 'اختياري' : 'optional'})</span>
+                </Label>
                 <Textarea
                   placeholder={t('activityLog.notesPlaceholder')}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  rows={4}
+                  rows={3}
                   maxLength={1000}
-                  className="resize-none text-base p-4 min-h-[120px]"
+                  className="resize-none text-sm p-4 min-h-[100px] border-2 hover:border-primary/50 focus:border-primary transition-colors"
                 />
-                <p className="text-xs text-muted-foreground text-right">
-                  {description.length}/1000
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    {isRTL ? 'أضف أي ملاحظات إضافية عن مشاركتك' : 'Add any additional notes about your participation'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {description.length}/1000
+                  </p>
+                </div>
               </div>
 
               {/* Proof Upload */}
@@ -830,16 +977,27 @@ export default function LogActivity() {
 
               {/* Group Summary Preview */}
               {isGroupSubmission && selectedActivity && (
-                <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-2">
-                  <h4 className="font-medium text-sm">{isRTL ? 'ملخص المشاركة' : 'Submission Summary'}</h4>
-                  <div className="grid grid-cols-2 gap-4 pt-2">
-                    <div className="bg-background rounded-lg p-3 text-center border">
+                <div className="rounded-xl overflow-hidden border-2 border-primary/20">
+                  <div className="bg-gradient-to-r from-primary/10 to-success/10 px-4 py-3 border-b border-primary/20">
+                    <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      {isRTL ? 'ملخص المشاركة' : 'Submission Summary'}
+                    </h4>
+                  </div>
+                  <div className="grid grid-cols-2 divide-x divide-primary/10">
+                    <div className="p-4 text-center">
+                      <div className="h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-2">
+                        <Users className="h-5 w-5 text-muted-foreground" />
+                      </div>
                       <p className="text-xs text-muted-foreground mb-1">{isRTL ? 'المتطوعين' : 'Volunteers'}</p>
-                      <p className="font-bold text-lg">{selectedVolunteers.length + (includeMe ? 1 : 0)}</p>
+                      <p className="font-bold text-2xl">{selectedVolunteers.length + (includeMe ? 1 : 0)}</p>
                     </div>
-                    <div className="bg-background rounded-lg p-3 text-center border border-primary/20 bg-primary/5">
-                      <p className="text-xs text-primary mb-1">{isRTL ? 'إجمالي النقاط' : 'Total Points'}</p>
-                      <p className="font-bold text-lg text-primary">{selectedActivity.points * (selectedVolunteers.length + (includeMe ? 1 : 0))}</p>
+                    <div className="p-4 text-center bg-gradient-to-br from-primary/5 to-transparent">
+                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2">
+                        <Sparkles className="h-5 w-5 text-primary" />
+                      </div>
+                      <p className="text-xs text-primary mb-1">{isRTL ? 'إجمالي الأثر' : 'Total Points'}</p>
+                      <p className="font-bold text-2xl text-primary">{selectedActivity.points * (selectedVolunteers.length + (includeMe ? 1 : 0))}</p>
                     </div>
                   </div>
                 </div>
@@ -848,19 +1006,22 @@ export default function LogActivity() {
               {/* Submit Button */}
               <Button
                 type="submit"
-                className="w-full h-14 text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
+                className="w-full h-14 text-lg font-semibold shadow-lg hover:shadow-xl transition-all bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
                 disabled={!activityId || isSubmitting || isUploading}
               >
                 {(isSubmitting || isUploading) ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     {isUploading
                       ? (isRTL ? 'جاري رفع الصورة...' : 'Uploading image...')
                       : (isRTL ? 'جاري التسجيل...' : 'Logging...')
                     }
                   </>
                 ) : (
-                  t('activityLog.submitActivity')
+                  <>
+                    <CheckCircle2 className="mr-2 h-5 w-5" />
+                    {t('activityLog.submitActivity')}
+                  </>
                 )}
               </Button>
             </form>
@@ -868,46 +1029,80 @@ export default function LogActivity() {
         </Card>
 
         {/* Submission History */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              {t('activityLog.submissionHistory')}
-            </CardTitle>
-            <CardDescription>
-              {isRTL ? 'آخر 10 مشاركات' : 'Your last 10 participations'}
-            </CardDescription>
+        <Card className="border-0 shadow-xl bg-gradient-to-b from-card to-card/95 overflow-hidden">
+          <CardHeader className="pb-4 border-b border-border/50 bg-muted/30">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <History className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-xl">{t('activityLog.submissionHistory')}</CardTitle>
+                <CardDescription className="text-sm">
+                  {isRTL ? 'سجل مشاركاتك السابقة وحالاتها' : 'Your past participations and their status'}
+                </CardDescription>
+              </div>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {submissions.length === 0 ? (
-              <p className="text-muted-foreground text-center py-8">
-                {isRTL ? 'لا توجد مشاركات سابقة' : 'No previous participations'}
-              </p>
+              <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                  <History className="h-8 w-8 text-muted-foreground/50" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-medium text-muted-foreground">{isRTL ? 'لا توجد مشاركات سابقة' : 'No previous participations'}</p>
+                  <p className="text-xs text-muted-foreground/70 max-w-[200px] mx-auto">
+                    {isRTL ? 'ابدأ بتسجيل مشاركتك الأولى اليوم!' : 'Start logging your first participation today!'}
+                  </p>
+                </div>
+              </div>
             ) : (
-              <div className="space-y-3">
+              <div className="divide-y divide-border/50">
                 {submissions.map((submission) => (
                   <div
                     key={submission.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors group"
                   >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      {submission.proof_url && (
-                        <img
-                          src={submission.proof_url}
-                          alt="Proof"
-                          className="w-10 h-10 rounded object-cover shrink-0"
-                        />
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      {submission.proof_url ? (
+                        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border/50">
+                          <img
+                            src={submission.proof_url}
+                            alt="Proof"
+                            className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                          />
+                        </div>
+                      ) : (
+                        <div className="h-12 w-12 shrink-0 rounded-lg bg-primary/5 flex items-center justify-center border border-primary/10">
+                          <Activity className="h-6 w-6 text-primary/40" />
+                        </div>
                       )}
                       <div className="space-y-1 flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{submission.activity_name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {submission.committee_name} • {formatDate(submission.submitted_at)}
+                        <p className="font-semibold text-sm truncate text-foreground group-hover:text-primary transition-colors">
+                          {submission.activity_name}
                         </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Building2 className="h-3 w-3" />
+                            {submission.committee_name}
+                          </span>
+                          <span>•</span>
+                          <span>{formatDate(submission.submitted_at)}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm font-medium">+{submission.points}</span>
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(submission.status)}`}>
+                    <div className="flex flex-col items-end gap-2 shrink-0 pl-2">
+                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                        +{submission.points}
+                      </span>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium border ${submission.status === 'approved'
+                        ? 'bg-success/5 text-success border-success/20'
+                        : submission.status === 'rejected'
+                          ? 'bg-destructive/5 text-destructive border-destructive/20'
+                          : 'bg-warning/5 text-warning border-warning/20'
+                        }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${submission.status === 'approved' ? 'bg-success' : submission.status === 'rejected' ? 'bg-destructive' : 'bg-warning'
+                          }`} />
                         {getStatusText(submission.status)}
                       </span>
                     </div>
@@ -921,17 +1116,21 @@ export default function LogActivity() {
         {/* Group Submissions History for Leaders */}
         {
           isLeader && (
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  {isRTL ? 'سجل المشاركات الجماعية' : 'Group Submissions History'}
-                </CardTitle>
-                <CardDescription>
-                  {isRTL ? 'تقارير المشاركات الجماعية التي قمت بتسجيلها' : 'Group submissions reports you have logged'}
-                </CardDescription>
+            <Card className="lg:col-span-2 border-0 shadow-xl bg-gradient-to-b from-card to-card/95 overflow-hidden">
+              <CardHeader className="pb-4 border-b border-border/50 bg-muted/30">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center">
+                    <Users className="h-5 w-5 text-accent" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">{isRTL ? 'سجل المشاركات الجماعية' : 'Group Submissions History'}</CardTitle>
+                    <CardDescription className="text-sm">
+                      {isRTL ? 'تقارير وشيتات المشاركات الجماعية التي أرسلتها' : 'Group submissions reports & sheets you have sent'}
+                    </CardDescription>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-0">
                 <GroupSubmissionsList leaderId={user?.id} />
               </CardContent>
             </Card>
@@ -976,41 +1175,55 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
     }
   };
 
-  if (loading) return <Loader2 className="h-6 w-6 animate-spin mx-auto" />;
+  if (loading) return <div className="p-8 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
   if (submissions.length === 0) {
     return (
-      <p className="text-muted-foreground text-center py-8">
-        {isRTL ? 'لا توجد مشاركات جماعية' : 'No group submissions found'}
-      </p>
+      <div className="flex flex-col items-center justify-center py-12 text-center space-y-3">
+        <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+          <Users className="h-8 w-8 text-muted-foreground/50" />
+        </div>
+        <p className="font-medium text-muted-foreground">{isRTL ? 'لا توجد مشاركات جماعية' : 'No group submissions found'}</p>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="divide-y divide-border/50">
       {submissions.map((sub) => (
-        <div key={sub.id} className="flex items-center justify-between rounded-lg border p-4">
-          <div className="space-y-1">
-            <p className="font-medium">
-              {isRTL ? sub.activity?.name_ar : sub.activity?.name}
-            </p>
-            <div className="text-sm text-muted-foreground flex gap-2">
-              <span>{new Date(sub.submitted_at).toLocaleDateString()}</span>
-              <span>•</span>
-              <span>{isRTL ? sub.committee?.name_ar : sub.committee?.name}</span>
-              {Array.isArray(sub.guest_participants) && sub.guest_participants.length > 0 && (
-                <>
-                  <span>•</span>
-                  <span>{sub.guest_participants.length} {isRTL ? 'ضيوف' : 'Guests'}</span>
-                </>
-              )}
+        <div key={sub.id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
+          <div className="flex items-center gap-4">
+            <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center border border-accent/20">
+              <ClipboardList className="h-5 w-5 text-accent" />
+            </div>
+            <div className="space-y-1">
+              <p className="font-semibold text-sm text-foreground">
+                {isRTL ? sub.activity?.name_ar : sub.activity?.name}
+              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{new Date(sub.submitted_at).toLocaleDateString()}</span>
+                <span>•</span>
+                <span className="flex items-center gap-1">
+                  <Building2 className="h-3 w-3" />
+                  {isRTL ? sub.committee?.name_ar : sub.committee?.name}
+                </span>
+                {Array.isArray(sub.guest_participants) && sub.guest_participants.length > 0 && (
+                  <>
+                    <span>•</span>
+                    <span className="flex items-center gap-1">
+                      <Users className="h-3 w-3" />
+                      {sub.guest_participants.length} {isRTL ? 'ضيوف' : 'Guests'}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
           {sub.excel_sheet_url && (
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="outline" size="sm" asChild className="ml-4 hover:bg-primary hover:text-white transition-colors">
               <a href={sub.excel_sheet_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
-                <Upload className="h-4 w-4 rotate-180" /> {/* Download icon proxy */}
+                <Upload className="h-4 w-4 rotate-180" />
                 {isRTL ? 'تحميل التقرير' : 'Download Report'}
               </a>
             </Button>

@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
-import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X, MessageSquare, Plus, AlertCircle } from 'lucide-react';
+import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X, MessageSquare, Plus, AlertCircle, Pencil, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -23,6 +23,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type UserBadge = {
   id: string;
@@ -131,6 +141,17 @@ const compressImage = async (file: File): Promise<File> => {
   });
 };
 
+import { COVER_IMAGES } from '@/constants/profileCovers';
+
+const getDefaultCover = (uid: string) => {
+  let hash = 0;
+  for (let i = 0; i < uid.length; i++) {
+    hash = uid.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % COVER_IMAGES.length;
+  return COVER_IMAGES[index];
+};
+
 export default function Profile({ userId: propUserId }: ProfileProps) {
   const { id: paramUserId } = useParams();
   const userId = propUserId || paramUserId;
@@ -142,7 +163,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const [uploading, setUploading] = useState(false);
   const [badges, setBadges] = useState<UserBadge[]>([]);
   const [activities, setActivities] = useState<ActivitySubmission[]>([]);
-  const [feedbacks, setFeedbacks] = useState<VolunteerFeedback[]>([]);
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
   const [fines, setFines] = useState<Fine[]>([]);
   const [manualFines, setManualFines] = useState<ActivitySubmission[]>([]);
   const [activityTypes, setActivityTypes] = useState<{ id: string; name: string; name_ar: string }[]>([]);
@@ -156,6 +177,9 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const [fineAmount, setFineAmount] = useState('');
   const [fineComment, setFineComment] = useState('');
   const [submittingFine, setSubmittingFine] = useState(false);
+  const [editFeedbackId, setEditFeedbackId] = useState<string | null>(null);
+  const [editFeedbackContent, setEditFeedbackContent] = useState('');
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'fine' | 'feedback', id: string } | null>(null);
 
   const [monthlyPoints, setMonthlyPoints] = useState(0);
 
@@ -172,15 +196,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const displayCover = isViewOnly ? viewedProfile?.cover_url : authProfile?.cover_url;
   const isAshbal = displayProfile?.is_ashbal;
 
-  const COVER_IMAGES = [
-    'https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=1920&auto=format&fit=crop', // Code
-    'https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1920&auto=format&fit=crop', // Chip
-    'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1920&auto=format&fit=crop', // Space
-    'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1920&auto=format&fit=crop', // Cyberpunk
-    'https://images.unsplash.com/photo-1519681393798-2f77f37d25e6?q=80&w=1920&auto=format&fit=crop', // Galaxy
-    'https://images.unsplash.com/photo-1484503709164-61c409505f9b?q=80&w=1920&auto=format&fit=crop', // Abstract
-    'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=1920&auto=format&fit=crop', // Gradient
-  ];
+
 
   const handleRandomCover = async () => {
     if (!user) return;
@@ -289,7 +305,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
       const feedbacksQuery = supabase
         .from('volunteer_feedbacks')
-        .select('id, content, created_at, author:profiles!volunteer_feedbacks_author_id_fkey(full_name, avatar_url)')
+        .select('id, content, created_at, author_id, author:profiles!volunteer_feedbacks_author_id_fkey(full_name, avatar_url)')
         .eq('volunteer_id', targetUserId)
         .order('created_at', { ascending: false });
 
@@ -347,6 +363,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           content: f.content,
           created_at: f.created_at,
           author: f.author,
+          author_id: f.author_id,
         })));
       }
 
@@ -470,7 +487,6 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           volunteer_id: targetUserId,
           fine_type_id: selectedFineType,
           amount: selectedFine.amount,
-          description: fineComment || null,
           is_paid: false,
           created_by: user.id,
         });
@@ -491,69 +507,82 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     }
   };
 
-  const handleMarkAsPaid = async (fineId: string) => {
+
+
+  const handleDeleteFine = (fineId: string) => {
+    setItemToDelete({ type: 'fine', id: fineId });
+  };
+
+  const handleDeleteFeedback = (id: string) => {
+    setItemToDelete({ type: 'feedback', id });
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+
     try {
-      // Update the new volunteer_fines table
+      if (itemToDelete.type === 'fine') {
+        const { error } = await supabase.from('volunteer_fines').delete().eq('id', itemToDelete.id);
+        if (error) throw error;
+        toast.success(isRTL ? 'تم حذف الغرامة' : 'Fine deleted');
+      } else {
+        const { error } = await supabase.from('volunteer_feedbacks').delete().eq('id', itemToDelete.id);
+        if (error) throw error;
+        toast.success(isRTL ? 'تم حذف الرأي' : 'Feedback deleted');
+        setFeedbacks(feedbacks.filter(f => f.id !== itemToDelete.id)); // Optimistic update for feedbacks
+      }
+      fetchData(); // Refresh all data to be sure
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      toast.error(isRTL ? 'فشل الحذف' : 'Failed to delete');
+    } finally {
+      setItemToDelete(null);
+    }
+  };
+
+  const handleSaveFeedback = async (id: string) => {
+    if (!editFeedbackContent.trim()) return;
+    try {
       const { error } = await supabase
-        .from('volunteer_fines')
-        .update({ is_paid: true, paid_at: new Date().toISOString() })
-        .eq('id', fineId);
+        .from('volunteer_feedbacks')
+        .update({ content: editFeedbackContent.trim() })
+        .eq('id', id);
 
       if (error) throw error;
 
-      toast.success(isRTL ? 'تم تسجيل دفع الغرامة' : 'Fine marked as paid');
-      fetchData();
+      toast.success(isRTL ? 'تم تحديث الرأي' : 'Feedback updated');
+      setFeedbacks(feedbacks.map(f => f.id === id ? { ...f, content: editFeedbackContent.trim() } : f));
+      setEditFeedbackId(null);
     } catch (error) {
-      console.error('Error marking fine as paid:', error);
-      toast.error(isRTL ? 'فشل تحديث الحالة' : 'Failed to update status');
+      console.error('Error updating feedback:', error);
+      toast.error(isRTL ? 'فشل تحديث الرأي' : 'Failed to update feedback');
     }
   };
 
-  const getCoverImage = (uid: string) => {
-    const covers = [
-      "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1200&h=400&fit=crop", // Mountains
-      "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=1200&h=400&fit=crop", // Green Valley
-      "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&h=400&fit=crop", // Forest Light
-      "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1200&h=400&fit=crop", // Foggy Forest
-      "https://images.unsplash.com/photo-1501854140884-074cf2b2c3af?w=1200&h=400&fit=crop", // Blue Coast
-      "https://images.unsplash.com/photo-1532274402911-5a369e4c4bb5?w=1200&h=400&fit=crop", // Landscape
-      "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=1200&h=400&fit=crop", // Nature tree
-      "https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=1200&h=400&fit=crop", // Dark Sea
-      "https://images.unsplash.com/photo-1418065460487-3e41a6c84dc5?w=1200&h=400&fit=crop", // Forest path
-      "https://images.unsplash.com/photo-1497436072909-60f360e1d4b0?w=1200&h=400&fit=crop", // Mountains day
-      "https://images.unsplash.com/photo-1518173946687-a4c8892bbd9f?w=1200&h=400&fit=crop", // Grey mountains
-      "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1200&h=400&fit=crop", // Green mountains
-    ];
 
-    let hash = 0;
-    for (let i = 0; i < uid.length; i++) {
-      hash = uid.charCodeAt(i) + ((hash << 5) - hash);
-    }
 
-    const index = Math.abs(hash) % covers.length;
-    return covers[index];
-  };
-
-  const coverImage = displayCover || getCoverImage(targetUserId || 'default');
+  // Get cover image - use saved cover or default based on user ID
+  const coverImage = displayCover || getDefaultCover(targetUserId || 'default');
 
   return (
     <div className="space-y-6 animate-slide-up">
       {/* Profile Header */}
       <Card className="overflow-hidden border-none shadow-md">
         <div className="h-48 relative group/cover">
+          {/* Cover Image */}
           <img
             src={coverImage}
             alt="Cover"
             className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
 
           {/* Random Cover Button */}
           {(!isViewOnly || (hasRole('admin') || hasRole('head_hr') || hasRole('hr'))) && (
             <Button
               size="sm"
-              variant="secondary/80"
-              className="absolute top-4 right-4 opacity-0 group-hover/cover:opacity-100 transition-opacity backdrop-blur-sm"
+              variant="secondary"
+              className="absolute top-4 right-4 opacity-0 group-hover/cover:opacity-100 transition-opacity backdrop-blur-sm bg-secondary/80"
               onClick={handleRandomCover}
             >
               <Camera className="h-4 w-4 mr-2" />
@@ -619,7 +648,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 </span>
                 <span className="flex items-center gap-1.5 transition-colors hover:text-foreground">
                   <Calendar className="h-4 w-4" />
-                  {t('profile.memberSince')} {formatDate(displayProfile?.join_date || new Date().toISOString())}
+                  {isRTL ? 'ضمن العائلة من' : 'Family Member Since'} {formatDate(displayProfile?.join_date || new Date().toISOString())} 🤍😇
                 </span>
               </div>
             </div>
@@ -685,7 +714,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
             {isRTL ? 'الآراء والتقييمات' : 'Feedbacks'} ({feedbacks.length})
           </TabsTrigger>
           <TabsTrigger value="fines">
-            {isRTL ? 'الغرامات' : 'Fines'} ({fines.reduce((sum, f) => sum + f.amount, 0)})
+            {isRTL ? 'الغرامات' : 'Fines'} ({fines.length})
           </TabsTrigger>
         </TabsList>
 
@@ -693,9 +722,6 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           <Card>
             <CardHeader>
               <CardTitle>{t('profile.activityHistory')}</CardTitle>
-              <CardDescription>
-                {isRTL ? 'جميع الأنشطة المقدمة وحالتها' : 'All your submitted activities and their status'}
-              </CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -729,12 +755,6 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                         <div className="space-y-1.5 flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="font-semibold truncate text-base">{activity.activity_name}</p>
-                            <span className={cn(
-                              "text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider font-bold",
-                              getStatusColor(activity.status)
-                            )}>
-                              {getStatusText(activity.status)}
-                            </span>
                           </div>
                           <p className="text-sm text-muted-foreground flex items-center gap-2">
                             <span className="inline-flex items-center gap-1 bg-muted/50 px-2 py-0.5 rounded text-xs">
@@ -862,9 +882,54 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                           <span className="text-xs text-muted-foreground">{formatDate(feedback.created_at)}</span>
                         </div>
                       </div>
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                        {feedback.content}
-                      </p>
+                      <div className="flex-1">
+                        {editFeedbackId === feedback.id ? (
+                          <div className="space-y-2 mt-1">
+                            <Textarea
+                              value={editFeedbackContent}
+                              onChange={(e) => setEditFeedbackContent(e.target.value)}
+                              className="min-h-[80px]"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button size="sm" variant="ghost" onClick={() => setEditFeedbackId(null)}>
+                                {isRTL ? 'إلغاء' : 'Cancel'}
+                              </Button>
+                              <Button size="sm" onClick={() => handleSaveFeedback(feedback.id)}>
+                                {isRTL ? 'حفظ' : 'Save'}
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="group/feedback relative">
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                              {feedback.content}
+                            </p>
+                            {user?.id === feedback.author_id && (
+                              <div className="absolute top-0 right-0 opacity-0 group-hover/feedback:opacity-100 transition-opacity flex gap-1 -mt-8 mr-2 bg-background/80 rounded-md shadow-sm border p-1">
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={() => {
+                                    setEditFeedbackId(feedback.id);
+                                    setEditFeedbackContent(feedback.content);
+                                  }}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6 text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteFeedback(feedback.id)}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -882,77 +947,68 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                     <AlertCircle className="h-5 w-5 text-destructive" />
                     {isRTL ? 'سجل الغرامات' : 'Fines History'}
                   </CardTitle>
-                  <CardDescription>
-                    {isRTL ? 'سجل الغرامات (التلقائية واليدوية)' : 'Fines history (Automatic & Manual)'}
-                  </CardDescription>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-2xl font-bold text-destructive">
                     {fines.length} {isRTL ? 'غرامة' : 'Fines'}
                   </div>
 
-                  {isViewOnly && (hasRole('admin') || hasRole('head_hr') || hasRole('hr')) && (
-                    <Dialog open={isFineDialogOpen} onOpenChange={setIsFineDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button variant="destructive" size="sm" className="gap-1">
-                          <Plus className="h-4 w-4" />
-                          {isRTL ? 'إضافة غرامة' : 'Add Fine'}
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{isRTL ? 'إضافة غرامة يدوية' : 'Add Manual Fine'}</DialogTitle>
-                          <DialogDescription>
-                            {isRTL ? 'إضافة غرامة لهذا المتطوع. سيتم خصم الأثر من رصيده.' : 'Add a fine for this volunteer. Impact points will be deducted from their balance.'}
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                          <div className="space-y-2">
-                            <Label>{isRTL ? 'نوع الغرامة/المخالفة' : 'Violation Type'}</Label>
-                            <Select value={selectedFineType} onValueChange={(val) => {
-                              setSelectedFineType(val);
-                            }}>
-                              <SelectTrigger>
-                                <SelectValue placeholder={isRTL ? 'اختر النوع' : 'Select type'} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {fineTypes.map(type => (
-                                  <SelectItem key={type.id} value={type.id}>
-                                    {isRTL ? type.name_ar : type.name} ({type.amount} {isRTL ? 'ج.م' : 'EGP'})
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* Removed manual amount input, it's determined by type now */}
-
-
-                          <div className="space-y-2">
-                            <Label>{isRTL ? 'ملاحظات (اختياري)' : 'Comments (Optional)'}</Label>
-                            <Textarea
-                              value={fineComment}
-                              onChange={(e) => setFineComment(e.target.value)}
-                              placeholder={isRTL ? 'سبب الغرامة...' : 'Reason for fine...'}
-                            />
-                          </div>
-                        </div>
-                        <DialogFooter>
-                          <Button variant="outline" onClick={() => setIsFineDialogOpen(false)} disabled={submittingFine}>
-                            {isRTL ? 'إلغاء' : 'Cancel'}
+                  {isViewOnly && (
+                    hasRole('admin') ||
+                    hasRole('head_hr') ||
+                    hasRole('hr') ||
+                    (hasRole('committee_leader') && authProfile?.committee_id === displayProfile?.committee_id)
+                  ) && (
+                      <Dialog open={isFineDialogOpen} onOpenChange={setIsFineDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button variant="destructive" size="sm" className="gap-1">
+                            <Plus className="h-4 w-4" />
+                            {isRTL ? 'إضافة غرامة' : 'Add Fine'}
                           </Button>
-                          <Button
-                            variant="destructive"
-                            onClick={handleAddFine}
-                            disabled={!selectedFineType || submittingFine}
-                          >
-                            {submittingFine && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {isRTL ? 'إضافة الغرامة' : 'Add Fine'}
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  )}
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>{isRTL ? 'إضافة غرامة يدوية' : 'Add Manual Fine'}</DialogTitle>
+                            <DialogDescription>
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label>{isRTL ? 'نوع الغرامة/المخالفة' : 'Violation Type'}</Label>
+                              <Select value={selectedFineType} onValueChange={(val) => {
+                                setSelectedFineType(val);
+                              }}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder={isRTL ? 'اختر النوع' : 'Select type'} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {fineTypes.map(type => (
+                                    <SelectItem key={type.id} value={type.id}>
+                                      {isRTL ? type.name_ar : type.name} ({type.amount} {isRTL ? 'ج.م' : 'EGP'})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Removed manual amount input, it's determined by type now */}
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsFineDialogOpen(false)} disabled={submittingFine}>
+                              {isRTL ? 'إلغاء' : 'Cancel'}
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              onClick={handleAddFine}
+                              disabled={!selectedFineType || submittingFine}
+                            >
+                              {submittingFine && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              {isRTL ? 'إضافة الغرامة' : 'Add Fine'}
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
                 </div>
               </div>
             </CardHeader>
@@ -1014,18 +1070,25 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                         <div className="font-bold text-destructive">
                           -{fine.amount} {isRTL ? 'ج.م' : 'EGP'}
                         </div>
-                        {/* Payment Button for manual fines */}
-                        {fine.source_type === 'manual' && !fine.is_paid && (hasRole('admin') || hasRole('head_hr') || hasRole('hr')) && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs gap-1 hover:bg-green-50 hover:text-green-700 hover:border-green-200"
-                            onClick={() => handleMarkAsPaid(fine.source_id)}
-                          >
-                            <Check className="h-3 w-3" />
-                            {isRTL ? 'دفع' : 'Pay'}
-                          </Button>
-                        )}
+
+
+                        {/* Delete Fine Button */}
+                        {fine.source_type === 'manual' && (
+                          hasRole('admin') ||
+                          hasRole('supervisor') ||
+                          hasRole('head_hr') ||
+                          hasRole('hr') ||
+                          (hasRole('committee_leader') && authProfile?.committee_id === displayProfile?.committee_id)
+                        ) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => handleDeleteFine(fine.source_id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                       </div>
                     </div>
                   ))}
@@ -1035,6 +1098,30 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={!!itemToDelete} onOpenChange={(open) => !open && setItemToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {isRTL ? 'هل أنت متأكد؟' : 'Are you sure?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {itemToDelete?.type === 'fine'
+                ? (isRTL ? 'هل أنت متأكد من حذف هذه الغرامة؟ لا يمكن التراجع عن هذا الإجراء.' : 'Are you sure you want to delete this fine? This action cannot be undone.')
+                : (isRTL ? 'هل أنت متأكد من حذف هذا الرأي؟' : 'Are you sure you want to delete this feedback?')
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setItemToDelete(null)}>
+              {isRTL ? 'إلغاء' : 'Cancel'}
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">
+              {isRTL ? 'حذف' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div >
   );
 }

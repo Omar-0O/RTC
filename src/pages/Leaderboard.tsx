@@ -95,50 +95,56 @@ export default function Leaderboard() {
 
   return (
     <div className="space-y-6 animate-slide-up">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Trophy className="h-6 w-6 text-primary" />
-            {isRTL ? 'المتصدرين' : 'Leaderboard'}
-          </h1>
-          <p className="text-muted-foreground">
-            {isRTL ? 'أفضل المتطوعين في RTC' : 'Top performing volunteers across RTC'}
-          </p>
-        </div>
+      {/* Hero Header */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/90 via-primary to-primary/80 p-6 md:p-8 text-white">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48cGF0aCBkPSJNMzYgMzRoLTJ2LTRoMnY0em0wLTZoLTJ2LTRoMnY0em0wLTZoLTJ2LTRoMnY0em0wLTZoLTJWNmgydjEwem0tNiAxOGgtMnYtNGgydjR6bTAtNmgtMnYtNGgydjR6bTAtNmgtMnYtNGgydjR6bTAtNmgtMlY2aDJ2MTB6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-30" />
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="h-14 w-14 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <Trophy className="h-7 w-7" />
+            </div>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold">
+                {isRTL ? 'سباق الخير' : 'Race of Goodness'}
+              </h1>
+            </div>
+          </div>
 
-        <div className="flex flex-col sm:flex-row gap-2">
-          {/* Time Filter */}
-          <Select value={timeFilter} onValueChange={setTimeFilter}>
-            <SelectTrigger className="w-[180px]">
-              <Calendar className={isRTL ? "ml-2 h-4 w-4" : "mr-2 h-4 w-4"} />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="month">{isRTL ? 'هذا الشهر' : 'This Month'}</SelectItem>
-              <SelectItem value="quarter">{isRTL ? 'هذا الربع' : 'This Quarter'}</SelectItem>
-              <SelectItem value="half_year">{isRTL ? 'نصف سنوي' : 'Half Yearly'}</SelectItem>
-              <SelectItem value="all_time">{isRTL ? 'كل الوقت' : 'All Time'}</SelectItem>
-              {/* Only show Year filter to admins as requested */}
-              {primaryRole === 'admin' && (
-                <SelectItem value="year">{isRTL ? 'هذه السنة' : 'This Year'}</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-col sm:flex-row gap-2">
+            {/* Time Filter */}
+            <Select value={timeFilter} onValueChange={setTimeFilter}>
+              <SelectTrigger className="w-[180px] bg-white/10 border-white/20 text-white hover:bg-white/20">
+                <Calendar className={isRTL ? "ml-2 h-4 w-4" : "mr-2 h-4 w-4"} />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="month">{isRTL ? 'هذا الشهر' : 'This Month'}</SelectItem>
+                <SelectItem value="quarter">{isRTL ? 'هذا الربع' : 'This Quarter'}</SelectItem>
+                <SelectItem value="third_year">{isRTL ? 'الثلث السنوي' : 'Third of Year'}</SelectItem>
+                <SelectItem value="half_year">{isRTL ? 'نصف سنوي' : 'Half Yearly'}</SelectItem>
+                <SelectItem value="all_time">{isRTL ? 'كل الوقت' : 'All Time'}</SelectItem>
+                {/* Only show Year filter to admins as requested */}
+                {primaryRole === 'admin' && (
+                  <SelectItem value="year">{isRTL ? 'هذه السنة' : 'This Year'}</SelectItem>
+                )}
+              </SelectContent>
+            </Select>
 
-          {/* Committee Filter */}
-          <Select value={selectedCommittee} onValueChange={setSelectedCommittee}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder={isRTL ? 'فلترة حسب اللجنة' : 'Filter by committee'} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{isRTL ? 'جميع اللجان' : 'All Committees'}</SelectItem>
-              {committees.map((committee) => (
-                <SelectItem key={committee.id} value={committee.id}>
-                  {isRTL ? committee.name_ar : committee.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            {/* Committee Filter */}
+            <Select value={selectedCommittee} onValueChange={setSelectedCommittee}>
+              <SelectTrigger className="w-[200px] bg-white/10 border-white/20 text-white hover:bg-white/20">
+                <SelectValue placeholder={isRTL ? 'فلترة حسب اللجنة' : 'Filter by committee'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{isRTL ? 'جميع اللجان' : 'All Committees'}</SelectItem>
+                {committees.map((committee) => (
+                  <SelectItem key={committee.id} value={committee.id}>
+                    {isRTL ? committee.name_ar : committee.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -150,51 +156,68 @@ export default function Leaderboard() {
         </Card>
       ) : (
         <>
-          {/* Top 3 */}
+          {/* Top 3 Podium */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {leaderboard.slice(0, 3).map((entry, index) => {
               const displayName = getName(entry);
               const userInitials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-              const isCurrentUser = entry.volunteer_id === user?.id; // RPC returns volunteer_id
+              const isCurrentUser = entry.volunteer_id === user?.id;
+
+              const podiumColors = [
+                { bg: 'from-yellow-400/20 to-amber-500/20', border: 'border-yellow-400/50', medal: 'bg-gradient-to-br from-yellow-300 to-amber-500', shadow: 'shadow-yellow-400/25' },
+                { bg: 'from-gray-300/20 to-gray-400/20', border: 'border-gray-400/50', medal: 'bg-gradient-to-br from-gray-200 to-gray-400', shadow: 'shadow-gray-400/25' },
+                { bg: 'from-amber-600/20 to-orange-600/20', border: 'border-amber-600/50', medal: 'bg-gradient-to-br from-amber-500 to-orange-600', shadow: 'shadow-amber-600/25' }
+              ];
+              const colors = podiumColors[index];
 
               return (
                 <Card
                   key={entry.volunteer_id}
                   className={cn(
-                    "relative overflow-hidden",
-                    isCurrentUser && "ring-2 ring-primary"
+                    "relative overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-lg",
+                    `bg-gradient-to-b ${colors.bg}`,
+                    `border-2 ${colors.border}`,
+                    isCurrentUser && "ring-2 ring-primary ring-offset-2"
                   )}
                 >
-                  <div className={cn(
-                    "absolute top-0 left-0 right-0 h-1",
-                    index === 0 && "bg-yellow-400",
-                    index === 1 && "bg-gray-400",
-                    index === 2 && "bg-amber-600"
-                  )} />
-                  <CardContent className="pt-6">
+                  <CardContent className="pt-8 pb-6">
                     <div className="flex flex-col items-center text-center">
+                      {/* Medal */}
                       <div className={cn(
-                        "h-8 w-8 rounded-full flex items-center justify-center text-sm font-bold mb-3",
-                        getRankStyle(index + 1)
+                        "h-12 w-12 rounded-full flex items-center justify-center text-xl font-bold mb-4 shadow-lg",
+                        colors.medal,
+                        colors.shadow,
+                        "text-white"
                       )}>
                         {index + 1}
                       </div>
-                      <Avatar className="h-16 w-16 mb-3">
-                        <AvatarImage src={entry.avatar_url || undefined} alt={displayName} />
-                        <AvatarFallback className="bg-primary text-primary-foreground text-lg">
-                          {userInitials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <h3 className="font-semibold">{displayName}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">{getCommitteeName(entry)}</p>
-                      <LevelBadge level={entry.level as any} size="sm" />
-                      <div className="mt-3">
-                        <span className="text-2xl font-bold text-primary">{entry.total_points}</span>
-                        <span className="text-sm text-muted-foreground ml-1">{isRTL ? 'أثر' : 'impact'}</span>
+
+                      {/* Avatar with ring */}
+                      <div className="relative mb-4">
+                        <div className={cn(
+                          "absolute -inset-1 rounded-full",
+                          colors.medal,
+                          "opacity-50 blur-sm"
+                        )} />
+                        <Avatar className="h-20 w-20 relative border-4 border-background">
+                          <AvatarImage src={entry.avatar_url || undefined} alt={displayName} />
+                          <AvatarFallback className="bg-primary text-primary-foreground text-xl">
+                            {userInitials}
+                          </AvatarFallback>
+                        </Avatar>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {entry.activities_count} {isRTL ? 'نشاط' : 'activities'}
-                      </p>
+
+                      <h3 className="font-bold text-lg">{displayName}</h3>
+                      <p className="text-sm text-muted-foreground mb-3">{getCommitteeName(entry)}</p>
+                      <LevelBadge level={entry.level as any} size="sm" />
+
+                      <div className="mt-4 p-3 rounded-xl bg-background/50 backdrop-blur-sm">
+                        <span className="text-3xl font-bold text-primary">{entry.total_points}</span>
+                        <span className="text-sm text-muted-foreground ml-1">{isRTL ? 'أثر' : 'impact'}</span>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {entry.activities_count} {isRTL ? 'نشاط' : 'activities'}
+                        </p>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

@@ -335,7 +335,7 @@ export default function CommitteeLeaderDashboard() {
           title={isRTL ? 'إجمالي الأثر' : 'Total Impact'}
           value={totalPoints}
           icon={Award}
-          description={isRTL ? 'نقطة' : 'points'}
+          description={isRTL ? 'أثر' : 'points'}
         />
       </div>
 

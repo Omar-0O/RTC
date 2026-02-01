@@ -864,6 +864,18 @@ export default function UserManagement() {
 
       if (rolesError) throw rolesError;
 
+      // Fetch passwords from user_private_details table
+      let passwordsMap = new Map<string, string>();
+      if (['admin', 'head_hr', 'hr'].includes(primaryRole)) {
+        const { data: privateData, error: privateError } = await supabase
+          .from('user_private_details')
+          .select('id, visible_password');
+
+        if (!privateError && privateData) {
+          passwordsMap = new Map(privateData.map(p => [p.id, p.visible_password || '']));
+        }
+      }
+
       const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role]) || []);
 
       const exportData = profilesData
@@ -875,11 +887,25 @@ export default function UserManagement() {
           'Phone': u.phone ? `'${u.phone}` : '',
           'Role': (() => {
             const role = rolesMap.get(u.id);
-            if (role === 'hr') return 'HR';
-            if (role === 'head_hr') return 'Head HR';
-            return role || 'volunteer';
+            switch (role) {
+              case 'admin': return 'مسؤول';
+              case 'supervisor': return 'هيد الفرع';
+              case 'committee_leader': return 'هيد اللجنة';
+              case 'hr': return 'HR';
+              case 'head_hr': return 'Head HR';
+              case 'head_caravans': return 'هيد لجنة قوافل';
+              case 'head_events': return 'هيد لجنة ايفنتات';
+              case 'head_ethics': return 'هيد نشر اخلاقيات';
+              case 'head_quran': return 'هيد لجنة القرآن';
+              case 'head_marketing': return 'هيد لجنة التسويق';
+              case 'head_ashbal': return 'هيد لجنة الأشبال';
+              case 'head_production': return 'هيد لجان انتاج';
+              case 'head_fourth_year': return 'هيد لجان سنة رابعة';
+              case 'marketing_member': return 'متطوع لجنة تسويق';
+              default: return 'متطوع';
+            }
           })(),
-          'Password': ['admin', 'head_hr', 'hr'].includes(primaryRole) ? (u.visible_password || '') : '',
+          'Password': passwordsMap.get(u.id) || '',
           'Joined At': new Date(u.created_at).toLocaleDateString(),
           'Mini Camp Attendance': u.level === 'under_follow_up' ? (u.attended_mini_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A',
           'Camp Attendance': u.level === 'project_responsible' ? (u.attended_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A'
@@ -1028,7 +1054,7 @@ export default function UserManagement() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="level">{t('users.level')}</Label>
-                    <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
+                    <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr', 'supervisor'].includes(primaryRole)}>
                       <SelectTrigger>
                         <SelectValue placeholder={t('users.level')} />
                       </SelectTrigger>
@@ -1045,7 +1071,7 @@ export default function UserManagement() {
                   <Select
                     value={formCommitteeId || 'none'}
                     onValueChange={(val) => setFormCommitteeId(val === 'none' ? '' : val)}
-                    disabled={!['admin', 'head_hr', 'hr'].includes(primaryRole)}
+                    disabled={!['admin', 'head_hr', 'hr', 'supervisor'].includes(primaryRole)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={t('users.committee')} />

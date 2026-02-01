@@ -699,47 +699,7 @@ export default function IndividualCompetition() {
                             </div>
 
                             {/* Statistics Cards (Archive) */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <Card>
-                                    <CardContent className="p-4 flex items-center gap-4">
-                                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">
-                                            <Users className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">{isRTL ? 'عدد المشاركين' : 'Participants'}</p>
-                                            <p className="text-2xl font-bold">{participants.length}</p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
 
-                                <Card>
-                                    <CardContent className="p-4 flex items-center gap-4">
-                                        <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-full">
-                                            <BarChart3 className="h-6 w-6 text-green-600 dark:text-green-400" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">{isRTL ? 'إجمالي المشاركات' : 'Total Entries'}</p>
-                                            <p className="text-2xl font-bold">{totalEntries}</p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                <Card>
-                                    <CardContent className="p-4 flex items-center gap-4">
-                                        <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-full">
-                                            <Trophy className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">{isRTL ? 'أكثر مشارك' : 'Top Participant'}</p>
-                                            {topParticipant ? (
-                                                <p className="text-lg font-bold truncate">{topParticipant.name} ({topParticipant.entries_count})</p>
-                                            ) : (
-                                                <p className="text-muted-foreground">-</p>
-                                            )}
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </div>
 
                             {/* Search Archive */}
                             <div className="relative max-w-md">

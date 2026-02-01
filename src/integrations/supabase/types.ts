@@ -774,6 +774,30 @@ export type Database = {
                     },
                 ]
             }
+            fine_types: {
+                Row: {
+                    amount: number
+                    created_at: string
+                    id: string
+                    name: string
+                    name_ar: string
+                }
+                Insert: {
+                    amount: number
+                    created_at?: string
+                    id?: string
+                    name: string
+                    name_ar: string
+                }
+                Update: {
+                    amount?: number
+                    created_at?: string
+                    id?: string
+                    name?: string
+                    name_ar?: string
+                }
+                Relationships: []
+            },
             ethics_calls: {
                 Row: {
                     calls_count: number | null
@@ -1005,6 +1029,7 @@ export type Database = {
                     attended_mini_camp: boolean | null
                     avatar_url: string | null
                     committee_id: string | null
+                    cover_url: string | null
                     created_at: string
                     email: string
                     full_name: string | null
@@ -1024,6 +1049,7 @@ export type Database = {
                     attended_mini_camp?: boolean | null
                     avatar_url?: string | null
                     committee_id?: string | null
+                    cover_url?: string | null
                     created_at?: string
                     email: string
                     full_name?: string | null
@@ -1043,6 +1069,7 @@ export type Database = {
                     attended_mini_camp?: boolean | null
                     avatar_url?: string | null
                     committee_id?: string | null
+                    cover_url?: string | null
                     created_at?: string
                     email?: string
                     full_name?: string | null
@@ -1074,6 +1101,7 @@ export type Database = {
                     image_url: string | null
                     name_ar: string
                     name_en: string
+                    user_id: string | null
                     join_date: string
                     phone: string | null
                     specialization: string | null
@@ -1086,6 +1114,7 @@ export type Database = {
                     image_url?: string | null
                     name_ar: string
                     name_en: string
+                    user_id?: string | null
                     join_date?: string
                     phone?: string | null
                     specialization?: string | null
@@ -1098,6 +1127,7 @@ export type Database = {
                     image_url?: string | null
                     name_ar?: string
                     name_en?: string
+                    user_id?: string | null
                     join_date?: string
                     phone?: string | null
                     specialization?: string | null
@@ -1399,6 +1429,58 @@ export type Database = {
                     },
                     {
                         foreignKeyName: "volunteer_feedbacks_volunteer_id_fkey"
+                        columns: ["volunteer_id"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
+                        referencedColumns: ["id"]
+                    },
+                ]
+            },
+            volunteer_fines: {
+                Row: {
+                    amount: number
+                    created_at: string
+                    created_by: string | null
+                    fine_type_id: string | null
+                    id: string
+                    is_paid: boolean | null
+                    volunteer_id: string | null
+                }
+                Insert: {
+                    amount: number
+                    created_at?: string
+                    created_by?: string | null
+                    fine_type_id?: string | null
+                    id?: string
+                    is_paid?: boolean | null
+                    volunteer_id?: string | null
+                }
+                Update: {
+                    amount?: number
+                    created_at?: string
+                    created_by?: string | null
+                    fine_type_id?: string | null
+                    id?: string
+                    is_paid?: boolean | null
+                    volunteer_id?: string | null
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: "volunteer_fines_created_by_fkey"
+                        columns: ["created_by"]
+                        isOneToOne: false
+                        referencedRelation: "profiles"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "volunteer_fines_fine_type_id_fkey"
+                        columns: ["fine_type_id"]
+                        isOneToOne: false
+                        referencedRelation: "fine_types"
+                        referencedColumns: ["id"]
+                    },
+                    {
+                        foreignKeyName: "volunteer_fines_volunteer_id_fkey"
                         columns: ["volunteer_id"]
                         isOneToOne: false
                         referencedRelation: "profiles"

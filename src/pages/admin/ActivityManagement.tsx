@@ -49,6 +49,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
 
+import { MultiSelect } from '@/components/ui/multi-select';
+
 type ActivityType = {
   id: string;
   name: string;
@@ -59,7 +61,8 @@ type ActivityType = {
   points_with_vest: number | null;
   points_without_vest: number | null;
   mode: 'individual' | 'group';
-  committee_id: string | null;
+  committee_id: string | null; // Deprecated but kept for backward compatibility if needed
+  activity_type_committees?: { committee_id: string }[];
 };
 
 type Committee = {
@@ -91,7 +94,8 @@ export default function ActivityManagement() {
     points_with_vest: 0,
     points_without_vest: 0,
     mode: 'individual' as 'individual' | 'group',
-    committee_id: '',
+    committee_id: '', // Deprecated
+    committee_ids: [] as string[],
   });
 
   useEffect(() => {
@@ -102,14 +106,14 @@ export default function ActivityManagement() {
     setLoading(true);
     try {
       const [activitiesRes, committeesRes] = await Promise.all([
-        supabase.from('activity_types').select('*').order('created_at', { ascending: false }),
+        supabase.from('activity_types').select('*, activity_type_committees(committee_id)').order('created_at', { ascending: false }),
         supabase.from('committees').select('id, name, name_ar').order('name'),
       ]);
 
       if (activitiesRes.error) throw activitiesRes.error;
       if (committeesRes.error) throw committeesRes.error;
 
-      setActivities(activitiesRes.data || []);
+      setActivities(activitiesRes.data as unknown as ActivityType[] || []);
       setCommittees(committeesRes.data || []);
     } catch (error: any) {
       toast.error('فشل في تحميل البيانات');
@@ -119,10 +123,18 @@ export default function ActivityManagement() {
     }
   };
 
-  const getCommitteeName = (committeeId: string | null) => {
-    if (!committeeId) return isRTL ? 'جميع اللجان' : 'All Committees';
-    const committee = committees.find(c => c.id === committeeId);
-    return committee ? (isRTL ? committee.name_ar : committee.name) : '';
+  const getCommitteeName = (activity: ActivityType) => {
+    const ids = activity.activity_type_committees?.map(c => c.committee_id) || [];
+    if (ids.length === 0 && activity.committee_id) ids.push(activity.committee_id);
+
+    if (ids.length === 0) return isRTL ? 'عام (بدون لجنة)' : 'General';
+
+    const names = ids.map(id => {
+      const c = committees.find(comm => comm.id === id);
+      return c ? (isRTL ? c.name_ar : c.name) : '';
+    }).filter(Boolean);
+
+    return names.join(', ');
   };
 
   const filteredActivities = activities.filter(activity => {
@@ -131,7 +143,19 @@ export default function ActivityManagement() {
     const matchesSearch =
       name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (description || '').toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCommittee = committeeFilter === 'all' || activity.committee_id === committeeFilter || (!activity.committee_id && committeeFilter === 'none');
+
+    let matchesCommittee = false;
+    if (committeeFilter === 'all') {
+      matchesCommittee = true;
+    } else if (committeeFilter === 'none') {
+      const hasCommittees = (activity.activity_type_committees && activity.activity_type_committees.length > 0) || !!activity.committee_id;
+      matchesCommittee = !hasCommittees;
+    } else {
+      const inLinked = activity.activity_type_committees?.some(c => c.committee_id === committeeFilter);
+      const inLegacy = activity.committee_id === committeeFilter;
+      matchesCommittee = inLinked || inLegacy;
+    }
+
     return matchesSearch && matchesCommittee;
   });
 
@@ -146,6 +170,7 @@ export default function ActivityManagement() {
       points_without_vest: 5,
       mode: 'individual',
       committee_id: '',
+      committee_ids: [],
     });
   };
 
@@ -153,7 +178,8 @@ export default function ActivityManagement() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('activity_types').insert({
+      // 1. Insert activity type
+      const { data, error } = await supabase.from('activity_types').insert({
         name: formData.name,
         name_ar: formData.name_ar,
         description: formData.description || null,
@@ -162,10 +188,24 @@ export default function ActivityManagement() {
         points_with_vest: formData.points_with_vest,
         points_without_vest: formData.points_without_vest,
         mode: formData.mode,
-        committee_id: formData.committee_id || null,
-      });
+        committee_id: null, // Deprecated, using relation table
+      }).select().single();
 
       if (error) throw error;
+
+      // 2. Insert committee relations
+      if (formData.committee_ids.length > 0) {
+        const relations = formData.committee_ids.map(cid => ({
+          activity_type_id: data.id,
+          committee_id: cid
+        }));
+
+        const { error: relError } = await supabase
+          .from('activity_type_committees')
+          .insert(relations);
+
+        if (relError) throw relError;
+      }
 
       toast.success(isRTL ? 'تم إنشاء نوع المهمة بنجاح' : 'Task type created successfully');
       setIsAddDialogOpen(false);
@@ -184,6 +224,7 @@ export default function ActivityManagement() {
     if (!selectedActivity) return;
     setSubmitting(true);
     try {
+      // 1. Update activity type
       const { error } = await supabase.from('activity_types').update({
         name: formData.name,
         name_ar: formData.name_ar,
@@ -193,10 +234,33 @@ export default function ActivityManagement() {
         points_with_vest: formData.points_with_vest,
         points_without_vest: formData.points_without_vest,
         mode: formData.mode,
-        committee_id: formData.committee_id || null,
+        committee_id: null,
       }).eq('id', selectedActivity.id);
 
       if (error) throw error;
+
+      // 2. Update committee relations
+      // First delete existing
+      const { error: deleteError } = await supabase
+        .from('activity_type_committees')
+        .delete()
+        .eq('activity_type_id', selectedActivity.id);
+
+      if (deleteError) throw deleteError;
+
+      // Then insert new
+      if (formData.committee_ids.length > 0) {
+        const relations = formData.committee_ids.map(cid => ({
+          activity_type_id: selectedActivity.id,
+          committee_id: cid
+        }));
+
+        const { error: insertError } = await supabase
+          .from('activity_type_committees')
+          .insert(relations);
+
+        if (insertError) throw insertError;
+      }
 
       toast.success(isRTL ? 'تم تحديث نوع المهمة بنجاح' : 'Task type updated successfully');
       setIsEditDialogOpen(false);
@@ -236,6 +300,13 @@ export default function ActivityManagement() {
 
   const openEditDialog = (activity: ActivityType) => {
     setSelectedActivity(activity);
+
+    // Extract committee IDs from relation or fallback to legacy ID
+    let linkedCommittees = activity.activity_type_committees?.map(c => c.committee_id) || [];
+    if (linkedCommittees.length === 0 && activity.committee_id) {
+      linkedCommittees = [activity.committee_id];
+    }
+
     setFormData({
       name: activity.name,
       name_ar: activity.name_ar,
@@ -245,7 +316,8 @@ export default function ActivityManagement() {
       points_with_vest: activity.points_with_vest ?? activity.points,
       points_without_vest: activity.points_without_vest ?? activity.points,
       mode: activity.mode,
-      committee_id: activity.committee_id || '',
+      committee_id: '',
+      committee_ids: linkedCommittees,
     });
     setIsEditDialogOpen(true);
   };
@@ -305,23 +377,13 @@ export default function ActivityManagement() {
                   </div>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="committee">{isRTL ? 'اللجنة' : 'Committee'}</Label>
-                  <Select
-                    value={formData.committee_id}
-                    onValueChange={(value) => setFormData({ ...formData, committee_id: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder={isRTL ? 'اختر اللجنة' : 'Select committee'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{isRTL ? 'جميع اللجان' : 'All Committees'}</SelectItem>
-                      {committees.map(committee => (
-                        <SelectItem key={committee.id} value={committee.id}>
-                          {isRTL ? committee.name_ar : committee.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>{isRTL ? 'اللجان' : 'Committees'}</Label>
+                  <MultiSelect
+                    options={committees.map(c => ({ value: c.id, label: isRTL ? c.name_ar : c.name }))}
+                    selected={formData.committee_ids}
+                    onChange={(selected) => setFormData({ ...formData, committee_ids: selected })}
+                    placeholder={isRTL ? 'اختر اللجان...' : 'Select committees...'}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2 p-3 border rounded-md bg-muted/20 space-y-3">
@@ -503,7 +565,7 @@ export default function ActivityManagement() {
                         <div className="flex justify-between items-center py-1 border-b">
                           <span className="text-muted-foreground">{isRTL ? 'اللجنة' : 'Committee'}</span>
                           <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
-                            {getCommitteeName(activity.committee_id)}
+                            {getCommitteeName(activity)}
                           </span>
                         </div>
                         <div className="flex justify-between items-center py-1 border-b">
@@ -559,7 +621,7 @@ export default function ActivityManagement() {
                         </TableCell>
                         <TableCell>
                           <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
-                            {getCommitteeName(activity.committee_id)}
+                            {getCommitteeName(activity)}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -651,23 +713,13 @@ export default function ActivityManagement() {
                 </div>
               </div>
               <div className="grid gap-2">
-                <Label>{isRTL ? 'اللجنة' : 'Committee'}</Label>
-                <Select
-                  value={formData.committee_id || 'all'}
-                  onValueChange={(value) => setFormData({ ...formData, committee_id: value === 'all' ? '' : value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{isRTL ? 'جميع اللجان' : 'All Committees'}</SelectItem>
-                    {committees.map(committee => (
-                      <SelectItem key={committee.id} value={committee.id}>
-                        {isRTL ? committee.name_ar : committee.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>{isRTL ? 'اللجان' : 'Committees'}</Label>
+                <MultiSelect
+                  options={committees.map(c => ({ value: c.id, label: isRTL ? c.name_ar : c.name }))}
+                  selected={formData.committee_ids}
+                  onChange={(selected) => setFormData({ ...formData, committee_ids: selected })}
+                  placeholder={isRTL ? 'اختر اللجان...' : 'Select committees...'}
+                />
               </div>
               <div className="col-span-2 p-3 border rounded-md bg-muted/20 space-y-3">
                 <p className="text-sm font-medium">{isRTL ? 'إعدادات الأثر' : 'Impact Settings'}</p>

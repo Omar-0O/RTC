@@ -62,7 +62,7 @@ Deno.serve(async (req: Request) => {
     if (roleError) throw roleError
 
     const roles = requesterRoles?.map(r => r.role) || []
-    const isAuthorized = roles.includes('admin') || roles.includes('head_hr')
+    const isAuthorized = roles.includes('admin') || roles.includes('head_hr') || roles.includes('supervisor')
 
     if (!isAuthorized) {
       throw new Error('Unauthorized: Admin or HR access required')

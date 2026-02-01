@@ -31,6 +31,7 @@ const SupervisorBadgeManagement = lazy(() => import("./pages/supervisor/BadgeMan
 const SupervisorReports = lazy(() => import("./pages/supervisor/Reports"));
 const CommitteeLeaderDashboard = lazy(() => import("./pages/leader/Dashboard"));
 const Members = lazy(() => import("./pages/leader/Members"));
+const LeaderBadgeAward = lazy(() => import("./pages/leader/BadgeAward"));
 const Caravans = lazy(() => import("./pages/caravans/Caravans"));
 const CaravanManagement = lazy(() => import("./pages/caravans/CaravanManagement"));
 const Events = lazy(() => import("./pages/events/Events"));
@@ -162,6 +163,7 @@ function AppRoutes() {
         <Route path="/leader/committee" element={<CommitteeLeaderDashboard />} />
         <Route path="/leader/members" element={<Members />} />
         <Route path="/leader/members/:id" element={<Profile />} />
+        <Route path="/leader/badges" element={<LeaderBadgeAward />} />
         <Route path="/leader/activity" element={<LogActivity />} />
         <Route path="/leader/profile" element={<Profile />} />
 
@@ -217,14 +219,14 @@ const App = () => (
         <AuthProvider>
           <TooltipProvider>
             <Toaster />
-          <Sonner />
-          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <ScrollToTop />
-            <ErrorBoundary>
-              <Suspense fallback={<PageLoader />}>
-                <AppRoutes />
-              </Suspense>
-            </ErrorBoundary>
+            <Sonner />
+            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <ScrollToTop />
+              <ErrorBoundary>
+                <Suspense fallback={<PageLoader />}>
+                  <AppRoutes />
+                </Suspense>
+              </ErrorBoundary>
             </BrowserRouter>
           </TooltipProvider>
         </AuthProvider>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, UserMinus, User, Phone, Mail, Calendar, Loader2, Check, ChevronsUpDown, Eye } from 'lucide-react';
+import { Search, Plus, UserMinus, User, Phone, Mail, Calendar, Loader2, Check, ChevronsUpDown, Eye, MoreVertical, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,6 +46,13 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { supabase } from '@/integrations/supabase/client';
@@ -411,24 +418,40 @@ export default function Members() {
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-end">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => navigate(`/leader/members/${member.id}`)}
-                                                    >
-                                                        <Eye className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                        onClick={() => openRemoveDialog(member)}
-                                                        disabled={member.id === profile?.id}
-                                                    >
-                                                        <UserMinus className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                            <MoreVertical className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => navigate(`/leader/members/${member.id}`)}>
+                                                            <Eye className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                            {language === 'ar' ? 'عرض البروفايل' : 'View Profile'}
+                                                        </DropdownMenuItem>
+                                                        {member.phone && (
+                                                            <DropdownMenuItem
+                                                                onClick={() => {
+                                                                    const phone = member.phone?.replace(/[^0-9]/g, '');
+                                                                    const formattedPhone = phone?.startsWith('0') ? `2${phone}` : phone;
+                                                                    window.open(`https://wa.me/${formattedPhone}`, '_blank');
+                                                                }}
+                                                            >
+                                                                <MessageCircle className="h-4 w-4 ltr:mr-2 rtl:ml-2 text-green-600" />
+                                                                {language === 'ar' ? 'رسالة واتساب' : 'WhatsApp Message'}
+                                                            </DropdownMenuItem>
+                                                        )}
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            className="text-destructive focus:text-destructive"
+                                                            onClick={() => openRemoveDialog(member)}
+                                                            disabled={member.id === profile?.id}
+                                                        >
+                                                            <UserMinus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                            {language === 'ar' ? 'إزالة من اللجنة' : 'Remove from Committee'}
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </TableCell>
                                         </TableRow>
                                     ))

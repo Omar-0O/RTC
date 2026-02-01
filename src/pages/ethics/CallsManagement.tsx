@@ -41,6 +41,7 @@ interface EthicsCall {
     drive_link: string | null;
     created_by: string;
     participants_count?: number;
+    accepted_count: number;
 }
 
 interface Participant {
@@ -88,6 +89,7 @@ export default function CallsManagement() {
         name: '',
         date: format(new Date(), 'yyyy-MM-dd'),
         calls_count: 0,
+        accepted_count: 0,
         drive_link: ''
     });
 
@@ -152,6 +154,7 @@ export default function CallsManagement() {
         }
 
         setParticipants([...participants, {
+            volunteer_id: volunteer.id,
             name: volunteer.full_name || '',
             phone: volunteer.phone || '',
             is_volunteer: true,
@@ -194,11 +197,29 @@ export default function CallsManagement() {
 
 
     const awardPoints = async (participantsList: Participant[], callName: string) => {
+        console.log('Awarding points for:', callName, participantsList);
         const activityTypeId = await getEthicsActivityTypeId();
+
         // Filter valid volunteers
         const validParticipants = participantsList.filter(p => p.is_volunteer && p.volunteer_id);
+        console.log('Valid volunteers found:', validParticipants.length, validParticipants);
 
-        if (!activityTypeId || validParticipants.length === 0) return;
+        if (!activityTypeId) {
+            console.error('Ethics Publishing activity type not found');
+            toast.error(isRTL ? 'خطأ: لم يتم العثور على نوع نشاط "نشر أخلاقيات"' : 'Error: "Ethics Publishing" activity type not found');
+            return;
+        }
+
+        if (validParticipants.length === 0) {
+            const hasVolunteers = participantsList.some(p => p.is_volunteer);
+            if (hasVolunteers) {
+                console.error('Volunteers found but missing IDs. Raw list:', participantsList);
+                toast.error(isRTL ? 'خطأ: بيانات المتطوعين غير مكتملة' : 'Error: Volunteer data incomplete');
+            } else {
+                console.log('No volunteers to award points to.');
+            }
+            return;
+        }
 
         const submissions = validParticipants.map(participant => {
             // Points calculation: 10 if wore_vest, 5 otherwise (or as user requested "calculate based on that")
@@ -212,10 +233,12 @@ export default function CallsManagement() {
                 status: 'approved' as const,
                 points_awarded: points,
                 submitted_at: new Date().toISOString(),
-                description: `Ethics Call: ${callName}`,
+                description: `مكالمات: ${callName}`,
                 wore_vest: participant.wore_vest
             };
         });
+
+        console.log('Submitting RPC payload:', submissions);
 
         // Use RPC to bypass RLS issues cleanly
         const { error } = await supabase.rpc('award_ethics_call_points', {
@@ -226,6 +249,7 @@ export default function CallsManagement() {
             console.error('Error awarding points:', error);
             toast.error(isRTL ? `خطأ في تسجيل النقاط: ${error.message}` : `Error awarding points: ${error.message}`);
         } else {
+            console.log('Points awarded successfully');
             toast.success(isRTL ? `تم تسجيل 10 أثر للمتطوعين` : `Awarded 10 points to volunteers`);
         }
     };
@@ -244,6 +268,7 @@ export default function CallsManagement() {
                     name: formData.name,
                     date: formData.date,
                     calls_count: formData.calls_count || 0,
+                    accepted_count: formData.accepted_count || 0,
                     drive_link: formData.drive_link || null,
                     created_by: user?.id
                 })
@@ -291,6 +316,7 @@ export default function CallsManagement() {
             name: call.name,
             date: call.date,
             calls_count: call.calls_count || 0,
+            accepted_count: call.accepted_count || 0,
             drive_link: call.drive_link || ''
         });
 
@@ -328,6 +354,7 @@ export default function CallsManagement() {
                     name: formData.name,
                     date: formData.date,
                     calls_count: formData.calls_count || 0,
+                    accepted_count: formData.accepted_count || 0,
                     drive_link: formData.drive_link || null,
                     updated_at: new Date().toISOString()
                 })
@@ -363,7 +390,7 @@ export default function CallsManagement() {
                         .from('activity_submissions')
                         .delete()
                         .in('volunteer_id', volIdsToRemove)
-                        .eq('description', `Ethics Call: ${originalName}`);
+                        .eq('description', `مكالمات: ${originalName}`);
                 }
             }
 
@@ -401,14 +428,26 @@ export default function CallsManagement() {
 
         setIsDeleting(true);
         try {
-            // 1. Delete related activity_submissions
-            const { error: submissionsError } = await supabase
-                .from('activity_submissions')
-                .delete()
-                .ilike('description', `Ethics Call: ${callToDelete.name}`);
+            // 1. Fetch participants to specifically target their submissions
+            const { data: callParticipants } = await supabase
+                .from('ethics_calls_participants')
+                .select('volunteer_id')
+                .eq('call_id', callToDelete.id)
+                .not('volunteer_id', 'is', null);
 
-            if (submissionsError) {
-                console.error('Error deleting submissions:', submissionsError);
+            if (callParticipants && callParticipants.length > 0) {
+                const volunteerIds = callParticipants.map(p => p.volunteer_id);
+
+                // 2. Delete related activity_submissions for these volunteers
+                const { error: submissionsError } = await supabase
+                    .from('activity_submissions')
+                    .delete()
+                    .in('volunteer_id', volunteerIds)
+                    .eq('description', `مكالمات: ${callToDelete.name}`);
+
+                if (submissionsError) {
+                    console.error('Error deleting submissions:', submissionsError);
+                }
             }
 
             // 2. Delete the call (participants will be deleted via CASCADE)
@@ -436,6 +475,7 @@ export default function CallsManagement() {
             name: '',
             date: format(new Date(), 'yyyy-MM-dd'),
             calls_count: 0,
+            accepted_count: 0,
             drive_link: ''
         });
         setParticipants([]);
@@ -546,7 +586,6 @@ export default function CallsManagement() {
                                         <Input
                                             value={formData.name}
                                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                            placeholder={isRTL ? 'مثال: نزولة شارع الهرم' : 'e.g., Haram Street Outreach'}
                                         />
                                     </div>
 
@@ -569,6 +608,18 @@ export default function CallsManagement() {
                                                 min={0}
                                                 value={formData.calls_count}
                                                 onChange={(e) => setFormData({ ...formData, calls_count: parseInt(e.target.value) || 0 })}
+                                                placeholder="0"
+                                            />
+                                        </div>
+
+                                        {/* Accepted Count */}
+                                        <div className="grid gap-2">
+                                            <Label>{isRTL ? 'عدد المقبولين' : 'Accepted Count'}</Label>
+                                            <Input
+                                                type="number"
+                                                min={0}
+                                                value={formData.accepted_count}
+                                                onChange={(e) => setFormData({ ...formData, accepted_count: parseInt(e.target.value) || 0 })}
                                                 placeholder="0"
                                             />
                                         </div>
@@ -725,11 +776,17 @@ export default function CallsManagement() {
                     </div>
 
                     {/* Stats Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <StatsCard
                             title={isRTL ? 'مكالمات الشهر' : 'Monthly Calls'}
                             value={calls.filter(c => format(parseISO(c.date), 'yyyy-MM') === currentMonth).reduce((sum, c) => sum + (c.calls_count || 0), 0)}
                             icon={PhoneCall}
+                            description={isRTL ? `خلال شهر ${format(new Date(), 'MMMM', { locale: isRTL ? ar : enUS })}` : `In ${format(new Date(), 'MMMM')}`}
+                        />
+                        <StatsCard
+                            title={isRTL ? 'المكالمات المقبولة' : 'Accepted Calls'}
+                            value={calls.filter(c => format(parseISO(c.date), 'yyyy-MM') === currentMonth).reduce((sum, c) => sum + (c.accepted_count || 0), 0)}
+                            icon={Check}
                             description={isRTL ? `خلال شهر ${format(new Date(), 'MMMM', { locale: isRTL ? ar : enUS })}` : `In ${format(new Date(), 'MMMM')}`}
                         />
                         <StatsCard
@@ -809,7 +866,7 @@ export default function CallsManagement() {
                                                 <span>{call.date}</span>
                                             </div>
 
-                                            <div className="flex items-center gap-4">
+                                            <div className="flex items-center gap-4 flex-wrap">
                                                 <div className="flex items-center gap-2">
                                                     <PhoneCall className="h-4 w-4 text-primary" />
                                                     <span className="font-semibold">{call.calls_count || 0}</span>
@@ -819,6 +876,10 @@ export default function CallsManagement() {
                                                     <Users className="h-4 w-4 text-blue-500" />
                                                     <span className="font-semibold">{call.participants_count || 0}</span>
                                                     <span className="text-sm text-muted-foreground">{isRTL ? 'مشارك' : 'participants'}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded text-sm text-green-700 dark:text-green-300">
+                                                    <Check className="h-3 w-3" />
+                                                    <span>{isRTL ? 'المقبول:' : 'Accepted:'} {call.accepted_count || 0}/{call.calls_count || 0}</span>
                                                 </div>
                                             </div>
 
