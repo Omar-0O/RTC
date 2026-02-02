@@ -18,6 +18,9 @@ interface CourseAd {
     content_done: boolean;
     course?: {
         name: string;
+        start_date: string;
+        has_interview: boolean;
+        interview_date: string | null;
     };
     [key: string]: any; // Allow other properties
 }
@@ -108,7 +111,7 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
           ad_date,
           poster_done,
           content_done,
-          course:courses(name)
+          course:courses(name, start_date, has_interview, interview_date)
         `)
                 .order('ad_date', { ascending: true });
 
@@ -206,15 +209,23 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
                                         </div>
                                         <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1">
                                             {dayAds.map(ad => {
-                                                const isUrgent = (!ad.poster_done || !ad.content_done) &&
-                                                    differenceInCalendarDays(parseISO(ad.ad_date), new Date()) <= 5;
+                                                // Determine target date (interview date or start date)
+
+                                                const targetDateStr = ad.course?.has_interview && ad.course?.interview_date
+                                                    ? ad.course.interview_date
+                                                    : ad.course?.start_date;
+
+                                                const targetDate = targetDateStr ? parseISO(targetDateStr) : null;
+
+                                                const isUrgent = targetDate && (!ad.poster_done || !ad.content_done) &&
+                                                    differenceInCalendarDays(targetDate, new Date()) <= 5;
 
                                                 return (
                                                     <div
                                                         key={ad.id}
                                                         className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 transition-all ${isUrgent
-                                                                ? 'bg-red-100 dark:bg-red-900/30 border-red-300 text-red-700 dark:text-red-300'
-                                                                : 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 text-purple-700 dark:text-purple-300'
+                                                            ? 'bg-red-100 dark:bg-red-900/30 border-red-300 text-red-700 dark:text-red-300'
+                                                            : 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 text-purple-700 dark:text-purple-300'
                                                             }`}
                                                         onClick={() => setSelectedAd(ad)}
                                                         title={`${ad.course.name} - #${ad.ad_number}`}
@@ -255,32 +266,47 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
                                         )}
                                     </div>
                                     <div className="space-y-3">
-                                        {dayAds.map(ad => (
-                                            <div
-                                                key={ad.id}
-                                                className="p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform bg-purple-50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800"
-                                                onClick={() => setSelectedAd(ad)}
-                                            >
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between mb-1">
-                                                        <p className="font-semibold text-sm truncate text-purple-900 dark:text-purple-300">
-                                                            {ad.course.name}
-                                                        </p>
-                                                        <Badge variant="outline" className="text-xs bg-background">#{ad.ad_number}</Badge>
-                                                    </div>
-                                                    <div className="flex gap-3 mt-2">
-                                                        <div className={`flex items-center gap-1 text-xs ${ad.poster_done ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
-                                                            {ad.poster_done ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
-                                                            <span>{isRTL ? 'بوستر' : 'Poster'}</span>
+                                        {dayAds.map(ad => {
+                                            // Determine target date (interview date or start date)
+                                            const targetDateStr = ad.course?.has_interview && ad.course?.interview_date
+                                                ? ad.course.interview_date
+                                                : ad.course?.start_date;
+
+                                            const targetDate = targetDateStr ? parseISO(targetDateStr) : null;
+
+                                            const isUrgent = targetDate && (!ad.poster_done || !ad.content_done) &&
+                                                differenceInCalendarDays(targetDate, new Date()) <= 5;
+
+                                            return (
+                                                <div
+                                                    key={ad.id}
+                                                    className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${isUrgent
+                                                        ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
+                                                        : 'bg-purple-50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800'
+                                                        }`}
+                                                    onClick={() => setSelectedAd(ad)}
+                                                >
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <p className="font-semibold text-sm truncate text-purple-900 dark:text-purple-300">
+                                                                {ad.course.name}
+                                                            </p>
+                                                            <Badge variant="outline" className="text-xs bg-background">#{ad.ad_number}</Badge>
                                                         </div>
-                                                        <div className={`flex items-center gap-1 text-xs ${ad.content_done ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
-                                                            {ad.content_done ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
-                                                            <span>{isRTL ? 'محتوى' : 'Content'}</span>
+                                                        <div className="flex gap-3 mt-2">
+                                                            <div className={`flex items-center gap-1 text-xs ${ad.poster_done ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                                                                {ad.poster_done ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                                                                <span>{isRTL ? 'بوستر' : 'Poster'}</span>
+                                                            </div>
+                                                            <div className={`flex items-center gap-1 text-xs ${ad.content_done ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                                                                {ad.content_done ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                                                                <span>{isRTL ? 'محتوى' : 'Content'}</span>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             );

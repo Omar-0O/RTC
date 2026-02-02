@@ -730,7 +730,7 @@ export default function CourseManagement() {
                 trainer_id: selectedTrainerId || null,
                 trainer_name: selectedTrainer ? (isRTL ? selectedTrainer.name_ar : selectedTrainer.name_en) : formData.trainer_name,
                 trainer_phone: selectedTrainer?.phone || formData.trainer_phone,
-                start_date: actualStartDate,
+                start_date: formData.start_date, // Use user selected date
                 end_date: actualEndDate,
                 interview_date: formData.interview_date || null,
                 committee_id: formData.committee_id
