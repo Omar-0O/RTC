@@ -806,6 +806,9 @@ export default function SubmissionManagement() {
                     submissions.map((submission) => {
                         // Determine if this is a guest submission
                         const isGuest = !submission.profiles || submission.participant_type === 'guest';
+                        // Determine if this is a trainer submission (by type or committee)
+                        const isTrainer = submission.participant_type === 'trainer' || submission.committees?.name === 'Trainer';
+
                         const displayName = isGuest
                             ? submission.guest_name
                             : (isRTL ? submission.profiles?.full_name_ar : submission.profiles?.full_name);
@@ -832,7 +835,11 @@ export default function SubmissionManagement() {
                                                     <h3 className="font-semibold text-base sm:text-lg truncate">
                                                         {displayName || (isRTL ? 'ضيف' : 'Guest')}
                                                     </h3>
-                                                    {isGuest ? (
+                                                    {isTrainer ? (
+                                                        <Badge variant="outline" className="text-xs sm:text-xs shrink-0 text-indigo-600 border-indigo-200 bg-indigo-50">
+                                                            {isRTL ? 'مدرب' : 'Trainer'}
+                                                        </Badge>
+                                                    ) : isGuest ? (
                                                         <Badge variant="outline" className="text-xs sm:text-xs shrink-0 text-emerald-600 border-emerald-200 bg-emerald-50">
                                                             {isRTL ? 'ضيف' : 'Guest'}
                                                         </Badge>
@@ -880,6 +887,13 @@ export default function SubmissionManagement() {
                                                     </>
                                                 )}
                                             </div>
+
+                                            {/* Description (Course/Lecture Info) */}
+                                            {submission.description && (
+                                                <div className="text-sm text-muted-foreground mt-1 break-words">
+                                                    {submission.description}
+                                                </div>
+                                            )}
 
                                             {/* Status & Points */}
                                             <div className="flex items-center gap-2 mt-1">

@@ -382,6 +382,7 @@ export default function MyCourses() {
                 points_awarded: activityType.points,
                 status: 'approved',
                 location: 'branch',
+                participant_type: 'trainer',
                 proof_url: null
             });
 
