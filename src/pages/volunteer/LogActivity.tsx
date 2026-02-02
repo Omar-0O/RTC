@@ -289,12 +289,17 @@ export default function LogActivity() {
     if (!user) return null;
     try {
       // Sanitize activity name for filename (remove special characters)
-      const sanitizedName = activityName.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-      const fileName = `${user.id}/group-reports/${sanitizedName}_${date}.xlsx`;
+      console.log('Original activity name:', activityName);
+      let sanitizedName = activityName.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
+      console.log('Sanitized name:', sanitizedName);
+      if (!sanitizedName || sanitizedName.length < 3) sanitizedName = 'activity_report';
+      if (!sanitizedName || sanitizedName.length < 3) sanitizedName = 'activity_report';
+      const timestamp = new Date().getTime();
+      const fileName = `${user.id}/group-reports/${sanitizedName}_${date}_${timestamp}.xlsx`;
 
       const { error: uploadError } = await supabase.storage
         .from('activity-proofs') // Reusing same bucket or create new one
-        .upload(fileName, excelBlob);
+        .upload(fileName, excelBlob, { upsert: true });
 
       if (uploadError) throw uploadError;
 

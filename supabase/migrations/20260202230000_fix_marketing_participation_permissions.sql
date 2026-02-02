@@ -51,7 +51,7 @@ WITH CHECK (
   EXISTS (
     SELECT 1 FROM public.user_roles
     WHERE user_id = auth.uid()
-    AND role IN ('admin', 'supervisor', 'head_hr', 'head_marketing')
+    AND role IN ('admin', 'supervisor', 'head_hr', 'head_marketing', 'committee_leader')
   )
   OR
   -- Option 2: Committee restricted access
@@ -59,7 +59,7 @@ WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.user_roles
       WHERE user_id = auth.uid()
-      AND role IN ('committee_leader', 'head_caravans', 'head_events')
+      AND role IN ('head_caravans', 'head_events')
     )
     AND
     public.get_user_committee_id(auth.uid()) IS NOT NULL
