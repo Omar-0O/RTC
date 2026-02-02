@@ -807,6 +807,100 @@ export default function LogActivity() {
                         )}
                       </div>
                     )}
+
+                    {/* Location Selection - Shared for Group */}
+                    <div className="space-y-2.5 pt-4 border-t">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        {t('activityLog.location')}
+                      </Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => { setLocation('branch'); }}
+                          className={cn(
+                            "relative p-4 rounded-xl border-2 text-center transition-all",
+                            location === 'branch'
+                              ? "border-primary bg-primary/5 shadow-sm"
+                              : "border-border hover:border-primary/30 hover:bg-muted/50"
+                          )}
+                        >
+                          <Building2 className={cn(
+                            "h-6 w-6 mx-auto mb-2",
+                            location === 'branch' ? "text-primary" : "text-muted-foreground"
+                          )} />
+                          <span className={cn(
+                            "text-sm font-medium",
+                            location === 'branch' ? "text-primary" : "text-foreground"
+                          )}>
+                            {t('activityLog.branch')}
+                          </span>
+                          {location === 'branch' && (
+                            <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                              <Check className="h-3 w-3 text-white" />
+                            </div>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setLocation('home'); setWoreVest(false); }}
+                          className={cn(
+                            "relative p-4 rounded-xl border-2 text-center transition-all",
+                            location === 'home'
+                              ? "border-primary bg-primary/5 shadow-sm"
+                              : "border-border hover:border-primary/30 hover:bg-muted/50"
+                          )}
+                        >
+                          <svg className={cn(
+                            "h-6 w-6 mx-auto mb-2",
+                            location === 'home' ? "text-primary" : "text-muted-foreground"
+                          )} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                          </svg>
+                          <span className={cn(
+                            "text-sm font-medium",
+                            location === 'home' ? "text-primary" : "text-foreground"
+                          )}>
+                            {t('activityLog.home')}
+                          </span>
+                          {location === 'home' && (
+                            <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                              <Check className="h-3 w-3 text-white" />
+                            </div>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Vest Checkbox - Shared for Group */}
+                    {location === 'branch' && (
+                      <div className="space-y-3 p-4 rounded-xl border-2 border-warning/30 bg-gradient-to-br from-warning/5 to-orange-500/5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-lg bg-warning/20 flex items-center justify-center">
+                              <Shirt className="h-5 w-5 text-warning" />
+                            </div>
+                            <Label htmlFor="wore-vest-group" className="text-sm font-semibold cursor-pointer">
+                              {isRTL ? 'ارتداء الـ Vest (للجميع)' : 'Vest Worn (Everyone)'}
+                            </Label>
+                          </div>
+                          <Switch
+                            id="wore-vest-group"
+                            checked={woreVest}
+                            onCheckedChange={setWoreVest}
+                          />
+                        </div>
+                        <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+                          <span className="text-lg">⚠️</span>
+                          <p className="text-xs text-foreground">
+                            {isRTL
+                              ? 'يجب أن يكون جميع المشاركين مرتدين للـ Vest (أو الزي الرسمي) في الصورة.'
+                              : 'All participants must be wearing the Vest (or official uniform) in the photo.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                   </div>
                 </div>
               ) : (
