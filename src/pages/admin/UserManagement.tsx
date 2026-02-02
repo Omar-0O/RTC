@@ -824,8 +824,7 @@ export default function UserManagement() {
       case 'head_ethics':
       case 'head_quran':
         return 'bg-blue-100 text-blue-700';
-      case 'marketing_member':
-        return 'bg-amber-100 text-amber-700';
+
       default:
         return 'bg-muted text-muted-foreground';
     }
@@ -926,7 +925,7 @@ export default function UserManagement() {
               case 'head_ashbal': return 'هيد لجنة الأشبال';
               case 'head_production': return 'هيد لجان انتاج';
               case 'head_fourth_year': return 'هيد لجان سنة رابعة';
-              case 'marketing_member': return 'متطوع لجنة تسويق';
+
               default: return 'متطوع';
             }
           })(),
@@ -1073,7 +1072,7 @@ export default function UserManagement() {
                         <SelectItem value="head_quran">{t('common.head_quran')}</SelectItem>
                         <SelectItem value="head_marketing">{t('common.head_marketing')}</SelectItem>
                         <SelectItem value="head_ashbal">{t('common.head_ashbal')}</SelectItem>
-                        <SelectItem value="marketing_member">{t('common.marketing_member')}</SelectItem>
+
                       </SelectContent>
                     </Select>
                   </div>
@@ -1418,7 +1417,7 @@ export default function UserManagement() {
                       <SelectItem value="head_quran">{t('common.head_quran')}</SelectItem>
                       <SelectItem value="head_marketing">{t('common.head_marketing')}</SelectItem>
                       <SelectItem value="head_ashbal">{t('common.head_ashbal')}</SelectItem>
-                      <SelectItem value="marketing_member">{t('common.marketing_member')}</SelectItem>
+
                     </SelectContent>
                   </Select>
                 </div>

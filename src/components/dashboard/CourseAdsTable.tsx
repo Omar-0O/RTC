@@ -1,19 +1,13 @@
-
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Megaphone, CheckCircle2, Circle, AlertCircle } from 'lucide-react';
-import { format } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Loader2, Megaphone, CheckCircle2, Circle, ChevronRight, ChevronLeft, Calendar, FileText, ImageIcon } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths, parseISO } from 'date-fns';
+import { ar, enUS } from 'date-fns/locale';
 
 interface CourseAd {
     id: string;
@@ -22,24 +16,57 @@ interface CourseAd {
     ad_date: string;
     poster_done: boolean;
     content_done: boolean;
-    course: {
+    course?: {
         name: string;
     };
+    [key: string]: any; // Allow other properties
 }
 
-export function CourseAdsTable() {
-    const { isRTL } = useLanguage();
-    const [ads, setAds] = useState<CourseAd[]>([]);
-    const [loading, setLoading] = useState(true);
+interface CourseAdsTableProps {
+    ads?: CourseAd[];
+    title?: string;
+}
+
+const DAY_MAP: Record<number, string> = {
+    0: 'sunday',
+    1: 'monday',
+    2: 'tuesday',
+    3: 'wednesday',
+    4: 'thursday',
+    5: 'friday',
+    6: 'saturday',
+};
+
+const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
+    'saturday': { en: 'Sat', ar: 'سبت' },
+    'sunday': { en: 'Sun', ar: 'أحد' },
+    'monday': { en: 'Mon', ar: 'إثنين' },
+    'tuesday': { en: 'Tue', ar: 'ثلاثاء' },
+    'wednesday': { en: 'Wed', ar: 'أربعاء' },
+    'thursday': { en: 'Thu', ar: 'خميس' },
+    'friday': { en: 'Fri', ar: 'جمعة' },
+};
+
+export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
+    const { isRTL, language } = useLanguage();
+    const locale = language === 'ar' ? ar : enUS;
+    const [ads, setAds] = useState<CourseAd[]>(propAds || []);
+    const [loading, setLoading] = useState(!propAds);
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [selectedAd, setSelectedAd] = useState<CourseAd | null>(null);
 
     useEffect(() => {
-        fetchAds();
-    }, []);
+        if (propAds) {
+            setAds(propAds);
+            setLoading(false);
+        } else {
+            fetchAds();
+        }
+    }, [propAds]);
 
     const fetchAds = async () => {
         try {
-            const today = new Date().toISOString().split('T')[0];
-
+            // Fetch all ads (or optimization: fetch based on range if needed)
             const { data, error } = await supabase
                 .from('course_ads')
                 .select(`
@@ -51,15 +78,10 @@ export function CourseAdsTable() {
           content_done,
           course:courses(name)
         `)
-                .gte('ad_date', today) // Show upcoming ads mainly? Or all? User said "Ads I am doing". Let's show all upcoming and recent.
-                // Actually "Ads I am making" usually implies future work. Let's show everything sorted by date.
-                // Let's filter for relevant ones (e.g. not ancient history). Maybe last 30 days and future?
-                // For now, let's just order by date desc.
                 .order('ad_date', { ascending: true });
 
             if (error) throw error;
 
-            // Transform data to match interface
             const formattedData = (data || []).map((item: any) => ({
                 ...item,
                 course: item.course || { name: 'Unknown Course' }
@@ -73,9 +95,24 @@ export function CourseAdsTable() {
         }
     };
 
+    // Filter ads for specific date
+    const getAdsForDate = (date: Date) => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        return ads.filter(ad => ad.ad_date === dateStr);
+    };
+
+    // Generate calendar
+    const monthStart = startOfMonth(currentMonth);
+    const monthEnd = endOfMonth(currentMonth);
+    const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+
+    // Align with Saturday (week starts Saturday)
+    const startDayIndex = (getDay(monthStart) + 1) % 7; // Saturday = 0
+    const paddedDays = [...Array(startDayIndex).fill(null), ...calendarDays];
+
     if (loading) {
         return (
-            <Card>
+            <Card className="col-span-full">
                 <CardContent className="flex items-center justify-center h-48">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                 </CardContent>
@@ -83,56 +120,202 @@ export function CourseAdsTable() {
         );
     }
 
-    if (ads.length === 0) return null;
+    // if (ads.length === 0) return null; // Removed to show empty calendar
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                    <Megaphone className="h-5 w-5 text-primary" />
-                    {isRTL ? 'إعلانات الكورسات القادمة' : 'Upcoming Course Ads'}
-                </CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="border rounded-md">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>{isRTL ? 'الكورس' : 'Course'}</TableHead>
-                                <TableHead>{isRTL ? 'رقم الإعلان' : 'Ad #'}</TableHead>
-                                <TableHead>{isRTL ? 'التاريخ' : 'Date'}</TableHead>
-                                <TableHead>{isRTL ? 'البوستر' : 'Poster'}</TableHead>
-                                <TableHead>{isRTL ? 'المحتوى' : 'Content'}</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {ads.map((ad) => (
-                                <TableRow key={ad.id}>
-                                    <TableCell className="font-medium">{ad.course.name}</TableCell>
-                                    <TableCell>
-                                        <Badge variant="outline">#{ad.ad_number}</Badge>
-                                    </TableCell>
-                                    <TableCell>{format(new Date(ad.ad_date), 'dd/MM/yyyy')}</TableCell>
-                                    <TableCell>
-                                        {ad.poster_done ? (
-                                            <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                        ) : (
-                                            <Circle className="h-5 w-5 text-muted-foreground" />
-                                        )}
-                                    </TableCell>
-                                    <TableCell>
-                                        {ad.content_done ? (
-                                            <CheckCircle2 className="h-5 w-5 text-green-500" />
-                                        ) : (
-                                            <Circle className="h-5 w-5 text-muted-foreground" />
-                                        )}
-                                    </TableCell>
-                                </TableRow>
+        <>
+            <Card className="col-span-full">
+                <CardHeader className="flex flex-row items-center justify-between pb-4">
+                    <div>
+                        <CardTitle className="flex items-center gap-2 text-xl">
+                            <Megaphone className="h-6 w-6 text-primary" />
+                            {title || (isRTL ? 'تقويم الإعلانات' : 'Ads Calendar')}
+                        </CardTitle>
+                        <CardDescription>{format(currentMonth, 'MMMM yyyy', { locale })}</CardDescription>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
+                            {isRTL ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setCurrentMonth(new Date())}>
+                            {isRTL ? 'اليوم' : 'Today'}
+                        </Button>
+                        <Button variant="outline" size="icon" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
+                            {isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {/* Desktop View (Calender Grid) */}
+                    <div className="hidden md:block">
+                        <div className="grid grid-cols-7 mb-2">
+                            {['saturday', 'sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday'].map(day => (
+                                <div key={day} className="text-center font-semibold text-sm py-2 text-muted-foreground">
+                                    {DAYS_LABELS[day][language as 'en' | 'ar']}
+                                </div>
                             ))}
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-        </Card>
+                        </div>
+
+                        <div className="grid grid-cols-7 gap-1">
+                            {paddedDays.map((day, idx) => {
+                                if (!day) {
+                                    return <div key={`empty-${idx}`} className="min-h-[100px] bg-muted/20 rounded"></div>;
+                                }
+                                const dayAds = getAdsForDate(day);
+                                const isDayToday = isToday(day);
+
+                                return (
+                                    <div
+                                        key={day.toISOString()}
+                                        className={`min-h-[100px] p-2 rounded border ${isDayToday ? 'border-primary bg-primary/5' : 'border-border'}`}
+                                    >
+                                        <div className={`text-sm font-medium mb-1 ${isDayToday ? 'text-primary' : ''}`}>
+                                            {format(day, 'd')}
+                                        </div>
+                                        <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1">
+                                            {dayAds.map(ad => (
+                                                <div
+                                                    key={ad.id}
+                                                    className="p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 transition-all bg-purple-100 dark:bg-purple-900/30 border-purple-300 text-purple-700 dark:text-purple-300"
+                                                    onClick={() => setSelectedAd(ad)}
+                                                    title={`${ad.course.name} - #${ad.ad_number}`}
+                                                >
+                                                    <div className="flex items-center gap-1">
+                                                        <Megaphone className="h-3 w-3" />
+                                                        <span className="font-medium truncate flex-1 leading-tight">
+                                                            {ad.course.name} #{ad.ad_number}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Mobile View (List) */}
+                    <div className="md:hidden space-y-4">
+                        {calendarDays.map((day) => {
+                            const dayAds = getAdsForDate(day);
+                            if (dayAds.length === 0) return null;
+
+                            const isDayToday = isToday(day);
+                            return (
+                                <div key={day.toISOString()} className={`rounded-lg border p-4 ${isDayToday ? 'border-primary bg-primary/5' : 'bg-card'}`}>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className={`text-lg font-bold ${isDayToday ? 'text-primary' : ''}`}>
+                                            {format(day, 'EEEE, d MMMM', { locale })}
+                                        </div>
+                                        {isDayToday && (
+                                            <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">
+                                                {isRTL ? 'اليوم' : 'Today'}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="space-y-3">
+                                        {dayAds.map(ad => (
+                                            <div
+                                                key={ad.id}
+                                                className="p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform bg-purple-50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800"
+                                                onClick={() => setSelectedAd(ad)}
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <p className="font-semibold text-sm truncate text-purple-900 dark:text-purple-300">
+                                                            {ad.course.name}
+                                                        </p>
+                                                        <Badge variant="outline" className="text-xs bg-background">#{ad.ad_number}</Badge>
+                                                    </div>
+                                                    <div className="flex gap-3 mt-2">
+                                                        <div className={`flex items-center gap-1 text-xs ${ad.poster_done ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                                                            {ad.poster_done ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                                                            <span>{isRTL ? 'بوستر' : 'Poster'}</span>
+                                                        </div>
+                                                        <div className={`flex items-center gap-1 text-xs ${ad.content_done ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}`}>
+                                                            {ad.content_done ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+                                                            <span>{isRTL ? 'محتوى' : 'Content'}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Dialog open={!!selectedAd} onOpenChange={() => setSelectedAd(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Megaphone className="h-5 w-5 text-primary" />
+                            {selectedAd?.course.name}
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {selectedAd && (
+                        <div className="space-y-6 py-2">
+                            <div className="flex items-center justify-between bg-muted/40 p-3 rounded-lg">
+                                <div>
+                                    <p className="text-sm text-muted-foreground mb-1">{isRTL ? 'رقم الإعلان' : 'Ad Number'}</p>
+                                    <p className="text-xl font-bold font-mono">#{selectedAd.ad_number}</p>
+                                </div>
+                                <div className="text-end">
+                                    <p className="text-sm text-muted-foreground mb-1">{isRTL ? 'تاريخ النشر' : 'Publish Date'}</p>
+                                    <p className="font-semibold">{format(parseISO(selectedAd.ad_date), 'dd MMMM yyyy', { locale })}</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-full text-blue-600 dark:text-blue-400">
+                                            <ImageIcon className="h-5 w-5" />
+                                        </div>
+                                        <span className="font-medium">{isRTL ? 'تصميم البوستر' : 'Poster Design'}</span>
+                                    </div>
+                                    {selectedAd.poster_done ? (
+                                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 border-green-200">
+                                            <CheckCircle2 className="h-3 w-3 ltr:mr-1 rtl:ml-1" />
+                                            {isRTL ? 'تم' : 'Done'}
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="text-muted-foreground">
+                                            <Circle className="h-3 w-3 ltr:mr-1 rtl:ml-1" />
+                                            {isRTL ? 'قيد التنفيذ' : 'Pending'}
+                                        </Badge>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-full text-amber-600 dark:text-amber-400">
+                                            <FileText className="h-5 w-5" />
+                                        </div>
+                                        <span className="font-medium">{isRTL ? 'كتابة المحتوى' : 'Content Writing'}</span>
+                                    </div>
+                                    {selectedAd.content_done ? (
+                                        <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 border-green-200">
+                                            <CheckCircle2 className="h-3 w-3 ltr:mr-1 rtl:ml-1" />
+                                            {isRTL ? 'تم' : 'Done'}
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="outline" className="text-muted-foreground">
+                                            <Circle className="h-3 w-3 ltr:mr-1 rtl:ml-1" />
+                                            {isRTL ? 'قيد التنفيذ' : 'Pending'}
+                                        </Badge>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }

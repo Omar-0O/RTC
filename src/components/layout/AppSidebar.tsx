@@ -117,13 +117,14 @@ export function AppSidebar() {
       }
 
       // Check if enrolled in any circle (as a beneficiary linked to volunteer)
-      const { data: enrollmentData } = await supabase
-        .from('quran_circle_enrollments')
-        .select('id, beneficiary:quran_beneficiaries!inner(volunteer_id)')
-        .eq('beneficiary.volunteer_id', user.id)
-        .limit(1);
+      // FIXME: Schema update needed. quran_beneficiaries table does not have volunteer_id.
+      // const { data: enrollmentData } = await supabase
+      //   .from('quran_enrollments')
+      //   .select('id, beneficiary:quran_beneficiaries!inner(volunteer_id)')
+      //   .eq('beneficiary.volunteer_id', user.id)
+      //   .limit(1);
 
-      setIsCircleOrganizer(enrollmentData && enrollmentData.length > 0);
+      // setIsCircleOrganizer(enrollmentData && enrollmentData.length > 0);
     };
     checkCircleOrganizer();
   }, [user?.id]);

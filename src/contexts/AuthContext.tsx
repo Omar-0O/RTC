@@ -168,7 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (roles.includes('head_quran')) return 'head_quran';
     if (roles.includes('head_marketing')) return 'head_marketing';
     if (roles.includes('head_ashbal')) return 'head_ashbal';
-    if (roles.includes('marketing_member')) return 'marketing_member';
+
     return 'volunteer';
   }, [roles]);
 

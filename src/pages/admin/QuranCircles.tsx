@@ -155,7 +155,7 @@ export default function QuranCircles() {
                 .from('quran_circles')
                 .select(`
                     *,
-                    teacher: trainers(name_ar),
+                    teacher: trainers!quran_circles_teacher_id_fkey(name_ar),
                     quran_circle_organizers(volunteer_id, name, phone)
                 `)
                 .order('created_at', { ascending: false });

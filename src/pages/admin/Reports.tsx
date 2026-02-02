@@ -356,7 +356,7 @@ export default function Reports() {
           return {
             [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
             [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
-            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone || '',
+            [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone ? `'${p.phone}'` : '',
             [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Degree']: getLevelName(level),
             [language === 'ar' ? 'الدور' : 'Role']: roleDisplay,
             [language === 'ar' ? 'حضر الكامب' : 'Attended Camp']: campAttendance,

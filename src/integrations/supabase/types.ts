@@ -536,6 +536,73 @@ export type Database = {
           },
         ]
       }
+      course_ads: {
+        Row: {
+          id: string
+          course_id: string
+          ad_number: number
+          ad_date: string
+          poster_url: string | null
+          content: string | null
+          poster_done: boolean
+          content_done: boolean
+          created_by: string | null
+          updated_by: string | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          course_id: string
+          ad_number: number
+          ad_date: string
+          poster_url?: string | null
+          content?: string | null
+          poster_done?: boolean
+          content_done?: boolean
+          created_by?: string | null
+          updated_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          course_id?: string
+          ad_number?: number
+          ad_date?: string
+          poster_url?: string | null
+          content?: string | null
+          poster_done?: boolean
+          content_done?: boolean
+          created_by?: string | null
+          updated_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_ads_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_ads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_ads_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_lectures: {
         Row: {
           course_id: string | null
@@ -606,6 +673,42 @@ export type Database = {
           },
           {
             foreignKeyName: "course_organizers_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_marketers: {
+        Row: {
+          id: string
+          course_id: string
+          volunteer_id: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          course_id: string
+          volunteer_id: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          course_id?: string
+          volunteer_id?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_marketers_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_marketers_volunteer_id_fkey"
             columns: ["volunteer_id"]
             isOneToOne: false
             referencedRelation: "profiles"

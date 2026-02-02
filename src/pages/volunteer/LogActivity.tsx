@@ -353,7 +353,7 @@ export default function LogActivity() {
         points_awarded: pointsAwarded,
         participant_type: 'volunteer' as const, // Default to volunteer
         volunteer_id: user.id, // Explicitly set volunteer_id again
-        status: (isLeader ? 'approved' : 'pending') as "pending" | "approved" | "rejected",
+        status: 'approved' as "pending" | "approved" | "rejected",
         reviewed_at: (isLeader ? new Date().toISOString() : null),
         reviewed_by: (isLeader ? user.id : null),
         proof_url: proofUrl,
@@ -421,10 +421,10 @@ export default function LogActivity() {
         // Insert Submissions for Volunteers (and Leader if included)
         if (volunteerIdsToSubmit.length > 0) {
           const submissionsToInsert = volunteerIdsToSubmit.map(volId => ({
+            ...submissionData,
             volunteer_id: volId,
             group_submission_id: groupSub.id,
             participants_count: 1, // Individual within group
-            ...submissionData
           }));
 
           const { error: batchError } = await supabase
@@ -439,7 +439,7 @@ export default function LogActivity() {
         const { error } = await supabase.from('activity_submissions').insert({
           volunteer_id: user.id, // Ensure volunteer_id is set
           participants_count: selectedActivity.mode === 'group' ? parseInt(participantsCount) || 1 : 1,
-          status: (isLeader ? 'approved' : 'pending') as "pending" | "approved" | "rejected",
+          status: 'approved' as "pending" | "approved" | "rejected",
           ...submissionData
         });
 

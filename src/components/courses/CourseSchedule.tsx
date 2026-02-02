@@ -75,6 +75,7 @@ export default function CourseSchedule() {
     const [circles, setCircles] = useState<QuranCircle[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+    const [selectedCircle, setSelectedCircle] = useState<QuranCircle | null>(null);
     const [organizers, setOrganizers] = useState<CourseOrganizer[]>([]);
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -141,6 +142,10 @@ export default function CourseSchedule() {
                 console.error(e);
             }
         }
+    };
+
+    const openCircleDetails = (circle: any) => {
+        setSelectedCircle(circle);
     };
 
     const getRoomLabel = (room: string) => ROOMS[room]?.[language as 'en' | 'ar'] || room;
@@ -358,6 +363,7 @@ export default function CourseSchedule() {
                                                             key={`circle-${circle.id}`}
                                                             className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 group transition-all ${getRoomBg('quran_circle')}`}
                                                             title={`${circle.teacher_name ? (isRTL ? 'حلقة المحفظ ' : '') + circle.teacher_name : (isRTL ? 'حلقة قرآن' : 'Quran Circle')} - ${circle.time}`}
+                                                            onClick={() => openCircleDetails(circle)}
                                                         >
                                                             <div className="flex items-center justify-between gap-2">
                                                                 <span className="font-medium truncate flex-1">{circle.teacher_name ? (isRTL ? 'حلقة المحفظ ' + circle.teacher_name : circle.teacher_name + "'s Circle") : (isRTL ? 'حلقة قرآن' : 'Quran Circle')}</span>
@@ -383,7 +389,8 @@ export default function CourseSchedule() {
                             <div className="md:hidden space-y-4">
                                 {calendarDays.map((day) => {
                                     const dayCourses = getCoursesForDate(day);
-                                    if (dayCourses.length === 0) return null; // Only show days with courses
+                                    const dayCircles = getCirclesForDate(day);
+                                    if (dayCourses.length === 0 && dayCircles.length === 0) return null; // Only show days with courses or circles
 
                                     const isDayToday = isToday(day);
                                     return (
@@ -423,10 +430,11 @@ export default function CourseSchedule() {
                                                     </div>
                                                 ))}
                                                 {/* Quran Circles for mobile */}
-                                                {getCirclesForDate(day).map(circle => (
+                                                {dayCircles.map(circle => (
                                                     <div
                                                         key={`circle-${circle.id}`}
                                                         className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${getRoomBg('quran_circle')}`}
+                                                        onClick={() => openCircleDetails(circle)}
                                                     >
                                                         <div className="flex-1 min-w-0">
                                                             <p className="font-semibold text-sm truncate mb-1">{circle.teacher_name ? (isRTL ? 'حلقة المحفظ ' + circle.teacher_name : circle.teacher_name + "'s Circle") : (isRTL ? 'حلقة قرآن' : 'Quran Circle')}</p>
@@ -476,85 +484,120 @@ export default function CourseSchedule() {
                 </CardContent>
             </Card>
 
-            {/* Course Details Dialog */}
-            <Dialog open={!!selectedCourse} onOpenChange={() => setSelectedCourse(null)}>
+            {/* Course/Circle Details Dialog */}
+            <Dialog open={!!selectedCourse || !!selectedCircle} onOpenChange={() => { setSelectedCourse(null); setSelectedCircle(null); }}>
                 <DialogContent className="max-w-lg">
                     <DialogHeader>
-                        <DialogTitle>{selectedCourse?.name}</DialogTitle>
+                        <DialogTitle>
+                            {selectedCourse ? selectedCourse.name : (selectedCircle?.teacher_name ? (isRTL ? 'حلقة المحفظ ' + selectedCircle.teacher_name : selectedCircle.teacher_name + "'s Circle") : (isRTL ? 'حلقة قرآن' : 'Quran Circle'))}
+                        </DialogTitle>
                     </DialogHeader>
 
-                    {isHead ? (
+                    {selectedCourse ? (
+                        /* Course Details */
+                        isHead ? (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <User className="h-4 w-4 text-muted-foreground" />
+                                        <div>
+                                            <p className="text-muted-foreground">{isRTL ? 'المدرب' : 'Trainer'}</p>
+                                            <p className="font-medium">{selectedCourse?.trainer_name}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Phone className="h-4 w-4 text-muted-foreground" />
+                                        <div>
+                                            <p className="text-muted-foreground">{isRTL ? 'رقم المدرب' : 'Phone'}</p>
+                                            <p className="font-medium">{selectedCourse?.trainer_phone || '—'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                                        <div>
+                                            <p className="text-muted-foreground">{isRTL ? 'القاعة' : 'Room'}</p>
+                                            <p className="font-medium">{selectedCourse && getRoomLabel(selectedCourse.room)}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                                        <div>
+                                            <p className="text-muted-foreground">{isRTL ? 'الأيام' : 'Days'}</p>
+                                            <p className="font-medium">{selectedCourse?.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', ')}</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-3 text-center border-t pt-4">
+                                    <div>
+                                        <p className="text-2xl font-bold">{selectedCourse?.total_lectures}</p>
+                                        <p className="text-xs text-muted-foreground">{isRTL ? 'المحاضرات' : 'Lectures'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-bold">{selectedCourse && formatTime(selectedCourse.schedule_time)}</p>
+                                        <p className="text-xs text-muted-foreground">{isRTL ? 'الوقت' : 'Time'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-2xl font-bold">{selectedCourse?.has_interview ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No')}</p>
+                                        <p className="text-xs text-muted-foreground">{isRTL ? 'انترفيو' : 'Interview'}</p>
+                                    </div>
+                                </div>
+
+                                {organizers.length > 0 && (
+                                    <div className="border-t pt-4">
+                                        <p className="font-medium mb-2">{isRTL ? 'المنظمين' : 'Organizers'}</p>
+                                        <div className="space-y-2">
+                                            {organizers.map(org => (
+                                                <div key={org.id} className="flex items-center justify-between text-sm">
+                                                    <span>{org.name}</span>
+                                                    <span className="text-muted-foreground">{org.phone || '—'}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            /* Simplified View for Volunteers (Course) */
+                            <div className="space-y-4 py-4">
+                                <div className="flex flex-col items-center justify-center text-center gap-4">
+                                    <div className="bg-primary/10 p-4 rounded-full">
+                                        <Clock className="h-8 w-8 text-primary" />
+                                    </div>
+                                    <div>
+                                        <p className="text-muted-foreground text-sm mb-1">{isRTL ? 'معاد الكورس' : 'Class Time'}</p>
+                                        <p className="text-3xl font-bold">{selectedCourse && formatTime(selectedCourse.schedule_time)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    ) : (
+                        /* Quran Circle Details */
                         <div className="space-y-4">
                             <div className="grid grid-cols-2 gap-4 text-sm">
                                 <div className="flex items-center gap-2">
                                     <User className="h-4 w-4 text-muted-foreground" />
                                     <div>
-                                        <p className="text-muted-foreground">{isRTL ? 'المدرب' : 'Trainer'}</p>
-                                        <p className="font-medium">{selectedCourse?.trainer_name}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Phone className="h-4 w-4 text-muted-foreground" />
-                                    <div>
-                                        <p className="text-muted-foreground">{isRTL ? 'رقم المدرب' : 'Phone'}</p>
-                                        <p className="font-medium">{selectedCourse?.trainer_phone || '—'}</p>
+                                        <p className="text-muted-foreground">{isRTL ? 'المحفظ' : 'Teacher'}</p>
+                                        <p className="font-medium">{selectedCircle?.teacher_name || '—'}</p>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <MapPin className="h-4 w-4 text-muted-foreground" />
                                     <div>
-                                        <p className="text-muted-foreground">{isRTL ? 'القاعة' : 'Room'}</p>
-                                        <p className="font-medium">{selectedCourse && getRoomLabel(selectedCourse.room)}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                                    <div>
-                                        <p className="text-muted-foreground">{isRTL ? 'الأيام' : 'Days'}</p>
-                                        <p className="font-medium">{selectedCourse?.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', ')}</p>
+                                        <p className="text-muted-foreground">{isRTL ? 'المكان' : 'Location'}</p>
+                                        <p className="font-medium">{isRTL ? 'المسجد / حلقة قرآن' : 'Mosque / Quran Circle'}</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-3 gap-3 text-center border-t pt-4">
-                                <div>
-                                    <p className="text-2xl font-bold">{selectedCourse?.total_lectures}</p>
-                                    <p className="text-xs text-muted-foreground">{isRTL ? 'المحاضرات' : 'Lectures'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-2xl font-bold">{selectedCourse && formatTime(selectedCourse.schedule_time)}</p>
-                                    <p className="text-xs text-muted-foreground">{isRTL ? 'الوقت' : 'Time'}</p>
-                                </div>
-                                <div>
-                                    <p className="text-2xl font-bold">{selectedCourse?.has_interview ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No')}</p>
-                                    <p className="text-xs text-muted-foreground">{isRTL ? 'انترفيو' : 'Interview'}</p>
-                                </div>
-                            </div>
-
-                            {organizers.length > 0 && (
-                                <div className="border-t pt-4">
-                                    <p className="font-medium mb-2">{isRTL ? 'المنظمين' : 'Organizers'}</p>
-                                    <div className="space-y-2">
-                                        {organizers.map(org => (
-                                            <div key={org.id} className="flex items-center justify-between text-sm">
-                                                <span>{org.name}</span>
-                                                <span className="text-muted-foreground">{org.phone || '—'}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        /* Simplified View for Volunteers */
-                        <div className="space-y-4 py-4">
-                            <div className="flex flex-col items-center justify-center text-center gap-4">
+                            <div className="flex flex-col items-center justify-center text-center gap-4 border-t pt-4">
                                 <div className="bg-primary/10 p-4 rounded-full">
                                     <Clock className="h-8 w-8 text-primary" />
                                 </div>
                                 <div>
-                                    <p className="text-muted-foreground text-sm mb-1">{isRTL ? 'معاد الكورس' : 'Class Time'}</p>
-                                    <p className="text-3xl font-bold">{selectedCourse && formatTime(selectedCourse.schedule_time)}</p>
+                                    <p className="text-muted-foreground text-sm mb-1">{isRTL ? 'المعاد' : 'Time'}</p>
+                                    <p className="text-3xl font-bold">{selectedCircle && formatTime(selectedCircle.time)}</p>
                                 </div>
                             </div>
                         </div>

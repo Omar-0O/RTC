@@ -179,7 +179,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const [submittingFine, setSubmittingFine] = useState(false);
   const [editFeedbackId, setEditFeedbackId] = useState<string | null>(null);
   const [editFeedbackContent, setEditFeedbackContent] = useState('');
-  const [itemToDelete, setItemToDelete] = useState<{ type: 'fine' | 'feedback', id: string } | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<{ type: 'fine' | 'feedback', id: string, fineSourceType?: string } | null>(null);
 
   const [monthlyPoints, setMonthlyPoints] = useState(0);
 
@@ -516,8 +516,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
 
 
-  const handleDeleteFine = (fineId: string) => {
-    setItemToDelete({ type: 'fine', id: fineId });
+  const handleDeleteFine = (fineId: string, sourceType: string) => {
+    setItemToDelete({ type: 'fine', id: fineId, fineSourceType: sourceType });
   };
 
   const handleDeleteFeedback = (id: string) => {
@@ -529,9 +529,43 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
     try {
       if (itemToDelete.type === 'fine') {
-        const { error } = await supabase.from('volunteer_fines').delete().eq('id', itemToDelete.id);
-        if (error) throw error;
-        toast.success(isRTL ? 'تم حذف الغرامة' : 'Fine deleted');
+        const sourceType = itemToDelete.fineSourceType;
+
+        if (sourceType === 'manual') {
+          // Delete manual fine from volunteer_fines table
+          const { error } = await supabase.from('volunteer_fines').delete().eq('id', itemToDelete.id);
+          if (error) throw error;
+        } else if (sourceType === 'activity') {
+          // For activity fines, set wore_vest to true
+          const { error } = await supabase
+            .from('activity_submissions')
+            .update({ wore_vest: true })
+            .eq('id', itemToDelete.id);
+          if (error) throw error;
+        } else if (sourceType === 'caravan') {
+          // For caravan fines, set wore_vest to true
+          const { error } = await supabase
+            .from('caravan_participants')
+            .update({ wore_vest: true })
+            .eq('id', itemToDelete.id);
+          if (error) throw error;
+        } else if (sourceType === 'event') {
+          // For event fines, set wore_vest to true
+          const { error } = await supabase
+            .from('event_participants')
+            .update({ wore_vest: true })
+            .eq('id', itemToDelete.id);
+          if (error) throw error;
+        } else if (sourceType === 'ethics_call') {
+          // For ethics call fines, set wore_vest to true
+          const { error } = await supabase
+            .from('ethics_calls_participants')
+            .update({ wore_vest: true })
+            .eq('id', itemToDelete.id);
+          if (error) throw error;
+        }
+
+        toast.success(isRTL ? 'تم حذف الغرامة' : 'Fine removed');
       } else {
         const { error } = await supabase.from('volunteer_feedbacks').delete().eq('id', itemToDelete.id);
         if (error) throw error;
@@ -1079,19 +1113,26 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                         </div>
 
 
-                        {/* Delete Fine Button */}
-                        {fine.source_type === 'manual' && (
+                        {/* Delete Fine Button - for all fine types */}
+                        {(
                           hasRole('admin') ||
                           hasRole('supervisor') ||
                           hasRole('head_hr') ||
                           hasRole('hr') ||
-                          (hasRole('committee_leader') && authProfile?.committee_id === displayProfile?.committee_id)
+                          (hasRole('committee_leader') && authProfile?.committee_id === displayProfile?.committee_id) ||
+                          hasRole('head_caravans') ||
+                          hasRole('head_events') ||
+                          hasRole('head_ethics') ||
+                          hasRole('head_quran') ||
+                          hasRole('head_ashbal') ||
+                          hasRole('head_production') ||
+                          hasRole('head_fourth_year')
                         ) && (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                              onClick={() => handleDeleteFine(fine.source_id)}
+                              onClick={() => handleDeleteFine(fine.source_id, fine.source_type)}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
