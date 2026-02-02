@@ -279,6 +279,14 @@ export function AppSidebar() {
           { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/profile', icon: User },
         ];
+      case 'head_marketing':
+        return [
+          { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
+          { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
+          { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
+          { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
+          { title: t('nav.profile'), url: '/leader/profile', icon: User },
+        ];
       default:
         return volunteerNavItems;
     }

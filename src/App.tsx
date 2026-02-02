@@ -109,6 +109,8 @@ function AppRoutes() {
         return '/leader';
       case 'head_ethics':
         return '/dashboard';
+      case 'head_marketing':
+        return '/leader';
       default:
         return '/dashboard';
     }

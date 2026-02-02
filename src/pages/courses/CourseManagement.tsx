@@ -2793,7 +2793,7 @@ export default function CourseManagement() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    {selectedCourse?.has_certificates && (hasRole('admin') || hasRole('committee_leader') || detailsOrganizers.some(o => o.volunteer_id === user?.id)) && (
+                    {selectedCourse?.has_certificates && (hasRole('admin') || hasRole('committee_leader') || hasRole('head_marketing') || detailsOrganizers.some(o => o.volunteer_id === user?.id)) && (
                         <div className="bg-muted/10 p-4 rounded-lg border mb-4">
                             <h3 className="font-semibold mb-3 flex items-center gap-2">
                                 <FileSpreadsheet className="w-4 h-4" />
@@ -2831,14 +2831,14 @@ export default function CourseManagement() {
 
                     <Tabs defaultValue="beneficiaries" className="w-full">
                         <div className="overflow-x-auto -mx-2 px-2">
-                            <TabsList className={`grid w-full min-w-[300px] ${(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor')) ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                            <TabsList className={`grid w-full min-w-[300px] ${(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_marketing')) ? 'grid-cols-4' : 'grid-cols-3'}`}>
                                 <TabsTrigger value="beneficiaries" className="text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
                                 <TabsTrigger value="lectures" className="text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
                                 <TabsTrigger value="sheet" className="text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
-                                {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor')) && (
+                                {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_marketing')) && (
                                     <TabsTrigger value="organizers" className="text-xs sm:text-sm">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
                                 )}
-                                {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || detailsMarketers.some(m => m.volunteer_id === user?.id)) && (
+                                {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_marketing') || detailsMarketers.some(m => m.volunteer_id === user?.id)) && (
                                     <TabsTrigger value="marketing" className="text-xs sm:text-sm">{isRTL ? 'التسويق' : 'Marketing'}</TabsTrigger>
                                 )}
                             </TabsList>
@@ -3107,7 +3107,7 @@ export default function CourseManagement() {
                                 </Table>
                             </div>
                         </TabsContent>
-                        {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor')) && (
+                        {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_marketing')) && (
                             <TabsContent value="organizers" className="space-y-4 py-4">
                                 <Card>
                                     <CardHeader className="pb-3">
@@ -3189,7 +3189,7 @@ export default function CourseManagement() {
                             </TabsContent>
                         )}
                         {/* Marketing Tab */}
-                        {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || detailsMarketers.some(m => m.volunteer_id === user?.id)) && (
+                        {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_marketing') || detailsMarketers.some(m => m.volunteer_id === user?.id)) && (
                             <TabsContent value="marketing" className="space-y-4 py-4">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-lg font-semibold">{isRTL ? 'إعلانات الكورس' : 'Course Ads'}</h3>

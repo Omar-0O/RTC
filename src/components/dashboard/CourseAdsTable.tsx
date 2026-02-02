@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Megaphone, CheckCircle2, Circle, ChevronRight, ChevronLeft, Calendar, FileText, ImageIcon } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths, parseISO } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths, parseISO, differenceInCalendarDays } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 
 interface CourseAd {
@@ -47,6 +47,9 @@ const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
     'friday': { en: 'Fri', ar: 'جمعة' },
 };
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Users } from 'lucide-react';
+
 export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
     const { isRTL, language } = useLanguage();
     const locale = language === 'ar' ? ar : enUS;
@@ -54,6 +57,35 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
     const [loading, setLoading] = useState(!propAds);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [selectedAd, setSelectedAd] = useState<CourseAd | null>(null);
+    const [marketers, setMarketers] = useState<any[]>([]);
+    const [loadingMarketers, setLoadingMarketers] = useState(false);
+
+    useEffect(() => {
+        const fetchMarketers = async () => {
+            if (!selectedAd || !selectedAd.course_id) return;
+
+            setLoadingMarketers(true);
+            try {
+                const { data, error } = await supabase
+                    .from('course_marketers')
+                    .select('id, profiles:volunteer_id(full_name, full_name_ar, phone, avatar_url)')
+                    .eq('course_id', selectedAd.course_id);
+
+                if (error) throw error;
+                setMarketers(data || []);
+            } catch (error) {
+                console.error('Error fetching marketers:', error);
+            } finally {
+                setLoadingMarketers(false);
+            }
+        };
+
+        if (selectedAd) {
+            fetchMarketers();
+        } else {
+            setMarketers([]);
+        }
+    }, [selectedAd]);
 
     useEffect(() => {
         if (propAds) {
@@ -173,21 +205,29 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
                                             {format(day, 'd')}
                                         </div>
                                         <div className="space-y-1 max-h-[120px] overflow-y-auto pr-1">
-                                            {dayAds.map(ad => (
-                                                <div
-                                                    key={ad.id}
-                                                    className="p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 transition-all bg-purple-100 dark:bg-purple-900/30 border-purple-300 text-purple-700 dark:text-purple-300"
-                                                    onClick={() => setSelectedAd(ad)}
-                                                    title={`${ad.course.name} - #${ad.ad_number}`}
-                                                >
-                                                    <div className="flex items-center gap-1">
-                                                        <Megaphone className="h-3 w-3" />
-                                                        <span className="font-medium truncate flex-1 leading-tight">
-                                                            {ad.course.name} #{ad.ad_number}
-                                                        </span>
+                                            {dayAds.map(ad => {
+                                                const isUrgent = (!ad.poster_done || !ad.content_done) &&
+                                                    differenceInCalendarDays(parseISO(ad.ad_date), new Date()) <= 5;
+
+                                                return (
+                                                    <div
+                                                        key={ad.id}
+                                                        className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 transition-all ${isUrgent
+                                                                ? 'bg-red-100 dark:bg-red-900/30 border-red-300 text-red-700 dark:text-red-300'
+                                                                : 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 text-purple-700 dark:text-purple-300'
+                                                            }`}
+                                                        onClick={() => setSelectedAd(ad)}
+                                                        title={`${ad.course.name} - #${ad.ad_number}`}
+                                                    >
+                                                        <div className="flex items-center gap-1">
+                                                            <Megaphone className="h-3 w-3" />
+                                                            <span className="font-medium truncate flex-1 leading-tight">
+                                                                {ad.course.name} #{ad.ad_number}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 );
@@ -311,11 +351,53 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
                                         </Badge>
                                     )}
                                 </div>
+
+                                <div className="space-y-2 pt-2 border-t">
+                                    <h4 className="font-medium flex items-center gap-2">
+                                        <Users className="h-4 w-4 text-primary" />
+                                        {isRTL ? 'فريق التسويق' : 'Marketing Team'}
+                                    </h4>
+
+                                    {loadingMarketers ? (
+                                        <div className="flex justify-center py-4">
+                                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                        </div>
+                                    ) : marketers.length > 0 ? (
+                                        <div className="grid grid-cols-1 gap-2">
+                                            {marketers.map((marketer) => (
+                                                <div key={marketer.id} className="flex items-center gap-3 p-2 bg-muted/30 rounded-lg">
+                                                    <Avatar className="h-8 w-8">
+                                                        <AvatarImage src={marketer.profiles?.avatar_url || ''} />
+                                                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                                                            {(marketer.profiles?.full_name || 'U').substring(0, 2).toUpperCase()}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div>
+                                                        <p className="text-sm font-medium">
+                                                            {isRTL && marketer.profiles?.full_name_ar
+                                                                ? marketer.profiles.full_name_ar
+                                                                : marketer.profiles?.full_name}
+                                                        </p>
+                                                        {marketer.profiles?.phone && (
+                                                            <p className="text-xs text-muted-foreground font-mono">
+                                                                {marketer.profiles.phone}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground text-center py-2">
+                                            {isRTL ? 'لا يوجد مسوقين لهذا الكورس' : 'No marketers assigned'}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}
                 </DialogContent>
-            </Dialog>
+            </Dialog >
         </>
     );
 }

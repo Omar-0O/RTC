@@ -673,6 +673,7 @@ export default function UserManagement() {
           email: formEmail.trim(),
           phone: formPhone.trim() || null,
           committee_id: formCommitteeId || null,
+          role: formRole as any, // Sync role to profiles table
           level: formLevel as any,
           attended_mini_camp: formLevel === 'under_follow_up' ? formAttendedMiniCamp : null,
           attended_camp: formLevel === 'project_responsible' ? formAttendedCamp : null,
@@ -709,12 +710,14 @@ export default function UserManagement() {
 
         if (deleteError) throw deleteError;
 
-        // Then, insert the new role
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({ user_id: selectedUser.id, role: formRole as AppRole });
+        // Then, insert the new role ONLY if it's not 'volunteer'
+        if (formRole !== 'volunteer') {
+          const { error: roleError } = await supabase
+            .from('user_roles')
+            .insert({ user_id: selectedUser.id, role: formRole as AppRole });
 
-        if (roleError) throw roleError;
+          if (roleError) throw roleError;
+        }
       }
 
       // Update password if provided
@@ -790,12 +793,25 @@ export default function UserManagement() {
 
       if (deleteError) throw deleteError;
 
-      // Then, insert the new role
-      const { error: insertError } = await supabase
-        .from('user_roles')
-        .insert({ user_id: userId, role: newRole as AppRole });
+      // Then, insert the new role ONLY if it's not 'volunteer'
+      // 'volunteer' is the default state (no explicit role record)
+      if (newRole !== 'volunteer') {
+        const { error: insertError } = await supabase
+          .from('user_roles')
+          .insert({ user_id: userId, role: newRole as AppRole });
 
-      if (insertError) throw insertError;
+        if (insertError) throw insertError;
+      }
+
+      // Also update the profile role to keep them in sync
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ role: newRole as any })
+        .eq('id', userId);
+
+      if (profileError) {
+        console.error('Error updating profile role:', profileError);
+      }
 
       toast.success('Role updated successfully');
       fetchData();

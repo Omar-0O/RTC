@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { BookOpen, Calendar, Clock, MapPin, Users, Check, X, Loader2, GraduationCap } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
-import { Plus, Trash2, Pencil, MoreHorizontal, Download } from 'lucide-react';
+import { Plus, Trash2, Pencil, MoreHorizontal, Download, Megaphone, Image, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -117,6 +117,10 @@ export default function MyCourses() {
     const [editingBeneficiary, setEditingBeneficiary] = useState<CourseBeneficiary | null>(null);
     const [courseAds, setCourseAds] = useState<CourseAd[]>([]);
     const [isMarketer, setIsMarketer] = useState(false);
+    const [isOrganizer, setIsOrganizer] = useState(false);
+    const [marketerCourseIds, setMarketerCourseIds] = useState<Set<string>>(new Set());
+    const [organizerCourseIds, setOrganizerCourseIds] = useState<Set<string>>(new Set());
+    const [activeTab, setActiveTab] = useState('beneficiaries');
 
 
     useEffect(() => {
@@ -144,6 +148,8 @@ export default function MyCourses() {
 
             const organizerIds = organizerData?.map(o => o.course_id) || [];
             const marketerIds = marketerData?.map(m => m.course_id) || [];
+            setOrganizerCourseIds(new Set(organizerIds));
+            setMarketerCourseIds(new Set(marketerIds));
             const allCourseIds = Array.from(new Set([...organizerIds, ...marketerIds]));
 
             if (allCourseIds.length === 0) {
@@ -234,43 +240,26 @@ export default function MyCourses() {
         }
     };
 
-    const handleUploadPoster = async (file: File, adId: string) => {
-        try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${Math.random()}.${fileExt}`;
-            const filePath = `${selectedCourse?.id}/${fileName}`;
 
-            const { error: uploadError } = await supabase.storage
-                .from('course-posters')
-                .upload(filePath, file);
 
-            if (uploadError) throw uploadError;
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('course-posters')
-                .getPublicUrl(filePath);
-
-            await handleUpdateAd(adId, { poster_url: publicUrl, poster_done: true });
-        } catch (error) {
-            console.error('Error uploading poster:', error);
-            toast.error(isRTL ? 'حدث خطأ أثناء رفع البوستر' : 'Error uploading poster');
-        }
-    };
-
-    const openCourseDetails = async (course: Course) => {
+    const openCourseDetails = async (course: Course, tab: string = 'beneficiaries') => {
         setSelectedCourse(course);
         setIsDetailsOpen(true);
         setCourseAds([]);
-        setIsMarketer(false);
+        setActiveTab(tab);
 
-        // Check if user is marketer
-        const { data: mkt } = await supabase
-            .from('course_marketers')
-            .select('id')
-            .eq('course_id', course.id)
-            .eq('volunteer_id', user?.id)
-            .single();
-        setIsMarketer(!!mkt);
+        // Check if user is marketer using pre-fetched data
+        const isUserMarketer = marketerCourseIds.has(course.id);
+        const isUserOrganizer = organizerCourseIds.has(course.id);
+        setIsMarketer(isUserMarketer);
+        setIsOrganizer(isUserOrganizer);
+
+        // If only marketer (not organizer), force marketing tab
+        if (isUserMarketer && !isUserOrganizer) {
+            setActiveTab('marketing');
+        } else {
+            setActiveTab(tab);
+        }
 
         // Fetch Course Ads
         const { data: adsData } = await supabase
@@ -698,10 +687,18 @@ export default function MyCourses() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => openCourseDetails(course)}>
-                                                <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
-                                            </DropdownMenuItem>
+                                            {organizerCourseIds.has(course.id) && (
+                                                <DropdownMenuItem onClick={() => openCourseDetails(course)}>
+                                                    <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                    {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
+                                                </DropdownMenuItem>
+                                            )}
+                                            {marketerCourseIds.has(course.id) && (
+                                                <DropdownMenuItem onClick={() => openCourseDetails(course, 'marketing')}>
+                                                    <Megaphone className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                    {isRTL ? 'إدارة التسويق' : 'Marketing Management'}
+                                                </DropdownMenuItem>
+                                            )}
                                             <DropdownMenuItem onClick={() => exportCourseToExcel(course)}>
                                                 <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'تصدير Excel' : 'Export Excel'}
@@ -756,256 +753,266 @@ export default function MyCourses() {
                         <DialogDescription>{selectedCourse?.trainer_name}</DialogDescription>
                     </DialogHeader>
 
-                    <Tabs defaultValue="beneficiaries" className="w-full">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <div className="overflow-x-auto -mx-2 px-2">
-                            <TabsList className={`grid w-full min-w-[300px] ${isMarketer ? 'grid-cols-4' : 'grid-cols-3'}`}>
-                                <TabsTrigger value="beneficiaries" className="text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
-                                <TabsTrigger value="lectures" className="text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
-                                <TabsTrigger value="sheet" className="text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                            <TabsList className={`grid w-full min-w-[300px] ${isOrganizer ? (isMarketer ? 'grid-cols-4' : 'grid-cols-3') : 'grid-cols-1'}`}>
+                                {isOrganizer && (
+                                    <>
+                                        <TabsTrigger value="beneficiaries" className="text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
+                                        <TabsTrigger value="lectures" className="text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
+                                        <TabsTrigger value="sheet" className="text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                                    </>
+                                )}
                                 {isMarketer && (
                                     <TabsTrigger value="marketing" className="text-xs sm:text-sm">{isRTL ? 'التسويق' : 'Marketing'}</TabsTrigger>
                                 )}
                             </TabsList>
                         </div>
 
-                        {/* Beneficiaries Tab */}
-                        <TabsContent value="beneficiaries" className="space-y-4 py-4">
-                            {/* Add Beneficiary Form */}
-                            <Card>
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-base">{isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary'}</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="flex flex-col sm:flex-row gap-2">
-                                        <Input
-                                            placeholder={isRTL ? 'الاسم' : 'Name'}
-                                            value={newBeneficiary.name}
-                                            onChange={e => setNewBeneficiary({ ...newBeneficiary, name: e.target.value })}
-                                            className="w-full sm:flex-1"
-                                        />
-                                        <Input
-                                            placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
-                                            value={newBeneficiary.phone}
-                                            onChange={e => {
-                                                const val = e.target.value;
-                                                if (/^[0-9+]*$/.test(val)) {
-                                                    setNewBeneficiary({ ...newBeneficiary, phone: val });
-                                                }
-                                            }}
-                                            className="w-full sm:flex-1"
-                                        />
-                                        <Button onClick={addBeneficiary} className="w-full sm:w-auto">
-                                            <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                            {isRTL ? 'إضافة' : 'Add'}
-                                        </Button>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {/* Beneficiaries List */}
-                            <div className="border rounded-lg">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                            <TableHead>{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
-                                            <TableHead className="w-24"></TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {beneficiaries.map(b => (
-                                            <TableRow key={b.id}>
-                                                <TableCell>
-                                                    {editingBeneficiary?.id === b.id ? (
-                                                        <Input
-                                                            value={editingBeneficiary.name}
-                                                            onChange={e => setEditingBeneficiary({ ...editingBeneficiary, name: e.target.value })}
-                                                            className="h-8"
-                                                        />
-                                                    ) : (
-                                                        b.name
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {editingBeneficiary?.id === b.id ? (
-                                                        <Input
-                                                            value={editingBeneficiary.phone}
-                                                            onChange={e => {
-                                                                const val = e.target.value;
-                                                                if (/^[0-9+]*$/.test(val)) {
-                                                                    setEditingBeneficiary({ ...editingBeneficiary, phone: val });
-                                                                }
-                                                            }}
-                                                            className="h-8"
-                                                        />
-                                                    ) : (
-                                                        b.phone
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {editingBeneficiary?.id === b.id ? (
-                                                        <div className="flex gap-1">
-                                                            <Button size="sm" variant="ghost" onClick={updateBeneficiary}>
-                                                                <Check className="w-4 h-4 text-green-600" />
-                                                            </Button>
-                                                            <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(null)}>
-                                                                <X className="w-4 h-4 text-red-600" />
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        <div className="flex gap-1">
-                                                            <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(b)}>
-                                                                <Pencil className="w-4 h-4" />
-                                                            </Button>
-                                                            <Button size="sm" variant="ghost" onClick={() => deleteBeneficiary(b.id)}>
-                                                                <Trash2 className="w-4 h-4 text-destructive" />
-                                                            </Button>
-                                                        </div>
-                                                    )}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                        {beneficiaries.length === 0 && (
-                                            <TableRow>
-                                                <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                                                    {isRTL ? 'لا يوجد مستفيدين بعد' : 'No beneficiaries yet'}
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                                {isRTL ? `إجمالي المستفيدين: ${beneficiaries.length}` : `Total beneficiaries: ${beneficiaries.length}`}
-                            </div>
-                        </TabsContent>
-
-                        {/* Lectures Tab */}
-                        <TabsContent value="lectures" className="space-y-4 py-4">
-                            {lectures.map(lecture => (
-                                <Card key={lecture.id}>
-                                    <CardHeader className="pb-2">
-                                        <div className="flex justify-between items-center">
-                                            <CardTitle className="text-base">
-                                                {isRTL ? 'محاضرة' : 'Lecture'} {lecture.lecture_number}
-                                            </CardTitle>
-                                            <Badge variant={
-                                                lecture.status === 'cancelled' ? 'destructive' :
-                                                    lecture.status === 'completed' ? 'default' : 'secondary'
-                                            }>
-                                                {lecture.status === 'completed' ? (isRTL ? 'تمت' : 'Completed') :
-                                                    lecture.status === 'cancelled' ? (isRTL ? 'ملغية' : 'Cancelled') :
-                                                        (isRTL ? 'مجدولة' : 'Scheduled')}
-                                            </Badge>
-                                        </div>
-                                        <CardDescription>
-                                            {lecture.date}
-                                        </CardDescription>
+                        {/* Beneficiaries Tab - Only render if organizer */}
+                        {isOrganizer && (
+                            <TabsContent value="beneficiaries" className="space-y-4 py-4">
+                                {/* Add Beneficiary Form */}
+                                <Card>
+                                    <CardHeader className="pb-3">
+                                        <CardTitle className="text-base">{isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary'}</CardTitle>
                                     </CardHeader>
                                     <CardContent>
-                                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3">
-                                            <div className="text-sm text-muted-foreground">
-                                                {attendanceData[lecture.id]?.length || 0} / {beneficiaries.length} {isRTL ? 'حضور' : 'attendees'}
-                                            </div>
-                                            <div className="flex gap-2 flex-wrap">
-                                                <Button
-                                                    size="sm"
-                                                    variant={lecture.status === 'completed' ? 'outline' : 'secondary'}
-                                                    onClick={() => updateLectureStatus(lecture.id, 'completed')}
-                                                    className="flex-1 sm:flex-none"
-                                                >
-                                                    <Check className="w-4 h-4 ltr:mr-1 rtl:ml-1 sm:ltr:mr-2 sm:rtl:ml-2" />
-                                                    <span className="text-xs sm:text-sm">{isRTL ? 'إتمام' : 'Complete'}</span>
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant={lecture.status === 'cancelled' ? 'outline' : 'destructive'}
-                                                    onClick={() => updateLectureStatus(lecture.id, 'cancelled')}
-                                                    className="flex-1 sm:flex-none"
-                                                >
-                                                    <X className="w-4 h-4 ltr:mr-1 rtl:ml-1 sm:ltr:mr-2 sm:rtl:ml-2" />
-                                                    <span className="text-xs sm:text-sm">{isRTL ? 'إلغاء' : 'Cancel'}</span>
-                                                </Button>
-                                            </div>
+                                        <div className="flex flex-col sm:flex-row gap-2">
+                                            <Input
+                                                placeholder={isRTL ? 'الاسم' : 'Name'}
+                                                value={newBeneficiary.name}
+                                                onChange={e => setNewBeneficiary({ ...newBeneficiary, name: e.target.value })}
+                                                className="w-full sm:flex-1"
+                                            />
+                                            <Input
+                                                placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
+                                                value={newBeneficiary.phone}
+                                                onChange={e => {
+                                                    const val = e.target.value;
+                                                    if (/^[0-9+]*$/.test(val)) {
+                                                        setNewBeneficiary({ ...newBeneficiary, phone: val });
+                                                    }
+                                                }}
+                                                className="w-full sm:flex-1"
+                                            />
+                                            <Button onClick={addBeneficiary} className="w-full sm:w-auto">
+                                                <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'إضافة' : 'Add'}
+                                            </Button>
                                         </div>
-
                                     </CardContent>
                                 </Card>
-                            ))}</TabsContent>
 
-                        <TabsContent value="sheet" className="py-4">
-                            <div className="border rounded-lg overflow-x-auto">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                            <TableHead>{isRTL ? 'الرقم' : 'Phone'}</TableHead>
-                                            {lectures.map(l => (
-                                                <TableHead key={l.id} className="text-center w-12">
-                                                    L{l.lecture_number}
-                                                </TableHead>
-                                            ))}
-                                            <TableHead className="text-center">{isRTL ? 'حضر' : 'Attended'}</TableHead>
-                                            <TableHead className="text-center">{isRTL ? 'غاب' : 'Missed'}</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {beneficiaries.map(beneficiary => {
-                                            const studentAttendance = lectures.map(l =>
-                                                attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
-                                            );
-                                            const attendedCount = studentAttendance.filter(a => a && a.status === 'present').length;
-                                            const completedLectures = lectures.filter(l => l.status === 'completed');
-                                            const missedCount = completedLectures.filter(l =>
-                                                !attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
-                                            ).length;
-
-                                            return (
-                                                <TableRow key={beneficiary.id}>
-                                                    <TableCell className="font-medium">{beneficiary.name}</TableCell>
-                                                    <TableCell>{beneficiary.phone}</TableCell>
-                                                    {lectures.map((lecture, idx) => {
-                                                        const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone);
-                                                        const isCancelled = lecture.status === 'cancelled';
-                                                        const isCompleted = lecture.status === 'completed';
-                                                        const isOpen = isLectureOpen(lecture.date);
-                                                        const canMarkAttendance = isCompleted || isOpen;
-                                                        return (
-                                                            <TableCell key={idx} className="text-center">
-                                                                {isCancelled ? (
-                                                                    <span className="text-muted-foreground text-xs">-</span>
-                                                                ) : canMarkAttendance ? (
-                                                                    <Checkbox
-                                                                        checked={isPresent}
-                                                                        onCheckedChange={() => toggleBeneficiaryAttendance(lecture.id, beneficiary)}
-                                                                        className="mx-auto"
-                                                                    />
-                                                                ) : (
-                                                                    <Checkbox
-                                                                        checked={false}
-                                                                        disabled
-                                                                        className="mx-auto opacity-50 cursor-not-allowed"
-                                                                    />
-                                                                )}
-                                                            </TableCell>
-                                                        );
-                                                    })}
-                                                    <TableCell className="text-center font-bold text-green-600">{attendedCount}</TableCell>
-                                                    <TableCell className="text-center font-bold text-red-600">{missedCount}</TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                        {beneficiaries.length === 0 && (
+                                {/* Beneficiaries List */}
+                                <div className="border rounded-lg">
+                                    <Table>
+                                        <TableHeader>
                                             <TableRow>
-                                                <TableCell colSpan={lectures.length + 4} className="text-center py-8 text-muted-foreground">
-                                                    {isRTL ? 'لا يوجد مستفيدين - أضف مستفيدين من تبويب المستفيدين أولاً' : 'No beneficiaries - Add beneficiaries from the Beneficiaries tab first'}
-                                                </TableCell>
+                                                <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                <TableHead>{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                                <TableHead className="w-24"></TableHead>
                                             </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        </TabsContent>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {beneficiaries.map(b => (
+                                                <TableRow key={b.id}>
+                                                    <TableCell>
+                                                        {editingBeneficiary?.id === b.id ? (
+                                                            <Input
+                                                                value={editingBeneficiary.name}
+                                                                onChange={e => setEditingBeneficiary({ ...editingBeneficiary, name: e.target.value })}
+                                                                className="h-8"
+                                                            />
+                                                        ) : (
+                                                            b.name
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {editingBeneficiary?.id === b.id ? (
+                                                            <Input
+                                                                value={editingBeneficiary.phone}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    if (/^[0-9+]*$/.test(val)) {
+                                                                        setEditingBeneficiary({ ...editingBeneficiary, phone: val });
+                                                                    }
+                                                                }}
+                                                                className="h-8"
+                                                            />
+                                                        ) : (
+                                                            b.phone
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {editingBeneficiary?.id === b.id ? (
+                                                            <div className="flex gap-1">
+                                                                <Button size="sm" variant="ghost" onClick={updateBeneficiary}>
+                                                                    <Check className="w-4 h-4 text-green-600" />
+                                                                </Button>
+                                                                <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(null)}>
+                                                                    <X className="w-4 h-4 text-red-600" />
+                                                                </Button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex gap-1">
+                                                                <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(b)}>
+                                                                    <Pencil className="w-4 h-4" />
+                                                                </Button>
+                                                                <Button size="sm" variant="ghost" onClick={() => deleteBeneficiary(b.id)}>
+                                                                    <Trash2 className="w-4 h-4 text-destructive" />
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                            {beneficiaries.length === 0 && (
+                                                <TableRow>
+                                                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                                                        {isRTL ? 'لا يوجد مستفيدين بعد' : 'No beneficiaries yet'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                    {isRTL ? `إجمالي المستفيدين: ${beneficiaries.length}` : `Total beneficiaries: ${beneficiaries.length}`}
+                                </div>
+                            </TabsContent>
+                        )}
+
+                        {/* Lectures Tab */}
+                        {isOrganizer && (
+                            <TabsContent value="lectures" className="space-y-4 py-4">
+                                {lectures.map(lecture => (
+                                    <Card key={lecture.id}>
+                                        <CardHeader className="pb-2">
+                                            <div className="flex justify-between items-center">
+                                                <CardTitle className="text-base">
+                                                    {isRTL ? 'محاضرة' : 'Lecture'} {lecture.lecture_number}
+                                                </CardTitle>
+                                                <Badge variant={
+                                                    lecture.status === 'cancelled' ? 'destructive' :
+                                                        lecture.status === 'completed' ? 'default' : 'secondary'
+                                                }>
+                                                    {lecture.status === 'completed' ? (isRTL ? 'تمت' : 'Completed') :
+                                                        lecture.status === 'cancelled' ? (isRTL ? 'ملغية' : 'Cancelled') :
+                                                            (isRTL ? 'مجدولة' : 'Scheduled')}
+                                                </Badge>
+                                            </div>
+                                            <CardDescription>
+                                                {lecture.date}
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-3">
+                                                <div className="text-sm text-muted-foreground">
+                                                    {attendanceData[lecture.id]?.length || 0} / {beneficiaries.length} {isRTL ? 'حضور' : 'attendees'}
+                                                </div>
+                                                <div className="flex gap-2 flex-wrap">
+                                                    <Button
+                                                        size="sm"
+                                                        variant={lecture.status === 'completed' ? 'outline' : 'secondary'}
+                                                        onClick={() => updateLectureStatus(lecture.id, 'completed')}
+                                                        className="flex-1 sm:flex-none"
+                                                    >
+                                                        <Check className="w-4 h-4 ltr:mr-1 rtl:ml-1 sm:ltr:mr-2 sm:rtl:ml-2" />
+                                                        <span className="text-xs sm:text-sm">{isRTL ? 'إتمام' : 'Complete'}</span>
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant={lecture.status === 'cancelled' ? 'outline' : 'destructive'}
+                                                        onClick={() => updateLectureStatus(lecture.id, 'cancelled')}
+                                                        className="flex-1 sm:flex-none"
+                                                    >
+                                                        <X className="w-4 h-4 ltr:mr-1 rtl:ml-1 sm:ltr:mr-2 sm:rtl:ml-2" />
+                                                        <span className="text-xs sm:text-sm">{isRTL ? 'إلغاء' : 'Cancel'}</span>
+                                                    </Button>
+                                                </div>
+                                            </div>
+
+                                        </CardContent>
+                                    </Card>
+                                ))}</TabsContent>
+                        )}
+
+                        {isOrganizer && (
+                            <TabsContent value="sheet" className="py-4">
+                                <div className="border rounded-lg overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                <TableHead>{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                                {lectures.map(l => (
+                                                    <TableHead key={l.id} className="text-center w-12">
+                                                        L{l.lecture_number}
+                                                    </TableHead>
+                                                ))}
+                                                <TableHead className="text-center">{isRTL ? 'حضر' : 'Attended'}</TableHead>
+                                                <TableHead className="text-center">{isRTL ? 'غاب' : 'Missed'}</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {beneficiaries.map(beneficiary => {
+                                                const studentAttendance = lectures.map(l =>
+                                                    attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
+                                                );
+                                                const attendedCount = studentAttendance.filter(a => a && a.status === 'present').length;
+                                                const completedLectures = lectures.filter(l => l.status === 'completed');
+                                                const missedCount = completedLectures.filter(l =>
+                                                    !attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
+                                                ).length;
+
+                                                return (
+                                                    <TableRow key={beneficiary.id}>
+                                                        <TableCell className="font-medium">{beneficiary.name}</TableCell>
+                                                        <TableCell>{beneficiary.phone}</TableCell>
+                                                        {lectures.map((lecture, idx) => {
+                                                            const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone);
+                                                            const isCancelled = lecture.status === 'cancelled';
+                                                            const isCompleted = lecture.status === 'completed';
+                                                            const isOpen = isLectureOpen(lecture.date);
+                                                            const canMarkAttendance = isCompleted || isOpen;
+                                                            return (
+                                                                <TableCell key={idx} className="text-center">
+                                                                    {isCancelled ? (
+                                                                        <span className="text-muted-foreground text-xs">-</span>
+                                                                    ) : canMarkAttendance ? (
+                                                                        <Checkbox
+                                                                            checked={isPresent}
+                                                                            onCheckedChange={() => toggleBeneficiaryAttendance(lecture.id, beneficiary)}
+                                                                            className="mx-auto"
+                                                                        />
+                                                                    ) : (
+                                                                        <Checkbox
+                                                                            checked={false}
+                                                                            disabled
+                                                                            className="mx-auto opacity-50 cursor-not-allowed"
+                                                                        />
+                                                                    )}
+                                                                </TableCell>
+                                                            );
+                                                        })}
+                                                        <TableCell className="text-center font-bold text-green-600">{attendedCount}</TableCell>
+                                                        <TableCell className="text-center font-bold text-red-600">{missedCount}</TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                            {beneficiaries.length === 0 && (
+                                                <TableRow>
+                                                    <TableCell colSpan={lectures.length + 4} className="text-center py-8 text-muted-foreground">
+                                                        {isRTL ? 'لا يوجد مستفيدين - أضف مستفيدين من تبويب المستفيدين أولاً' : 'No beneficiaries - Add beneficiaries from the Beneficiaries tab first'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </TabsContent>
+                        )}
 
                         {/* Marketing Tab */}
                         {isMarketer && (
@@ -1040,6 +1047,7 @@ export default function MyCourses() {
                                                             value={ad.ad_date}
                                                             onChange={(e) => handleUpdateAd(ad.id, { ad_date: e.target.value })}
                                                             className="h-7 w-auto text-xs p-1"
+                                                            disabled
                                                         />
                                                     </div>
                                                     {ad.updated_at && (
@@ -1050,51 +1058,36 @@ export default function MyCourses() {
                                                         </div>
                                                     )}
                                                 </CardHeader>
-                                                <CardContent className="p-4 space-y-4">
-                                                    {/* Poster */}
-                                                    <div className="space-y-2">
-                                                        <div className="flex justify-between items-center">
-                                                            <Label className="text-xs font-medium">{isRTL ? 'البوستر' : 'Poster'}</Label>
-                                                            <Checkbox
-                                                                checked={ad.poster_done}
-                                                                onCheckedChange={(c) => handleUpdateAd(ad.id, { poster_done: !!c })}
-                                                            />
+                                                <CardContent className="p-4 flex flex-col gap-4">
+                                                    <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`p-2 rounded-full ${ad.poster_done ? 'bg-green-100 text-green-600' : 'bg-muted text-muted-foreground'}`}>
+                                                                <Image className="w-4 h-4" />
+                                                            </div>
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-medium">{isRTL ? 'البوستر' : 'Poster'}</span>
+                                                                <span className="text-xs text-muted-foreground">{ad.poster_done ? (isRTL ? 'جاهز' : 'Done') : (isRTL ? 'غير جاهز' : 'Pending')}</span>
+                                                            </div>
                                                         </div>
-                                                        <div className="aspect-video relative bg-muted rounded-md border flex items-center justify-center overflow-hidden group">
-                                                            {ad.poster_url ? (
-                                                                <>
-                                                                    <img src={ad.poster_url} alt="Ad Poster" className="w-full h-full object-contain" />
-                                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                                        <label className="cursor-pointer">
-                                                                            <Input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files && handleUploadPoster(e.target.files[0], ad.id)} />
-                                                                            <Button variant="secondary" size="sm" className="pointer-events-none" >{isRTL ? 'تغيير' : 'Change'}</Button>
-                                                                        </label>
-                                                                    </div>
-                                                                </>
-                                                            ) : (
-                                                                <label className="cursor-pointer flex flex-col items-center gap-1 p-4 text-muted-foreground hover:text-primary transition-colors">
-                                                                    <Input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files && handleUploadPoster(e.target.files[0], ad.id)} />
-                                                                    <Download className="w-6 h-6 rotate-180" />
-                                                                    <span className="text-xs">{isRTL ? 'رفع صورة' : 'Upload Image'}</span>
-                                                                </label>
-                                                            )}
-                                                        </div>
+                                                        <Checkbox
+                                                            checked={ad.poster_done}
+                                                            onCheckedChange={(c) => handleUpdateAd(ad.id, { poster_done: !!c })}
+                                                        />
                                                     </div>
 
-                                                    {/* Content */}
-                                                    <div className="space-y-2">
-                                                        <div className="flex justify-between items-center">
-                                                            <Label className="text-xs font-medium">{isRTL ? 'المحتوى' : 'Content'}</Label>
-                                                            <Checkbox
-                                                                checked={ad.content_done}
-                                                                onCheckedChange={(c) => handleUpdateAd(ad.id, { content_done: !!c })}
-                                                            />
+                                                    <div className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`p-2 rounded-full ${ad.content_done ? 'bg-green-100 text-green-600' : 'bg-muted text-muted-foreground'}`}>
+                                                                <FileText className="w-4 h-4" />
+                                                            </div>
+                                                            <div className="flex flex-col">
+                                                                <span className="text-sm font-medium">{isRTL ? 'المحتوى' : 'Content'}</span>
+                                                                <span className="text-xs text-muted-foreground">{ad.content_done ? (isRTL ? 'جاهز' : 'Done') : (isRTL ? 'غير جاهز' : 'Pending')}</span>
+                                                            </div>
                                                         </div>
-                                                        <textarea
-                                                            className="w-full min-h-[80px] p-2 text-sm rounded-md border bg-transparent resize-y focus:outline-none focus:ring-1 focus:ring-primary"
-                                                            placeholder={isRTL ? 'اكتب المحتوى هنا...' : 'Write content here...'}
-                                                            value={ad.content || ''}
-                                                            onChange={(e) => handleUpdateAd(ad.id, { content: e.target.value })}
+                                                        <Checkbox
+                                                            checked={ad.content_done}
+                                                            onCheckedChange={(c) => handleUpdateAd(ad.id, { content_done: !!c })}
                                                         />
                                                     </div>
                                                 </CardContent>
