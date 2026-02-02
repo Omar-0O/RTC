@@ -139,7 +139,7 @@ interface CourseAd {
     created_at: string;
     updated_at: string;
     updater?: { full_name: string, full_name_ar: string } | null;
-    course?: { name: string, start_date?: string, interview_date?: string, has_interview?: boolean } | null;
+    course?: { name: string, start_date: string, interview_date: string | null, has_interview: boolean } | null;
 }
 
 interface CourseMarketer {
