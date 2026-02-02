@@ -93,7 +93,7 @@ export default function LogActivity() {
   const [openCombobox, setOpenCombobox] = useState(false);
   const [includeMe, setIncludeMe] = useState(false);
 
-  const isLeader = primaryRole === 'committee_leader' || primaryRole === 'head_hr' || primaryRole === 'admin' || primaryRole === 'supervisor' || primaryRole === 'head_caravans' || primaryRole === 'head_events' || primaryRole === 'head_ethics' || primaryRole === 'head_quran' || primaryRole === 'head_ashbal';
+  const isLeader = primaryRole === 'committee_leader' || primaryRole === 'head_hr' || primaryRole === 'admin' || primaryRole === 'supervisor' || primaryRole === 'head_caravans' || primaryRole === 'head_events' || primaryRole === 'head_ethics' || primaryRole === 'head_quran' || primaryRole === 'head_ashbal' || primaryRole === 'head_marketing';
 
   useEffect(() => {
     fetchData();
@@ -289,7 +289,7 @@ export default function LogActivity() {
     if (!user) return null;
     try {
       // Sanitize activity name for filename (remove special characters)
-      const sanitizedName = activityName.replace(/[^a-zA-Z0-9\u0600-\u06FF\s]/g, '').replace(/\s+/g, '_');
+      const sanitizedName = activityName.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
       const fileName = `${user.id}/group-reports/${sanitizedName}_${date}.xlsx`;
 
       const { error: uploadError } = await supabase.storage
