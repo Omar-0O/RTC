@@ -306,8 +306,7 @@ export default function UserManagement() {
 
       const activitiesQuery = supabase
         .from('activity_submissions')
-        .select('volunteer_id, status')
-        .eq('status', 'approved');
+        .select('volunteer_id, status');
 
       const [profilesRes, rolesRes, activitiesRes] = await Promise.all([
         usersQuery,
@@ -318,6 +317,12 @@ export default function UserManagement() {
       if (profilesRes.error) {
         console.error('Profiles fetch error:', profilesRes.error);
         throw profilesRes.error;
+      }
+
+      if (activitiesRes.error) {
+        console.error('Activities fetch error:', activitiesRes.error);
+      } else {
+        console.log('Fetched activities count:', activitiesRes.data?.length);
       }
 
       const profilesData = profilesRes.data;
@@ -336,7 +341,7 @@ export default function UserManagement() {
 
       const participationMap = new Map<string, number>();
       activitiesData.forEach((activity: any) => {
-        if (activity.volunteer_id) {
+        if (activity.volunteer_id && activity.status !== 'rejected') {
           participationMap.set(activity.volunteer_id, (participationMap.get(activity.volunteer_id) || 0) + 1);
         }
       });
@@ -537,7 +542,7 @@ export default function UserManagement() {
           fullName: formName.trim(),
           fullNameAr: formNameAr.trim(),
           role: formRole,
-          committeeId: (formCommitteeId === 'general' ? null : formCommitteeId) || null,
+          committeeId: formCommitteeId || null,
           phone: formPhone.trim() || null,
           level: formLevel,
           joinDate: formJoinDate,

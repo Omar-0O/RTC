@@ -220,9 +220,7 @@ export default function LogActivity() {
     a => {
       // If 'general' is selected, show only activities without committee restrictions
       // If a specific committee is selected, show activities with no restrictions OR that include this committee
-      const matchesCommittee = committeeId === 'general'
-        ? a.committee_ids.length === 0  // Only general activities
-        : a.committee_ids.length === 0 || a.committee_ids.includes(committeeId);  // General + committee-specific
+      const matchesCommittee = a.committee_ids.length === 0 || (committeeId && a.committee_ids.includes(committeeId));
       const matchesMode = isGroupSubmission ? a.mode === 'group' : a.mode === 'individual';
       return matchesCommittee && matchesMode;
     }
@@ -348,7 +346,7 @@ export default function LogActivity() {
 
       const submissionData = {
         activity_type_id: activityId,
-        committee_id: committeeId === 'general' ? null : committeeId,
+        committee_id: committeeId,
         description: description.trim(),
         location: location,
         wore_vest: location === 'branch' ? woreVest : false, // Only track vest for branch activities
@@ -404,7 +402,7 @@ export default function LogActivity() {
           .insert({
             leader_id: user.id,
             activity_type_id: activityId,
-            committee_id: committeeId === 'general' ? null : committeeId,
+            committee_id: committeeId,
             guest_participants: null,
             excel_sheet_url: excelUrl,
             submitted_at: new Date(activityDate).toISOString()
@@ -642,9 +640,6 @@ export default function LogActivity() {
                     <SelectValue placeholder={t('activityLog.selectCommittee')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem key="general" value="general" className="text-base py-3 font-medium">
-                      {isRTL ? 'عام (بدون لجنة)' : 'General (No Committee)'}
-                    </SelectItem>
                     {committees.map((committee) => (
                       <SelectItem key={committee.id} value={committee.id} className="text-base py-3">
                         {isRTL ? committee.name_ar : committee.name}

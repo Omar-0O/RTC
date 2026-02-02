@@ -81,6 +81,7 @@ interface Submission {
     volunteer_id: string | null;
     activity_type_id: string;
     submitted_at: string;
+    created_at: string;
     points_awarded: number;
     status: string;
     location?: string;
@@ -138,6 +139,9 @@ export default function SubmissionManagement() {
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [submissionToDelete, setSubmissionToDelete] = useState<string | null>(null);
 
+    // Trainers Map
+    const [trainersMap, setTrainersMap] = useState<Record<string, { ar: string, en: string }>>({});
+
     // Volunteer Search
     const [volunteers, setVolunteers] = useState<Profile[]>([]);
     const [open, setOpen] = useState(false);
@@ -151,6 +155,7 @@ export default function SubmissionManagement() {
 
     useEffect(() => {
         fetchVolunteers();
+        fetchTrainers();
     }, []);
 
     useEffect(() => {
@@ -187,6 +192,27 @@ export default function SubmissionManagement() {
         }
     };
 
+    const fetchTrainers = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('trainers')
+                .select('user_id, name_ar, name_en');
+
+            if (error) throw error;
+            console.log('Fetched trainers map data:', data);
+
+            const map: Record<string, { ar: string, en: string }> = {};
+            data.forEach((t: any) => {
+                if (t.user_id) {
+                    map[t.user_id] = { ar: t.name_ar, en: t.name_en };
+                }
+            });
+            setTrainersMap(map);
+        } catch (error) {
+            console.error('Error fetching trainers:', error);
+        }
+    };
+
     const fetchSubmissions = async () => {
         setIsLoading(true);
         try {
@@ -201,6 +227,7 @@ export default function SubmissionManagement() {
                     volunteer_id,
                     activity_type_id,
                     submitted_at,
+                    created_at,
                     points_awarded,
                     status,
                     location,
@@ -216,7 +243,7 @@ export default function SubmissionManagement() {
                 `)
                 .gte('submitted_at', startDate.toISOString())
                 .lte('submitted_at', endDate.toISOString())
-                .order('submitted_at', { ascending: false });
+                .order('created_at', { ascending: false });
 
             // Apply Level Filter - Note: filtering on joined table fields in Supabase 
             // doesn't work with .eq(), so we filter client-side below
@@ -403,6 +430,33 @@ export default function SubmissionManagement() {
             const activityType = s.activity_types;
             const committee = s.committees;
 
+            // Determine participant type
+            const isGuest = !s.profiles || s.participant_type === 'guest';
+            const isTrainer = s.participant_type === 'trainer' || s.committees?.name === 'Trainer';
+
+            let typeLabel = isRTL ? 'متطوع' : 'Volunteer';
+            if (isTrainer) typeLabel = isRTL ? 'مدرب' : 'Trainer';
+            else if (isGuest) typeLabel = isRTL ? 'ضيف' : 'Guest';
+
+            // Resolve Name
+            let name = volunteer?.full_name || '';
+            if (isGuest) {
+                name = s.guest_name || (isRTL ? 'ضيف' : 'Guest');
+            } else if (isTrainer) {
+                if (s.volunteer_id && trainersMap[s.volunteer_id]) {
+                    name = isRTL ? trainersMap[s.volunteer_id].ar : trainersMap[s.volunteer_id].en;
+                } else if (volunteer?.full_name) {
+                    name = isRTL ? volunteer.full_name_ar || volunteer.full_name : volunteer.full_name;
+                } else {
+                    name = isRTL ? 'مدرب' : 'Trainer';
+                }
+            } else {
+                name = (isRTL && volunteer?.full_name_ar) ? volunteer.full_name_ar : (volunteer?.full_name || '');
+            }
+
+            // Resolve Phone
+            const phone = isGuest ? s.guest_phone : volunteer?.phone;
+
             let locationStr = s.location || 'branch';
             if (locationStr === 'home' || locationStr === 'remote') locationStr = isRTL ? 'من البيت' : 'Home';
             else if (locationStr === 'branch') locationStr = isRTL ? 'الفرع' : 'Branch';
@@ -413,15 +467,15 @@ export default function SubmissionManagement() {
                 : '';
 
             return {
-                [isRTL ? 'النوع' : 'Type']: isRTL ? 'متطوع' : 'Volunteer',
+                [isRTL ? 'النوع' : 'Type']: typeLabel,
                 [isRTL ? 'نوع المهمة' : 'Task Type']: activityType?.[isRTL ? 'name_ar' : 'name'] || '',
                 [isRTL ? 'اللجنة/المصدر' : 'Committee/Source']: committee?.[isRTL ? 'name_ar' : 'name'] || '',
-                [isRTL ? 'الاسم' : 'Name']: volunteer?.full_name || '',
-                [isRTL ? 'رقم الهاتف' : 'Phone']: `'${volunteer?.phone || ''}'`,
+                [isRTL ? 'الاسم' : 'Name']: name,
+                [isRTL ? 'رقم الهاتف' : 'Phone']: `'${phone || ''}'`,
                 [isRTL ? 'نوع المشاركة' : 'Participation Type']: locationStr,
                 [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
                 [isRTL ? 'الأثر' : 'Impact']: s.points_awarded || 0,
-                [isRTL ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+                [isRTL ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.created_at || s.submitted_at), 'yyyy-MM-dd'),
                 [isRTL ? 'الملاحظات' : 'Notes']: s.description || '',
                 [isRTL ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
             };
@@ -809,9 +863,24 @@ export default function SubmissionManagement() {
                         // Determine if this is a trainer submission (by type or committee)
                         const isTrainer = submission.participant_type === 'trainer' || submission.committees?.name === 'Trainer';
 
-                        const displayName = isGuest
+                        let displayName = isGuest
                             ? submission.guest_name
                             : (isRTL ? submission.profiles?.full_name_ar : submission.profiles?.full_name);
+
+                        // If it's a trainer, try to get the trainer name
+                        if (isTrainer) {
+                            if (submission.volunteer_id && trainersMap[submission.volunteer_id]) {
+                                displayName = isRTL
+                                    ? trainersMap[submission.volunteer_id].ar
+                                    : trainersMap[submission.volunteer_id].en;
+                            } else if (!displayName && submission.profiles) {
+                                // If map lookup failed but we have a profile, use profile name
+                                displayName = isRTL ? submission.profiles.full_name_ar : submission.profiles.full_name;
+                            } else if (!displayName) {
+                                // Final fallback if we know it's a trainer but have no name
+                                displayName = isRTL ? 'مدرب' : 'Trainer';
+                            }
+                        }
                         const displayPhone = isGuest ? submission.guest_phone : submission.profiles?.phone;
 
                         return (
@@ -859,7 +928,7 @@ export default function SubmissionManagement() {
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <div className="text-xs text-muted-foreground whitespace-nowrap">
-                                                        {format(new Date(submission.submitted_at), 'PPP p')}
+                                                        {format(new Date(submission.created_at || submission.submitted_at), 'PPP p')}
                                                     </div>
                                                     <Button
                                                         variant="ghost"
@@ -892,6 +961,19 @@ export default function SubmissionManagement() {
                                             {submission.description && (
                                                 <div className="text-sm text-muted-foreground mt-1 break-words">
                                                     {submission.description}
+                                                </div>
+                                            )}
+
+                                            {/* Proof Image */}
+                                            {submission.proof_url && (
+                                                <div className="mt-2">
+                                                    <a href={submission.proof_url} target="_blank" rel="noopener noreferrer" className="block w-fit">
+                                                        <img
+                                                            src={submission.proof_url}
+                                                            alt={isRTL ? 'إثبات المشاركة' : 'Submission Proof'}
+                                                            className="h-24 w-auto object-cover rounded-md border hover:opacity-90 transition-opacity"
+                                                        />
+                                                    </a>
                                                 </div>
                                             )}
 

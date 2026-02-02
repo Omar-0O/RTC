@@ -147,9 +147,6 @@ export default function ActivityManagement() {
     let matchesCommittee = false;
     if (committeeFilter === 'all') {
       matchesCommittee = true;
-    } else if (committeeFilter === 'none') {
-      const hasCommittees = (activity.activity_type_committees && activity.activity_type_committees.length > 0) || !!activity.committee_id;
-      matchesCommittee = !hasCommittees;
     } else {
       const inLinked = activity.activity_type_committees?.some(c => c.committee_id === committeeFilter);
       const inLegacy = activity.committee_id === committeeFilter;
@@ -500,7 +497,7 @@ export default function ActivityManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">{isRTL ? 'جميع اللجان' : 'All Committees'}</SelectItem>
-                <SelectItem value="none">{isRTL ? 'عام (بدون لجنة)' : 'General (No Committee)'}</SelectItem>
+
                 {committees.map(committee => (
                   <SelectItem key={committee.id} value={committee.id}>
                     {isRTL ? committee.name_ar : committee.name}
