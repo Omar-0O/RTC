@@ -218,23 +218,37 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
                                                 const targetDate = targetDateStr ? parseISO(targetDateStr) : null;
 
                                                 const isUrgent = targetDate && (!ad.poster_done || !ad.content_done) &&
-                                                    differenceInCalendarDays(targetDate, new Date()) <= 5;
+                                                    differenceInCalendarDays(targetDate, parseISO(ad.ad_date)) <= 5;
+
+                                                const isCompleted = ad.poster_done && ad.content_done;
 
                                                 return (
                                                     <div
                                                         key={ad.id}
-                                                        className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 transition-all ${isUrgent
-                                                            ? 'bg-red-100 dark:bg-red-900/30 border-red-300 text-red-700 dark:text-red-300'
-                                                            : 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 text-purple-700 dark:text-purple-300'
+                                                        className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 transition-all ${isCompleted
+                                                            ? 'bg-green-100 dark:bg-green-900/30 border-green-300 text-green-700 dark:text-green-300'
+                                                            : isUrgent
+                                                                ? 'bg-red-100 dark:bg-red-900/30 border-red-300 text-red-700 dark:text-red-300'
+                                                                : 'bg-purple-100 dark:bg-purple-900/30 border-purple-300 text-purple-700 dark:text-purple-300'
                                                             }`}
                                                         onClick={() => setSelectedAd(ad)}
                                                         title={`${ad.course.name} - #${ad.ad_number}`}
                                                     >
-                                                        <div className="flex items-center gap-1">
-                                                            <Megaphone className="h-3 w-3" />
-                                                            <span className="font-medium truncate flex-1 leading-tight">
-                                                                {ad.course.name} #{ad.ad_number}
-                                                            </span>
+                                                        <div className="flex flex-col gap-1">
+                                                            <div className="flex items-center gap-1">
+                                                                <Megaphone className="h-3 w-3 shrink-0" />
+                                                                <span className="font-medium truncate leading-tight">
+                                                                    {ad.course.name} #{ad.ad_number}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex items-center justify-end gap-1 px-1">
+                                                                <div title={isRTL ? "تصميم البوستر" : "Poster Design"}>
+                                                                    <CheckCircle2 className={`h-3 w-3 ${ad.poster_done ? 'text-green-600 dark:text-green-400' : 'text-black/20 dark:text-white/20'}`} />
+                                                                </div>
+                                                                <div title={isRTL ? "كتابة المحتوى" : "Content Writing"}>
+                                                                    <CheckCircle2 className={`h-3 w-3 ${ad.content_done ? 'text-green-600 dark:text-green-400' : 'text-black/20 dark:text-white/20'}`} />
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 );
@@ -277,12 +291,16 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
                                             const isUrgent = targetDate && (!ad.poster_done || !ad.content_done) &&
                                                 differenceInCalendarDays(targetDate, new Date()) <= 5;
 
+                                            const isCompleted = ad.poster_done && ad.content_done;
+
                                             return (
                                                 <div
                                                     key={ad.id}
-                                                    className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${isUrgent
-                                                        ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
-                                                        : 'bg-purple-50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800'
+                                                    className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${isCompleted
+                                                        ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'
+                                                        : isUrgent
+                                                            ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800'
+                                                            : 'bg-purple-50 dark:bg-purple-900/10 border-purple-200 dark:border-purple-800'
                                                         }`}
                                                     onClick={() => setSelectedAd(ad)}
                                                 >
@@ -316,7 +334,7 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
             </Card>
 
             <Dialog open={!!selectedAd} onOpenChange={() => setSelectedAd(null)}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Megaphone className="h-5 w-5 text-primary" />
@@ -334,6 +352,25 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
                                 <div className="text-end">
                                     <p className="text-sm text-muted-foreground mb-1">{isRTL ? 'تاريخ النشر' : 'Publish Date'}</p>
                                     <p className="font-semibold">{format(parseISO(selectedAd.ad_date), 'dd MMMM yyyy', { locale })}</p>
+                                </div>
+                            </div>
+
+                            {/* Interview or Start Date */}
+                            <div className="flex items-center justify-between bg-muted/40 p-3 rounded-lg">
+                                <div className="flex items-center gap-2">
+                                    <Calendar className="h-5 w-5 text-muted-foreground" />
+                                    <div>
+                                        <p className="text-sm text-muted-foreground mb-1">
+                                            {selectedAd.course?.has_interview ? (isRTL ? 'تاريخ المقابلة' : 'Interview Date') : (isRTL ? 'تاريخ البداية' : 'Start Date')}
+                                        </p>
+                                        <p className="font-semibold">
+                                            {selectedAd.course?.has_interview && selectedAd.course?.interview_date
+                                                ? format(parseISO(selectedAd.course.interview_date), 'dd MMMM yyyy', { locale })
+                                                : selectedAd.course?.start_date
+                                                    ? format(parseISO(selectedAd.course.start_date), 'dd MMMM yyyy', { locale })
+                                                    : (isRTL ? 'غير محدد' : 'Not set')}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
 
