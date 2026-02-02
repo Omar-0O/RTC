@@ -537,7 +537,7 @@ export default function UserManagement() {
           fullName: formName.trim(),
           fullNameAr: formNameAr.trim(),
           role: formRole,
-          committeeId: formCommitteeId || null,
+          committeeId: (formCommitteeId === 'general' ? null : formCommitteeId) || null,
           phone: formPhone.trim() || null,
           level: formLevel,
           joinDate: formJoinDate,
@@ -547,6 +547,10 @@ export default function UserManagement() {
       // Check for function invocation error (network issues, etc.)
       if (error) {
         console.error('Edge function invocation error:', error);
+        // Extract status code if available
+        if (error instanceof Error && 'status' in error) {
+          console.error('Status Code:', (error as any).status);
+        }
         throw error;
       }
 

@@ -1,12 +1,10 @@
-/// <reference lib="deno.ns" />
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3'
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
-
 
 interface CreateUserBody {
     email: string;
@@ -22,21 +20,32 @@ interface CreateUserBody {
 }
 
 Deno.serve(async (req: Request) => {
+    // Handle CORS preflight requests
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
 
     try {
-        const { email, password, fullName, fullNameAr, role, committeeId, phone, level, joinDate, isAshbal } = await req.json() as CreateUserBody
+        // validate content type
+        const contentType = req.headers.get('content-type') || ''
+        if (!contentType.includes('application/json')) {
+            throw new Error('Content-Type must be application/json')
+        }
+
+        let body: CreateUserBody;
+        try {
+            body = await req.json() as CreateUserBody
+        } catch (e) {
+            throw new Error('Invalid JSON body')
+        }
+
+        const { email, password, fullName, fullNameAr, role, committeeId, phone, level, joinDate, isAshbal } = body;
 
         const supabaseUrl = Deno.env.get('SUPABASE_URL')
         const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
         if (!supabaseUrl || !serviceRoleKey) {
-            const missingVars: string[] = [];
-            if (!supabaseUrl) missingVars.push('SUPABASE_URL');
-            if (!serviceRoleKey) missingVars.push('SUPABASE_SERVICE_ROLE_KEY');
-            throw new Error(`Missing Supabase environment variables: ${missingVars.join(', ')}`)
+            throw new Error('Missing Supabase environment variables')
         }
 
         // Check if requester is admin or head_hr
@@ -79,10 +88,8 @@ Deno.serve(async (req: Request) => {
         const isAuthorized = roles.includes('admin') || roles.includes('head_hr') || roles.includes('supervisor') || roles.includes('head_ashbal')
 
         if (!isAuthorized) {
-            // Log for debugging
-            console.log(`User ${requester.id} (${requester.email}) attempted to create user but has roles: ${roles.join(', ')}`)
-            const roleList = roles.length > 0 ? roles.join(', ') : 'none';
-            throw new Error(`Unauthorized: Admin or Head HR access required. Your current roles: ${roleList}. Please contact an administrator.`)
+            console.log(`User ${requester.id} attempted to create user but has roles: ${roles.join(', ')}`)
+            throw new Error(`Unauthorized: Admin access required.`)
         }
 
         // Create the user with email confirmed
@@ -97,8 +104,7 @@ Deno.serve(async (req: Request) => {
 
         if (createError) throw createError
 
-        // Insert/Update user role (use upsert to handle existing roles from triggers)
-        // Wrap in try/catch to ensure user creation success isn't blocked by role fail
+        // Insert/Update user role
         try {
             const { error: insertRoleError } = await supabaseAdmin
                 .from('user_roles')
@@ -107,22 +113,19 @@ Deno.serve(async (req: Request) => {
                     role: role || 'volunteer'
                 }, { onConflict: 'user_id' })
 
-            if (insertRoleError) {
-                console.warn('Role upsert warning:', insertRoleError.message)
-            }
+            if (insertRoleError) console.warn('Role upsert warning:', insertRoleError.message)
         } catch (roleErr) {
             console.error('Role upsert exception:', roleErr)
         }
 
         // Update profile
-        // Wrap in try/catch too
         try {
             const { error: profileError } = await supabaseAdmin
                 .from('profiles')
                 .update({
                     full_name: fullName,
                     full_name_ar: fullNameAr,
-                    committee_id: committeeId || null,
+                    committee_id: (committeeId === 'general' ? null : committeeId) || null,
                     phone: phone || null,
                     level: level || 'under_follow_up',
                     join_date: joinDate || undefined,
@@ -130,14 +133,12 @@ Deno.serve(async (req: Request) => {
                 })
                 .eq('id', userData.user.id)
 
-            if (profileError) {
-                console.warn('Profile update warning:', profileError.message)
-            }
+            if (profileError) console.warn('Profile update warning:', profileError.message)
         } catch (profileErr) {
             console.error('Profile update exception:', profileErr)
         }
 
-        // Store visible password for admins
+        // Store visible password
         if (password) {
             try {
                 const { error: privateDetailsError } = await supabaseAdmin
@@ -147,9 +148,7 @@ Deno.serve(async (req: Request) => {
                         visible_password: password
                     }, { onConflict: 'id', ignoreDuplicates: false })
 
-                if (privateDetailsError) {
-                    console.warn('Private details insert warning:', privateDetailsError.message)
-                }
+                if (privateDetailsError) console.warn('Private details insert warning:', privateDetailsError.message)
             } catch (detailsErr) {
                 console.error('Private details insert exception:', detailsErr)
             }
@@ -164,12 +163,10 @@ Deno.serve(async (req: Request) => {
         )
 
     } catch (error) {
-        // Handle different error types
         let errorMessage = 'Unknown error';
         if (error instanceof Error) {
             errorMessage = error.message;
         } else if (typeof error === 'object' && error !== null) {
-            // Supabase errors might have message or error_description
             const errObj = error as any;
             errorMessage = errObj.message || errObj.error_description || errObj.error || JSON.stringify(error);
         } else if (typeof error === 'string') {
@@ -178,7 +175,6 @@ Deno.serve(async (req: Request) => {
 
         console.error('Error in create-user:', errorMessage)
 
-        // Return 200 with error field - Supabase client doesn't handle non-2xx well
         return new Response(
             JSON.stringify({ error: errorMessage, success: false }),
             {
