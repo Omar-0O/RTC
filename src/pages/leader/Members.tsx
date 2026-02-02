@@ -388,10 +388,7 @@ export default function Members() {
                                                             {language === 'ar' ? member.full_name_ar || member.full_name : member.full_name}
                                                         </p>
                                                         <div className="flex flex-col text-xs text-muted-foreground gap-0.5">
-                                                            <span className="flex items-center gap-1">
-                                                                <Mail className="h-3 w-3" />
-                                                                {member.email}
-                                                            </span>
+
                                                             {member.phone && (
                                                                 <span className="flex items-center gap-1">
                                                                     <Phone className="h-3 w-3" />
@@ -408,7 +405,7 @@ export default function Members() {
                                             <TableCell>
                                                 <div className="font-medium">{member.total_points}</div>
                                                 <div className="text-xs text-muted-foreground">
-                                                    {member.activities_count} {language === 'ar' ? 'نشاط' : 'activities'}
+                                                    {member.activities_count} {language === 'ar' ? 'مشاركة' : 'activities'}
                                                 </div>
                                             </TableCell>
                                             <TableCell>

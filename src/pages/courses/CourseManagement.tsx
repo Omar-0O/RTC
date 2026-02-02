@@ -2281,7 +2281,7 @@ export default function CourseManagement() {
             <div className="mt-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
                 {/* Calendar Overview */}
-                <CourseAdsTable ads={allAds} title={isRTL ? 'نظرة عامة على الإعلانات' : 'Ads Overview'} />
+                <CourseAdsTable ads={allAds} title={isRTL ? 'تقويم الإعلانات' : 'Ads Calendar'} />
 
                 {/* Management Grid */}
                 <div className="space-y-4">

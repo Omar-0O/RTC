@@ -317,6 +317,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         .from('volunteer_fines_view')
         .select('*')
         .eq('volunteer_id', targetUserId)
+        .eq('source_type', 'manual')
         .order('created_at', { ascending: false });
 
       const [badgesRes, activitiesRes, feedbacksRes, finesRes, typesRes, fineTypesRes]: [any, any, any, any, any, any] = await Promise.all([
