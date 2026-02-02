@@ -21,12 +21,14 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
+    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search, Megaphone, AlertTriangle } from 'lucide-react';
+import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search, Megaphone, AlertTriangle, User } from 'lucide-react';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, addDays, getDay } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
     DropdownMenu,
@@ -137,6 +139,7 @@ interface CourseAd {
     created_at: string;
     updated_at: string;
     updater?: { full_name: string, full_name_ar: string } | null;
+    course?: { name: string, start_date?: string, interview_date?: string, has_interview?: boolean } | null;
 }
 
 interface CourseMarketer {
@@ -194,6 +197,8 @@ export default function CourseManagement() {
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
     const [courseAds, setCourseAds] = useState<CourseAd[]>([]);
+    const [isMarketingDialogOpen, setIsMarketingDialogOpen] = useState(false);
+    const [selectedMarketingCourse, setSelectedMarketingCourse] = useState<Course | null>(null);
 
     // roles and profile already destructured above
     const isRestricted = roles.includes('committee_leader') &&
@@ -233,6 +238,41 @@ export default function CourseManagement() {
     const [plannedAds, setPlannedAds] = useState<string[]>([]);
     const [marketerPopoverOpen, setMarketerPopoverOpen] = useState(false);
     const [createTab, setCreateTab] = useState<'pre' | 'post'>('pre');
+    const [allAds, setAllAds] = useState<CourseAd[]>([]);
+    const [hasAdsPermission, setHasAdsPermission] = useState(false);
+
+    useEffect(() => {
+        const fetchAllAds = async () => {
+            // Check permissions
+            const userCommittee = committees.find(c => c.id === profile?.committee_id);
+            const isMarketingLeader = roles.includes('committee_leader') && (userCommittee?.name === 'Marketing' || userCommittee?.name === 'marketing');
+            const canView = roles.some(r => ['admin', 'supervisor', 'head_hr', 'hr'].includes(r)) || isMarketingLeader;
+
+            setHasAdsPermission(canView);
+
+            setHasAdsPermission(canView);
+
+            if (activeCourses.length === 0) return;
+
+            const activeIds = activeCourses.map(c => c.id);
+            const { data, error } = await supabase
+                .from('course_ads')
+                .select('*, updater:updated_by(full_name, full_name_ar), course:courses(name, start_date, interview_date, has_interview)')
+                .in('course_id', activeIds)
+                .order('ad_date', { ascending: true });
+
+            if (error) {
+                console.error('Error fetching all ads:', error);
+                return;
+            }
+
+            if (data) {
+                setAllAds(data as unknown as CourseAd[]);
+            }
+        };
+
+        fetchAllAds();
+    }, [activeCourses.map(c => c.id).join(','), roles, profile, committees]);
 
     useEffect(() => {
         if (isRestricted && profile?.committee_id) {
@@ -358,6 +398,28 @@ export default function CourseManagement() {
         } finally {
             setLoading(false);
         }
+    };
+
+    const fetchCourseAds = async (courseId: string) => {
+        try {
+            const { data, error } = await supabase
+                .from('course_ads')
+                .select('*, updater:updated_by(full_name, full_name_ar)')
+                .eq('course_id', courseId)
+                .order('ad_number', { ascending: true });
+
+            if (error) throw error;
+            setCourseAds((data || []) as unknown as CourseAd[]);
+        } catch (error) {
+            console.error('Error fetching course ads:', error);
+            toast.error(isRTL ? 'فشل في تحميل الإعلانات' : 'Failed to fetch course ads');
+        }
+    };
+
+    const openMarketingDialog = (course: Course) => {
+        setSelectedMarketingCourse(course);
+        fetchCourseAds(course.id);
+        setIsMarketingDialogOpen(true);
     };
 
     const resetForm = () => {
@@ -735,10 +797,19 @@ export default function CourseManagement() {
 
         try {
             const nextAdNumber = (courseAds.length > 0 ? Math.max(...courseAds.map(a => a.ad_number)) : 0) + 1;
+            const maxDateStr = selectedCourse.has_interview && selectedCourse.interview_date
+                ? selectedCourse.interview_date
+                : selectedCourse.start_date;
+
+            let defaultDate = new Date();
+            if (maxDateStr && defaultDate > new Date(maxDateStr)) {
+                defaultDate = new Date(maxDateStr);
+            }
+
             const newAdData = {
                 course_id: selectedCourse.id,
                 ad_number: nextAdNumber,
-                ad_date: format(new Date(), 'yyyy-MM-dd'),
+                ad_date: format(defaultDate, 'yyyy-MM-dd'),
                 created_by: user?.id,
                 poster_done: false,
                 content_done: false
@@ -800,6 +871,7 @@ export default function CourseManagement() {
             });
 
             if (error) throw error;
+
             toast.success(isRTL ? 'تم تسجيل نقاط النشاط بنجاح' : 'Activity points recorded successfully');
 
         } catch (error) {
@@ -817,18 +889,27 @@ export default function CourseManagement() {
 
             if (error) throw error;
 
-            const updatedAd = { ...courseAds.find(a => a.id === adId)!, ...updates };
-            setCourseAds(courseAds.map(ad => ad.id === adId ? updatedAd : ad));
+            if (error) throw error;
 
-            // Function to check if we should record activity
-            if (selectedCourse && user) {
-                // If marking poster as done
+            // Updated Ad object
+            const updatedAd = { ...courseAds.find(a => a.id === adId)!, ...updates };
+            // Also look in allAds if not found in courseAds (e.g. editing from summary table)
+            const globalAd = allAds.find(a => a.id === adId);
+
+            // Sync states
+            setCourseAds(courseAds.map(ad => ad.id === adId ? { ...ad, ...updates } : ad));
+            setAllAds(prev => prev.map(ad => ad.id === adId ? { ...ad, ...updates } : ad));
+
+            // If we are marking as done, record activity
+            const courseName = selectedMarketingCourse?.name || globalAd?.course?.name;
+            const adNumber = updatedAd?.ad_number || globalAd?.ad_number;
+
+            if (courseName && adNumber && user) {
                 if (updates.poster_done === true) {
-                    recordMarketingActivity('poster', selectedCourse.name, updatedAd.ad_number);
+                    recordMarketingActivity('poster', courseName, adNumber);
                 }
-                // If marking content as done
                 if (updates.content_done === true) {
-                    recordMarketingActivity('content', selectedCourse.name, updatedAd.ad_number);
+                    recordMarketingActivity('content', courseName, adNumber);
                 }
             }
 
@@ -840,8 +921,6 @@ export default function CourseManagement() {
     };
 
     const handleDeleteAd = async (adId: string) => {
-        if (!confirm(isRTL ? 'هل أنت متأكد من حذف هذا الإعلان؟' : 'Are you sure you want to delete this ad?')) return;
-
         try {
             const { error } = await supabase
                 .from('course_ads')
@@ -850,7 +929,10 @@ export default function CourseManagement() {
 
             if (error) throw error;
 
+            if (error) throw error;
+
             setCourseAds(courseAds.filter(ad => ad.id !== adId));
+            setAllAds(prev => prev.filter(ad => ad.id !== adId));
             toast.success(isRTL ? 'تم حذف الإعلان' : 'Ad deleted successfully');
         } catch (error) {
             console.error('Error deleting ad:', error);
@@ -858,7 +940,82 @@ export default function CourseManagement() {
         }
     };
 
+    const handleUpdateAdDate = async (adId: string, newDate: string) => {
+        // Find ad to get course details if selectedMarketingCourse is null
+        const targetAd = courseAds.find(a => a.id === adId) || allAds.find(a => a.id === adId);
+        // Cast because course in AllAds has dates, but interface says optional. 
+        // We know fetching includes them.
+        const courseData = selectedMarketingCourse || (targetAd?.course as any);
 
+        // Validate date
+        if (courseData) {
+            const maxDate = courseData.has_interview && courseData.interview_date
+                ? courseData.interview_date
+                : courseData.start_date;
+
+            if (maxDate && new Date(newDate) > new Date(maxDate)) {
+                toast.error(isRTL ? 'تاريخ النشر لا يمكن أن يكون بعد الموعد المحدد' : 'Publish date cannot be after the deadline');
+                return;
+            }
+        }
+
+        try {
+            const { error } = await supabase
+                .from('course_ads')
+                .update({ ad_date: newDate })
+                .eq('id', adId);
+
+            if (error) throw error;
+
+            const updatedAd = { ...courseAds.find(a => a.id === adId)!, ad_date: newDate };
+            setCourseAds(courseAds.map(ad => ad.id === adId ? updatedAd : ad));
+            setAllAds(prev => prev.map(ad => ad.id === adId ? { ...ad, ad_date: newDate } : ad));
+            toast.success(isRTL ? 'تم تحديث التاريخ' : 'Date updated');
+        } catch (error) {
+            console.error('Error updating ad date:', error);
+            toast.error(isRTL ? 'خطأ في التحديث' : 'Update error');
+        }
+    };
+
+    const handleAddAdFromDialog = async () => {
+        if (!selectedMarketingCourse) return;
+
+        try {
+            const nextAdNumber = (courseAds.length > 0 ? Math.max(...courseAds.map(a => a.ad_number)) : 0) + 1;
+            const maxDateStr = selectedMarketingCourse.has_interview && selectedMarketingCourse.interview_date
+                ? selectedMarketingCourse.interview_date
+                : selectedMarketingCourse.start_date;
+
+            let defaultDate = new Date();
+            if (maxDateStr && defaultDate > new Date(maxDateStr)) {
+                defaultDate = new Date(maxDateStr);
+            }
+
+            const newAdData = {
+                course_id: selectedMarketingCourse.id,
+                ad_number: nextAdNumber,
+                ad_date: format(defaultDate, 'yyyy-MM-dd'),
+                created_by: user?.id,
+                poster_done: false,
+                content_done: false
+            };
+
+            const { data, error } = await supabase
+                .from('course_ads')
+                .insert(newAdData)
+                .select('*, updater:updated_by(full_name, full_name_ar), course:courses(name, start_date, interview_date, has_interview)')
+                .single();
+
+            if (error) throw error;
+
+            setCourseAds([...courseAds, data as unknown as CourseAd]);
+            setAllAds(prev => [...prev, data as unknown as CourseAd]);
+            toast.success(isRTL ? 'تم إضافة إعلان جديد' : 'New ad added successfully');
+        } catch (error) {
+            console.error('Error adding ad:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء إضافة الإعلان' : 'Error adding ad');
+        }
+    };
 
     const openCourseDetails = async (course: Course) => {
         setSelectedCourse(course);
@@ -2064,6 +2221,10 @@ export default function CourseManagement() {
                                                 <Pencil className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'تعديل' : 'Edit'}
                                             </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => openMarketingDialog(course)}>
+                                                <Megaphone className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'إدارة التسويق' : 'Marketing Mgmt'}
+                                            </DropdownMenuItem>
                                             <DropdownMenuItem
                                                 onClick={() => {
                                                     setCourseToDelete(course);
@@ -2115,6 +2276,115 @@ export default function CourseManagement() {
                     </div>
                 )}
             </div>
+
+            {/* Ads Overview & Management */}
+            <div className="mt-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+                {/* Calendar Overview */}
+                <CourseAdsTable ads={allAds} title={isRTL ? 'نظرة عامة على الإعلانات' : 'Ads Overview'} />
+
+                {/* Management Grid */}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2 border-b pb-4">
+                        <Clock className="w-5 h-5 text-primary" />
+                        <h2 className="text-xl font-bold">{isRTL ? 'إدارة الإعلانات' : 'Ads Management'}</h2>
+                    </div>
+
+                    {allAds.length > 0 ? (
+                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {allAds.map((ad) => (
+                                <Card key={ad.id} className="relative overflow-hidden group hover:shadow-md transition-shadow">
+                                    <div className={`absolute top-0 w-full h-1 ${ad.poster_done && ad.content_done ? 'bg-green-500' : 'bg-primary/20'}`} />
+                                    <CardHeader className="pb-2">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <span className="text-xs text-muted-foreground block mb-1">
+                                                    {ad.course?.name}
+                                                </span>
+                                                <CardTitle className="text-lg">
+                                                    {isRTL ? 'إعلان رقم' : 'Ad #'} {ad.ad_number}
+                                                </CardTitle>
+                                            </div>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>{isRTL ? 'حذف الإعلان' : 'Delete Ad'}</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            {isRTL
+                                                                ? `هل أنت متأكد من حذف الإعلان رقم ${ad.ad_number}؟`
+                                                                : `Are you sure you want to delete ad #${ad.ad_number}?`}
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+                                                        <AlertDialogAction
+                                                            onClick={() => handleDeleteAd(ad.id)}
+                                                            className="bg-destructive hover:bg-destructive/90"
+                                                        >
+                                                            {isRTL ? 'حذف' : 'Delete'}
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <div className="space-y-2">
+                                            <Label className="text-xs text-muted-foreground">{isRTL ? 'تاريخ النشر' : 'Publish Date'}</Label>
+                                            <Input
+                                                type="date"
+                                                value={ad.ad_date}
+                                                onChange={(e) => handleUpdateAdDate(ad.id, e.target.value)}
+                                                className="w-full"
+                                            />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <Button
+                                                variant={ad.poster_done ? "default" : "outline"}
+                                                size="sm"
+                                                className={`w-full ${ad.poster_done ? "bg-green-600 hover:bg-green-700" : ""}`}
+                                                onClick={() => handleUpdateAd(ad.id, { poster_done: !ad.poster_done })}
+                                            >
+                                                {ad.poster_done ? <Check className="h-3 w-3 mr-1" /> : null}
+                                                {isRTL ? 'البوستر' : 'Poster'}
+                                            </Button>
+                                            <Button
+                                                variant={ad.content_done ? "default" : "outline"}
+                                                size="sm"
+                                                className={`w-full ${ad.content_done ? "bg-green-600 hover:bg-green-700" : ""}`}
+                                                onClick={() => handleUpdateAd(ad.id, { content_done: !ad.content_done })}
+                                            >
+                                                {ad.content_done ? <Check className="h-3 w-3 mr-1" /> : null}
+                                                {isRTL ? 'المحتوى' : 'Content'}
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                    <CardFooter className="pt-0 text-xs text-muted-foreground flex justify-between">
+                                        {ad.updater && (
+                                            <span className="flex items-center gap-1 opacity-70">
+                                                <User className="h-3 w-3" />
+                                                {isRTL ? ad.updater.full_name_ar : ad.updater.full_name}
+                                            </span>
+                                        )}
+                                    </CardFooter>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center p-8 border rounded-lg border-dashed text-muted-foreground">
+                            <Calendar className="w-12 h-12 mb-2 opacity-20" />
+                            <p>{isRTL ? 'لا توجد إعلانات مخططة للكورسات الحالية' : 'No ads scheduled for active courses'}</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+
 
             {/* Edit Course Dialog */}
             <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
@@ -3031,6 +3301,146 @@ export default function CourseManagement() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            <Dialog open={isMarketingDialogOpen} onOpenChange={setIsMarketingDialogOpen}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {isRTL ? 'إدارة التسويق - ' : 'Marketing Management - '}
+                            {selectedMarketingCourse?.name}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {isRTL ? 'متابعة خطة النشر والإعلانات للكورس' : 'Manage course publication plan and ads'}
+                            {selectedMarketingCourse && (
+                                <span className="block mt-1 text-xs">
+                                    {isRTL ? 'تاريخ النشر يجب أن يكون قبل: ' : 'Publish date must be before: '}
+                                    <strong>
+                                        {selectedMarketingCourse.has_interview && selectedMarketingCourse.interview_date
+                                            ? format(new Date(selectedMarketingCourse.interview_date), 'yyyy-MM-dd')
+                                            : selectedMarketingCourse.start_date}
+                                    </strong>
+                                </span>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="py-4">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold">{isRTL ? 'الإعلانات المخططة' : 'Planned Ads'}</h3>
+                            <Button onClick={handleAddAdFromDialog} size="sm" className="gap-2">
+                                <Plus className="h-4 w-4" />
+                                {isRTL ? 'إضافة إعلان' : 'Add Ad'}
+                            </Button>
+                        </div>
+
+                        {courseAds.length === 0 ? (
+                            <div className="text-center py-8 border rounded-lg border-dashed text-muted-foreground">
+                                {isRTL ? 'لا توجد إعلانات مخططة' : 'No planned ads'}
+                            </div>
+                        ) : (
+                            <div className="border rounded-md overflow-hidden">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[60px] text-center">#</TableHead>
+                                            <TableHead>{isRTL ? 'تاريخ النشر' : 'Date'}</TableHead>
+                                            <TableHead>{isRTL ? 'البوستر' : 'Poster'}</TableHead>
+                                            <TableHead>{isRTL ? 'المحتوى' : 'Content'}</TableHead>
+                                            <TableHead>{isRTL ? 'آخر تحديث' : 'Updated By'}</TableHead>
+                                            <TableHead className="w-[80px]"></TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {courseAds.map((ad) => {
+                                            // Calculate max date for this ad (interview date or first lecture)
+                                            const maxDate = selectedMarketingCourse?.has_interview && selectedMarketingCourse?.interview_date
+                                                ? selectedMarketingCourse.interview_date
+                                                : selectedMarketingCourse?.start_date || '';
+
+                                            return (
+                                                <TableRow key={ad.id}>
+                                                    <TableCell className="text-center font-bold">{ad.ad_number}</TableCell>
+                                                    <TableCell>
+                                                        <Input
+                                                            type="date"
+                                                            value={ad.ad_date}
+                                                            max={maxDate}
+                                                            onChange={(e) => handleUpdateAdDate(ad.id, e.target.value)}
+                                                            className="w-[150px]"
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Button
+                                                            variant={ad.poster_done ? "default" : "outline"}
+                                                            size="sm"
+                                                            className={ad.poster_done ? "bg-green-600 hover:bg-green-700" : ""}
+                                                            onClick={() => handleUpdateAd(ad.id, { poster_done: !ad.poster_done })}
+                                                        >
+                                                            {ad.poster_done ? (
+                                                                <><Check className="h-4 w-4 mr-1" /> {isRTL ? 'جاهز' : 'Done'}</>
+                                                            ) : (
+                                                                <>{isRTL ? 'غير جاهز' : 'Pending'}</>
+                                                            )}
+                                                        </Button>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <Button
+                                                            variant={ad.content_done ? "default" : "outline"}
+                                                            size="sm"
+                                                            className={ad.content_done ? "bg-green-600 hover:bg-green-700" : ""}
+                                                            onClick={() => handleUpdateAd(ad.id, { content_done: !ad.content_done })}
+                                                        >
+                                                            {ad.content_done ? (
+                                                                <><Check className="h-4 w-4 mr-1" /> {isRTL ? 'جاهز' : 'Done'}</>
+                                                            ) : (
+                                                                <>{isRTL ? 'غير جاهز' : 'Pending'}</>
+                                                            )}
+                                                        </Button>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {ad.updater && (
+                                                            <span className="text-xs text-muted-foreground">
+                                                                {isRTL ? ad.updater.full_name_ar : ad.updater.full_name}
+                                                            </span>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="sm">
+                                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>{isRTL ? 'حذف الإعلان' : 'Delete Ad'}</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        {isRTL
+                                                                            ? `هل أنت متأكد من حذف الإعلان رقم ${ad.ad_number}؟`
+                                                                            : `Are you sure you want to delete ad #${ad.ad_number}?`}
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+                                                                    <AlertDialogAction
+                                                                        onClick={() => handleDeleteAd(ad.id)}
+                                                                        className="bg-destructive hover:bg-destructive/90"
+                                                                    >
+                                                                        {isRTL ? 'حذف' : 'Delete'}
+                                                                    </AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div >
     );
 }

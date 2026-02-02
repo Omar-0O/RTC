@@ -41,6 +41,41 @@ export default function VolunteerDashboard() {
     }
   }, [user?.id]);
 
+  const [canViewAds, setCanViewAds] = useState(false);
+
+  useEffect(() => {
+    const checkAdsAccess = async () => {
+      // 1. Role check: Head of Marketing
+      if (primaryRole === 'head_marketing') {
+        setCanViewAds(true);
+        return;
+      }
+
+      // 2. Committee check: Marketing Committee Member
+      if (profile?.committee_id) {
+        const { data } = await supabase
+          .from('committees')
+          .select('name, name_ar')
+          .eq('id', profile.committee_id)
+          .maybeSingle();
+
+        if (data) {
+          const isMarketing =
+            (data.name && data.name.toLowerCase().includes('marketing')) ||
+            (data.name_ar && data.name_ar.includes('تسويق'));
+
+          if (isMarketing) {
+            setCanViewAds(true);
+          }
+        }
+      }
+    };
+
+    if (user) {
+      checkAdsAccess();
+    }
+  }, [user, primaryRole, profile?.committee_id]);
+
   const fetchData = async () => {
     if (!user?.id) return;
     setLoading(true);
