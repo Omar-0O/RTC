@@ -69,3 +69,4 @@ CREATE TRIGGER on_session_created
     AFTER INSERT ON public.quran_circle_sessions
     FOR EACH ROW
     EXECUTE FUNCTION public.log_quran_session_activity();
+    

@@ -202,7 +202,7 @@ export default function CourseManagement() {
 
     // roles and profile already destructured above
     const isRestricted = roles.includes('committee_leader') &&
-        !roles.some(r => ['admin', 'supervisor', 'head_production', 'head_fourth_year', 'head_events', 'head_caravans', 'head_hr'].includes(r));
+        !roles.some(r => ['admin', 'supervisor', 'head_production', 'head_fourth_year', 'head_events', 'head_caravans', 'head_hr', 'head_marketing'].includes(r));
 
     // Filter out ended courses unless showPastCourses is true
     const activeCourses = courses.filter(course => {
@@ -245,10 +245,8 @@ export default function CourseManagement() {
         const fetchAllAds = async () => {
             // Check permissions
             const userCommittee = committees.find(c => c.id === profile?.committee_id);
-            const isMarketingLeader = roles.includes('committee_leader') && (userCommittee?.name === 'Marketing' || userCommittee?.name === 'marketing');
-            const canView = roles.some(r => ['admin', 'supervisor', 'head_hr', 'hr'].includes(r)) || isMarketingLeader;
-
-            setHasAdsPermission(canView);
+            const isMarketingMember = userCommittee?.name === 'Marketing' || userCommittee?.name === 'marketing' || userCommittee?.name_ar === 'التسويق' || roles.includes('head_marketing');
+            const canView = roles.some(r => ['admin', 'supervisor', 'head_hr', 'hr'].includes(r)) || isMarketingMember;
 
             setHasAdsPermission(canView);
 
