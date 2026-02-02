@@ -283,7 +283,7 @@ const translations: Record<Language, Record<string, string>> = {
   },
   ar: {
     // Navigation
-    'nav.dashboard': 'لوحة التحكم',
+    'nav.dashboard': 'داشبورد',
     'nav.logActivity': 'تسجيل مشاركة',
     'nav.leaderboard': 'سباق الخير',
     'nav.profile': 'بروفايل',
@@ -403,7 +403,7 @@ const translations: Record<Language, Record<string, string>> = {
     'createAccount': 'إنشاء حساب',
 
     // Dashboard
-    'dashboard.title': 'لوحة التحكم',
+    'dashboard.title': 'داشبورد',
     'dashboard.welcome': 'مرحباً بعودتك',
     'dashboard.totalPoints': 'إجمالي الأثر',
     'dashboard.currentRank': 'الترتيب الحالي',
