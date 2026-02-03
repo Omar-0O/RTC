@@ -1241,79 +1241,74 @@ export default function UserManagement() {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>{language === 'ar' ? 'تاريخ الانضمام' : 'Join Date'}</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !formJoinDate && "text-muted-foreground"
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {formJoinDate ? format(new Date(formJoinDate), "PPP") : <span>Pick a date</span>}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={formJoinDate ? new Date(formJoinDate) : undefined}
-                            onSelect={(date) => setFormJoinDate(date ? format(date, 'yyyy-MM-dd') : '')}
-                            initialFocus
-                            captionLayout="dropdown-buttons"
-                            fromYear={2020}
-                            toYear={2030}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
+                <div className="space-y-2">
+                  <Label>{language === 'ar' ? 'تاريخ الانضمام' : 'Join Date'}</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !formJoinDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formJoinDate ? format(new Date(formJoinDate), "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formJoinDate ? new Date(formJoinDate) : undefined}
+                        onSelect={(date) => setFormJoinDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                        initialFocus
+                        captionLayout="dropdown-buttons"
+                        fromYear={2020}
+                        toYear={2030}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
-                    <div className="space-y-2">
-                      <Label>{language === 'ar' ? 'تاريخ الميلاد' : 'Date of Birth'}</Label>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full justify-start text-left font-normal",
-                              !formBirthDate && "text-muted-foreground"
-                            )}
-                          >
-                            <CalendarIcon className="mr-2 h-4 w-4" />
-                            {formBirthDate ? format(new Date(formBirthDate), "PPP") : <span>Pick a date</span>}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0">
-                          <Calendar
-                            mode="single"
-                            selected={formBirthDate ? new Date(formBirthDate) : undefined}
-                            onSelect={(date) => setFormBirthDate(date ? format(date, 'yyyy-MM-dd') : '')}
-                            initialFocus
-                            captionLayout="dropdown-buttons"
-                            fromYear={1960}
-                            toYear={2030}
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
+                <div className="space-y-2">
+                  <Label>{language === 'ar' ? 'تاريخ الميلاد' : 'Date of Birth'}</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !formBirthDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formBirthDate ? format(new Date(formBirthDate), "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formBirthDate ? new Date(formBirthDate) : undefined}
+                        onSelect={(date) => setFormBirthDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                        initialFocus
+                        captionLayout="dropdown-buttons"
+                        fromYear={1960}
+                        toYear={2030}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
-                <div className="flex items-end pb-2">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="is-ashbal"
-                      checked={formIsAshbal}
-                      onCheckedChange={setFormIsAshbal}
-                    />
-                    <Label htmlFor="is-ashbal">
-                      {language === 'ar' ? 'من الأشبال؟' : 'Is Ashbal?'}
-                    </Label>
-                  </div>
-                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 mt-4">
+                <Switch
+                  id="is-ashbal"
+                  checked={formIsAshbal}
+                  onCheckedChange={setFormIsAshbal}
+                />
+                <Label htmlFor="is-ashbal">
+                  {language === 'ar' ? 'من الأشبال؟' : 'Is Ashbal?'}
+                </Label>
               </div>
 
               <DialogFooter className="gap-2 sm:gap-0">
@@ -1530,76 +1525,73 @@ export default function UserManagement() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="join-date">{language === 'ar' ? 'تاريخ الانضمام لعائلة RTC 😊' : 'Join Date to RTC Family 😊'}</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !formJoinDate && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {formJoinDate ? format(new Date(formJoinDate), "PPP") : <span>Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={formJoinDate ? new Date(formJoinDate) : undefined}
-                          onSelect={(date) => setFormJoinDate(date ? format(date, 'yyyy-MM-dd') : '')}
-                          initialFocus
-                          captionLayout="dropdown-buttons"
-                          fromYear={2020}
-                          toYear={2030}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="birth-date">{language === 'ar' ? 'تاريخ الميلاد' : 'Date of Birth'}</Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !formBirthDate && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {formBirthDate ? format(new Date(formBirthDate), "PPP") : <span>Pick a date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0">
-                        <Calendar
-                          mode="single"
-                          selected={formBirthDate ? new Date(formBirthDate) : undefined}
-                          onSelect={(date) => setFormBirthDate(date ? format(date, 'yyyy-MM-dd') : '')}
-                          initialFocus
-                          captionLayout="dropdown-buttons"
-                          fromYear={1960}
-                          toYear={2030}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="join-date">{language === 'ar' ? 'تاريخ الانضمام لعائلة RTC 😊' : 'Join Date to RTC Family 😊'}</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !formJoinDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formJoinDate ? format(new Date(formJoinDate), "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formJoinDate ? new Date(formJoinDate) : undefined}
+                        onSelect={(date) => setFormJoinDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                        initialFocus
+                        captionLayout="dropdown-buttons"
+                        fromYear={2020}
+                        toYear={2030}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
-                <div className="flex items-end pb-2">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="edit-is-ashbal"
-                      checked={formIsAshbal}
-                      onCheckedChange={setFormIsAshbal}
-                    />
-                    <Label htmlFor="edit-is-ashbal">
-                      {language === 'ar' ? 'من الأشبال؟' : 'Is Ashbal?'}
-                    </Label>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="birth-date">{language === 'ar' ? 'تاريخ الميلاد' : 'Date of Birth'}</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !formBirthDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formBirthDate ? format(new Date(formBirthDate), "PPP") : <span>Pick a date</span>}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={formBirthDate ? new Date(formBirthDate) : undefined}
+                        onSelect={(date) => setFormBirthDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                        initialFocus
+                        captionLayout="dropdown-buttons"
+                        fromYear={1960}
+                        toYear={2030}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
+              </div>
+
+              <div className="flex items-center space-x-2 mt-4">
+                <Switch
+                  id="edit-is-ashbal"
+                  checked={formIsAshbal}
+                  onCheckedChange={setFormIsAshbal}
+                />
+                <Label htmlFor="edit-is-ashbal">
+                  {language === 'ar' ? 'من الأشبال؟' : 'Is Ashbal?'}
+                </Label>
               </div>
 
               {(formLevel === 'under_follow_up' || formLevel === 'project_responsible') && (
