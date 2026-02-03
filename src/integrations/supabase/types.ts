@@ -1049,6 +1049,7 @@ export type Database = {
           total_points: number
           updated_at: string
           visible_password: string | null
+          birth_date: string | null
         }
         Insert: {
           activities_count?: number
@@ -1067,6 +1068,7 @@ export type Database = {
           total_points?: number
           updated_at?: string
           visible_password?: string | null
+          birth_date?: string | null
         }
         Update: {
           activities_count?: number
@@ -1085,6 +1087,7 @@ export type Database = {
           total_points?: number
           updated_at?: string
           visible_password?: string | null
+          birth_date?: string | null
         }
         Relationships: [
           {
@@ -1220,6 +1223,299 @@ export type Database = {
         }
         Relationships: []
       }
+      quran_circles: {
+        Row: {
+          id: string
+          teacher_id: string | null
+          organizer_id: string | null
+          schedule: Json
+          is_active: boolean
+          created_at: string
+          guest_names: Json
+        }
+        Insert: {
+          id?: string
+          teacher_id?: string | null
+          organizer_id?: string | null
+          schedule?: Json
+          is_active?: boolean
+          created_at?: string
+          guest_names?: Json
+        }
+        Update: {
+          id?: string
+          teacher_id?: string | null
+          organizer_id?: string | null
+          schedule?: Json
+          is_active?: boolean
+          created_at?: string
+          guest_names?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quran_circles_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quran_circles_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      quran_circle_organizers: {
+        Row: {
+          id: string
+          circle_id: string
+          volunteer_id: string | null
+          name: string
+          phone: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          circle_id: string
+          volunteer_id?: string | null
+          name: string
+          phone?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          circle_id?: string
+          volunteer_id?: string | null
+          name?: string
+          phone?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quran_circle_organizers_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "quran_circles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quran_circle_organizers_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      quran_circle_sessions: {
+        Row: {
+          id: string
+          circle_id: string
+          session_date: string
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          circle_id: string
+          session_date: string
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          circle_id?: string
+          session_date?: string
+          notes?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quran_circle_sessions_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "quran_circles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      quran_enrollments: {
+        Row: {
+          id: string
+          circle_id: string
+          beneficiary_id: string
+          enrollment_date: string
+          status: string
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          circle_id: string
+          beneficiary_id: string
+          enrollment_date?: string
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          circle_id?: string
+          beneficiary_id?: string
+          enrollment_date?: string
+          status?: string
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quran_enrollments_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "quran_circles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quran_enrollments_beneficiary_id_fkey"
+            columns: ["beneficiary_id"]
+            isOneToOne: false
+            referencedRelation: "quran_beneficiaries"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      quran_beneficiaries: {
+        Row: {
+          id: string
+          name_ar: string
+          name_en: string | null
+          image_url: string | null
+          phone: string | null
+          is_active: boolean | null
+        }
+        Insert: {
+          id?: string
+          name_ar: string
+          name_en?: string | null
+          image_url?: string | null
+          phone?: string | null
+          is_active?: boolean | null
+        }
+        Update: {
+          id?: string
+          name_ar?: string
+          name_en?: string | null
+          image_url?: string | null
+          phone?: string | null
+          is_active?: boolean | null
+        }
+        Relationships: []
+      }
+      quran_circle_beneficiaries: {
+        Row: {
+          session_id: string
+          circle_id: string
+          beneficiary_id: string
+          attendance_type: string | null
+          memorization_log: Json | null
+          revision_log: Json | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          session_id: string
+          circle_id: string
+          beneficiary_id: string
+          attendance_type?: string | null
+          memorization_log?: Json | null
+          revision_log?: Json | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          session_id?: string
+          circle_id?: string
+          beneficiary_id?: string
+          attendance_type?: string | null
+          memorization_log?: Json | null
+          revision_log?: Json | null
+          notes?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quran_circle_beneficiaries_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "quran_circle_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quran_circle_beneficiaries_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "quran_circles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quran_circle_beneficiaries_beneficiary_id_fkey"
+            columns: ["beneficiary_id"]
+            isOneToOne: false
+            referencedRelation: "quran_beneficiaries"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      beneficiary_surah_progress: {
+        Row: {
+          id: string
+          beneficiary_id: string
+          surah_number: number
+          status: string
+          from_ayah: number | null
+          to_ayah: number | null
+          notes: string | null
+          last_updated: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          beneficiary_id: string
+          surah_number: number
+          status?: string
+          from_ayah?: number | null
+          to_ayah?: number | null
+          notes?: string | null
+          last_updated?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          beneficiary_id?: string
+          surah_number?: number
+          status?: string
+          from_ayah?: number | null
+          to_ayah?: number | null
+          notes?: string | null
+          last_updated?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beneficiary_surah_progress_beneficiary_id_fkey"
+            columns: ["beneficiary_id"]
+            isOneToOne: false
+            referencedRelation: "quran_beneficiaries"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1268,10 +1564,10 @@ export type Database = {
     Enums: {
       activity_mode: "individual" | "group"
       app_role:
-      | "admin"
-      | "supervisor"
-      | "committee_leader"
       | "volunteer"
+      | "supervisor"
+      | "admin"
+      | "committee_leader"
       | "hr"
       | "head_hr"
       | "head_caravans"
@@ -1279,6 +1575,10 @@ export type Database = {
       | "head_fourth_year"
       | "head_events"
       | "head_ethics"
+      | "head_quran"
+      | "head_marketing"
+      | "head_ashbal"
+      | "marketing_member"
       submission_status: "pending" | "approved" | "rejected"
       volunteer_level:
       | "bronze"

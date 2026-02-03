@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download, Eye, EyeOff } from 'lucide-react';
+import { Calendar as CalendarIcon, Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download, Eye, EyeOff } from 'lucide-react';
+
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -83,9 +90,11 @@ interface UserWithDetails {
   attended_mini_camp?: boolean;
   attended_camp?: boolean;
   is_ashbal?: boolean;
+  birth_date?: string | null;
 }
 
 import Profile from '@/pages/volunteer/Profile';
+import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 
 const compressImage = async (file: File): Promise<File> => {
@@ -263,7 +272,7 @@ export default function UserManagement() {
   const [formEmail, setFormEmail] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formPassword, setFormPassword] = useState('');
-  const [formRole, setFormRole] = useState<string>('volunteer');
+  const [formRole, setFormRole] = useState<UserRole>('volunteer');
   const [formLevel, setFormLevel] = useState<string>('under_follow_up');
   const [formCommitteeId, setFormCommitteeId] = useState<string>('');
   const [formAvatarFile, setFormAvatarFile] = useState<File | null>(null);
@@ -272,6 +281,7 @@ export default function UserManagement() {
   const [formAttendedCamp, setFormAttendedCamp] = useState(false);
   const [formIsAshbal, setFormIsAshbal] = useState(false);
   const [formJoinDate, setFormJoinDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [formBirthDate, setFormBirthDate] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
 
   // Crop state
@@ -398,6 +408,7 @@ export default function UserManagement() {
           attended_mini_camp: profile.attended_mini_camp,
           attended_camp: profile.attended_camp,
           is_ashbal: profile.is_ashbal,
+          birth_date: profile.birth_date,
         };
       });
 
@@ -439,6 +450,7 @@ export default function UserManagement() {
     setFormAttendedCamp(false);
     setFormIsAshbal(false);
     setFormJoinDate(format(new Date(), 'yyyy-MM-dd'));
+    setFormBirthDate('');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -602,6 +614,10 @@ export default function UserManagement() {
           updates.is_ashbal = true;
         }
 
+        if (formBirthDate) {
+          updates.birth_date = formBirthDate;
+        }
+
         if (Object.keys(updates).length > 0) {
           updates.level = formLevel;
 
@@ -643,9 +659,9 @@ export default function UserManagement() {
     setFormCommitteeId(user.committee_id || '');
     setFormAttendedMiniCamp(user.attended_mini_camp || false);
     setFormAttendedCamp(user.attended_camp || false);
-    setFormAttendedCamp(user.attended_camp || false);
     setFormIsAshbal(user.is_ashbal || false);
     setFormJoinDate(user.join_date ? format(new Date(user.join_date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+    setFormBirthDate(user.birth_date || '');
     setIsCropping(false);
     setTempImageSrc(null);
     setFormAvatarFile(null);
@@ -679,6 +695,7 @@ export default function UserManagement() {
           attended_camp: formLevel === 'project_responsible' ? formAttendedCamp : null,
           is_ashbal: formIsAshbal,
           join_date: formJoinDate,
+          birth_date: formBirthDate || null,
         })
         .eq('id', selectedUser.id);
 
@@ -803,15 +820,7 @@ export default function UserManagement() {
         if (insertError) throw insertError;
       }
 
-      // Also update the profile role to keep them in sync
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ role: newRole as any })
-        .eq('id', userId);
 
-      if (profileError) {
-        console.error('Error updating profile role:', profileError);
-      }
 
       toast.success('Role updated successfully');
       fetchData();
@@ -994,7 +1003,7 @@ export default function UserManagement() {
           <DialogContent className="max-w-[95vw] sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>{t('users.addUser')}</DialogTitle>
-              <DialogDescription>{t('users.createUser')}</DialogDescription>
+
             </DialogHeader>
             <form onSubmit={handleAddUser} className="max-h-[70vh] overflow-y-auto px-1">
               <div className="grid gap-4 py-4">
@@ -1072,7 +1081,7 @@ export default function UserManagement() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="grid gap-2">
                     <Label htmlFor="role">{t('users.role')}</Label>
-                    <Select value={formRole} onValueChange={setFormRole}>
+                    <Select value={formRole} onValueChange={(value) => setFormRole(value as UserRole)}>
                       <SelectTrigger>
                         <SelectValue placeholder={t('users.role')} />
                       </SelectTrigger>
@@ -1233,13 +1242,65 @@ export default function UserManagement() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="join-date">{language === 'ar' ? 'تاريخ الانضمام لعائلة RTC 😊' : 'Join Date to RTC Family 😊'}</Label>
-                  <Input
-                    id="join-date"
-                    type="date"
-                    value={formJoinDate}
-                    onChange={(e) => setFormJoinDate(e.target.value)}
-                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>{language === 'ar' ? 'تاريخ الانضمام' : 'Join Date'}</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !formJoinDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {formJoinDate ? format(new Date(formJoinDate), "PPP") : <span>Pick a date</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={formJoinDate ? new Date(formJoinDate) : undefined}
+                            onSelect={(date) => setFormJoinDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                            initialFocus
+                            captionLayout="dropdown-buttons"
+                            fromYear={2020}
+                            toYear={2030}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>{language === 'ar' ? 'تاريخ الميلاد' : 'Date of Birth'}</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full justify-start text-left font-normal",
+                              !formBirthDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {formBirthDate ? format(new Date(formBirthDate), "PPP") : <span>Pick a date</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={formBirthDate ? new Date(formBirthDate) : undefined}
+                            onSelect={(date) => setFormBirthDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                            initialFocus
+                            captionLayout="dropdown-buttons"
+                            fromYear={1960}
+                            toYear={2030}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-end pb-2">
                   <div className="flex items-center space-x-2">
@@ -1417,7 +1478,7 @@ export default function UserManagement() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="edit-role">{t('users.role')}</Label>
-                  <Select value={formRole} onValueChange={setFormRole} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
+                  <Select value={formRole} onValueChange={(value) => setFormRole(value as UserRole)} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
                     <SelectTrigger>
                       <SelectValue placeholder={t('users.role')} />
                     </SelectTrigger>
@@ -1469,14 +1530,63 @@ export default function UserManagement() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-join-date">{language === 'ar' ? 'تاريخ الانضمام لعائلة RTC 😊' : 'Join Date to RTC Family 😊'}</Label>
-                  <Input
-                    id="edit-join-date"
-                    type="date"
-                    value={formJoinDate}
-                    onChange={(e) => setFormJoinDate(e.target.value)}
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="join-date">{language === 'ar' ? 'تاريخ الانضمام لعائلة RTC 😊' : 'Join Date to RTC Family 😊'}</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !formJoinDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {formJoinDate ? format(new Date(formJoinDate), "PPP") : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={formJoinDate ? new Date(formJoinDate) : undefined}
+                          onSelect={(date) => setFormJoinDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                          initialFocus
+                          captionLayout="dropdown-buttons"
+                          fromYear={2020}
+                          toYear={2030}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="birth-date">{language === 'ar' ? 'تاريخ الميلاد' : 'Date of Birth'}</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !formBirthDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {formBirthDate ? format(new Date(formBirthDate), "PPP") : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={formBirthDate ? new Date(formBirthDate) : undefined}
+                          onSelect={(date) => setFormBirthDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                          initialFocus
+                          captionLayout="dropdown-buttons"
+                          fromYear={1960}
+                          toYear={2030}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
                 <div className="flex items-end pb-2">
                   <div className="flex items-center space-x-2">
