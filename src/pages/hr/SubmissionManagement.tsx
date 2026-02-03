@@ -140,7 +140,7 @@ export default function SubmissionManagement() {
     const [submissionToDelete, setSubmissionToDelete] = useState<string | null>(null);
 
     // Trainers Map
-    const [trainersMap, setTrainersMap] = useState<Record<string, { ar: string, en: string }>>({});
+    const [trainersMap, setTrainersMap] = useState<Record<string, { ar: string, en: string, phone: string }>>({});
 
     // Volunteer Search
     const [volunteers, setVolunteers] = useState<Profile[]>([]);
@@ -196,15 +196,15 @@ export default function SubmissionManagement() {
         try {
             const { data, error } = await supabase
                 .from('trainers')
-                .select('user_id, name_ar, name_en');
+                .select('user_id, name_ar, name_en, phone');
 
             if (error) throw error;
             console.log('Fetched trainers map data:', data);
 
-            const map: Record<string, { ar: string, en: string }> = {};
+            const map: Record<string, { ar: string, en: string, phone: string }> = {};
             data.forEach((t: any) => {
                 if (t.user_id) {
-                    map[t.user_id] = { ar: t.name_ar, en: t.name_en };
+                    map[t.user_id] = { ar: t.name_ar, en: t.name_en, phone: t.phone };
                 }
             });
             setTrainersMap(map);
@@ -455,7 +455,10 @@ export default function SubmissionManagement() {
             }
 
             // Resolve Phone
-            const phone = isGuest ? s.guest_phone : volunteer?.phone;
+            let phone = isGuest ? s.guest_phone : volunteer?.phone;
+            if (isTrainer && s.volunteer_id && trainersMap[s.volunteer_id]?.phone) {
+                phone = trainersMap[s.volunteer_id].phone;
+            }
 
             let locationStr = s.location || 'branch';
             if (locationStr === 'home' || locationStr === 'remote') locationStr = isRTL ? 'من البيت' : 'Home';
@@ -881,7 +884,11 @@ export default function SubmissionManagement() {
                                 displayName = isRTL ? 'مدرب' : 'Trainer';
                             }
                         }
-                        const displayPhone = isGuest ? submission.guest_phone : submission.profiles?.phone;
+
+                        let displayPhone = isGuest ? submission.guest_phone : submission.profiles?.phone;
+                        if (isTrainer && submission.volunteer_id && trainersMap[submission.volunteer_id]?.phone) {
+                            displayPhone = trainersMap[submission.volunteer_id].phone;
+                        }
 
                         return (
                             <Card key={submission.id} className="overflow-hidden hover:shadow-md transition-shadow">
