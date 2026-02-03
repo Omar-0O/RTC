@@ -502,6 +502,7 @@ export type Database = {
           id: string
           name: string
           phone: string
+          national_id: string | null
         }
         Insert: {
           course_id?: string | null
@@ -510,6 +511,7 @@ export type Database = {
           id?: string
           name: string
           phone: string
+          national_id?: string | null
         }
         Update: {
           course_id?: string | null
@@ -518,6 +520,7 @@ export type Database = {
           id?: string
           name?: string
           phone?: string
+          national_id?: string | null
         }
         Relationships: [
           {
