@@ -63,6 +63,7 @@ interface CourseBeneficiary {
     course_id: string;
     name: string;
     phone: string;
+    national_id?: string | null;
 }
 
 interface CourseAd {
@@ -113,7 +114,7 @@ export default function MyCourses() {
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
 
     // Beneficiary State
-    const [newBeneficiary, setNewBeneficiary] = useState({ name: '', phone: '' });
+    const [newBeneficiary, setNewBeneficiary] = useState({ name: '', phone: '', national_id: '' });
     const [editingBeneficiary, setEditingBeneficiary] = useState<CourseBeneficiary | null>(null);
     const [courseAds, setCourseAds] = useState<CourseAd[]>([]);
     const [isMarketer, setIsMarketer] = useState(false);
@@ -470,6 +471,7 @@ export default function MyCourses() {
                     course_id: selectedCourse.id,
                     name: newBeneficiary.name,
                     phone: newBeneficiary.phone,
+                    national_id: newBeneficiary.national_id || null,
                     created_by: user?.id
                 })
                 .select()
@@ -478,7 +480,7 @@ export default function MyCourses() {
             if (error) throw error;
 
             setBeneficiaries([...beneficiaries, data]);
-            setNewBeneficiary({ name: '', phone: '' });
+            setNewBeneficiary({ name: '', phone: '', national_id: '' });
             toast.success(isRTL ? 'تم إضافة المستفيد' : 'Beneficiary added');
         } catch (error: any) {
             console.error('Error adding beneficiary:', error);
@@ -496,7 +498,11 @@ export default function MyCourses() {
         try {
             const { error } = await supabase
                 .from('course_beneficiaries')
-                .update({ name: editingBeneficiary.name, phone: editingBeneficiary.phone })
+                .update({
+                    name: editingBeneficiary.name,
+                    phone: editingBeneficiary.phone,
+                    national_id: editingBeneficiary.national_id || null
+                })
                 .eq('id', editingBeneficiary.id);
 
             if (error) throw error;
@@ -796,6 +802,12 @@ export default function MyCourses() {
                                                 }}
                                                 className="w-full sm:flex-1"
                                             />
+                                            <Input
+                                                placeholder={isRTL ? 'الرقم القومي' : 'National ID'}
+                                                value={newBeneficiary.national_id}
+                                                onChange={e => setNewBeneficiary({ ...newBeneficiary, national_id: e.target.value })}
+                                                className="w-full sm:flex-1"
+                                            />
                                             <Button onClick={addBeneficiary} className="w-full sm:w-auto">
                                                 <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'إضافة' : 'Add'}
@@ -811,6 +823,7 @@ export default function MyCourses() {
                                             <TableRow>
                                                 <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
                                                 <TableHead>{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                                <TableHead>{isRTL ? 'الرقم القومي' : 'National ID'}</TableHead>
                                                 <TableHead className="w-24"></TableHead>
                                             </TableRow>
                                         </TableHeader>
@@ -842,6 +855,17 @@ export default function MyCourses() {
                                                             />
                                                         ) : (
                                                             b.phone
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {editingBeneficiary?.id === b.id ? (
+                                                            <Input
+                                                                value={editingBeneficiary.national_id || ''}
+                                                                onChange={e => setEditingBeneficiary({ ...editingBeneficiary, national_id: e.target.value })}
+                                                                className="h-8"
+                                                            />
+                                                        ) : (
+                                                            b.national_id || '-'
                                                         )}
                                                     </TableCell>
                                                     <TableCell>
