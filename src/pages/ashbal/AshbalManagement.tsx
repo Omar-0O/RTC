@@ -12,13 +12,23 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Search, UserPlus, Users } from "lucide-react";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Loader2, Search, UserPlus, MoreHorizontal, User, Mail, Shield } from "lucide-react";
+import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AddUserForm } from "../admin/AddUserForm";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { LevelBadge } from "@/components/ui/level-badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import Profile from '@/pages/volunteer/Profile';
 
 export default function AshbalManagement() {
     const { isRTL, t } = useLanguage();
@@ -28,6 +38,7 @@ export default function AshbalManagement() {
     const [searchQuery, setSearchQuery] = useState("");
     const [isAddUserOpen, setIsAddUserOpen] = useState(false);
     const [trimesterTarget, setTrimesterTarget] = useState(0);
+    const [viewProfileUser, setViewProfileUser] = useState<any | null>(null);
 
     const fetchAshbalUsers = async () => {
         try {
@@ -104,7 +115,6 @@ export default function AshbalManagement() {
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                        {/* We pass isAshbal=true prop if supported, or handle handleSuccess to refetch */}
                         <AddUserForm
                             onSuccess={() => {
                                 setIsAddUserOpen(false);
@@ -120,7 +130,7 @@ export default function AshbalManagement() {
             <Card>
                 <CardHeader className="pb-2">
                     <CardTitle className="text-lg font-medium">
-                        {isRTL ? "هدف الثلث سنوي (إضافة أشبال)" : "Trimester Target (Add Ashbal)"}
+                        {isRTL ? "تارجت الثلث السنوي" : "Trimester Target (Add Ashbal)"}
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -132,11 +142,6 @@ export default function AshbalManagement() {
                             </span>
                         </div>
                         <Progress value={(trimesterTarget / 10) * 100} className="h-2" />
-                        <p className="text-xs text-muted-foreground pt-1">
-                            {isRTL
-                                ? "المطلوب إضافة 10 أشبال جدد خلال الثلث الحالي من السنة."
-                                : "Target: Add 10 new Ashbal volunteers this trimester."}
-                        </p>
                     </div>
                 </CardContent>
             </Card>
@@ -154,48 +159,187 @@ export default function AshbalManagement() {
             </div>
 
             <div className="rounded-md border bg-card">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>{isRTL ? "الاسم" : "Name"}</TableHead>
-                            <TableHead>{isRTL ? "الهاتف" : "Phone"}</TableHead>
-                            <TableHead>{isRTL ? "تاريخ الانضمام" : "Join Date"}</TableHead>
-                            <TableHead>{isRTL ? "المستوى" : "Level"}</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading ? (
+                 {/* Desktop View */}
+                 <div className="hidden lg:block overflow-x-auto">
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center">
-                                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                                </TableCell>
+                                <TableHead className="text-start">{isRTL ? "الاسم" : "Name"}</TableHead>
+                                <TableHead className="text-start">{isRTL ? "الهاتف" : "Phone"}</TableHead>
+                                <TableHead className="text-start">{isRTL ? "المستوى" : "Level"}</TableHead>
+                                <TableHead className="text-start">{isRTL ? "تاريخ الانضمام" : "Join Date"}</TableHead>
+                                <TableHead className="w-[50px]"></TableHead>
                             </TableRow>
-                        ) : filteredUsers.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                                    {isRTL ? "لا يوجد أشبال" : "No Ashbal found"}
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            filteredUsers.map((user) => (
-                                <TableRow key={user.id}>
-                                    <TableCell className="font-medium">
-                                        {user.full_name}
-                                    </TableCell>
-                                    <TableCell>{user.phone}</TableCell>
-                                    <TableCell>
-                                        {new Date(user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US')}
-                                    </TableCell>
-                                    <TableCell>
-                                        {/* Simple badge or text */}
-                                        {user.level}
+                        </TableHeader>
+                        <TableBody>
+                            {loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center">
+                                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                                     </TableCell>
                                 </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
+                            ) : filteredUsers.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                        {isRTL ? "لا يوجد أشبال" : "No Ashbal found"}
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filteredUsers.map((user) => (
+                                    <TableRow key={user.id}>
+                                        <TableCell>
+                                            <div className="flex items-center gap-3">
+                                                <Avatar className="h-8 w-8">
+                                                    <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                                                    <AvatarFallback className="text-xs">
+                                                        {user.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <p className="font-medium">{user.full_name || 'No name'}</p>
+                                                    <p className="text-sm text-muted-foreground">{user.email}</p>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>{user.phone}</TableCell>
+                                        <TableCell>
+                                             <LevelBadge level={user.level} size="sm" />
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="text-sm text-muted-foreground">
+                                                {new Date(user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
+                                                        <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {t('users.viewProfile')}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => {
+                                                            if (user.phone) {
+                                                                window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
+                                                            } else {
+                                                                toast.error(isRTL ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {t('users.sendWhatsapp')}
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+
+                {/* Mobile View */}
+                <div className="grid gap-4 lg:hidden p-4">
+                    {loading ? (
+                         <div className="text-center py-8">
+                             <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                         </div>
+                    ) : filteredUsers.length === 0 ? (
+                        <div className="text-center text-muted-foreground py-8">
+                             {isRTL ? "لا يوجد أشبال" : "No Ashbal found"}
+                        </div>
+                    ) : (
+                        filteredUsers.map((user) => (
+                            <Card key={user.id}>
+                                <CardContent className="p-4">
+                                    {/* Header with avatar and actions */}
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                            <Avatar className="h-12 w-12 shrink-0">
+                                                <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                                                <AvatarFallback className="text-sm">
+                                                    {user.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-semibold truncate">{user.full_name || 'No name'}</p>
+                                                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                                            </div>
+                                        </div>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 -mr-2 rtl:-ml-2">
+                                                    <MoreHorizontal className="h-5 w-5" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
+                                                    <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                    {t('users.viewProfile')}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem
+                                                    onClick={() => {
+                                                        if (user.phone) {
+                                                            window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
+                                                        } else {
+                                                            toast.error(isRTL ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
+                                                        }
+                                                    }}
+                                                >
+                                                    <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                    {t('users.sendWhatsapp')}
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                                        <LevelBadge level={user.level} size="sm" />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 pt-3 border-t text-sm">
+                                        <div>
+                                            <p className="text-xs text-muted-foreground mb-0.5">{t('users.joined')}</p>
+                                            <p>{new Date(user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}</p>
+                                        </div>
+                                        {user.phone && (
+                                            <div>
+                                                <p className="text-xs text-muted-foreground mb-0.5">{t('users.phoneNumber')}</p>
+                                                <p dir="ltr" className={isRTL ? "text-right" : "text-left"}>{user.phone}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))
+                    )}
+                </div>
             </div>
+
+            {/* View Profile Dialog */}
+            <Dialog open={!!viewProfileUser} onOpenChange={(open) => !open && setViewProfileUser(null)}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {isRTL ? 'الملف الشخصي للمتطوع' : "Volunteer Profile"}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {isRTL ? 'عرض تفاصيل الملف الشخصي' : "View profile details"}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {viewProfileUser && <Profile userId={viewProfileUser.id} />}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
