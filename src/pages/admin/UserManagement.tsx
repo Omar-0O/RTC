@@ -1263,7 +1263,7 @@ export default function UserManagement() {
                         onSelect={(date) => setFormJoinDate(date ? format(date, 'yyyy-MM-dd') : '')}
                         initialFocus
                         captionLayout="dropdown-buttons"
-                        fromYear={2020}
+                        fromYear={2000}
                         toYear={2030}
                       />
                     </PopoverContent>
@@ -1547,7 +1547,7 @@ export default function UserManagement() {
                         onSelect={(date) => setFormJoinDate(date ? format(date, 'yyyy-MM-dd') : '')}
                         initialFocus
                         captionLayout="dropdown-buttons"
-                        fromYear={2020}
+                        fromYear={2000}
                         toYear={2030}
                       />
                     </PopoverContent>
