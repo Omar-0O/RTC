@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toast } from 'sonner';
@@ -883,10 +884,10 @@ export default function LogActivity() {
                               {isRTL ? 'ارتداء الـ Vest (للجميع)' : 'Vest Worn (Everyone)'}
                             </Label>
                           </div>
-                          <Switch
+                          <Checkbox
                             id="wore-vest-group"
                             checked={woreVest}
-                            onCheckedChange={setWoreVest}
+                            onCheckedChange={(checked) => setWoreVest(checked as boolean)}
                           />
                         </div>
                         <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
@@ -997,10 +998,10 @@ export default function LogActivity() {
                             {isRTL ? 'كنت أرتدي الـ Vest' : 'I wore the vest'}
                           </Label>
                         </div>
-                        <Switch
+                        <Checkbox
                           id="wore-vest"
                           checked={woreVest}
-                          onCheckedChange={setWoreVest}
+                          onCheckedChange={(checked) => setWoreVest(checked as boolean)}
                         />
                       </div>
                       <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
