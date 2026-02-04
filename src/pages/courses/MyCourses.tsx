@@ -82,14 +82,6 @@ interface CourseAd {
     updater?: { full_name: string | null, full_name_ar: string | null } | null;
 }
 
-const ROOMS: Record<string, { en: string; ar: string }> = {
-    'lab_1': { en: 'Lab 1', ar: 'لاب 1' },
-    'lab_2': { en: 'Lab 2', ar: 'لاب 2' },
-    'lab_3': { en: 'Lab 3', ar: 'لاب 3' },
-    'lab_4': { en: 'Lab 4', ar: 'لاب 4' },
-    'impact_hall': { en: 'Impact Hall', ar: 'قاعة الأثر' },
-};
-
 const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
     'saturday': { en: 'Sat', ar: 'سبت' },
     'sunday': { en: 'Sun', ar: 'أحد' },
@@ -106,6 +98,7 @@ export default function MyCourses() {
     const locale = language === 'ar' ? ar : enUS;
 
     const [courses, setCourses] = useState<Course[]>([]);
+    const [rooms, setRooms] = useState<Record<string, { en: string; ar: string }>>({});
     const [loading, setLoading] = useState(true);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
     const [lectures, setLectures] = useState<CourseLecture[]>([]);
@@ -125,8 +118,34 @@ export default function MyCourses() {
 
 
     useEffect(() => {
-        if (user) fetchMyCourses();
+        if (user) {
+            fetchMyCourses();
+            fetchRooms();
+        }
     }, [user]);
+
+    const fetchRooms = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('rooms')
+                .select('id, name, name_ar');
+
+            if (error) {
+                console.error('Error fetching rooms:', error);
+                return;
+            }
+
+            if (data) {
+                const roomsMap: Record<string, { en: string; ar: string }> = {};
+                data.forEach(r => {
+                    roomsMap[r.id] = { en: r.name, ar: r.name_ar };
+                });
+                setRooms(roomsMap);
+            }
+        } catch (error) {
+            console.error('Error fetching rooms:', error);
+        }
+    };
 
     const fetchMyCourses = async () => {
         setLoading(true);
@@ -450,7 +469,7 @@ export default function MyCourses() {
         }
     };
 
-    const getRoomLabel = (room: string) => ROOMS[room]?.[language as 'en' | 'ar'] || room;
+    const getRoomLabel = (room: string) => rooms[room]?.[language as 'en' | 'ar'] || room;
 
     const getProgress = (course: Course) => {
         const completed = course.course_lectures?.filter(l => l.status === 'completed').length || 0;
@@ -554,7 +573,7 @@ export default function MyCourses() {
                 [isRTL ? 'اسم الكورس' : 'Course Name']: course.name,
                 [isRTL ? 'اسم المدرب' : 'Trainer Name']: course.trainer_name,
                 [isRTL ? 'رقم المدرب' : 'Trainer Phone']: course.trainer_phone || '-',
-                [isRTL ? 'القاعة' : 'Room']: ROOMS[course.room]?.[language as 'en' | 'ar'] || course.room,
+                [isRTL ? 'القاعة' : 'Room']: rooms[course.room]?.[language as 'en' | 'ar'] || course.room,
                 [isRTL ? 'الأيام' : 'Days']: course.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', '),
                 [isRTL ? 'وقت البداية' : 'Start Time']: course.schedule_time,
                 [isRTL ? 'وقت الانتهاء' : 'End Time']: course.schedule_end_time || '-',
