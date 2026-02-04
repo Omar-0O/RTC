@@ -274,13 +274,13 @@ export default function IndividualCompetition() {
                 .is('month_year', null);
 
             if (participantsToFix && participantsToFix.length > 0) {
-                for (const p of participantsToFix) {
+                await Promise.all(participantsToFix.map(async (p) => {
                     const month = format(new Date(p.created_at), 'yyyy-MM');
                     await supabase
                         .from('competition_participants')
                         .update({ month_year: month })
                         .eq('id', p.id);
-                }
+                }));
             }
 
             // Fix Entries
@@ -290,13 +290,13 @@ export default function IndividualCompetition() {
                 .is('month_year', null);
 
             if (entriesToFix && entriesToFix.length > 0) {
-                for (const e of entriesToFix) {
+                await Promise.all(entriesToFix.map(async (e) => {
                     const month = format(new Date(e.created_at), 'yyyy-MM');
                     await supabase
                         .from('competition_entries')
                         .update({ month_year: month })
                         .eq('id', e.id);
-                }
+                }));
             }
 
             toast.success(isRTL ? 'تم إصلاح البيانات بنجاح' : 'Data repaired successfully');
