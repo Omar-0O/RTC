@@ -1267,14 +1267,15 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
         .select(`
           id,
           submitted_at,
+          created_at,
           excel_sheet_url,
           activity:activity_types(name, name_ar),
           committee:committees(name, name_ar),
           guest_participants
         `)
         .eq('leader_id', leaderId)
-        .order('submitted_at', { ascending: false })
-        .limit(10);
+        .order('created_at', { ascending: false })
+        .limit(20);
 
       if (error) throw error;
       setSubmissions(data || []);
