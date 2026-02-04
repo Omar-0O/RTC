@@ -188,6 +188,7 @@ export function AppSidebar() {
     { title: t('nav.dashboard'), url: '/admin', icon: Home },
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
     { title: t('nav.committees'), url: '/admin/committees', icon: Settings },
+    { title: isRTL ? 'إدارة القاعات' : 'Manage Rooms', url: '/admin/rooms', icon: Building2 },
     { title: t('nav.activities'), url: '/admin/activities', icon: Activity },
     { title: t('nav.badges'), url: '/admin/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },

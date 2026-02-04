@@ -151,14 +151,6 @@ interface CourseMarketer {
     phone: string;
 }
 
-const ROOMS = [
-    { value: 'lab_1', label: { en: 'Lab 1', ar: 'لاب 1' } },
-    { value: 'lab_2', label: { en: 'Lab 2', ar: 'لاب 2' } },
-    { value: 'lab_3', label: { en: 'Lab 3', ar: 'لاب 3' } },
-    { value: 'lab_4', label: { en: 'Lab 4', ar: 'لاب 4' } },
-    { value: 'impact_hall', label: { en: 'Impact Hall', ar: 'قاعة الأثر' } },
-];
-
 const DAYS = [
     { value: 'saturday', label: { en: 'Saturday', ar: 'السبت' } },
     { value: 'sunday', label: { en: 'Sunday', ar: 'الأحد' } },
@@ -174,6 +166,7 @@ export default function CourseManagement() {
     const { t, language, isRTL } = useLanguage();
 
     const [courses, setCourses] = useState<Course[]>([]);
+    const [rooms, setRooms] = useState<{ value: string, label: { en: string, ar: string } }[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
@@ -285,7 +278,32 @@ export default function CourseManagement() {
         fetchVolunteers();
         fetchTrainers();
         fetchCommittees();
+        fetchRooms();
     }, [isLoading, isRestricted, profile?.committee_id]);
+
+    const fetchRooms = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('rooms')
+                .select('id, name, name_ar')
+                .order('created_at');
+
+            if (error) {
+                console.error('Error fetching rooms:', error);
+                // Fallback to empty or toast error
+                return;
+            }
+
+            if (data) {
+                setRooms(data.map(r => ({
+                    value: r.id,
+                    label: { en: r.name, ar: r.name_ar }
+                })));
+            }
+        } catch (error) {
+            console.error('Error fetching rooms:', error);
+        }
+    };
 
     const fetchCommittees = async () => {
         try {
@@ -1239,7 +1257,7 @@ export default function CourseManagement() {
                 [isRTL ? 'اسم الكورس' : 'Course Name']: course.name,
                 [isRTL ? 'اسم المدرب' : 'Trainer Name']: course.trainer_name,
                 [isRTL ? 'رقم المدرب' : 'Trainer Phone']: course.trainer_phone || '-',
-                [isRTL ? 'القاعة' : 'Room']: ROOMS.find(r => r.value === course.room)?.label[language as 'en' | 'ar'] || course.room,
+                [isRTL ? 'القاعة' : 'Room']: rooms.find(r => r.value === course.room)?.label[language as 'en' | 'ar'] || course.room,
                 [isRTL ? 'الأيام' : 'Days']: course.schedule_days.map(d => DAYS.find(day => day.value === d)?.label[language as 'en' | 'ar']).join(', '),
                 [isRTL ? 'وقت البداية' : 'Start Time']: course.schedule_time,
                 [isRTL ? 'وقت الانتهاء' : 'End Time']: course.schedule_end_time || '-',
@@ -1330,7 +1348,7 @@ export default function CourseManagement() {
                 [isRTL ? 'اسم الكورس' : 'Course Name']: c.name,
                 [isRTL ? 'المدرب' : 'Trainer']: c.trainer_name,
                 [isRTL ? 'رقم المدرب' : 'Trainer Phone']: c.trainer_phone || '-',
-                [isRTL ? 'القاعة' : 'Room']: ROOMS.find(r => r.value === c.room)?.label[language as 'en' | 'ar'] || c.room,
+                [isRTL ? 'القاعة' : 'Room']: rooms.find(r => r.value === c.room)?.label[language as 'en' | 'ar'] || c.room,
                 [isRTL ? 'الأيام' : 'Days']: c.schedule_days.map(d => DAYS.find(day => day.value === d)?.label[language as 'en' | 'ar']).join(', '),
                 [isRTL ? 'وقت البداية' : 'Start Time']: c.schedule_time,
                 [isRTL ? 'وقت الانتهاء' : 'End Time']: c.schedule_end_time || '-',
@@ -1352,7 +1370,7 @@ export default function CourseManagement() {
     };
 
     const getRoomLabel = (room: string) => {
-        const r = ROOMS.find(rm => rm.value === room);
+        const r = rooms.find(rm => rm.value === room);
         return r ? r.label[language as 'en' | 'ar'] : room;
     };
 
@@ -1775,7 +1793,7 @@ export default function CourseManagement() {
                                                         <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {ROOMS.map(room => (
+                                                        {rooms.map(room => (
                                                             <SelectItem key={room.value} value={room.value} className="py-3">
                                                                 {room.label[language as 'en' | 'ar']}
                                                             </SelectItem>
@@ -2416,7 +2434,7 @@ export default function CourseManagement() {
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {ROOMS.map(room => (
+                                        {rooms.map(room => (
                                             <SelectItem key={room.value} value={room.value} className="py-3">
                                                 {room.label[language as 'en' | 'ar']}
                                             </SelectItem>

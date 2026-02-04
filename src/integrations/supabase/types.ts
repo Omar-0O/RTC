@@ -1031,6 +1031,27 @@ export type Database = {
           },
         ]
       }
+      rooms: {
+        Row: {
+          id: string
+          name: string
+          name_ar: string
+          created_at: string
+        }
+        Insert: {
+          id: string
+          name: string
+          name_ar: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          name_ar?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           activities_count: number

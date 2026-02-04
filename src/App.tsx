@@ -18,6 +18,7 @@ const LogActivity = lazy(() => import("./pages/volunteer/LogActivity"));
 const Profile = lazy(() => import("./pages/volunteer/Profile"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const ManageRooms = lazy(() => import("./pages/admin/rooms/ManageRooms"));
 const UserManagement = lazy(() => import("./pages/admin/UserManagement"));
 const CommitteeManagement = lazy(() => import("./pages/admin/CommitteeManagement"));
 const ActivityManagement = lazy(() => import("./pages/admin/ActivityManagement"));
@@ -196,6 +197,7 @@ function AppRoutes() {
 
         {/* Admin Routes */}
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/rooms" element={<ManageRooms />} />
         <Route path="/admin/users" element={<UserManagement />} />
         <Route path="/admin/committees" element={<CommitteeManagement />} />
         <Route path="/admin/activities" element={<ActivityManagement />} />
