@@ -39,6 +39,7 @@ const EventManagement = lazy(() => import("./pages/events/EventManagement"));
 const CourseManagement = lazy(() => import("./pages/courses/CourseManagement"));
 const MyCourses = lazy(() => import("./pages/courses/MyCourses"));
 const SubmissionManagement = lazy(() => import("./pages/hr/SubmissionManagement"));
+const Birthdays = lazy(() => import("./pages/admin/Birthdays"));
 const TrainerManagement = lazy(() => import("./pages/trainers/TrainerManagement"));
 const IndividualCompetition = lazy(() => import("./pages/ethics/IndividualCompetition"));
 const CallsManagement = lazy(() => import("./pages/ethics/CallsManagement"));
@@ -187,6 +188,7 @@ function AppRoutes() {
 
         {/* HR Routes */}
         <Route path="/hr/submissions" element={<SubmissionManagement />} />
+        <Route path="/birthdays" element={<Birthdays />} />
 
         {/* Ethics Routes */}
         <Route path="/ethics/competition" element={<IndividualCompetition />} />
