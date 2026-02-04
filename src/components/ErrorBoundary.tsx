@@ -92,21 +92,21 @@ class ErrorBoundary extends Component<Props, State> {
             return (
                 <div className="min-h-screen flex flex-col items-center justify-center p-4 gap-4 bg-background">
                     <AlertTriangle className="h-12 w-12 text-destructive" />
-                    <h2 className="text-xl font-semibold text-center">عذراً، حدث خطأ غير متوقع</h2>
+                    <h2 className="text-xl font-semibold text-center">ايرور او Update ايهمَ اقرب 3:</h2>
                     <p className="text-muted-foreground text-center text-sm max-w-md">
                         {isChunkError
                             ? 'تم تحديث التطبيق. جاري إعادة التحميل تلقائياً...'
-                            : 'يرجى تحديث الصفحة أو المحاولة لاحقاً.'}
+                            : 'ممكن تعمل ريفرش لوسمحت 🤍😇'}
                     </p>
                     {!isChunkError && (
                         <div className="flex gap-2 mt-2">
                             <Button onClick={() => window.location.reload()}>
                                 <RefreshCw className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                تحديث الصفحة
+                                ريفرش
                             </Button>
                             <Button onClick={this.handleGoHome} variant="outline">
                                 <Home className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                العودة للرئيسية
+                                الرئيسية
                             </Button>
                         </div>
                     )}
