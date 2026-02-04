@@ -197,8 +197,8 @@ export default function LogActivity() {
       if (submissionsRes.data) {
         setSubmissions(submissionsRes.data.map((s: any) => ({
           id: s.id,
-          activity_name: isRTL ? (s.activity?.name_ar || s.activity?.name) : s.activity?.name,
-          committee_name: isRTL ? (s.committee?.name_ar || s.committee?.name) : s.committee?.name,
+          activity_name: isRTL ? (s.activity?.name_ar || s.activity?.name || '-') : (s.activity?.name || '-'),
+          committee_name: isRTL ? (s.committee?.name_ar || s.committee?.name || '-') : (s.committee?.name || '-'),
           points: s.points_awarded || 0,
           status: s.status,
           submitted_at: s.submitted_at,
@@ -495,11 +495,16 @@ export default function LogActivity() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    if (!dateString) return '-';
+    try {
+      return new Date(dateString).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch (e) {
+      return '-';
+    }
   };
 
   // Helper to toggle selection
