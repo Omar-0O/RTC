@@ -21,7 +21,8 @@ import {
   BookOpen,
   Sun,
   Moon,
-  Laptop
+  Laptop,
+  Cake
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
@@ -150,6 +151,7 @@ export function AppSidebar() {
     { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/supervisor', icon: Home },
     { title: isRTL ? 'داشبورد الفرع' : 'Branch Dashboard', url: '/supervisor/dashboard', icon: BarChart3 },
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
+    { title: isRTL ? 'أعياد الميلاد' : 'Birthdays', url: '/birthdays', icon: Cake },
     { title: t('nav.committees'), url: '/admin/committees', icon: Settings },
     { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
@@ -203,6 +205,7 @@ export function AppSidebar() {
     { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
     { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
+    { title: isRTL ? 'أعياد الميلاد' : 'Birthdays', url: '/birthdays', icon: Cake },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
     { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
     { title: t('nav.profile'), url: '/profile', icon: User },
@@ -224,6 +227,7 @@ export function AppSidebar() {
           { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
           { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
+          { title: isRTL ? 'أعياد الميلاد' : 'Birthdays', url: '/birthdays', icon: Cake },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/profile', icon: User },
