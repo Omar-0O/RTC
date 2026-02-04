@@ -1,9 +1,16 @@
 import { useState, useRef } from 'react';
 import { format } from 'date-fns';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Calendar as CalendarIcon } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 
 import { Input } from '@/components/ui/input';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -109,6 +116,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
   const [formAttendedCamp, setFormAttendedCamp] = useState(false);
   const [formIsAshbal, setFormIsAshbal] = useState(defaultIsAshbal);
   const [formJoinDate, setFormJoinDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [formBirthDate, setFormBirthDate] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -267,6 +275,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
         if (formLevel === 'under_follow_up') updates.attended_mini_camp = formAttendedMiniCamp;
         if (formLevel === 'project_responsible') updates.attended_camp = formAttendedCamp;
         if (formIsAshbal) updates.is_ashbal = true;
+        if (formBirthDate) updates.birth_date = formBirthDate;
 
         if (Object.keys(updates).length > 0) {
           updates.level = formLevel;
@@ -531,19 +540,48 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
             onChange={(e) => setFormJoinDate(e.target.value)}
           />
         </div>
-        <div className="flex items-end pb-2">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="is-ashbal"
-              checked={formIsAshbal}
-              onCheckedChange={setFormIsAshbal}
-            />
-            <Label htmlFor="is-ashbal">
-              {language === 'ar' ? 'من الأشبال؟' : 'Is Ashbal?'}
-            </Label>
-          </div>
+        <div className="space-y-2">
+          <Label>{language === 'ar' ? 'تاريخ الميلاد' : 'Date of Birth'}</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant={"outline"}
+                className={cn(
+                  "w-full justify-start text-left font-normal",
+                  !formBirthDate && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {formBirthDate ? format(new Date(formBirthDate), "PPP") : <span>Pick a date</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={formBirthDate ? new Date(formBirthDate) : undefined}
+                onSelect={(date) => setFormBirthDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                initialFocus
+                captionLayout="dropdown-buttons"
+                fromYear={1960}
+                toYear={2030}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
+
+      {!defaultIsAshbal && (
+        <div className="flex items-center space-x-2 mt-4">
+          <Switch
+            id="is-ashbal"
+            checked={formIsAshbal}
+            onCheckedChange={setFormIsAshbal}
+          />
+          <Label htmlFor="is-ashbal">
+            {language === 'ar' ? 'من الأشبال؟' : 'Is Ashbal?'}
+          </Label>
+        </div>
+      )}
 
       <div className="flex gap-2 justify-end mt-4">
         <Button type="button" variant="outline" onClick={() => onSuccess()} className="w-full sm:w-auto">

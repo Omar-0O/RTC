@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Search, UserPlus, MoreHorizontal, User, Mail, Shield } from "lucide-react";
+import { Loader2, Search, UserPlus, MoreHorizontal, User, Mail, Shield, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AddUserForm } from "../admin/AddUserForm";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -29,16 +29,18 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import Profile from '@/pages/volunteer/Profile';
+import { EditAshbalDialog } from "./EditAshbalDialog";
 
 export default function AshbalManagement() {
     const { isRTL, t } = useLanguage();
-    const { user } = useAuth();
+    const { user, primaryRole } = useAuth();
     const [loading, setLoading] = useState(true);
     const [users, setUsers] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [isAddUserOpen, setIsAddUserOpen] = useState(false);
     const [trimesterTarget, setTrimesterTarget] = useState(0);
     const [viewProfileUser, setViewProfileUser] = useState<any | null>(null);
+    const [editUser, setEditUser] = useState<any | null>(null);
 
     const fetchAshbalUsers = async () => {
         try {
@@ -102,9 +104,6 @@ export default function AshbalManagement() {
                     <h1 className="text-3xl font-bold tracking-tight">
                         {isRTL ? "إدارة الأشبال" : "Ashbal Management"}
                     </h1>
-                    <p className="text-muted-foreground mt-1">
-                        {isRTL ? "إدارة ومتابعة متطوعي الأشبال" : "Manage and track Ashbal volunteers"}
-                    </p>
                 </div>
 
                 <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
@@ -220,6 +219,12 @@ export default function AshbalManagement() {
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                                                     <DropdownMenuSeparator />
+                                                    {['admin', 'head_ashbal'].includes(primaryRole) && (
+                                                        <DropdownMenuItem onClick={() => setEditUser(user)}>
+                                                            <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                            {t('common.edit')}
+                                                        </DropdownMenuItem>
+                                                    )}
                                                     <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
                                                         <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                         {t('users.viewProfile')}
@@ -283,6 +288,12 @@ export default function AshbalManagement() {
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                                                 <DropdownMenuSeparator />
+                                                {['admin', 'head_ashbal'].includes(primaryRole) && (
+                                                    <DropdownMenuItem onClick={() => setEditUser(user)}>
+                                                        <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {t('common.edit')}
+                                                    </DropdownMenuItem>
+                                                )}
                                                 <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
                                                     <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                     {t('users.viewProfile')}
@@ -340,6 +351,16 @@ export default function AshbalManagement() {
                     {viewProfileUser && <Profile userId={viewProfileUser.id} />}
                 </DialogContent>
             </Dialog>
+
+            <EditAshbalDialog
+                open={!!editUser}
+                user={editUser}
+                onOpenChange={(open) => !open && setEditUser(null)}
+                onSuccess={() => {
+                    fetchAshbalUsers();
+                    setEditUser(null);
+                }}
+            />
         </div>
     );
 }
