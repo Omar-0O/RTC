@@ -123,11 +123,6 @@ export default function Birthdays() {
             {language === 'ar' ? 'أعياد ميلاد هذا الشهر' : 'Birthdays of the Month'}
             <span className="text-primary ltr:ml-2 rtl:mr-2">({getMonthName()})</span>
           </h1>
-          <p className="text-muted-foreground mt-1">
-            {language === 'ar'
-              ? 'قائمة بالمتطوعين الذين يحتفلون بأعياد ميلادهم في هذا الشهر'
-              : 'List of volunteers celebrating their birthdays this month'}
-          </p>
         </div>
       </div>
 
