@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
-import { Search, Loader2 } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { Loader2 } from 'lucide-react';
 
 interface Committee {
   id: string;
@@ -31,7 +30,6 @@ export default function Birthdays() {
   const { t, language, isRTL } = useLanguage();
   const [users, setUsers] = useState<UserWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -91,11 +89,6 @@ export default function Birthdays() {
     fetchData();
   }, [language]);
 
-  const filteredUsers = users.filter(user =>
-    (user.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-    (user.full_name_ar?.toLowerCase() || '').includes(searchQuery.toLowerCase())
-  );
-
   const getDayOfMonth = (dateString?: string | null) => {
     if (!dateString) return '';
     const date = new Date(dateString);
@@ -127,17 +120,6 @@ export default function Birthdays() {
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="relative">
-            <Search className="absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground ltr:left-3 rtl:right-3" />
-            <Input
-              placeholder={language === 'ar' ? 'بحث عن متطوع...' : 'Search volunteers...'}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="ltr:pl-9 rtl:pr-9 max-w-sm"
-            />
-          </div>
-        </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
@@ -149,14 +131,14 @@ export default function Birthdays() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.length === 0 ? (
+              {users.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                     {language === 'ar' ? 'لا توجد أعياد ميلاد هذا الشهر' : 'No birthdays this month'}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((user) => (
+                users.map((user) => (
                   <TableRow key={user.id}>
                     <TableCell>
                       <div className="flex items-center justify-center bg-primary/10 text-primary font-bold rounded-full h-10 w-10">
