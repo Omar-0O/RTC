@@ -845,7 +845,6 @@ export default function UserManagement() {
       // Actually if existing users have it they will be migrated. But to avoid runtime error if data is stale:
       case 'head_caravans':
       case 'head_events':
-      case 'head_events':
       case 'head_ethics':
       case 'head_quran':
         return 'bg-blue-100 text-blue-700';

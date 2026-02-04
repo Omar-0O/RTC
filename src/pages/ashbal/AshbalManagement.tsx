@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { AddUserForm } from "../admin/AddUserForm";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Progress } from "@/components/ui/progress";
+import { LevelBadge } from "@/components/ui/level-badge";
 
 export default function AshbalManagement() {
     const { isRTL, t } = useLanguage();
@@ -187,8 +188,7 @@ export default function AshbalManagement() {
                                         {new Date(user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US')}
                                     </TableCell>
                                     <TableCell>
-                                        {/* Simple badge or text */}
-                                        {user.level}
+                                        <LevelBadge level={user.level} size="sm" />
                                     </TableCell>
                                 </TableRow>
                             ))

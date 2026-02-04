@@ -533,12 +533,12 @@ const translations: Record<Language, Record<string, string>> = {
     // Levels
     // Levels
     'level.under_follow_up': 'تحت المتابعة',
-    'level.project_responsible': 'مشروع مسؤول',
+    'level.project_responsible': 'مسؤول مشروع',
     'level.responsible': 'مسؤول',
     // Mappings for old data
     'level.bronze': 'تحت المتابعة',
     'level.silver': 'تحت المتابعة',
-    'level.gold': 'مشروع مسئول',
+    'level.gold': 'مسؤول مشروع',
     'level.platinum': 'مسؤول',
     'level.diamond': 'مسؤول',
     'level.newbie': 'تحت المتابعة',
