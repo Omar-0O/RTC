@@ -689,7 +689,7 @@ export default function LogActivity() {
                         <div className="flex items-center justify-between w-full gap-4">
                           <span className="text-base font-medium">{isRTL ? activity.name_ar : activity.name}</span>
                           <span className="inline-flex items-center rounded-full bg-gradient-to-r from-primary/20 to-success/20 px-3 py-1 text-xs font-bold text-primary">
-                            +{activity.points} {isRTL ? 'أثر' : 'pts'}
+                            <span dir="ltr">+{activity.points}</span> {isRTL ? 'أثر' : 'pts'}
                           </span>
                         </div>
                       </SelectItem>
@@ -1212,7 +1212,7 @@ export default function LogActivity() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-2 shrink-0 pl-2">
-                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
+                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary" dir="ltr">
                         +{submission.points}
                       </span>
                     </div>
