@@ -447,11 +447,18 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     }
 
     try {
-      const fileExt = processedFile.name.split('.').pop();
+      let fileExt = processedFile.name.split('.').pop()?.toLowerCase();
+      if (!fileExt || (processedFile.type === 'image/jpeg' && fileExt !== 'jpg' && fileExt !== 'jpeg')) {
+        fileExt = 'jpg';
+      }
+
       const fileName = `${user.id}/avatar.${fileExt}`;
 
-      // Delete old avatar if exists
-      await supabase.storage.from('avatars').remove([`${user.id}/avatar.jpg`, `${user.id}/avatar.png`, `${user.id}/avatar.webp`]);
+      // Delete old avatar if exists - comprehensive list
+      const extensionsToRemove = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+      const filesToRemove = extensionsToRemove.map(ext => `${user.id}/avatar.${ext}`);
+
+      await supabase.storage.from('avatars').remove(filesToRemove);
 
       // Upload new avatar
       const { error: uploadError } = await supabase.storage
@@ -471,7 +478,11 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
       if (updateError) throw updateError;
 
-      await refreshProfile();
+      // Add a small delay to ensure DB propagation before refreshing
+      setTimeout(async () => {
+        await refreshProfile();
+      }, 500);
+
       toast.success(isRTL ? 'تم تحديث الصورة الشخصية' : 'Profile picture updated');
 
       // Cleanup
