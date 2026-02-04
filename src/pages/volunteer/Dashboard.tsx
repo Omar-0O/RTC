@@ -248,7 +248,7 @@ export default function VolunteerDashboard() {
                     <p className="text-xs text-muted-foreground">{formatDate(submission.submitted_at)}</p>
                   </div>
                   <div className="flex items-center gap-2 self-start sm:self-auto">
-                    <span className="text-sm font-medium text-primary whitespace-nowrap">+{submission.points} {isRTL ? 'أثر' : 'pts'}</span>
+                    <span className="text-sm font-medium text-primary whitespace-nowrap"><span dir="ltr">+{submission.points}</span> {isRTL ? 'أثر' : 'pts'}</span>
                   </div>
                 </div>
               ))}

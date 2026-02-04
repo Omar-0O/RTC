@@ -375,7 +375,7 @@ export default function CourseSchedule() {
                                                     ))}
                                                     {dayCourses.length > 10 && (
                                                         <p className="text-[10px] text-muted-foreground text-center pt-1 font-medium">
-                                                            +{dayCourses.length - 10} {isRTL ? 'المزيد' : 'more'}
+                                                            <span dir="ltr">+{dayCourses.length - 10}</span> {isRTL ? 'المزيد' : 'more'}
                                                         </p>
                                                     )}
                                                 </div>
