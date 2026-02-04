@@ -157,6 +157,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const userId = propUserId || paramUserId;
 
   const { user, profile: authProfile, refreshProfile, hasRole } = useAuth();
+
   const { t, isRTL } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
@@ -182,6 +183,18 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const [itemToDelete, setItemToDelete] = useState<{ type: 'fine' | 'feedback', id: string, fineSourceType?: string } | null>(null);
 
   const [monthlyPoints, setMonthlyPoints] = useState(0);
+
+  // New state for avatar preview
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+    };
+  }, [avatarPreview]);
 
   // If userId is provided and different from current user, we are in view-only mode
   const isViewOnly = userId && userId !== user?.id;
@@ -395,9 +408,9 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     }
   };
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !user) return;
+    if (!file) return;
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
@@ -405,20 +418,34 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       return;
     }
 
+    // Create preview
+    const objectUrl = URL.createObjectURL(file);
+    setAvatarPreview(objectUrl);
+    setSelectedFile(file);
+
+    // Reset input value so same file can be selected again if needed
+    e.target.value = '';
+  };
+
+  const handleSaveAvatar = async () => {
+    if (!selectedFile || !user) return;
+
+    setUploading(true);
+    let processedFile = selectedFile;
+
     // Validate file size (max 2MB)
-    let processedFile = file;
-    if (file.size > 2 * 1024 * 1024) {
+    if (selectedFile.size > 2 * 1024 * 1024) {
       toast.info(isRTL ? 'جاري ضغط الصورة لتناسب الحجم المسموح...' : 'Compressing image to fit size limit...');
       try {
-        processedFile = await compressImage(file);
+        processedFile = await compressImage(selectedFile);
       } catch (error) {
         console.error('Compression error:', error);
         toast.error(isRTL ? 'فشل ضغط الصورة' : 'Failed to compress image');
+        setUploading(false);
         return;
       }
     }
 
-    setUploading(true);
     try {
       const fileExt = processedFile.name.split('.').pop();
       const fileName = `${user.id}/avatar.${fileExt}`;
@@ -429,7 +456,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       // Upload new avatar
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, processedFile, { upsert: true });
+        .upload(fileName, processedFile, { upsert: true, cacheControl: '3600' });
 
       if (uploadError) throw uploadError;
 
@@ -439,13 +466,17 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       // Update profile with new avatar URL
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ avatar_url: data.publicUrl })
+        .update({ avatar_url: `${data.publicUrl}?t=${new Date().getTime()}` })
         .eq('id', user.id);
 
       if (updateError) throw updateError;
 
       await refreshProfile();
       toast.success(isRTL ? 'تم تحديث الصورة الشخصية' : 'Profile picture updated');
+
+      // Cleanup
+      setAvatarPreview(null);
+      setSelectedFile(null);
     } catch (error: any) {
       console.error('Error uploading avatar:', error);
       toast.error(isRTL ? 'فشل في تحميل الصورة' : 'Failed to upload image');
@@ -454,6 +485,13 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     }
   };
 
+  const handleCancelAvatar = () => {
+    setAvatarPreview(null);
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
 
   const getStatusText = (status: string) => {
@@ -636,7 +674,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-6">
             <div className="relative group shrink-0 -mt-20">
               <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
-                <AvatarImage src={displayAvatar || undefined} alt={displayProfile?.full_name || ''} className="object-cover" />
+                <AvatarImage src={avatarPreview || displayAvatar || undefined} alt={displayProfile?.full_name || ''} className="object-cover" />
                 <AvatarFallback className="bg-primary/20 text-primary text-4xl font-bold">
                   {userInitials}
                 </AvatarFallback>
@@ -648,22 +686,45 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
-                    onChange={handleAvatarChange}
+                    onChange={handleFileSelect}
                     className="hidden"
                   />
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="absolute bottom-1 right-1 h-9 w-9 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-all duration-200 hover:scale-110"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                  >
-                    {uploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Camera className="h-4 w-4" />
-                    )}
-                  </Button>
+                  {avatarPreview ? (
+                    <div className="absolute -bottom-2 -right-2 flex gap-1 z-10">
+                      <Button
+                        size="icon"
+                        className="h-8 w-8 rounded-full shadow-lg bg-green-500 hover:bg-green-600 text-white"
+                        onClick={handleSaveAvatar}
+                        disabled={uploading}
+                      >
+                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="h-8 w-8 rounded-full shadow-lg"
+                        onClick={handleCancelAvatar}
+                        disabled={uploading}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      className="absolute bottom-1 right-1 h-9 w-9 rounded-full shadow-lg transition-all duration-200 hover:scale-110"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      title={isRTL ? "تغيير الصورة" : "Change Picture"}
+                    >
+                      {uploading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Camera className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
                 </>
               )}
             </div>
