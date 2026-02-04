@@ -544,9 +544,6 @@ export default function LogActivity() {
               <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-success to-emerald-600">
                 {isRTL ? 'شكرا لأنك عضو فعال في RTC ❤️' : 'Thank you for being an active member in RTC ❤️'}
               </h2>
-              <p className="text-muted-foreground text-lg">
-                {isRTL ? 'تم تسجيل مشاركتك بنجاح! جميع جهودك مقدرة.' : 'Participation logged successfully! Your efforts are appreciated.'}
-              </p>
             </div>
 
             {isGroupSubmission && (
@@ -588,9 +585,6 @@ export default function LogActivity() {
           </div>
           <div>
             <h1 className="text-2xl font-bold">{t('activityLog.title')}</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">
-              {isRTL ? 'سجّل مشاركتك واحصل على نقاطك!' : 'Log your participation and earn points!'}
-            </p>
           </div>
         </div>
       </div>
