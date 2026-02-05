@@ -609,12 +609,12 @@ export default function LogActivity() {
 
               {/* Leader Group Toggle */}
               {isLeader && (
-                <div className="relative flex items-center justify-between p-5 border-2 rounded-xl bg-gradient-to-r from-accent/5 to-primary/5 hover:border-primary/30 transition-all group">
-                  <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <div className="relative flex items-center justify-between gap-6 p-5 border-2 rounded-xl bg-gradient-to-r from-accent/5 to-primary/5 hover:border-primary/30 transition-all group">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
                       <Users className="h-6 w-6 text-primary" />
                     </div>
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 flex-1">
                       <Label htmlFor="group-toggle" className="text-base font-semibold cursor-pointer">{isRTL ? 'مشاركة جماعية' : 'Group Submission'}</Label>
                       <p className="text-sm text-muted-foreground">
                         {isRTL ? 'تسجيل مشاركة لمجموعة من المتطوعين' : 'Log participation for a group of volunteers'}
@@ -625,7 +625,7 @@ export default function LogActivity() {
                     id="group-toggle"
                     checked={isGroupSubmission}
                     onCheckedChange={setIsGroupSubmission}
-                    className="scale-110"
+                    className="scale-110 shrink-0"
                   />
                 </div>
               )}
@@ -657,7 +657,7 @@ export default function LogActivity() {
               <div className="space-y-2.5">
                 <Label className="text-sm font-medium flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
-                  {isRTL ? 'تاريخ النشاط' : 'Activity Date'} <span className="text-destructive">*</span>
+                  {isRTL ? 'تاريخ المشاركة' : 'Participation Date'} <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="date"
