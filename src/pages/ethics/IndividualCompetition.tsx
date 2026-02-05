@@ -207,8 +207,10 @@ export default function IndividualCompetition() {
 
             if (eError) throw eError;
 
+            const participantsMap = new Map((participantsData || []).map((p: any) => [p.id, p]));
+
             const exportData = (entriesData || []).map((entry: any) => {
-                const participant = (participantsData || []).find((p: any) => p.id === entry.participant_id);
+                const participant = participantsMap.get(entry.participant_id);
                 return {
                     [isRTL ? 'الاسم' : 'Name']: participant?.name || 'Unknown',
                     [isRTL ? 'الهاتف' : 'Phone']: participant?.phone || '',
