@@ -118,7 +118,7 @@ export default function SupervisorUserManagement() {
                 committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
                 total_points: profile.total_points || 0,
                 level: profile.level || 'under_follow_up',
-                join_date: profile.created_at,
+                join_date: profile.join_date || profile.created_at,
                 phone: profile.phone,
                 attended_mini_camp: profile.attended_mini_camp || false,
                 attended_camp: profile.attended_camp || false
