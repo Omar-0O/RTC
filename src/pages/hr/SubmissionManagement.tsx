@@ -389,7 +389,7 @@ export default function SubmissionManagement() {
 
             // Fetch call participants (guests)
             const { data: callParticipants } = await supabase
-                .from('call_participants')
+                .from('call_participants' as any)
                 .select(`
                     id,
                     name,

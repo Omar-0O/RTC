@@ -244,6 +244,89 @@ export type Database = {
         }
         Relationships: []
       }
+      calls: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          date: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          date: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          date?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calls_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      call_participants: {
+        Row: {
+          call_id: string
+          created_at: string | null
+          id: string
+          is_volunteer: boolean | null
+          name: string
+          phone: string | null
+          volunteer_id: string | null
+        }
+        Insert: {
+          call_id: string
+          created_at?: string | null
+          id?: string
+          is_volunteer?: boolean | null
+          name: string
+          phone?: string | null
+          volunteer_id?: string | null
+        }
+        Update: {
+          call_id?: string
+          created_at?: string | null
+          id?: string
+          is_volunteer?: boolean | null
+          name?: string
+          phone?: string | null
+          volunteer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_participants_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "call_participants_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       caravan_participants: {
         Row: {
           caravan_id: string | null
@@ -1131,6 +1214,7 @@ export type Database = {
           phone: string | null
           specialization: string | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
           committee_id?: string | null
@@ -1142,6 +1226,7 @@ export type Database = {
           phone?: string | null
           specialization?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
           committee_id?: string | null
@@ -1153,6 +1238,7 @@ export type Database = {
           phone?: string | null
           specialization?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {

@@ -681,7 +681,7 @@ export default function UserManagement() {
     setIsSubmitting(true);
     try {
       // Update profile
-      const { error: profileError } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .update({
           full_name: formName.trim(),
@@ -697,9 +697,16 @@ export default function UserManagement() {
           join_date: formJoinDate,
           birth_date: formBirthDate || null,
         })
-        .eq('id', selectedUser.id);
+        .eq('id', selectedUser.id)
+        .select();
 
       if (profileError) throw profileError;
+
+      console.log('Update response:', profileData);
+
+      if (!profileData || profileData.length === 0) {
+        throw new Error('Update failed - no changes applied (check permissions)');
+      }
 
       // Upload avatar if changed
       if (formAvatarFile) {

@@ -70,7 +70,7 @@ export default function SupervisorDashboard() {
                 supabase.from('profiles').select('id, full_name, full_name_ar, total_points, level, committee_id'),
                 supabase.from('activity_submissions').select('points_awarded'),
                 supabase.from('committees').select('id, name, name_ar'),
-                supabase.from('activity_submissions')
+                supabase.from('activity_submissions' as any)
                     .select(`
             id,
             points_awarded,
