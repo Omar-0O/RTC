@@ -205,7 +205,7 @@ export default function Reports() {
     const { start, end } = getDateRange();
     const submittedDate = new Date(s.submitted_at);
     return submittedDate >= start && submittedDate <= end;
-  });
+  }).sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
 
   // Committee distribution data
   const committeeData = committees.map(committee => {
@@ -313,10 +313,12 @@ export default function Reports() {
     const csvContent = [
       headers.join(','),
       ...data.map(row => headers.map(header => {
-        const value = row[header];
-        // Escape commas and quotes in values
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-          return `"${value.replace(/"/g, '""')}"`;
+        let value = row[header];
+        if (typeof value === 'string') {
+          value = value.replace(/[\r\n]+/g, ' ');
+          if (value.includes(',') || value.includes('"')) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
         }
         return value ?? '';
       }).join(','))
@@ -379,9 +381,11 @@ export default function Reports() {
           if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
           else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
 
-          const vestStatus = s.location === 'branch'
-            ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
-            : '';
+          const vestStatus = (s.location === 'home' || s.location === 'remote')
+            ? (language === 'ar' ? 'من البيت' : 'From Home')
+            : (s.location === 'branch'
+              ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
+              : '');
 
           // Determine participant type and name - CHECK participant_type FIRST before profile lookup
           let participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
@@ -457,9 +461,11 @@ export default function Reports() {
           else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
 
           // Vest status for branch activities
-          const vestStatus = s.location === 'branch'
-            ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
-            : '';
+          const vestStatus = (s.location === 'home' || s.location === 'remote')
+            ? (language === 'ar' ? 'من البيت' : 'From Home')
+            : (s.location === 'branch'
+              ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
+              : '');
 
           return {
             [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
@@ -855,9 +861,11 @@ export default function Reports() {
                               if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
                               else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
 
-                              const vestStatus = s.location === 'branch'
-                                ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
-                                : '';
+                              const vestStatus = (s.location === 'home' || s.location === 'remote')
+                                ? (language === 'ar' ? 'من البيت' : 'From Home')
+                                : (s.location === 'branch'
+                                  ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
+                                  : '');
 
                               return {
                                 [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
