@@ -184,6 +184,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
   const [monthlyPoints, setMonthlyPoints] = useState(0);
 
+  const [showUnauthorizedDialog, setShowUnauthorizedDialog] = useState(false);
+
   // New state for avatar preview
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -614,7 +616,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
       // If we identified a creator and it's not the current user
       if (creatorId && creatorId !== user.id) {
-        toast.error("الي حط الغرامة هو الي يشيلها 😝");
+        setShowUnauthorizedDialog(true);
         return;
       }
 
@@ -1298,6 +1300,22 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showUnauthorizedDialog} onOpenChange={setShowUnauthorizedDialog}>
+        <DialogContent className="sm:max-w-md flex flex-col items-center justify-center gap-6 py-12 px-6 border-2 border-primary/20 bg-background/95 backdrop-blur-md shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl md:text-3xl font-bold text-center text-primary leading-relaxed">
+              الي حط الغرامة هو الي يشيلها
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Unauthorized deletion attempt
+            </DialogDescription>
+          </DialogHeader>
+          <div className="text-[10rem] leading-none select-none animate-bounce">
+            😝
+          </div>
+        </DialogContent>
+      </Dialog>
     </div >
   );
 }
