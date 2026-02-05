@@ -136,8 +136,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
       setFormNameAr(user.full_name_ar || '');
       setFormPhone(user.phone || '');
       setFormLevel(user.level || 'under_follow_up');
-      const initialJoinDate = user.join_date || user.created_at;
-      setFormJoinDate(initialJoinDate ? format(new Date(initialJoinDate), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+      setFormJoinDate(user.created_at ? format(new Date(user.created_at), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
       setFormBirthDate(user.birth_date || '');
       setFormAvatarPreview(user.avatar_url);
       setFormAvatarFile(null);

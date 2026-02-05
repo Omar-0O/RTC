@@ -403,7 +403,7 @@ export default function UserManagement() {
           total_points: profile.total_points || 0,
           participation_count: participationCount,
           level: profile.level || 'under_follow_up',
-          join_date: profile.join_date || profile.created_at,
+          join_date: profile.created_at,
           phone: profile.phone,
           attended_mini_camp: profile.attended_mini_camp,
           attended_camp: profile.attended_camp,
@@ -844,6 +844,7 @@ export default function UserManagement() {
       case 'head_production': // Keep existing style if needed or map to default, but removing case as per plan. 
       // Actually if existing users have it they will be migrated. But to avoid runtime error if data is stale:
       case 'head_caravans':
+      case 'head_events':
       case 'head_events':
       case 'head_ethics':
       case 'head_quran':
