@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Download, Calendar, TrendingUp, Users, Activity, Award } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -100,6 +100,11 @@ export default function Reports() {
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Memoized maps for O(1) lookups
+  const profilesMap = useMemo(() => new Map(profiles.map(p => [p.id, p])), [profiles]);
+  const activityTypesMap = useMemo(() => new Map(activityTypes.map(a => [a.id, a])), [activityTypes]);
+  const committeesMap = useMemo(() => new Map(committees.map(c => [c.id, c])), [committees]);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -120,13 +125,30 @@ export default function Reports() {
       const userRolesData = userRolesRes.data || [];
 
       if (profilesData) {
+        // Optimization: Create Maps for O(1) lookup
+        const submissionCounts = new Map<string, number>();
+        submissionsData.forEach(s => {
+          if (s.volunteer_id) {
+            submissionCounts.set(s.volunteer_id, (submissionCounts.get(s.volunteer_id) || 0) + 1);
+          }
+        });
+
+        const userRolesMap = new Map<string, string[]>();
+        userRolesData.forEach(r => {
+          if (r.user_id) {
+            const roles = userRolesMap.get(r.user_id) || [];
+            roles.push(r.role);
+            userRolesMap.set(r.user_id, roles);
+          }
+        });
+
         const enrichedProfiles: Profile[] = profilesData.map(profile => {
-          const userRoles = userRolesData.filter(r => r.user_id === profile.id).map(r => r.role);
+          const userRoles = userRolesMap.get(profile.id) || [];
           return {
             ...profile,
             total_points: profile.total_points ?? 0,
             level: profile.level ?? 'under_follow_up',
-            activities_count: submissionsData.filter(s => s.volunteer_id === profile.id).length,
+            activities_count: submissionCounts.get(profile.id) || 0,
             roles: userRoles
           };
         }).filter(p => !p.roles?.includes('admin'));
@@ -271,7 +293,7 @@ export default function Reports() {
     };
 
     monthSubmissions.forEach(s => {
-      const volunteer = profiles.find(p => p.id === s.volunteer_id);
+      const volunteer = profilesMap.get(s.volunteer_id);
       if (volunteer) {
         const level = volunteer.level || 'under_follow_up';
 
@@ -336,7 +358,7 @@ export default function Reports() {
 
   const handleExport = (type: string) => {
     switch (type) {
-      case 'volunteers':
+      case 'volunteers': {
         const volunteersData = profiles.map(p => {
           const level = p.level || 'under_follow_up';
           const isResponsible = ['responsible', 'platinum', 'diamond'].includes(level);
@@ -369,13 +391,15 @@ export default function Reports() {
         });
         downloadCSV(volunteersData, 'volunteers');
         break;
+      }
 
-      case 'all_activities':
+      case 'all_activities': {
         // All participations (trainers, volunteers, guests - everyone)
         const allReportData = filteredSubmissions.map(s => {
-          const volunteer = profiles.find(p => p.id === s.volunteer_id);
-          const activityType = activityTypes.find(a => a.id === s.activity_type_id);
-          const committee = committees.find(c => c.id === (s.committee_id || volunteer?.committee_id));
+          const volunteer = profilesMap.get(s.volunteer_id);
+          const activityType = activityTypesMap.get(s.activity_type_id);
+          const committeeId = s.committee_id || volunteer?.committee_id;
+          const committee = committeeId ? committeesMap.get(committeeId) : undefined;
 
           let locationStr = s.location || 'branch';
           if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
@@ -447,14 +471,16 @@ export default function Reports() {
         const allDateStr = `${format(allStart, 'yyyy-MM-dd')}_to_${format(allEnd, 'yyyy-MM-dd')}`;
         downloadCSV(allReportData, `all_participations_${allDateStr}`);
         break;
+      }
 
-      case 'activities':
+      case 'activities': {
         // Volunteers only participations (only those with profiles)
-        const volunteerSubmissions = filteredSubmissions.filter(s => profiles.some(p => p.id === s.volunteer_id));
+        const volunteerSubmissions = filteredSubmissions.filter(s => profilesMap.has(s.volunteer_id));
         const reportData = volunteerSubmissions.map(s => {
-          const volunteer = profiles.find(p => p.id === s.volunteer_id);
-          const activityType = activityTypes.find(a => a.id === s.activity_type_id);
-          const committee = committees.find(c => c.id === (volunteer?.committee_id || s.committee_id));
+          const volunteer = profilesMap.get(s.volunteer_id);
+          const activityType = activityTypesMap.get(s.activity_type_id);
+          const committeeId = volunteer?.committee_id || s.committee_id;
+          const committee = committeeId ? committeesMap.get(committeeId) : undefined;
 
           let locationStr = s.location || 'branch';
           if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
@@ -485,6 +511,7 @@ export default function Reports() {
         const dateStr = `${format(start, 'yyyy-MM-dd')}_to_${format(end, 'yyyy-MM-dd')}`;
         downloadCSV(reportData, `volunteers_participations_${dateStr}`);
         break;
+      }
 
 
 
@@ -853,9 +880,10 @@ export default function Reports() {
                           </div>
                           <Button variant="outline" size="sm" onClick={() => {
                             const archiveData = monthSubmissions.map(s => {
-                              const volunteer = profiles.find(p => p.id === s.volunteer_id);
-                              const activityType = activityTypes.find(a => a.id === s.activity_type_id);
-                              const committee = committees.find(c => c.id === (volunteer?.committee_id || s.committee_id));
+                              const volunteer = profilesMap.get(s.volunteer_id);
+                              const activityType = activityTypesMap.get(s.activity_type_id);
+                              const committeeId = volunteer?.committee_id || s.committee_id;
+                              const committee = committeeId ? committeesMap.get(committeeId) : undefined;
 
                               let locationStr = s.location || 'branch';
                               if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
