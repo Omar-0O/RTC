@@ -614,7 +614,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
       // If we identified a creator and it's not the current user
       if (creatorId && creatorId !== user.id) {
-        toast.error("الي حط الغرامة هو الي يشيلها 😘🙂");
+        toast.error("الي حط الغرامة هو الي يشيلها 😝");
         return;
       }
 
