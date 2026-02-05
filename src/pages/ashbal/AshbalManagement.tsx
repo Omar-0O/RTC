@@ -20,6 +20,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LevelBadge } from "@/components/ui/level-badge";
+import { formatDateSafe } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -206,7 +207,7 @@ export default function AshbalManagement() {
                                         </TableCell>
                                         <TableCell>
                                             <span className="text-sm text-muted-foreground">
-                                                {new Date(user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}
+                                                {formatDateSafe(user.join_date || user.created_at, isRTL ? 'ar-EG' : 'en-GB')}
                                             </span>
                                         </TableCell>
                                         <TableCell>
@@ -321,7 +322,7 @@ export default function AshbalManagement() {
                                     <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 pt-3 border-t text-sm">
                                         <div>
                                             <p className="text-xs text-muted-foreground mb-0.5">{t('users.joined')}</p>
-                                            <p>{new Date(user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}</p>
+                                            <p>{formatDateSafe(user.join_date || user.created_at, isRTL ? 'ar-EG' : 'en-GB')}</p>
                                         </div>
                                         {user.phone && (
                                             <div>

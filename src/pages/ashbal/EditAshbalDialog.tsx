@@ -136,7 +136,19 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
       setFormNameAr(user.full_name_ar || '');
       setFormPhone(user.phone || '');
       setFormLevel(user.level || 'under_follow_up');
-      setFormJoinDate(user.created_at ? format(new Date(user.created_at), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
+      const initialJoinDate = user.join_date || user.created_at;
+      let formattedJoinDate = format(new Date(), 'yyyy-MM-dd');
+      if (initialJoinDate) {
+        try {
+            const parsedDate = new Date(initialJoinDate);
+            if (!isNaN(parsedDate.getTime())) {
+                formattedJoinDate = format(parsedDate, 'yyyy-MM-dd');
+            }
+        } catch (e) {
+            console.error("Invalid join date", e);
+        }
+      }
+      setFormJoinDate(formattedJoinDate);
       setFormBirthDate(user.birth_date || '');
       setFormAvatarPreview(user.avatar_url);
       setFormAvatarFile(null);

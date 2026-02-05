@@ -96,6 +96,7 @@ interface UserWithDetails {
 import Profile from '@/pages/volunteer/Profile';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatDateSafe } from '@/lib/utils';
 
 const compressImage = async (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
@@ -1253,7 +1254,7 @@ export default function UserManagement() {
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formJoinDate ? format(new Date(formJoinDate), "PPP") : <span>Pick a date</span>}
+                        {formJoinDate ? formatDateSafe(formJoinDate, language === 'ar' ? 'ar-EG' : 'en-GB') : <span>Pick a date</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -1537,7 +1538,7 @@ export default function UserManagement() {
                         )}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formJoinDate ? format(new Date(formJoinDate), "PPP") : <span>Pick a date</span>}
+                        {formJoinDate ? formatDateSafe(formJoinDate, language === 'ar' ? 'ar-EG' : 'en-GB') : <span>Pick a date</span>}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -1746,7 +1747,7 @@ export default function UserManagement() {
                         </TableCell>
                         <TableCell>
                           <span className="text-sm text-muted-foreground">
-                            {new Date(user.join_date).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB')}
+                            {formatDateSafe(user.join_date, language === 'ar' ? 'ar-EG' : 'en-GB')}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -1893,7 +1894,7 @@ export default function UserManagement() {
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground mb-0.5">{t('users.joined')}</p>
-                          <p>{new Date(user.join_date).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB')}</p>
+                          <p>{formatDateSafe(user.join_date, language === 'ar' ? 'ar-EG' : 'en-GB')}</p>
                         </div>
                         {user.phone && (
                           <div>
