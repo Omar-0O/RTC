@@ -60,6 +60,20 @@ interface CommitteeWithStats extends Committee {
   trainerCount: number;
 }
 
+interface CommitteeRPCResponse {
+  id: string;
+  name: string;
+  name_ar: string;
+  description: string | null;
+  description_ar: string | null;
+  color: string | null;
+  committee_type: string | null;
+  volunteer_count: number | string | null;
+  trainer_count: number | string | null;
+  total_points: number | string | null;
+  participation_count: number | string | null;
+}
+
 export default function CommitteeManagement() {
   const { t, language } = useLanguage();
   const [committees, setCommittees] = useState<CommitteeWithStats[]>([]);
@@ -125,7 +139,7 @@ export default function CommitteeManagement() {
           label = 'Trimester';
         }
         break;
-      case 'semi_annual':
+      case 'semi_annual': {
         const month = now.getMonth();
         if (month < 6) {
           startDate = new Date(now.getFullYear(), 0, 1);
@@ -136,6 +150,7 @@ export default function CommitteeManagement() {
         }
         label = 'Semi-Annual';
         break;
+      }
       case 'annual':
         startDate = startOfYear(now);
         endDate = endOfYear(now);
@@ -148,58 +163,29 @@ export default function CommitteeManagement() {
   const fetchCommittees = async () => {
     setIsLoading(true);
     try {
+      const { startDate, endDate } = getDateRange(timeFilter);
+
       const { data: committeesData, error } = await supabase
-        .from('committees')
-        .select('*')
-        .order('name');
+        .rpc('get_committees_with_stats', {
+          p_start_date: startDate?.toISOString() || null,
+          p_end_date: endDate?.toISOString() || null
+        });
 
       if (error) throw error;
 
-      const { startDate, endDate } = getDateRange(timeFilter);
-
-      // Get stats for each committee
-      const committeesWithStats: CommitteeWithStats[] = await Promise.all(
-        (committeesData || []).map(async (committee) => {
-          // 1. Volunteer Count (Always total currently joined)
-          const { count: volunteerCount } = await supabase
-            .from('profiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('committee_id', committee.id);
-
-          // 2. Trainer Count
-          const { count: trainerCount } = await supabase
-            .from('trainers')
-            .select('*', { count: 'exact', head: true })
-            .eq('committee_id', committee.id);
-
-          // 3. Stats from Activities (Points & Participations) - Filtered by Time
-          let query = supabase
-            .from('activity_submissions')
-            .select('points_awarded')
-            .eq('committee_id', committee.id)
-            .eq('status', 'approved'); // Only approved points count
-
-          if (startDate && endDate) {
-            query = query
-              .gte('submitted_at', startDate.toISOString())
-              .lte('submitted_at', endDate.toISOString());
-          }
-
-          const { data: participationData } = await query;
-
-          const participationCount = participationData?.length || 0;
-          const totalPoints = participationData?.reduce((sum, p) => sum + (p.points_awarded || 0), 0) || 0;
-
-          return {
-            ...committee,
-            committee_type: committee.committee_type as 'production' | 'fourth_year',
-            volunteerCount: volunteerCount || 0,
-            trainerCount: trainerCount || 0,
-            totalPoints,
-            participationCount
-          };
-        })
-      );
+      const committeesWithStats: CommitteeWithStats[] = (committeesData as unknown as CommitteeRPCResponse[] || []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        name_ar: c.name_ar,
+        description: c.description,
+        description_ar: c.description_ar,
+        color: c.color,
+        committee_type: (c.committee_type as 'production' | 'fourth_year') || 'production',
+        volunteerCount: Number(c.volunteer_count || 0),
+        trainerCount: Number(c.trainer_count || 0),
+        totalPoints: Number(c.total_points || 0),
+        participationCount: Number(c.participation_count || 0),
+      }));
 
       setCommittees(committeesWithStats);
     } catch (error) {
@@ -319,37 +305,20 @@ export default function CommitteeManagement() {
       const { startDate, endDate, label } = getDateRange(timeFilter);
 
       // Fetch fresh data for export
-      const { data: allCommittees } = await supabase.from('committees').select('*');
-      if (!allCommittees) return;
+      const { data: committeesData, error } = await supabase
+        .rpc('get_committees_with_stats', {
+          p_start_date: startDate?.toISOString() || null,
+          p_end_date: endDate?.toISOString() || null
+        });
 
-      const reportData = await Promise.all(allCommittees.map(async (committee) => {
-        // 1. Volunteer Count (Total joined)
-        const { count: volCount } = await supabase
-          .from('profiles')
-          .select('*', { count: 'exact', head: true })
-          .eq('committee_id', committee.id);
+      if (error) throw error;
+      if (!committeesData) return;
 
-        // 2. Participation Count (Filtered by time)
-        let participationQuery = supabase
-          .from('activity_submissions')
-          .select('*', { count: 'exact', head: true })
-          .eq('committee_id', committee.id)
-          .eq('status', 'approved'); // Consistency: only approved
-
-        if (startDate && endDate) {
-          participationQuery = participationQuery
-            .gte('submitted_at', startDate.toISOString())
-            .lte('submitted_at', endDate.toISOString());
-        }
-
-        const { count: partCount } = await participationQuery;
-
-        return {
-          id: committee.id,
-          name: language === 'ar' ? committee.name_ar : committee.name,
-          volunteers: volCount || 0,
-          participations: partCount || 0
-        };
+      const reportData = (committeesData as unknown as CommitteeRPCResponse[]).map((committee) => ({
+        id: committee.id,
+        name: language === 'ar' ? committee.name_ar : committee.name,
+        volunteers: Number(committee.volunteer_count || 0),
+        participations: Number(committee.participation_count || 0)
       }));
 
       // Format for Excel
