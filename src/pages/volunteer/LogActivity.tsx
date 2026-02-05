@@ -1077,8 +1077,9 @@ export default function LogActivity() {
                       </div>
                     </div>
                   ) : (
-                    <div
-                      className="w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-accent/5 hover:border-primary/50 transition-all group"
+                    <button
+                      type="button"
+                      className="w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-accent/5 hover:border-primary/50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
@@ -1090,7 +1091,7 @@ export default function LogActivity() {
                       <span className="text-sm text-muted-foreground mt-1">
                         {isRTL ? 'الحد الأقصى 5 ميجابايت' : 'Max size 5MB'}
                       </span>
-                    </div>
+                    </button>
                   )}
                 </div>
               )}
