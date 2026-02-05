@@ -206,7 +206,7 @@ export default function AshbalManagement() {
                                         </TableCell>
                                         <TableCell>
                                             <span className="text-sm text-muted-foreground">
-                                                {new Date(user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}
+                                                {new Date(user.join_date || user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}
                                             </span>
                                         </TableCell>
                                         <TableCell>
@@ -321,7 +321,7 @@ export default function AshbalManagement() {
                                     <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 pt-3 border-t text-sm">
                                         <div>
                                             <p className="text-xs text-muted-foreground mb-0.5">{t('users.joined')}</p>
-                                            <p>{new Date(user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}</p>
+                                            <p>{new Date(user.join_date || user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}</p>
                                         </div>
                                         {user.phone && (
                                             <div>
