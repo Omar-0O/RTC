@@ -1,33 +1,28 @@
-# برنامج تسجيل المشاركات 🌟
+🌱 مشروع نظام تسجيل مشاركات
 
-**برنامج تسجيل المشاركات** is a comprehensive Volunteer Management System designed to gamify the volunteering experience and streamline organization management. It empowers volunteers to track their impact while giving administrators powerful tools to oversee activities, committees, and performance.
+RTC ![Banner](src/assets/logo.png)
 
-![Banner](src/assets/logo.png)
 
-## 🚀 Features
 
-### For Volunteers
-- **Gamified Dashboard**: Track your "Impact" (Points), unlock Badges, and progress through Levels (Mubadir -> Musahim -> Moather -> Qaed Molhem).
-- **Log Activities**: Easily submit your volunteer work with proof (images/links).
-- **Leaderboard**: Compete with others! Filter by Month, Quarter, or Committee to see where you stand.
-- **Profile**: manage your personal info and view your complete activity history.
 
-### For Admins & Leaders
-- **Admin Dashboard**: Real-time statistics on participation, top volunteers (Monthly), and committee performance.
-- **User Management**: Manage volunteers, assign roles (Admin, Supervisor, Committee Leader), and organize them into committees.
-- **Activity Management**: Define activity types and their Impact values.
-- **Reports**: Export data and view insights on volunteer engagement.
+تم إنشاء هذا المشروع لخدمة نشاط RTC الخيري التابع لجمعية رسالة، بهدف تنظيم وتسهيل عملية تسجيل المشاركين والمتطوعين بدل الاعتماد على الطرق العشوائية أو المتابعة اليدوية.
 
-### 🌐 Multilingual Support
-Fully localized for **English** and **Arabic (RTL)** to support a diverse community.
+جاءت فكرة المشروع من الحاجة إلى نظام واضح ومنظم يساعد فريق العمل على:
 
-## 🛠️ Tech Stack
+جمع البيانات بشكل أدق
 
-- **Frontend**: [React](https://reactjs.org/) + [Vite](https://vitejs.dev/)
-- **Language**: [TypeScript](https://www.typescriptlang.org/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)
-- **Backend & Auth**: [Supabase](https://supabase.com/) (Auth, Database, Storage)
-- **State Management**: React Context + TanStack Query
+تسهيل إدارة المشاركين
+
+تقليل الوقت والمجهود المبذول في المتابعة
+
+التركيز أكثر على الهدف الأساسي وهو خدمة الناس وصناعة أثر حقيقي
+
+هذا المشروع لم يتم إنشاؤه كمجرد تدريب تقني أو إضافة للسيرة الذاتية،
+بل بنيتُه بنية أن يكون صدقة جارية، يستمر نفعها مع الوقت، ويساهم ولو بجزء بسيط في دعم العمل الخيري وتنظيمه وتطويره.
+
+كل سطر كود في هذا المشروع كُتب على أمل أن يكون سببًا في تسهيل الخير، ومساعدة من يعملون لأجل الناس دون مقابل.
+
+﴿وَمَا تُقَدِّمُوا لِأَنفُسِكُم مِّنْ خَيْرٍ تَجِدُوهُ عِندَ اللَّهِ﴾ 🤍
 
 ## 🏁 Getting Started
 
