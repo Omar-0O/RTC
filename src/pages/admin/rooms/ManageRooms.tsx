@@ -51,8 +51,21 @@ export default function ManageRooms() {
     setLoading(false);
   };
 
+  const generateId = (name: string) => {
+    let baseId = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    if (!baseId) baseId = 'room';
+
+    let id = baseId;
+    let counter = 1;
+    while (rooms.some(r => r.id === id)) {
+      id = `${baseId}_${counter}`;
+      counter++;
+    }
+    return id;
+  };
+
   const handleSubmit = async () => {
-    if (!formData.id || !formData.name || !formData.name_ar) {
+    if (!formData.name || !formData.name_ar) {
       toast.error(isRTL ? "يرجى ملء جميع الحقول" : "Please fill all fields");
       return;
     }
@@ -69,7 +82,9 @@ export default function ManageRooms() {
         toast.success(isRTL ? "تم تحديث القاعة" : "Room updated");
       } else {
         // Create
-        const { error } = await supabase.from("rooms").insert([formData]);
+        const newId = generateId(formData.name);
+        const newRoom = { ...formData, id: newId };
+        const { error } = await supabase.from("rooms").insert([newRoom]);
         if (error) throw error;
         toast.success(isRTL ? "تم إضافة القاعة" : "Room added");
       }
@@ -124,16 +139,16 @@ export default function ManageRooms() {
               <DialogTitle>{editingRoom ? (isRTL ? "تعديل القاعة" : "Edit Room") : (isRTL ? "إضافة قاعة جديدة" : "Add New Room")}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label>{isRTL ? "كود القاعة (ID)" : "Room ID (Code)"}</Label>
-                <Input
-                  value={formData.id}
-                  onChange={(e) => setFormData({ ...formData, id: e.target.value })}
-                  placeholder="e.g. hall_1"
-                  disabled={!!editingRoom} // ID cannot be changed after creation
-                />
-                <p className="text-xs text-muted-foreground">{isRTL ? "يجب أن يكون فريداً وباللغة الإنجليزية (بدون مسافات)" : "Must be unique and in English (no spaces)"}</p>
-              </div>
+              {editingRoom && (
+                <div className="space-y-2">
+                  <Label>{isRTL ? "كود القاعة (ID)" : "Room ID (Code)"}</Label>
+                  <Input
+                    value={formData.id}
+                    disabled
+                  />
+                  <p className="text-xs text-muted-foreground">{isRTL ? "لا يمكن تعديل الكود بعد الإنشاء" : "ID cannot be changed after creation"}</p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>{isRTL ? "الاسم (English)" : "Name (English)"}</Label>
                 <Input
