@@ -566,8 +566,63 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
 
 
-  const handleDeleteFine = (fineId: string, sourceType: string) => {
-    setItemToDelete({ type: 'fine', id: fineId, fineSourceType: sourceType });
+  const handleDeleteFine = async (fineId: string, sourceType: string) => {
+    if (!user) return;
+
+    try {
+      let creatorId: string | null = null;
+
+      if (sourceType === 'manual') {
+        const { data } = await supabase
+          .from('volunteer_fines')
+          .select('created_by')
+          .eq('id', fineId)
+          .single();
+        creatorId = data?.created_by || null;
+      } else if (sourceType === 'activity') {
+        const { data } = await supabase
+          .from('activity_submissions')
+          .select('reviewed_by')
+          .eq('id', fineId)
+          .single();
+        creatorId = data?.reviewed_by || null;
+      } else if (sourceType === 'caravan') {
+        const { data } = await supabase
+          .from('caravan_participants')
+          .select('caravans(created_by)')
+          .eq('id', fineId)
+          .single();
+        // @ts-ignore
+        creatorId = data?.caravans?.created_by;
+      } else if (sourceType === 'event') {
+        const { data } = await supabase
+          .from('event_participants')
+          .select('events(created_by)')
+          .eq('id', fineId)
+          .single();
+        // @ts-ignore
+        creatorId = data?.events?.created_by;
+      } else if (sourceType === 'ethics_call') {
+        const { data } = await supabase
+          .from('ethics_calls_participants')
+          .select('ethics_calls(created_by)')
+          .eq('id', fineId)
+          .single();
+        // @ts-ignore
+        creatorId = data?.ethics_calls?.created_by;
+      }
+
+      // If we identified a creator and it's not the current user
+      if (creatorId && creatorId !== user.id) {
+        toast.error("الي حط الغرامة هو الي يشيلها 😝");
+        return;
+      }
+
+      setItemToDelete({ type: 'fine', id: fineId, fineSourceType: sourceType });
+    } catch (error) {
+      console.error('Error checking fine ownership:', error);
+      toast.error(isRTL ? 'حدث خطأ أثناء التحقق من الصلاحية' : 'Error checking permissions');
+    }
   };
 
   const handleDeleteFeedback = (id: string) => {
