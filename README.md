@@ -17,31 +17,6 @@
 
 > ﴿وَمَا تُقَدِّمُوا لِأَنفُسِكُم مِّنْ خَيْرٍ تَجِدُوهُ عِندَ اللَّهِ﴾ 🤍
 
-## 🚀 Features
-
-### For Volunteers
-- **Gamified Dashboard**: Track your "Impact" (Points), unlock Badges, and progress through Levels (Mubadir -> Musahim -> Moather -> Qaed Molhem).
-- **Log Activities**: Easily submit your volunteer work with proof (images/links).
-- **Leaderboard**: Compete with others! Filter by Month, Quarter, or Committee to see where you stand.
-- **Profile**: manage your personal info and view your complete activity history.
-
-### For Admins & Leaders
-- **Admin Dashboard**: Real-time statistics on participation, top volunteers (Monthly), and committee performance.
-- **User Management**: Manage volunteers, assign roles (Admin, Supervisor, Committee Leader), and organize them into committees.
-- **Activity Management**: Define activity types and their Impact values.
-- **Reports**: Export data and view insights on volunteer engagement.
-
-### 🌐 Multilingual Support
-Fully localized for **English** and **Arabic (RTL)** to support a diverse community.
-
-## 🛠️ Tech Stack
-
-- **Frontend**: [React](https://reactjs.org/) + [Vite](https://vitejs.dev/)
-- **Language**: [TypeScript](https://www.typescriptlang.org/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/)
-- **Backend & Auth**: [Supabase](https://supabase.com/) (Auth, Database, Storage)
-- **State Management**: React Context + TanStack Query
-
 ## 🏁 Getting Started
 
 Follow these steps to set up the project locally.
