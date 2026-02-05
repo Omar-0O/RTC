@@ -308,61 +308,80 @@ export default function MyQuranCircles() {
                 .delete()
                 .eq('session_id', selectedSession.id);
 
-            // Insert new beneficiaries
-            if (attendance.length > 0) {
-                const records = attendance.map(a => ({
-                    session_id: selectedSession.id,
-                    circle_id: selectedCircle.id,
-                    beneficiary_id: a.beneficiary_id,
-                    attendance_type: a.attendance_type
-                }));
+            // Handle guests - create or find them as beneficiaries
+            const guestPhones = [...new Set(guests.map(g => g.phone).filter(Boolean))];
+            const guestMap = new Map<string, string>(); // phone -> id
 
-                const { error } = await supabase
-                    .from('quran_circle_beneficiaries')
-                    .insert(records);
+            if (guestPhones.length > 0) {
+                // 1. Find existing beneficiaries
+                const { data: existingBens } = await supabase
+                    .from('quran_beneficiaries')
+                    .select('id, phone')
+                    .in('phone', guestPhones);
 
-                if (error) throw error;
+                existingBens?.forEach(b => guestMap.set(b.phone, b.id));
+
+                // 2. Identify new beneficiaries
+                const newGuests = guests.filter(g => g.phone && !guestMap.has(g.phone));
+
+                // Deduplicate new guests by phone to avoid double insert attempt
+                const uniqueNewGuests = new Map<string, Guest>();
+                newGuests.forEach(g => uniqueNewGuests.set(g.phone, g));
+
+                if (uniqueNewGuests.size > 0) {
+                    const toInsert = Array.from(uniqueNewGuests.values()).map(g => ({
+                        name_ar: g.name,
+                        phone: g.phone,
+                        is_active: true
+                    }));
+
+                    const { data: createdBens, error: createError } = await supabase
+                        .from('quran_beneficiaries')
+                        .insert(toInsert)
+                        .select('id, phone');
+
+                    if (createError) throw createError;
+
+                    createdBens?.forEach(b => guestMap.set(b.phone, b.id));
+                }
             }
 
-            // Handle guests - create or find them as beneficiaries
+            // Prepare all attendance records
+            const allRecords = [];
+
+            // Add enrolled attendance
+            if (attendance.length > 0) {
+                attendance.forEach(a => {
+                    allRecords.push({
+                        session_id: selectedSession.id,
+                        circle_id: selectedCircle.id,
+                        beneficiary_id: a.beneficiary_id,
+                        attendance_type: a.attendance_type
+                    });
+                });
+            }
+
+            // Add guest attendance
             for (const guest of guests) {
-                // First check if beneficiary exists
-                const { data: existing } = await supabase
-                    .from('quran_beneficiaries')
-                    .select('id')
-                    .eq('phone', guest.phone)
-                    .single();
-
-                let beneficiaryId = existing?.id;
-
-                if (!beneficiaryId) {
-                    // Create new beneficiary
-                    const { data: newBen, error: benError } = await supabase
-                        .from('quran_beneficiaries')
-                        .insert({
-                            name_ar: guest.name,
-                            phone: guest.phone,
-                            is_active: true
-                        })
-                        .select('id')
-                        .single();
-
-                    if (!benError && newBen) {
-                        beneficiaryId = newBen.id;
-                    }
-                }
+                const beneficiaryId = guestMap.get(guest.phone);
 
                 if (beneficiaryId) {
-                    // Add attendance for guest
-                    await supabase
-                        .from('quran_circle_beneficiaries')
-                        .insert({
-                            session_id: selectedSession.id,
-                            circle_id: selectedCircle.id,
-                            beneficiary_id: beneficiaryId,
-                            attendance_type: 'memorization'
-                        });
+                    allRecords.push({
+                        session_id: selectedSession.id,
+                        circle_id: selectedCircle.id,
+                        beneficiary_id: beneficiaryId,
+                        attendance_type: 'memorization'
+                    });
                 }
+            }
+
+            // Single Bulk Insert
+            if (allRecords.length > 0) {
+                const { error } = await supabase
+                    .from('quran_circle_beneficiaries')
+                    .insert(allRecords);
+
+                if (error) throw error;
             }
 
             toast.success(isRTL ? 'تم حفظ الحضور' : 'Attendance saved');
