@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toast } from 'sonner';
@@ -874,20 +875,20 @@ export default function LogActivity() {
                     {/* Vest Checkbox - Shared for Group */}
                     {location === 'branch' && (
                       <div className="space-y-3 p-4 rounded-xl border-2 border-warning/30 bg-gradient-to-br from-warning/5 to-orange-500/5">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-warning/20 flex items-center justify-center">
-                              <Shirt className="h-5 w-5 text-warning" />
-                            </div>
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-warning/20 flex items-center justify-center shrink-0">
+                            <Shirt className="h-5 w-5 text-warning" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="wore-vest-group"
+                              checked={woreVest}
+                              onCheckedChange={(c) => setWoreVest(c === true)}
+                            />
                             <Label htmlFor="wore-vest-group" className="text-sm font-semibold cursor-pointer">
                               {isRTL ? 'ارتداء الـ Vest (للجميع)' : 'Vest Worn (Everyone)'}
                             </Label>
                           </div>
-                          <Switch
-                            id="wore-vest-group"
-                            checked={woreVest}
-                            onCheckedChange={setWoreVest}
-                          />
                         </div>
                         <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
                           <span className="text-lg">⚠️</span>
@@ -988,20 +989,20 @@ export default function LogActivity() {
                   {/* Vest Checkbox - Only for branch activities */}
                   {location === 'branch' && (
                     <div className="space-y-3 p-4 rounded-xl border-2 border-warning/30 bg-gradient-to-br from-warning/5 to-orange-500/5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-lg bg-warning/20 flex items-center justify-center">
-                            <Shirt className="h-5 w-5 text-warning" />
-                          </div>
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-lg bg-warning/20 flex items-center justify-center shrink-0">
+                          <Shirt className="h-5 w-5 text-warning" />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="wore-vest"
+                            checked={woreVest}
+                            onCheckedChange={(c) => setWoreVest(c === true)}
+                          />
                           <Label htmlFor="wore-vest" className="text-sm font-semibold cursor-pointer">
                             {isRTL ? 'كنت أرتدي الـ Vest' : 'I wore the vest'}
                           </Label>
                         </div>
-                        <Switch
-                          id="wore-vest"
-                          checked={woreVest}
-                          onCheckedChange={setWoreVest}
-                        />
                       </div>
                       <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
                         <span className="text-lg">⚠️</span>
