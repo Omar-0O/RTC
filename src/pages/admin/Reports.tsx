@@ -170,7 +170,7 @@ export default function Reports() {
   };
 
   // Get date range based on selection
-  const getDateRange = () => {
+  const currentDateRange = useMemo(() => {
     const now = new Date();
     switch (dateRange) {
       case 'week':
@@ -188,7 +188,7 @@ export default function Reports() {
       default:
         return { start: startOfMonth(now), end: endOfMonth(now) };
     }
-  };
+  }, [dateRange]);
 
   // Helper function to get level name in Arabic for exports
   const getLevelName = (level: string): string => {
@@ -223,28 +223,28 @@ export default function Reports() {
   };
 
   // Filter submissions by date range
-  const filteredSubmissions = submissions.filter(s => {
-    const { start, end } = getDateRange();
+  const filteredSubmissions = useMemo(() => submissions.filter(s => {
+    const { start, end } = currentDateRange;
     const submittedDate = new Date(s.submitted_at);
     return submittedDate >= start && submittedDate <= end;
-  }).sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+  }).sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime()), [submissions, currentDateRange]);
 
   // Committee distribution data
-  const committeeData = committees.map(committee => {
+  const committeeData = useMemo(() => committees.map(committee => {
     const volunteers = profiles.filter(p => p.committee_id === committee.id);
     return {
       name: language === 'ar' ? committee.name_ar : committee.name,
       volunteers: volunteers.length,
       points: volunteers.reduce((sum, v) => sum + (v.total_points || 0), 0),
     };
-  }).filter(c => c.volunteers > 0);
+  }).filter(c => c.volunteers > 0), [committees, profiles, language]);
 
   // Level distribution data
-  const levelData = [
+  const levelData = useMemo(() => [
     { name: t('level.under_follow_up'), value: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length, color: '#64748b' }, // slate-500
     { name: t('level.project_responsible'), value: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length, color: '#3b82f6' }, // blue-500
     { name: t('level.responsible'), value: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length, color: '#9333ea' }, // purple-600
-  ].filter(l => l.value > 0);
+  ].filter(l => l.value > 0), [profiles, t]);
 
   const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name, fill }: any) => {
     const RADIAN = Math.PI / 180;
@@ -276,53 +276,64 @@ export default function Reports() {
   };
 
   // Activity submissions over time (last 6 months) by Level
-  const activityTrend = Array.from({ length: 6 }, (_, i) => {
-    const date = subMonths(new Date(), 5 - i);
-    const monthStart = startOfMonth(date);
-    const monthEnd = endOfMonth(date);
-
-    const monthSubmissions = submissions.filter(s => {
-      const submittedDate = new Date(s.submitted_at);
-      return submittedDate >= monthStart && submittedDate <= monthEnd;
+  const activityTrend = useMemo(() => {
+    // Pre-calculate month buckets
+    const months = Array.from({ length: 6 }, (_, i) => {
+      const date = subMonths(new Date(), 5 - i);
+      return {
+        month: format(date, 'MMM'),
+        start: startOfMonth(date).getTime(),
+        end: endOfMonth(date).getTime(),
+        under_follow_up: 0,
+        project_responsible: 0,
+        responsible: 0
+      };
     });
 
-    const counts = {
-      under_follow_up: 0,
-      project_responsible: 0,
-      responsible: 0
-    };
+    // Single pass through submissions
+    submissions.forEach(s => {
+      const sTime = new Date(s.submitted_at).getTime();
+      // Find matching month (optimization: could be hash map if we keyed by YYYY-MM, but array find for 6 items is fast enough)
+      const bucket = months.find(m => sTime >= m.start && sTime <= m.end);
 
-    monthSubmissions.forEach(s => {
-      const volunteer = profilesMap.get(s.volunteer_id);
-      if (volunteer) {
-        const level = volunteer.level || 'under_follow_up';
+      if (bucket) {
+        const volunteer = profilesMap.get(s.volunteer_id);
+        if (volunteer) {
+          const level = volunteer.level || 'under_follow_up';
 
-        if (['responsible', 'platinum', 'diamond'].includes(level)) {
-          counts.responsible++;
-        } else if (['project_responsible', 'gold'].includes(level)) {
-          counts.project_responsible++;
-        } else {
-          // Default to under_follow_up for others (bronze, silver, newbie, active, etc)
-          counts.under_follow_up++;
+          if (['responsible', 'platinum', 'diamond'].includes(level)) {
+            bucket.responsible++;
+          } else if (['project_responsible', 'gold'].includes(level)) {
+            bucket.project_responsible++;
+          } else {
+            // Default to under_follow_up for others
+            bucket.under_follow_up++;
+          }
         }
       }
     });
 
-    return {
-      month: format(date, 'MMM'),
-      ...counts
-    };
-  });
+    // Return just the data needed for the chart (remove start/end timestamps)
+    return months.map(({ start, end, ...rest }) => rest);
+  }, [submissions, profilesMap]);
 
   // Top activities by submissions
-  const activityStats = activityTypes.map(activity => {
-    const activitySubmissions = filteredSubmissions.filter(s => s.activity_type_id === activity.id);
-    return {
+  const activityStats = useMemo(() => {
+    // Optimization: Calculate counts in O(N) first
+    const counts = new Map<string, number>();
+    filteredSubmissions.forEach(s => {
+      counts.set(s.activity_type_id, (counts.get(s.activity_type_id) || 0) + 1);
+    });
+
+    return activityTypes.map(activity => ({
       name: language === 'ar' ? activity.name_ar : activity.name,
-      count: activitySubmissions.length,
+      count: counts.get(activity.id) || 0,
       points: activity.points,
-    };
-  }).filter(a => a.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
+    }))
+    .filter(a => a.count > 0)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+  }, [activityTypes, filteredSubmissions, language]);
 
   // CSV Export functions
   const downloadCSV = (data: any[], filename: string) => {
@@ -467,7 +478,7 @@ export default function Reports() {
             [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
           };
         });
-        const { start: allStart, end: allEnd } = getDateRange();
+        const { start: allStart, end: allEnd } = currentDateRange;
         const allDateStr = `${format(allStart, 'yyyy-MM-dd')}_to_${format(allEnd, 'yyyy-MM-dd')}`;
         downloadCSV(allReportData, `all_participations_${allDateStr}`);
         break;
@@ -507,7 +518,7 @@ export default function Reports() {
           };
         });
         // Use 'volunteers_participations' filename with dynamic date range
-        const { start, end } = getDateRange();
+        const { start, end } = currentDateRange;
         const dateStr = `${format(start, 'yyyy-MM-dd')}_to_${format(end, 'yyyy-MM-dd')}`;
         downloadCSV(reportData, `volunteers_participations_${dateStr}`);
         break;
@@ -530,11 +541,43 @@ export default function Reports() {
   const totalSubmissions = filteredSubmissions.length;
 
   // Calculate volunteers by level
-  const volunteersByLevel = {
+  const volunteersByLevel = useMemo(() => ({
     under_follow_up: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length,
     project_responsible: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length,
     responsible: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length
-  };
+  }), [profiles]);
+
+  // Archive data (bucketed by month)
+  const archiveData = useMemo(() => {
+    const months = [];
+    const startDate = new Date(2026, 0, 1); // Jan 1, 2026
+    const now = new Date();
+    let currentDate = now;
+
+    // Create month buckets
+    while (currentDate >= startDate) {
+      months.push({
+        date: new Date(currentDate),
+        start: startOfMonth(currentDate).getTime(),
+        end: endOfMonth(currentDate).getTime(),
+        submissions: [] as ActivitySubmission[]
+      });
+      currentDate = subMonths(currentDate, 1);
+    }
+
+    if (months.length > 0) {
+      // Single pass through submissions
+      submissions.forEach(s => {
+        const sTime = new Date(s.submitted_at).getTime();
+        const bucket = months.find(m => sTime >= m.start && sTime <= m.end);
+        if (bucket) {
+          bucket.submissions.push(s);
+        }
+      });
+    }
+
+    return months;
+  }, [submissions]);
 
   if (isLoading) {
     return (
@@ -815,7 +858,7 @@ export default function Reports() {
                     <span>{language === 'ar' ? 'شيت مشاركات كلي' : 'All Participations'}</span>
                     <span className="text-xs opacity-70">
                       ({(() => {
-                        const { start, end } = getDateRange();
+                        const { start, end } = currentDateRange;
                         return `${format(start, 'MM/dd')} - ${format(end, 'MM/dd')}`;
                       })()})
                     </span>
@@ -827,7 +870,7 @@ export default function Reports() {
                     <span>{language === 'ar' ? 'شيت مشاركات المتطوعين' : 'Volunteers Participations'}</span>
                     <span className="text-xs opacity-70">
                       ({(() => {
-                        const { start, end } = getDateRange();
+                        const { start, end } = currentDateRange;
                         return `${format(start, 'MM/dd')} - ${format(end, 'MM/dd')}`;
                       })()})
                     </span>
@@ -848,75 +891,55 @@ export default function Reports() {
             <CardContent>
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(() => {
-                    const months = [];
-                    const startDate = new Date(2026, 0, 1); // Jan 1, 2026
-                    const now = new Date();
-                    let currentDate = now;
+                  {archiveData.map((monthData, i) => {
+                    const monthName = format(monthData.date, 'MMMM yyyy');
 
-                    while (currentDate >= startDate) {
-                      months.push(new Date(currentDate));
-                      currentDate = subMonths(currentDate, 1);
-                    }
-
-                    return months.map((date, i) => {
-                      const monthStart = startOfMonth(date);
-                      const monthEnd = endOfMonth(date);
-                      const monthName = format(date, 'MMMM yyyy');
-
-                      // Calculate stats for this month
-                      const monthSubmissions = submissions.filter(s => {
-                        const sDate = new Date(s.submitted_at);
-                        return sDate >= monthStart && sDate <= monthEnd;
-                      });
-
-                      return (
-                        <div key={i} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
-                          <div>
-                            <p className="font-medium">{language === 'ar' ? new Intl.DateTimeFormat('ar-EG', { month: 'long', year: 'numeric' }).format(date) : monthName}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {monthSubmissions.length} {language === 'ar' ? 'مشاركة' : 'submissions'}
-                            </p>
-                          </div>
-                          <Button variant="outline" size="sm" onClick={() => {
-                            const archiveData = monthSubmissions.map(s => {
-                              const volunteer = profilesMap.get(s.volunteer_id);
-                              const activityType = activityTypesMap.get(s.activity_type_id);
-                              const committeeId = volunteer?.committee_id || s.committee_id;
-                              const committee = committeeId ? committeesMap.get(committeeId) : undefined;
-
-                              let locationStr = s.location || 'branch';
-                              if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
-                              else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
-
-                              const vestStatus = (s.location === 'home' || s.location === 'remote')
-                                ? (language === 'ar' ? 'من البيت' : 'From Home')
-                                : (s.location === 'branch'
-                                  ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
-                                  : '');
-
-                              return {
-                                [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-                                [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-                                [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
-                                [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
-                                [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
-                                [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
-                                [language === 'ar' ? 'الأثر' : 'Impact']: s.points_awarded || 0,
-                                [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
-                                [language === 'ar' ? 'الملاحظات' : 'Notes']: s.description || '',
-                                [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
-                              };
-                            });
-                            downloadCSV(archiveData, `archive_report_${format(date, 'yyyy_MM')}`);
-                          }}>
-                            <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                            {isRTL ? 'تحميل' : 'Download'}
-                          </Button>
+                    return (
+                      <div key={i} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div>
+                          <p className="font-medium">{language === 'ar' ? new Intl.DateTimeFormat('ar-EG', { month: 'long', year: 'numeric' }).format(monthData.date) : monthName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {monthData.submissions.length} {language === 'ar' ? 'مشاركة' : 'submissions'}
+                          </p>
                         </div>
-                      );
-                    })
-                  })()}
+                        <Button variant="outline" size="sm" onClick={() => {
+                          const archiveCsvData = monthData.submissions.map(s => {
+                            const volunteer = profilesMap.get(s.volunteer_id);
+                            const activityType = activityTypesMap.get(s.activity_type_id);
+                            const committeeId = volunteer?.committee_id || s.committee_id;
+                            const committee = committeeId ? committeesMap.get(committeeId) : undefined;
+
+                            let locationStr = s.location || 'branch';
+                            if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
+                            else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
+
+                            const vestStatus = (s.location === 'home' || s.location === 'remote')
+                              ? (language === 'ar' ? 'من البيت' : 'From Home')
+                              : (s.location === 'branch'
+                                ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
+                                : '');
+
+                            return {
+                              [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+                              [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+                              [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
+                              [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
+                              [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
+                              [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
+                              [language === 'ar' ? 'الأثر' : 'Impact']: s.points_awarded || 0,
+                              [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+                              [language === 'ar' ? 'الملاحظات' : 'Notes']: s.description || '',
+                              [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
+                            };
+                          });
+                          downloadCSV(archiveCsvData, `archive_report_${format(monthData.date, 'yyyy_MM')}`);
+                        }}>
+                          <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                          {isRTL ? 'تحميل' : 'Download'}
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </CardContent>
