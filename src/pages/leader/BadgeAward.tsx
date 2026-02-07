@@ -64,7 +64,12 @@ const BADGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
     target: Target,
 };
 
-export default function BadgeAward() {
+
+interface BadgeAwardProps {
+    committeeId?: string;
+}
+
+export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardProps) {
     const { isRTL } = useLanguage();
     const { profile: authProfile } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
@@ -78,12 +83,14 @@ export default function BadgeAward() {
     const [openCombobox, setOpenCombobox] = useState(false);
     const [usersWithBadge, setUsersWithBadge] = useState<string[]>([]);
 
+    const committeeId = propCommitteeId || authProfile?.committee_id;
+
     useEffect(() => {
         fetchData();
-    }, [authProfile?.committee_id]);
+    }, [committeeId]);
 
     const fetchData = async () => {
-        if (!authProfile?.committee_id) return;
+        if (!committeeId) return;
 
         setLoading(true);
         try {
@@ -91,7 +98,7 @@ export default function BadgeAward() {
                 supabase.from('badges').select('*').order('created_at', { ascending: false }),
                 supabase.from('profiles')
                     .select('id, full_name, full_name_ar, email, avatar_url, total_points, activities_count')
-                    .eq('committee_id', authProfile.committee_id)
+                    .eq('committee_id', committeeId)
                     .order('full_name'),
             ]);
 

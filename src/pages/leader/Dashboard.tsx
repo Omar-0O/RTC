@@ -64,14 +64,19 @@ interface Submission {
   wore_vest?: boolean;
   description?: string;
   proof_url?: string;
-  profiles: Profile;
+  profiles: Profile | null;
   activity_types: {
     name: string;
     name_ar: string;
   };
 }
 
-export default function CommitteeLeaderDashboard() {
+interface CommitteeLeaderDashboardProps {
+  committeeId?: string;
+  committeeIds?: string[];
+}
+
+export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId, committeeIds: propCommitteeIds }: CommitteeLeaderDashboardProps) {
   const { profile } = useAuth();
   const { t, language } = useLanguage();
   const isRTL = language === 'ar';
@@ -82,7 +87,7 @@ export default function CommitteeLeaderDashboard() {
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters
-  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [selectedMonth, setSelectedMonth] = useState('all');
   const [memberFilter, setMemberFilter] = useState<'all' | 'members' | 'external'>('all');
   const [selectedVolunteer, setSelectedVolunteer] = useState<string>('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
@@ -96,6 +101,17 @@ export default function CommitteeLeaderDashboard() {
     { value: 'responsible', label: { ar: 'مسؤول', en: 'Responsible' } },
   ];
 
+  // Determine effective committee IDs
+  const effectiveCommitteeIds = useMemo(() => {
+    if (propCommitteeIds && propCommitteeIds.length > 0) return propCommitteeIds;
+    if (propCommitteeId) return [propCommitteeId];
+    if (profile?.committee_id) return [profile.committee_id];
+    return [];
+  }, [propCommitteeIds, propCommitteeId, profile?.committee_id]);
+
+  // Use the first ID for "Primary" committee info (name, etc)
+  const primaryCommitteeId = effectiveCommitteeIds[0];
+
   // Get all volunteers (committee members + those with submissions)
   const allVolunteers = useMemo(() => {
     const uniqueVolunteers = new Map<string, Profile>();
@@ -107,7 +123,7 @@ export default function CommitteeLeaderDashboard() {
 
     // Also add volunteers from submissions (in case they're external)
     submissions.forEach(s => {
-      if (!uniqueVolunteers.has(s.profiles.id)) {
+      if (s.profiles && !uniqueVolunteers.has(s.profiles.id)) {
         uniqueVolunteers.set(s.profiles.id, s.profiles);
       }
     });
@@ -119,37 +135,33 @@ export default function CommitteeLeaderDashboard() {
   const CARAVANS_COMMITTEE_ID = 'e3517d42-3140-4323-bf79-5a6728fc45ef';
   const EVENTS_COMMITTEE_ID = 'c82bc5e2-49b1-4951-9f1e-249afeaafeb8';
 
-  const committeeId = profile?.committee_id;
+  const committeeId = propCommitteeId || profile?.committee_id;
 
   const fetchData = async () => {
-    if (!committeeId) return;
+    if (effectiveCommitteeIds.length === 0) return;
     setIsLoading(true);
 
     try {
-      // Fetch committee info
+      // Fetch committee info (using primary)
       const { data: committeeData } = await supabase
         .from('committees')
         .select('*')
-        .eq('id', committeeId)
+        .eq('id', primaryCommitteeId)
         .maybeSingle();
 
       if (committeeData) setCommittee(committeeData);
 
-      // Fetch committee members
+      // Fetch committee members (from ALL linked committees)
       const { data: membersData } = await supabase
         .from('profiles')
         .select('id, full_name, full_name_ar, email, total_points, level, avatar_url, committee_id, phone')
-        .eq('committee_id', committeeId)
+        .in('committee_id', effectiveCommitteeIds)
         .order('full_name');
 
       if (membersData) setCommitteeMembers(membersData);
 
-      // Fetch submissions for this committee
-      const monthDate = new Date(selectedMonth + '-01');
-      const startDate = startOfMonth(monthDate);
-      const endDate = endOfMonth(monthDate);
-
-      const { data: submissionsData, error } = await supabase
+      // Fetch submissions for this committee (ALL IDs)
+      let query = supabase
         .from('activity_submissions')
         .select(`
           id,
@@ -162,17 +174,31 @@ export default function CommitteeLeaderDashboard() {
           wore_vest,
           description,
           proof_url,
-          profiles:profiles!activity_submissions_volunteer_id_fkey!inner (
+          profiles:profiles!activity_submissions_volunteer_id_fkey (
             id, full_name, full_name_ar, email, total_points, level, avatar_url, committee_id, phone
           ),
           activity_types (name, name_ar)
         `)
-        .eq('committee_id', committeeId)
-        .gte('submitted_at', startDate.toISOString())
-        .lte('submitted_at', endDate.toISOString())
+        .in('committee_id', effectiveCommitteeIds)
         .order('submitted_at', { ascending: false });
 
-      if (error) throw error;
+      // Apply date filter if not 'all'
+      if (selectedMonth !== 'all') {
+        const monthDate = new Date(selectedMonth + '-01');
+        const startDate = startOfMonth(monthDate);
+        const endDate = endOfMonth(monthDate);
+        query = query
+          .gte('submitted_at', startDate.toISOString())
+          .lte('submitted_at', endDate.toISOString());
+      }
+
+      const { data: submissionsData, error } = await query;
+
+      console.log('Submissions fetched:', submissionsData?.length, 'for IDs:', effectiveCommitteeIds);
+      if (error) {
+        console.error('Supabase Error:', error);
+        throw error;
+      }
 
       setSubmissions(submissionsData as unknown as Submission[] || []);
     } catch (error: any) {
@@ -185,33 +211,37 @@ export default function CommitteeLeaderDashboard() {
 
   useEffect(() => {
     fetchData();
-  }, [committeeId, selectedMonth]);
+  }, [JSON.stringify(effectiveCommitteeIds), selectedMonth]); // Deep compare IDs array
 
   // Filter submissions based on all filters
   const filteredSubmissions = useMemo(() => {
     return submissions.filter(sub => {
       // Member filter
       if (memberFilter !== 'all') {
-        const isMember = sub.profiles.committee_id === committeeId;
+        const isMember = sub.profiles?.committee_id && effectiveCommitteeIds.includes(sub.profiles.committee_id);
         if (memberFilter === 'members' && !isMember) return false;
         if (memberFilter === 'external' && isMember) return false;
       }
 
       // Volunteer filter
-      if (selectedVolunteer && sub.profiles.id !== selectedVolunteer) return false;
+      if (selectedVolunteer && sub.profiles?.id !== selectedVolunteer) return false;
 
       // Level filter
-      if (levelFilter !== 'all' && sub.profiles.level !== levelFilter) return false;
+      if (levelFilter !== 'all') {
+        if (!sub.profiles) return false;
+        if (sub.profiles.level !== levelFilter) return false;
+      }
 
       return true;
     });
-  }, [submissions, memberFilter, committeeId, selectedVolunteer, levelFilter]);
+  }, [submissions, memberFilter, effectiveCommitteeIds, selectedVolunteer, levelFilter]);
 
   // Stats
   const totalSubmissions = submissions.length;
-  const memberSubmissions = submissions.filter(s => s.profiles.committee_id === committeeId).length;
+  const memberSubmissions = submissions.filter(s => s.profiles?.committee_id && effectiveCommitteeIds.includes(s.profiles.committee_id)).length;
   const externalSubmissions = totalSubmissions - memberSubmissions;
   const totalPoints = submissions.reduce((sum, s) => sum + (s.points_awarded || 0), 0);
+
 
   const committeeName = language === 'ar' ? committee?.name_ar : committee?.name;
 
@@ -242,13 +272,13 @@ export default function CommitteeLeaderDashboard() {
         ? (s.wore_vest ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No'))
         : '';
 
-      const memberStatus = volunteer.committee_id === committeeId
+      const memberStatus = volunteer && volunteer.committee_id && effectiveCommitteeIds.includes(volunteer.committee_id)
         ? (isRTL ? 'عضو' : 'Member')
         : (isRTL ? 'خارجي' : 'External');
 
       return {
         [isRTL ? 'نوع المهمة' : 'Task Type']: activityType?.[isRTL ? 'name_ar' : 'name'] || '',
-        [isRTL ? 'اسم المتطوع' : 'Volunteer Name']: isRTL ? volunteer?.full_name_ar : volunteer?.full_name || '',
+        [isRTL ? 'اسم المتطوع' : 'Volunteer Name']: isRTL ? (volunteer?.full_name_ar || 'مشاركة جماعية') : (volunteer?.full_name || 'Group Submission'),
         [isRTL ? 'رقم الهاتف' : 'Phone']: `'${volunteer?.phone || ''}'`,
         [isRTL ? 'نوع العضوية' : 'Membership']: memberStatus,
         [isRTL ? 'نوع المشاركة' : 'Participation Type']: locationStr,
@@ -351,12 +381,26 @@ export default function CommitteeLeaderDashboard() {
         </CardHeader>
         <CardContent className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2">
-            <Label>{isRTL ? 'الشهر' : 'Month'}</Label>
-            <Input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-            />
+            <Label>{isRTL ? 'الفترة' : 'Period'}</Label>
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{isRTL ? 'كل الفترات' : 'All Time'}</SelectItem>
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const d = new Date();
+                  d.setMonth(d.getMonth() - i);
+                  const value = format(d, 'yyyy-MM');
+                  const label = format(d, 'MMMM yyyy');
+                  return (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label>{isRTL ? 'نوع العضوية' : 'Membership Type'}</Label>
@@ -472,16 +516,16 @@ export default function CommitteeLeaderDashboard() {
           </Card>
         ) : (
           filteredSubmissions.map((submission) => {
-            const isMember = submission.profiles.committee_id === committeeId;
+            const isMember = submission.profiles?.committee_id && effectiveCommitteeIds.includes(submission.profiles.committee_id);
             return (
               <Card key={submission.id} className="overflow-hidden hover:shadow-md transition-shadow">
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex items-start gap-4">
                     {/* Volunteer Avatar */}
                     <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border-2 border-primary/10">
-                      <AvatarImage src={submission.profiles.avatar_url || undefined} />
+                      <AvatarImage src={submission.profiles?.avatar_url || undefined} />
                       <AvatarFallback className="text-lg">
-                        {(submission.profiles.full_name?.substring(0, 2) || "U")}
+                        {(submission.profiles?.full_name?.substring(0, 2) || "GS")}
                       </AvatarFallback>
                     </Avatar>
 
@@ -490,7 +534,10 @@ export default function CommitteeLeaderDashboard() {
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <h3 className="font-semibold text-base sm:text-lg truncate">
-                            {isRTL ? submission.profiles.full_name_ar : submission.profiles.full_name}
+                            {submission.profiles
+                              ? (isRTL ? submission.profiles.full_name_ar : submission.profiles.full_name)
+                              : (isRTL ? "مشاركة جماعية" : "Group Submission")
+                            }
                           </h3>
                           <Badge
                             variant={isMember ? "default" : "outline"}
@@ -501,9 +548,11 @@ export default function CommitteeLeaderDashboard() {
                           >
                             {isMember ? (isRTL ? 'عضو' : 'Member') : (isRTL ? 'خارجي' : 'External')}
                           </Badge>
-                          <Badge variant="outline" className="text-xs shrink-0">
-                            {getLevelLabel(submission.profiles.level)}
-                          </Badge>
+                          {submission.profiles && (
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {getLevelLabel(submission.profiles.level)}
+                            </Badge>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground whitespace-nowrap">
                           {format(new Date(submission.submitted_at), 'PPP')}

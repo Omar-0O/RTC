@@ -1213,6 +1213,7 @@ export type Database = {
           name_en: string
           phone: string | null
           specialization: string | null
+          type: string
           updated_at: string | null
           user_id: string | null
         }
@@ -1225,6 +1226,7 @@ export type Database = {
           name_en: string
           phone?: string | null
           specialization?: string | null
+          type?: string
           updated_at?: string | null
           user_id?: string | null
         }
@@ -1237,6 +1239,7 @@ export type Database = {
           name_en?: string
           phone?: string | null
           specialization?: string | null
+          type?: string
           updated_at?: string | null
           user_id?: string | null
         }
@@ -1246,6 +1249,13 @@ export type Database = {
             columns: ["committee_id"]
             isOneToOne: false
             referencedRelation: "committees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trainers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1411,6 +1421,50 @@ export type Database = {
           {
             foreignKeyName: "quran_circle_organizers_volunteer_id_fkey"
             columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      quran_teachers: {
+        Row: {
+          id: string
+          name: string
+          phone: string
+          teaching_mode: string | null
+          target_gender: string | null
+          specialization: string | null
+          created_at: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          phone: string
+          teaching_mode?: string | null
+          target_gender?: string | null
+          specialization?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          phone?: string
+          teaching_mode?: string | null
+          target_gender?: string | null
+          specialization?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quran_teachers_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

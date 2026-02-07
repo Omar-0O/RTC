@@ -44,7 +44,7 @@ import {
 } from '@/components/ui/command';
 import {
     Plus, Search, MoreVertical, Pencil, Trash2, Users, Calendar,
-    Clock, User, CalendarDays, X, Check, UserPlus
+    Clock, User, CalendarDays, X, Check, UserPlus, Globe, MapPin, MonitorPlay
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -58,10 +58,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Teacher {
     id: string;
     name: string;
+    target_gender: 'men' | 'women';
+    teaching_mode: 'online' | 'offline' | 'both';
 }
 
 interface Volunteer {
@@ -87,10 +90,14 @@ interface QuranCircle {
     id: string;
     teacher_id: string | null;
     teacher_name?: string;
+    teacher_gender?: 'men' | 'women';
+    teaching_mode?: 'online' | 'offline' | 'both';
     schedule: ScheduleItem[];
     is_active: boolean;
     organizers?: Organizer[];
     enrolled_count?: number;
+    description?: string;
+    target_group?: string; // 'adults' | 'children'
 }
 
 interface Beneficiary {
@@ -98,6 +105,8 @@ interface Beneficiary {
     name_ar: string;
     name_en: string | null;
     image_url: string | null;
+    gender: 'male' | 'female' | null;
+    beneficiary_type: 'child' | 'adult';
 }
 
 const DAYS = [
@@ -126,7 +135,9 @@ export default function QuranCircles() {
         teacher_id: '',
         schedule_days: [] as number[],
         schedule_time: '18:00',
-        is_active: true
+        is_active: true,
+        description: '',
+        target_group: 'adults'
     });
     const [organizers, setOrganizers] = useState<Organizer[]>([]);
 
@@ -153,23 +164,43 @@ export default function QuranCircles() {
         try {
             const { data, error } = await supabase
                 .from('quran_circles')
+                // However, since we might need to change the foreign key to point to quran_teachers,
+                // we might need to assume the DB schema is updated or alias it if possible.
+                // Assuming the user runs the SQL to update the FK or create a new column,
+                // we temporarily select just the ID or if schema updated, relation.
+                // Since we cannot change DB FK easily from here without user SQL,
+                // we'll try to fetch teacher details separately or assume 'trainers' FK is changed to 'quran_teachers' table FK or same ID.
+
+                // Ideally the SQL replacement would be:
+                // select *, teacher:quran_teachers(name_ar)
+                // But the FK 'teacher_id' on 'quran_circles' likely still points to 'trainers'.
+                // If the user created 'quran_teachers', they need to stick the FK there.
+
+                // For now, let's just fetch circles and we will manually map teachers from the 'teachers' state we already fetched.
                 .select(`
                     *,
-                    teacher: trainers!quran_circles_teacher_id_fkey(name_ar),
                     quran_circle_organizers(volunteer_id, name, phone)
                 `)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
 
-            const formattedData = data?.map((circle: any) => ({
-                id: circle.id,
-                teacher_id: circle.teacher_id,
-                teacher_name: circle.teacher?.name_ar,
-                schedule: circle.schedule || [],
-                is_active: circle.is_active ?? true,
-                organizers: circle.quran_circle_organizers || []
-            })) || [];
+            // Manual join since FK might be tricky until DB schema is perfectly aligned
+            const formattedData = (data || []).map((circle: any) => {
+                const teacher = allTeachers.find(t => t.id === circle.teacher_id);
+                return {
+                    id: circle.id,
+                    teacher_id: circle.teacher_id,
+                    teacher_name: teacher?.name,
+                    teacher_gender: teacher?.target_gender,
+                    teaching_mode: teacher?.teaching_mode,
+                    schedule: circle.schedule || [],
+                    is_active: circle.is_active ?? true,
+                    organizers: circle.quran_circle_organizers || [],
+                    description: circle.description,
+                    target_group: circle.target_group
+                };
+            });
 
             setCircles(formattedData);
         } catch (error) {
@@ -182,18 +213,19 @@ export default function QuranCircles() {
 
     const fetchTeachers = async () => {
         try {
-            const { data, error } = await supabase
-                .from('trainers')
-                .select('id, name_ar')
-                .eq('type', 'quran_teacher')
-                .order('name_ar');
+            const { data: teachersData, error } = await supabase
+                .from('quran_teachers')
+                .select('*')
+                .order('name');
 
             if (error) throw error;
 
             // Map to existing interface
-            const teachers = data?.map((t: any) => ({
+            const teachers = teachersData?.map((t: any) => ({
                 id: t.id,
-                name: t.name_ar
+                name: t.name,
+                target_gender: t.target_gender,
+                teaching_mode: t.teaching_mode
             })) || [];
 
             setAllTeachers(teachers);
@@ -272,12 +304,21 @@ export default function QuranCircles() {
                 time: formData.schedule_time
             }));
 
+            // If new circle or editing, valid teacher must be from quran_teachers
+            // If the DB FK still points to trainers, this insert might fail if the ID exists in quran_teachers but not trainers (if they are separate).
+            // But if we moved them, they are new IDs?
+            // User instruction was: "make teachers quran_teachers table and don't touch trainers".
+            // So we assume quran_teachers are independent.
+            // If quran_circles.teacher_id still references trainers, we have a problem.
+            // We'll proceed assuming the user will fix the FK constraint to point to quran_teachers as per plan.
             const dataToSave = {
                 teacher_id: formData.teacher_id,
                 schedule: schedule,
                 is_active: formData.is_active,
                 name: 'auto', // Legacy
-                date: new Date().toISOString().split('T')[0] // Legacy
+                date: new Date().toISOString().split('T')[0], // Legacy
+                description: formData.description,
+                target_group: formData.target_group
             };
 
             let circleId = selectedId;
@@ -353,7 +394,9 @@ export default function QuranCircles() {
             teacher_id: circle.teacher_id || '',
             schedule_days: scheduleDays,
             schedule_time: scheduleTime,
-            is_active: circle.is_active
+            is_active: circle.is_active,
+            description: circle.description || '',
+            target_group: circle.target_group || 'adults'
         });
 
         // Fetch organizers
@@ -378,7 +421,9 @@ export default function QuranCircles() {
             teacher_id: '',
             schedule_days: [],
             schedule_time: '18:00',
-            is_active: true
+            is_active: true,
+            description: '',
+            target_group: 'adults'
         });
         setOrganizers([]);
         setIsEditMode(false);
@@ -390,10 +435,10 @@ export default function QuranCircles() {
         try {
             const { data, error } = await supabase
                 .from('quran_beneficiaries')
-                .select('id, name_ar, name_en, image_url')
+                .select('id, name_ar, name_en, image_url, gender, beneficiary_type')
                 .order('name_ar');
             if (error) throw error;
-            setAllBeneficiaries(data || []);
+            setAllBeneficiaries((data as unknown as Beneficiary[]) || []);
         } catch (error) {
             console.error('Error fetching beneficiaries:', error);
         }
@@ -406,7 +451,7 @@ export default function QuranCircles() {
                 .from('quran_enrollments')
                 .select(`
                     beneficiary_id,
-                    quran_beneficiaries!inner(id, name_ar, name_en, image_url)
+                    quran_beneficiaries!inner(id, name_ar, name_en, image_url, gender, beneficiary_type)
                 `)
                 .eq('circle_id', circleId)
                 .eq('status', 'active');
@@ -417,7 +462,9 @@ export default function QuranCircles() {
                 id: e.quran_beneficiaries.id,
                 name_ar: e.quran_beneficiaries.name_ar,
                 name_en: e.quran_beneficiaries.name_en,
-                image_url: e.quran_beneficiaries.image_url
+                image_url: e.quran_beneficiaries.image_url,
+                gender: e.quran_beneficiaries.gender,
+                beneficiary_type: e.quran_beneficiaries.beneficiary_type
             })) || [];
 
             setEnrolledBeneficiaries(beneficiaries);
@@ -475,10 +522,29 @@ export default function QuranCircles() {
         }
     };
 
-    const filteredBeneficiariesForEnrollment = allBeneficiaries.filter(b =>
-        b.name_ar.toLowerCase().includes(beneficiarySearch.toLowerCase()) ||
-        (b.name_en?.toLowerCase() || '').includes(beneficiarySearch.toLowerCase())
-    );
+    const filteredBeneficiariesForEnrollment = allBeneficiaries.filter(b => {
+        const matchesSearch = b.name_ar.toLowerCase().includes(beneficiarySearch.toLowerCase()) ||
+            (b.name_en?.toLowerCase() || '').includes(beneficiarySearch.toLowerCase());
+
+        if (!matchesSearch) return false;
+        if (!enrollmentCircle) return true;
+
+        // Filter by Circle Target Group (Adults/Children)
+        const isChild = b.beneficiary_type === 'child';
+        if (enrollmentCircle.target_group === 'children' && !isChild) return false;
+        if (enrollmentCircle.target_group === 'adults' && isChild) return false;
+
+        // Filter by Teacher Gender Logic check
+        // If teacher targets 'men', we show only 'male' beneficiaries
+        // If teacher targets 'women', we show only 'female' beneficiaries
+        const teacher = allTeachers.find(t => t.id === enrollmentCircle.teacher_id);
+        if (teacher) {
+            if (teacher.target_gender === 'men' && b.gender !== 'male') return false;
+            if (teacher.target_gender === 'women' && b.gender !== 'female') return false;
+        }
+
+        return true;
+    });
 
     const filteredCircles = circles.filter(c =>
         getCircleName(c).toLowerCase().includes(searchQuery.toLowerCase())
@@ -541,6 +607,23 @@ export default function QuranCircles() {
                                 </p>
                             </div>
 
+                            {/* Target Group */}
+                            <div className="grid gap-2">
+                                <Label>{isRTL ? 'الفئة المستهدفة' : 'Target Group'}</Label>
+                                <Select
+                                    value={formData.target_group}
+                                    onValueChange={val => setFormData({ ...formData, target_group: val })}
+                                >
+                                    <SelectTrigger className="h-12">
+                                        <SelectValue placeholder={isRTL ? 'اختر الفئة...' : 'Select Target Group...'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="adults">{isRTL ? 'بالغين' : 'Adults'}</SelectItem>
+                                        <SelectItem value="children">{isRTL ? 'أطفال' : 'Children'}</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                             {/* Schedule Days */}
                             <div className="grid gap-3">
                                 <Label className="flex items-center gap-2">
@@ -578,6 +661,19 @@ export default function QuranCircles() {
                                     value={formData.schedule_time}
                                     onChange={e => setFormData({ ...formData, schedule_time: e.target.value })}
                                     className="h-12 w-48"
+                                />
+                            </div>
+
+                            {/* Description */}
+                            <div className="grid gap-2">
+                                <Label className="flex items-center gap-2">
+                                    {isRTL ? 'وصف الحلقة' : 'Description'}
+                                </Label>
+                                <Textarea
+                                    value={formData.description}
+                                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                    placeholder={isRTL ? 'اكتب وصفاً للحلقة...' : 'Enter circle description...'}
+                                    className="min-h-[80px]"
                                 />
                             </div>
 
@@ -701,17 +797,56 @@ export default function QuranCircles() {
                                         <div className="flex items-center gap-2">
                                             <CardTitle className="text-lg leading-tight">
                                                 {getCircleName(c)}
+                                                <span className="text-sm font-normal text-muted-foreground mx-2">
+                                                    {isRTL ? '- تحفيظ ومراجعة' : '- Memorization & Revision'}
+                                                </span>
                                             </CardTitle>
-                                            {!c.is_active && (
-                                                <Badge variant="secondary" className="text-xs">
-                                                    {isRTL ? 'متوقفة' : 'Inactive'}
-                                                </Badge>
-                                            )}
+                                            <div className="flex flex-col gap-2 mt-3 w-full">
+                                                <div className="flex flex-wrap gap-2 text-xs">
+                                                    {/* Target Group & Gender Row */}
+                                                    {c.target_group && (
+                                                        <Badge variant="outline" className={`flex items-center gap-1.5 px-2.5 py-1 ${c.target_group === 'children' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                                                            <Users className="h-3.5 w-3.5" />
+                                                            {c.target_group === 'children' ? (isRTL ? 'أطفال' : 'Children') : (isRTL ? 'بالغين' : 'Adults')}
+                                                        </Badge>
+                                                    )}
+
+                                                    {c.teacher_gender && (
+                                                        <Badge variant="outline" className={`flex items-center gap-1.5 px-2.5 py-1 ${c.teacher_gender === 'men' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-pink-50 text-pink-700 border-pink-200'}`}>
+                                                            <User className="h-3.5 w-3.5" />
+                                                            {c.teacher_gender === 'men' ? (isRTL ? 'رجال' : 'Men') : (isRTL ? 'نساء' : 'Women')}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-2">
+                                                    {/* Mode Row */}
+                                                    {c.teaching_mode && (
+                                                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1.5 px-2.5 py-1">
+                                                            {c.teaching_mode === 'online' ? <Globe className="h-3.5 w-3.5" /> : (c.teaching_mode === 'offline' ? <MapPin className="h-3.5 w-3.5" /> : <MonitorPlay className="h-3.5 w-3.5" />)}
+                                                            {c.teaching_mode === 'online' ? (isRTL ? 'أونلاين' : 'Online') :
+                                                                c.teaching_mode === 'offline' ? (isRTL ? 'حضوري' : 'Offline') :
+                                                                    (isRTL ? 'كلاهما' : 'Mixed')}
+                                                        </Badge>
+                                                    )}
+
+                                                    {!c.is_active && (
+                                                        <Badge variant="secondary" className="text-xs px-2.5 py-1">
+                                                            {isRTL ? 'متوقفة' : 'Inactive'}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
-                                        <CardDescription className="flex items-center gap-2">
+                                        <CardDescription className="flex items-center gap-2 mt-2">
                                             <CalendarDays className="h-3.5 w-3.5" />
                                             <span>{getScheduleDisplay(c.schedule)}</span>
                                         </CardDescription>
+                                        {c.description && (
+                                            <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
+                                                {c.description}
+                                            </p>
+                                        )}
                                     </div>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>

@@ -38,6 +38,13 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Plus, Search, MoreVertical, Pencil, Trash2, BookOpen, MessageCircle, Upload, X, Loader2 } from 'lucide-react';
 import { QuranProgress } from '@/components/quran/QuranProgress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -52,7 +59,8 @@ interface Beneficiary {
     image_url: string | null;
     previous_parts: number;
     current_parts: number;
-    date_added: string;
+    beneficiary_type?: 'child' | 'adult';
+    gender?: 'male' | 'female';
 }
 
 export default function QuranManagement() {
@@ -72,7 +80,8 @@ export default function QuranManagement() {
         image_url: '',
         previous_parts: 0,
         current_parts: 0,
-        date_added: new Date().toISOString().split('T')[0]
+        gender: '' as 'male' | 'female' | '',
+        beneficiary_type: 'adult' as 'child' | 'adult'
     });
 
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -94,7 +103,7 @@ export default function QuranManagement() {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setBeneficiaries(data || []);
+            setBeneficiaries((data as any) || []);
         } catch (error) {
             console.error('Error fetching beneficiaries:', error);
             toast.error(isRTL ? 'فشل تحميل البيانات' : 'Failed to fetch data');
@@ -177,7 +186,8 @@ export default function QuranManagement() {
                 image_url: finalImageUrl || null,
                 previous_parts: Math.round(formData.previous_parts),
                 current_parts: Math.round(formData.current_parts),
-                date_added: formData.date_added
+                gender: formData.gender || null,
+                beneficiary_type: formData.beneficiary_type || 'adult'
             };
 
             if (isEditMode && selectedId) {
@@ -238,7 +248,8 @@ export default function QuranManagement() {
             image_url: '',
             previous_parts: 0,
             current_parts: 0,
-            date_added: new Date().toISOString().split('T')[0]
+            gender: '',
+            beneficiary_type: 'adult'
         });
         setSelectedImage(null);
         setImagePreview(null);
@@ -254,7 +265,8 @@ export default function QuranManagement() {
             image_url: b.image_url || '',
             previous_parts: b.previous_parts,
             current_parts: b.current_parts,
-            date_added: b.date_added
+            gender: b.gender || '',
+            beneficiary_type: b.beneficiary_type || 'adult'
         });
         setImagePreview(b.image_url);
         setSelectedId(b.id);
@@ -308,7 +320,7 @@ export default function QuranManagement() {
 
             const { error } = await supabase
                 .from('quran_beneficiaries')
-                .update({ current_parts: newParts })
+                .update({ current_parts: newParts } as any)
                 .eq('id', id);
 
             if (error) throw error;
@@ -387,14 +399,36 @@ export default function QuranManagement() {
                                             className="bg-background"
                                         />
                                     </div>
+
                                     <div className="space-y-2">
-                                        <Label>{isRTL ? 'تاريخ الإضافة' : 'Date Added'}</Label>
-                                        <Input
-                                            type="date"
-                                            value={formData.date_added}
-                                            onChange={e => setFormData({ ...formData, date_added: e.target.value })}
-                                            className="bg-background"
-                                        />
+                                        <Label>{isRTL ? 'النوع' : 'Gender'}</Label>
+                                        <Select
+                                            value={formData.gender}
+                                            onValueChange={(val: 'male' | 'female') => setFormData({ ...formData, gender: val })}
+                                        >
+                                            <SelectTrigger className="bg-background">
+                                                <SelectValue placeholder={isRTL ? 'اختر النوع' : 'Select Gender'} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="male">{isRTL ? 'ذكر' : 'Male'}</SelectItem>
+                                                <SelectItem value="female">{isRTL ? 'أنثى' : 'Female'}</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>{isRTL ? 'الفئة' : 'Category'}</Label>
+                                        <Select
+                                            value={formData.beneficiary_type}
+                                            onValueChange={(val: 'child' | 'adult') => setFormData({ ...formData, beneficiary_type: val })}
+                                        >
+                                            <SelectTrigger className="bg-background">
+                                                <SelectValue placeholder={isRTL ? 'اختر الفئة' : 'Select Category'} />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="adult">{isRTL ? 'بالغ' : 'Adult'}</SelectItem>
+                                                <SelectItem value="child">{isRTL ? 'طفل' : 'Child'}</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
                                 </div>
                             </div>
@@ -587,7 +621,14 @@ export default function QuranManagement() {
                                                 <AvatarFallback className="font-bold text-primary">{b.name_en?.slice(0, 2).toUpperCase() || 'NA'}</AvatarFallback>
                                             </Avatar>
                                             <div className="flex flex-col">
-                                                <span className="font-bold text-base">{b.name_ar}</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-base">{b.name_ar}</span>
+                                                    {b.beneficiary_type === 'child' && (
+                                                        <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full">
+                                                            {isRTL ? 'طفل' : 'Child'}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 {b.name_en && <span className="text-xs text-muted-foreground">{b.name_en}</span>}
                                             </div>
                                         </div>

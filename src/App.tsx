@@ -46,8 +46,13 @@ const IndividualCompetition = lazy(() => import("./pages/ethics/IndividualCompet
 const CallsManagement = lazy(() => import("./pages/ethics/CallsManagement"));
 const QuranManagement = lazy(() => import("./pages/admin/QuranManagement"));
 const BeneficiaryDetails = lazy(() => import("./pages/admin/BeneficiaryDetails"));
+const QuranDashboard = lazy(() => import("./pages/admin/QuranDashboard"));
 const QuranCircles = lazy(() => import("./pages/admin/QuranCircles"));
 const QuranTeachers = lazy(() => import("./pages/admin/QuranTeachers"));
+const QuranMembers = lazy(() => import("./pages/admin/QuranMembers"));
+const QuranParticipations = lazy(() => import("./pages/admin/QuranParticipations"));
+
+const QuranBadges = lazy(() => import("./pages/admin/QuranBadges"));
 const MyQuranCircles = lazy(() => import("./pages/quran/MyQuranCircles"));
 const AshbalManagement = lazy(() => import("./pages/ashbal/AshbalManagement"));
 const FineManagement = lazy(() => import("./pages/admin/FineManagement"));
@@ -113,6 +118,8 @@ function AppRoutes() {
         return '/dashboard';
       case 'head_marketing':
         return '/leader';
+      case 'head_quran':
+        return '/admin/quran-dashboard';
       default:
         return '/dashboard';
     }
@@ -205,6 +212,10 @@ function AppRoutes() {
         <Route path="/admin/reports" element={<Reports />} />
         <Route path="/admin/badges" element={<BadgeManagement />} />
         <Route path="/admin/quran" element={<QuranManagement />} />
+        <Route path="/admin/quran-dashboard" element={<QuranDashboard />} />
+        <Route path="/admin/quran/participations" element={<QuranParticipations />} />
+        <Route path="/admin/quran/members" element={<QuranMembers />} />
+        <Route path="/admin/quran/badges" element={<QuranBadges />} />
         <Route path="/admin/quran/:id" element={<BeneficiaryDetails />} />
         <Route path="/admin/quran-circles" element={<QuranCircles />} />
         <Route path="/admin/quran-teachers" element={<QuranTeachers />} />

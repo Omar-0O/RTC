@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
     BookOpen, Calendar, Clock, Users, Plus, Check, X,
-    MoreHorizontal, Loader2, Download
+    MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User, CalendarDays
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +47,11 @@ interface QuranCircle {
     schedule: ScheduleItem[];
     sessions_count?: number;
     enrolled_count?: number;
+    target_group?: 'children' | 'adults';
+    teaching_mode?: 'online' | 'offline' | 'mixed';
+    teacher_gender?: 'men' | 'women';
+    is_active?: boolean;
+    description?: string;
 }
 
 interface Session {
@@ -140,13 +145,22 @@ export default function MyQuranCircles() {
                     id,
                     teacher_id,
                     schedule,
-                    teacher: trainers(name_ar, user_id),
+                    target_group,
+                    description,
                     quran_circle_sessions(id)
                 `)
                 .in('id', circleIds)
                 .eq('is_active', true);
 
             if (error) throw error;
+
+            // Fetch teachers separately to avoid join issues
+            const { data: teachersData } = await supabase
+                .from('quran_teachers')
+                .select('id, name, target_gender, teaching_mode');
+
+            // Store full teacher object in map
+            const teachersMap = new Map(teachersData?.map(t => [t.id, t]) || []);
 
             // Fetch enrolled counts
             const { data: enrollments } = await supabase
@@ -160,15 +174,22 @@ export default function MyQuranCircles() {
                 enrollmentCounts[e.circle_id] = (enrollmentCounts[e.circle_id] || 0) + 1;
             });
 
-            const formatted = data?.map((c: any) => ({
-                id: c.id,
-                teacher_id: c.teacher_id,
-                teacher_name: c.teacher?.name_ar,
-                teacher_volunteer_id: c.teacher?.user_id,
-                schedule: c.schedule || [],
-                sessions_count: c.quran_circle_sessions?.length || 0,
-                enrolled_count: enrollmentCounts[c.id] || 0
-            })) || [];
+            const formatted = data?.map((c: any) => {
+                const teacher = teachersMap.get(c.teacher_id);
+                return {
+                    id: c.id,
+                    teacher_id: c.teacher_id,
+                    teacher_name: teacher?.name,
+                    target_group: c.target_group,
+                    teacher_gender: teacher?.target_gender,
+                    teaching_mode: teacher?.teaching_mode,
+                    description: c.description,
+                    is_active: true, // filtered by is_active=true anyway
+                    schedule: c.schedule || [],
+                    sessions_count: c.quran_circle_sessions?.length || 0,
+                    enrolled_count: enrollmentCounts[c.id] || 0
+                };
+            }) || [];
 
             setCircles(formatted);
         } catch (error) {
@@ -623,10 +644,43 @@ export default function MyQuranCircles() {
                                 </DropdownMenu>
                             </div>
                         </CardHeader>
-                        <CardContent>
-                            <div className="space-y-2 text-sm">
+                        <CardContent className="pt-0">
+                            {/* Badges Section */}
+                            <div className="flex flex-col gap-2 mb-4">
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                    {circle.target_group && (
+                                        <Badge variant="outline" className={`flex items-center gap-1.5 px-2.5 py-1 ${circle.target_group === 'children' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                                            <Users className="h-3.5 w-3.5" />
+                                            {circle.target_group === 'children' ? (isRTL ? 'أطفال' : 'Children') : (isRTL ? 'بالغين' : 'Adults')}
+                                        </Badge>
+                                    )}
+                                    {circle.teacher_gender && (
+                                        <Badge variant="outline" className={`flex items-center gap-1.5 px-2.5 py-1 ${circle.teacher_gender === 'men' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-pink-50 text-pink-700 border-pink-200'}`}>
+                                            <User className="h-3.5 w-3.5" />
+                                            {circle.teacher_gender === 'men' ? (isRTL ? 'رجال' : 'Men') : (isRTL ? 'نساء' : 'Women')}
+                                        </Badge>
+                                    )}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {circle.teaching_mode && (
+                                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1.5 px-2.5 py-1">
+                                            {circle.teaching_mode === 'online' ? <Globe className="h-3.5 w-3.5" /> : (circle.teaching_mode === 'offline' ? <MapPin className="h-3.5 w-3.5" /> : <MonitorPlay className="h-3.5 w-3.5" />)}
+                                            {circle.teaching_mode === 'online' ? (isRTL ? 'أونلاين' : 'Online') :
+                                                circle.teaching_mode === 'offline' ? (isRTL ? 'حضوري' : 'Offline') :
+                                                    (isRTL ? 'كلاهما' : 'Mixed')}
+                                        </Badge>
+                                    )}
+                                    {!circle.is_active && (
+                                        <Badge variant="secondary" className="text-xs px-2.5 py-1">
+                                            {isRTL ? 'متوقفة' : 'Inactive'}
+                                        </Badge>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="space-y-2 text-sm border-t pt-3">
                                 <div className="flex items-center gap-2 text-muted-foreground">
-                                    <Calendar className="w-4 h-4" />
+                                    <CalendarDays className="w-4 h-4" />
                                     <span>{getScheduleDisplay(circle.schedule)}</span>
                                 </div>
                                 <div className="flex items-center gap-2 text-muted-foreground">
@@ -637,6 +691,11 @@ export default function MyQuranCircles() {
                                     <Users className="w-4 h-4" />
                                     <span>{circle.enrolled_count} {isRTL ? 'مسجل' : 'enrolled'}</span>
                                 </div>
+                                {circle.description && (
+                                    <p className="text-xs text-muted-foreground line-clamp-2 mt-2 pt-2 border-t">
+                                        {circle.description}
+                                    </p>
+                                )}
                             </div>
                         </CardContent>
                     </Card>

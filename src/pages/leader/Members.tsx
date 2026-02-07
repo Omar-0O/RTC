@@ -75,7 +75,11 @@ interface Profile {
     created_at: string;
 }
 
-export default function Members() {
+interface MembersProps {
+    committeeId?: string;
+}
+
+export default function Members({ committeeId: propCommitteeId }: MembersProps) {
     const { profile } = useAuth();
     const { t, language } = useLanguage();
     const navigate = useNavigate();
@@ -90,7 +94,7 @@ export default function Members() {
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [comboboxOpen, setComboboxOpen] = useState(false);
 
-    const committeeId = profile?.committee_id;
+    const committeeId = propCommitteeId || profile?.committee_id;
 
     const fetchData = async () => {
         if (!committeeId) return;
@@ -105,19 +109,22 @@ export default function Members() {
 
             if (membersError) throw membersError;
 
+            let membersWithCount: Profile[] = [];
             if (membersData) {
-                const membersWithCount: Profile[] = membersData.map((member: any) => ({
+                membersWithCount = membersData.map((member: any) => ({
                     ...member,
                     activities_count: member.activity_submissions?.[0]?.count || 0
                 }));
                 setMembers(membersWithCount);
             }
 
-            // Fetch available volunteers (those without a committee)
+            // Fetch available volunteers (only those not in any committee)
             const { data: volunteersData, error: volunteersError } = await supabase
                 .from('profiles')
                 .select('*')
-                .is('committee_id', null);
+                .neq('full_name', 'RTC Admin')
+                .is('committee_id', null)
+                .order('full_name');
 
             if (volunteersError) throw volunteersError;
 

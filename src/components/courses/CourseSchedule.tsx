@@ -35,6 +35,7 @@ interface QuranCircle {
     teacher_name?: string;
     schedule: { day: number; time: string }[];
     is_active: boolean;
+    time?: string;
 }
 
 const ROOMS: Record<string, { en: string; ar: string; color: string; bg: string }> = {
@@ -387,7 +388,11 @@ export default function CourseSchedule() {
 
                             {/* Mobile View (List) */}
                             <div className="md:hidden space-y-4">
-                                {calendarDays.map((day) => {
+                                {calendarDays.filter(day => {
+                                    const today = new Date();
+                                    today.setHours(0, 0, 0, 0);
+                                    return day >= today;
+                                }).map((day) => {
                                     const dayCourses = getCoursesForDate(day);
                                     const dayCircles = getCirclesForDate(day);
                                     if (dayCourses.length === 0 && dayCircles.length === 0) return null; // Only show days with courses or circles
