@@ -358,6 +358,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
               className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
             >
               {showPassword ? (
