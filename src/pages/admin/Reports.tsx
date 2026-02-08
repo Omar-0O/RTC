@@ -378,7 +378,7 @@ export default function Reports() {
           const roleDisplay = language === 'ar' ? getRoleName(primaryRole) : primaryRole;
 
           return {
-            [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
+            [language === 'ar' ? 'الاسم' : 'Name']: (language === 'ar' && p.full_name_ar) ? p.full_name_ar : (p.full_name || ''),
             [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
             [language === 'ar' ? 'رقم الهاتف' : 'Phone']: p.phone ? `'${p.phone}'` : '',
             [language === 'ar' ? 'الدرجة التطوعية' : 'Volunteer Degree']: getLevelName(level),
@@ -437,7 +437,7 @@ export default function Reports() {
                 participantName = language === 'ar' ? trainerByUserId.name_ar : trainerByUserId.name_en;
                 participantPhone = trainerByUserId.phone || '';
               } else {
-                participantName = volunteer.full_name || participantName;
+                participantName = (language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName);
                 participantPhone = volunteer.phone || '';
               }
             }
@@ -445,7 +445,7 @@ export default function Reports() {
           // Priority 3: Check if volunteer profile exists
           else if (volunteer) {
             participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
-            participantName = volunteer.full_name || participantName;
+            participantName = (language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName);
             participantPhone = volunteer.phone || '';
           }
           // Priority 4: Fallback for unknown (no volunteer_id and no guest_name)
@@ -496,7 +496,7 @@ export default function Reports() {
           return {
             [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
             [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-            [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
+            [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: (language === 'ar' && volunteer?.full_name_ar) ? volunteer.full_name_ar : (volunteer?.full_name || ''),
             [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone ? `'${volunteer.phone}'` : '',
             [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
             [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
