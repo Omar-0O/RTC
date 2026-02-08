@@ -13,7 +13,7 @@ import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { toast } from 'sonner';
-import { CheckCircle2, Loader2, History, Upload, X, Image as ImageIcon, Check, ChevronsUpDown, Users, Building2, Calendar, Activity, FileText, MapPin, Shirt, Sparkles, ClipboardList } from 'lucide-react';
+import { CheckCircle2, Loader2, History, Upload, X, Image as ImageIcon, Check, ChevronsUpDown, Users, Building2, Calendar, Activity, FileText, MapPin, Shirt, Sparkles, ClipboardList, UserPlus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { generateGroupSubmissionCSV } from '@/utils/excel';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -92,8 +92,12 @@ export default function LogActivity() {
   const [selectedVolunteers, setSelectedVolunteers] = useState<string[]>([]);
   const [openCombobox, setOpenCombobox] = useState(false);
   const [includeMe, setIncludeMe] = useState(false);
+  const [guests, setGuests] = useState<{ name: string; phone?: string; notes?: string }[]>([]);
+  const [guestName, setGuestName] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
 
-  const isLeader = primaryRole === 'committee_leader' || primaryRole === 'head_hr' || primaryRole === 'admin' || primaryRole === 'supervisor' || primaryRole === 'head_caravans' || primaryRole === 'head_events' || primaryRole === 'head_ethics' || primaryRole === 'head_quran' || primaryRole === 'head_ashbal' || primaryRole === 'head_marketing';
+
+  const isLeader = ['committee_leader', 'head_hr', 'admin', 'supervisor', 'head_caravans', 'head_events', 'head_ethics', 'head_quran', 'head_ashbal', 'head_marketing', 'head_production', 'head_fourth_year', 'hr', 'head_media'].includes(primaryRole);
 
   useEffect(() => {
     fetchData();
@@ -384,7 +388,15 @@ export default function LogActivity() {
             type: 'volunteer' as const,
             points: selectedActivity.points,
             role: 'Leader'
-          }] : [])
+          }] : []),
+          // Guests
+          ...guests.map(g => ({
+            name: g.name,
+            phone: g.phone || '',
+            type: 'guest' as const,
+            points: selectedActivity.points,
+            role: 'Guest'
+          }))
         ];
 
         const excelBlob = generateGroupSubmissionCSV({
@@ -408,7 +420,7 @@ export default function LogActivity() {
             leader_id: user.id,
             activity_type_id: activityId,
             committee_id: committeeId,
-            guest_participants: null,
+            guest_participants: guests.length > 0 ? guests : null,
             excel_sheet_url: excelUrl,
             submitted_at: new Date(activityDate).toISOString()
           })
@@ -437,6 +449,29 @@ export default function LogActivity() {
             .insert(submissionsToInsert);
 
           if (batchError) throw batchError;
+        }
+
+        // Insert Submissions for Guests
+        if (guests.length > 0) {
+          const guestSubmissions = guests.map(guest => ({
+            ...submissionData,
+            volunteer_id: null, // Guests don't have a volunteer_id
+            participant_type: 'guest' as const,
+            guest_name: guest.name,
+            guest_phone: guest.phone,
+            group_submission_id: groupSub.id,
+            participants_count: 1,
+            // Ensure status is approved for guests as well for now
+            status: 'approved' as "pending" | "approved" | "rejected"
+          }));
+
+          // We need to cast to any because Typescript might complain about volunteer_id being null
+          // until the types are regenerated.
+          const { error: guestBatchError } = await supabase
+            .from('activity_submissions')
+            .insert(guestSubmissions as any);
+
+          if (guestBatchError) throw guestBatchError;
         }
 
       } else {
@@ -476,6 +511,10 @@ export default function LogActivity() {
     setSelectedVolunteers([]);
     setIsGroupSubmission(false);
     setIsGroupSubmission(false);
+    setGuests([]);
+    setGuestName('');
+    setGuestPhone('');
+
   };
 
   const getStatusText = (status: string) => {
@@ -515,6 +554,22 @@ export default function LogActivity() {
         : [...current, id]
     );
   };
+
+  const addGuest = () => {
+    if (!guestName.trim()) {
+      toast.error(isRTL ? 'يرجى إدخال اسم الضيف' : 'Please enter guest name');
+      return;
+    }
+    setGuests([...guests, { name: guestName, phone: guestPhone }]);
+    setGuestName('');
+    setGuestPhone('');
+  };
+
+  const removeGuest = (index: number) => {
+    setGuests(guests.filter((_, i) => i !== index));
+  };
+
+
 
 
 
@@ -899,8 +954,62 @@ export default function LogActivity() {
                         </div>
                       </div>
                     )}
-
                   </div>
+
+                  {/* Guests Section */}
+                  <div className="space-y-3 pt-4 border-t border-dashed border-primary/20">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <UserPlus className="h-4 w-4 text-muted-foreground" />
+                      {isRTL ? 'إضافة ضيوف (اختياري)' : 'Add Guests (Optional)'}
+                    </Label>
+
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder={isRTL ? 'اسم الضيف' : 'Guest Name'}
+                        value={guestName}
+                        onChange={(e) => setGuestName(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Input
+                        placeholder={isRTL ? 'رقم الهاتف (اختياري)' : 'Phone (Optional)'}
+                        value={guestPhone}
+                        onChange={(e) => setGuestPhone(e.target.value)}
+                        className="w-1/3"
+                        dir="ltr"
+                      />
+                      <Button type="button" onClick={addGuest} variant="secondary" size="icon">
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+
+
+                    {guests.length > 0 && (
+                      <div className="space-y-2 bg-background/50 rounded-lg p-3 border">
+                        <p className="text-xs text-muted-foreground font-medium mb-2">
+                          {isRTL ? 'قائمة الضيوف:' : 'Guests List:'}
+                        </p>
+                        {guests.map((guest, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-sm py-1 px-2 hover:bg-muted/50 rounded-md transition-colors">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{guest.name}</span>
+                              {guest.phone && <span className="text-muted-foreground text-xs">({guest.phone})</span>}
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => removeGuest(idx)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               ) : (
                 /* Individual Fields */
