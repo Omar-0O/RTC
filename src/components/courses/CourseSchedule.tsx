@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, MapPin, User, Phone, FileSpreadsheet, BookOpen, ChevronLeft, ChevronRight, UserCheck } from 'lucide-react';
+import { Calendar, Clock, MapPin, User, Phone, FileSpreadsheet, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 
@@ -223,41 +223,27 @@ export default function CourseSchedule() {
     // Get courses for a specific date (only active courses)
     const getCoursesForDate = (date: Date) => {
         const dayName = DAY_MAP[getDay(date)];
-        const events: { course: Course; isInterview: boolean }[] = [];
-
-        // Normalize dates to midnight local time for proper comparison
-        const checkDate = new Date(date);
-        checkDate.setHours(0, 0, 0, 0);
-        const checkDateStr = format(date, 'yyyy-MM-dd');
-
-        courses.forEach(c => {
-            // 1. Check for Interview
-            if (c.has_interview && c.interview_date === checkDateStr) {
-                events.push({ course: c, isInterview: true });
-            }
-
-            // 2. Check for Regular Course Session
-            let isRegularSession = true;
-
+        const dateStr = date.toDateString();
+        return courses.filter(c => {
             // Check if the day matches
-            if (!c.schedule_days.includes(dayName)) isRegularSession = false;
+            if (!c.schedule_days.includes(dayName)) return false;
+
+            // Normalize dates to midnight local time for proper comparison
+            const checkDate = new Date(date);
+            checkDate.setHours(0, 0, 0, 0);
 
             // Check if course has started (start_date <= date)
             const startDate = new Date(c.start_date + 'T00:00:00'); // Parse as local time
-            if (startDate.setHours(0, 0, 0, 0) > checkDate.getTime()) isRegularSession = false;
+            if (startDate.setHours(0, 0, 0, 0) > checkDate.getTime()) return false;
 
             // Check if course hasn't ended (end_date is null or end_date >= date)
             if (c.end_date) {
                 const endDate = new Date(c.end_date + 'T00:00:00'); // Parse as local time
-                if (endDate.setHours(0, 0, 0, 0) < checkDate.getTime()) isRegularSession = false;
+                if (endDate.setHours(0, 0, 0, 0) < checkDate.getTime()) return false;
             }
 
-            if (isRegularSession) {
-                events.push({ course: c, isInterview: false });
-            }
+            return true;
         });
-
-        return events;
     };
 
     // Get circles for a specific date based on their recurring schedule
@@ -357,21 +343,15 @@ export default function CourseSchedule() {
                                                     {format(day, 'd')}
                                                 </div>
                                                 <div className="space-y-1 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-muted-foreground/20">
-                                                    {dayCourses.slice(0, 10).map(({ course, isInterview }) => (
+                                                    {dayCourses.slice(0, 10).map(course => (
                                                         <div
-                                                            key={`${course.id}-${isInterview ? 'int' : 'crs'}`}
-                                                            className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 group transition-all ${isInterview
-                                                                    ? 'bg-violet-100 dark:bg-violet-900/30 border-violet-300 text-violet-700 dark:text-violet-300'
-                                                                    : getRoomBg(course.room)
-                                                                }`}
+                                                            key={course.id}
+                                                            className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 group transition-all ${getRoomBg(course.room)}`}
                                                             onClick={() => openCourseDetails(course)}
-                                                            title={`${isInterview ? (isRTL ? 'انترفيو: ' : 'Interview: ') : ''}${course.name} - ${formatTime(course.schedule_time)}`}
+                                                            title={`${course.name} - ${formatTime(course.schedule_time)}`}
                                                         >
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span className="font-medium truncate flex-1 flex items-center gap-1">
-                                                                    {isInterview && <UserCheck className="h-3 w-3 inline-block shrink-0" />}
-                                                                    {isInterview ? (isRTL ? 'انترفيو' : 'Interview') : course.name}
-                                                                </span>
+                                                                <span className="font-medium truncate flex-1">{course.name}</span>
                                                                 <span className="text-[10px] opacity-70 group-hover:opacity-100 whitespace-nowrap">
                                                                     {formatTime(course.schedule_time)}
                                                                 </span>
@@ -431,26 +411,20 @@ export default function CourseSchedule() {
                                                 )}
                                             </div>
                                             <div className="space-y-3">
-                                                {dayCourses.map(({ course, isInterview }) => (
+                                                {dayCourses.map(course => (
                                                     <div
-                                                        key={`${course.id}-${isInterview ? 'int' : 'crs'}`}
-                                                        className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${isInterview
-                                                                ? 'bg-violet-100 dark:bg-violet-900/30 border-violet-300 text-violet-700 dark:text-violet-300'
-                                                                : getRoomBg(course.room)
-                                                            }`}
+                                                        key={course.id}
+                                                        className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${getRoomBg(course.room)}`}
                                                         onClick={() => openCourseDetails(course)}
                                                     >
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="font-semibold text-sm truncate mb-1 flex items-center gap-2">
-                                                                {isInterview && <UserCheck className="h-4 w-4 shrink-0" />}
-                                                                {isInterview ? (isRTL ? `انترفيو: ${course.name}` : `Interview: ${course.name}`) : course.name}
-                                                            </p>
+                                                            <p className="font-semibold text-sm truncate mb-1">{course.name}</p>
                                                             <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                                                 <div className="flex items-center gap-1">
                                                                     <Clock className="h-3 w-3" />
                                                                     {formatTime(course.schedule_time)}
                                                                 </div>
-                                                                {isHead && !isInterview && (
+                                                                {isHead && (
                                                                     <div className="flex items-center gap-1">
                                                                         <MapPin className="h-3 w-3" />
                                                                         {getRoomLabel(course.room)}
