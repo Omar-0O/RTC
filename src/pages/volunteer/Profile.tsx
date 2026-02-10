@@ -764,6 +764,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                         className="h-8 w-8 rounded-full shadow-lg bg-green-500 hover:bg-green-600 text-white"
                         onClick={handleSaveAvatar}
                         disabled={uploading}
+                        aria-label={isRTL ? 'حفظ الصورة' : 'Save picture'}
                       >
                         {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                       </Button>
@@ -773,6 +774,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                         className="h-8 w-8 rounded-full shadow-lg"
                         onClick={handleCancelAvatar}
                         disabled={uploading}
+                        aria-label={isRTL ? 'إلغاء' : 'Cancel'}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -785,6 +787,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploading}
                       title={isRTL ? "تغيير الصورة" : "Change Picture"}
+                      aria-label={isRTL ? "تغيير الصورة" : "Change Picture"}
                     >
                       {uploading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -1085,6 +1088,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                                     setEditFeedbackId(feedback.id);
                                     setEditFeedbackContent(feedback.content);
                                   }}
+                                  aria-label={isRTL ? 'تعديل الرأي' : 'Edit feedback'}
                                 >
                                   <Pencil className="h-3 w-3" />
                                 </Button>
@@ -1093,6 +1097,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                                   variant="ghost"
                                   className="h-6 w-6 text-destructive hover:text-destructive"
                                   onClick={() => handleDeleteFeedback(feedback.id)}
+                                  aria-label={isRTL ? 'حذف الرأي' : 'Delete feedback'}
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
@@ -1263,6 +1268,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-destructive"
                               onClick={() => handleDeleteFine(fine.source_id, fine.source_type)}
+                              aria-label={isRTL ? 'حذف الغرامة' : 'Delete fine'}
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

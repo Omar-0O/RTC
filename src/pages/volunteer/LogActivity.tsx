@@ -848,7 +848,12 @@ export default function LogActivity() {
                           return v ? (
                             <span key={id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-xs font-medium text-primary">
                               {v.full_name?.split(' ')[0]}
-                              <button type="button" onClick={() => toggleVolunteer(id)} className="hover:bg-primary/20 rounded-full p-0.5 transition-colors">
+                              <button
+                                type="button"
+                                onClick={() => toggleVolunteer(id)}
+                                className="hover:bg-primary/20 rounded-full p-0.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                                aria-label={isRTL ? `إزالة ${v.full_name}` : `Remove ${v.full_name}`}
+                              >
                                 <X className="h-3 w-3" />
                               </button>
                             </span>
@@ -977,7 +982,13 @@ export default function LogActivity() {
                         className="w-1/3"
                         dir="ltr"
                       />
-                      <Button type="button" onClick={addGuest} variant="secondary" size="icon">
+                      <Button
+                        type="button"
+                        onClick={addGuest}
+                        variant="secondary"
+                        size="icon"
+                        aria-label={isRTL ? 'إضافة ضيف' : 'Add guest'}
+                      >
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
@@ -1001,6 +1012,7 @@ export default function LogActivity() {
                               size="icon"
                               className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={() => removeGuest(idx)}
+                              aria-label={isRTL ? 'إزالة الضيف' : 'Remove guest'}
                             >
                               <X className="h-3 w-3" />
                             </Button>
@@ -1180,6 +1192,7 @@ export default function LogActivity() {
                             e.stopPropagation();
                             removeFile();
                           }}
+                          aria-label={isRTL ? 'إزالة الصورة' : 'Remove image'}
                         >
                           <X className="h-6 w-6" />
                         </Button>
