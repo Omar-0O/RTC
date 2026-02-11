@@ -755,11 +755,14 @@ export default function QuranCircles() {
                         description: `حلقة قرآن: ${selectedCircle.teacher_name || ''} - ${sessionDate}`,
                         status: 'approved',
                         points_awarded: points,
-                        participant_type: 'quran_teacher'
+                        participant_type: 'trainer'
                     } as any);
 
-                    if (partError) console.error('Error recording participation:', partError);
-                    else toast.success(isRTL ? 'تم تسجيل مشاركة المحفظ' : 'Teacher participation recorded');
+                    if (partError) {
+                        console.error('Error recording participation:', partError);
+                    } else {
+                        toast.success(isRTL ? 'تم تسجيل مشاركة المحفظ' : 'Teacher participation recorded');
+                    }
                 }
             } catch (partErr) {
                 console.error('Participation logic error:', partErr);
