@@ -144,6 +144,7 @@ export default function Auth() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
+                    aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -169,6 +170,7 @@ export default function Auth() {
               size="icon"
               className="rounded-full bg-white/50 backdrop-blur-sm hover:bg-white/80 text-black hover:text-black shadow-sm border border-gray-100 dark:bg-black/50 dark:hover:bg-black/80 dark:text-white dark:hover:text-white dark:border-gray-800"
               title={t('theme.toggle')}
+              aria-label={t('theme.toggle')}
             >
               <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -196,6 +198,7 @@ export default function Auth() {
           className="rounded-full bg-white/50 backdrop-blur-sm hover:bg-white/80 text-black hover:text-black shadow-sm border border-gray-100 dark:bg-black/50 dark:hover:bg-black/80 dark:text-white dark:hover:text-white dark:border-gray-800"
           onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
           title={language === 'en' ? 'Switch to Arabic' : 'Switch to English'}
+          aria-label={language === 'en' ? 'Switch to Arabic' : 'Switch to English'}
         >
           <Languages className="h-5 w-5" />
         </Button>

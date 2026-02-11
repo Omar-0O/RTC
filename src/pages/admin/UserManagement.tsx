@@ -852,7 +852,6 @@ export default function UserManagement() {
       // Actually if existing users have it they will be migrated. But to avoid runtime error if data is stale:
       case 'head_caravans':
       case 'head_events':
-      case 'head_events':
       case 'head_ethics':
       case 'head_quran':
         return 'bg-blue-100 text-blue-700';
@@ -1076,6 +1075,7 @@ export default function UserManagement() {
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -1464,6 +1464,7 @@ export default function UserManagement() {
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />
