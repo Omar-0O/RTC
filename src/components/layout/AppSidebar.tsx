@@ -272,7 +272,7 @@ export function AppSidebar() {
       case 'head_quran':
         return [
           { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/admin/quran-dashboard', icon: Home },
-          { title: isRTL ? 'مستفيدين القرآن' : 'Quran Beneficiaries', url: '/admin/quran', icon: BookOpen },
+          { title: isRTL ? 'إدارة مستفيدين القرآن' : 'Quran Beneficiaries', url: '/admin/quran', icon: BookOpen },
           { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
           { title: isRTL ? 'إدارة المحفظين' : 'Quran Teachers', url: '/admin/quran-teachers', icon: Users },
           { title: t('leader.members'), url: '/admin/quran/members', icon: Users },

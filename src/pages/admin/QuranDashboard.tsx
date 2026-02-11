@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Activity, Award, BookOpen, Clock, Calendar } from 'lucide-react';
+import { Users, Activity, Award, BookOpen, Clock, Calendar, TrendingUp, Percent, BarChart3 } from 'lucide-react';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,9 @@ type Stats = {
     activeCircles: number;
     totalBeneficiaries: number;
     totalTeachers: number;
-    totalPoints: number;
+    totalSessions: number;
+    avgAttendance: number;
+    mostActiveCircle: string;
 };
 
 type QuranCircle = {
@@ -23,6 +25,7 @@ type QuranCircle = {
     schedule: { day: number; time: string }[];
     is_active: boolean;
     students_count: number;
+    sessions_count: number;
 };
 
 const CommitteeDashboard = () => {
@@ -32,7 +35,9 @@ const CommitteeDashboard = () => {
         activeCircles: 0,
         totalBeneficiaries: 0,
         totalTeachers: 0,
-        totalPoints: 0,
+        totalSessions: 0,
+        avgAttendance: 0,
+        mostActiveCircle: '',
     });
     const [activeCircles, setActiveCircles] = useState<QuranCircle[]>([]);
 
@@ -48,22 +53,62 @@ const CommitteeDashboard = () => {
                 circlesRes,
                 beneficiariesRes,
                 quranTeachersRes,
+                sessionsRes,
             ] = await Promise.all([
                 supabase.from('quran_circles').select('*'),
                 supabase.from('quran_beneficiaries').select('id', { count: 'exact' }),
                 supabase.from('quran_teachers').select('id', { count: 'exact' }),
+                supabase.from('quran_circle_sessions').select('id, circle_id'),
             ]);
 
             const activeCirclesData = (circlesRes.data || []).filter(c => c.is_active);
-
-            // Using direct count from quran_teachers table
             const totalTeachersCount = quranTeachersRes.count || 0;
+            const allSessions = sessionsRes.data || [];
+
+            // Calculate average attendance
+            let avgAttendance = 0;
+            if (allSessions.length > 0) {
+                const sessionIds = allSessions.map(s => s.id);
+                // Fetch total attendance records across all sessions
+                const { count: totalAttendanceRecords } = await supabase
+                    .from('quran_circle_beneficiaries')
+                    .select('id', { count: 'exact', head: true })
+                    .in('session_id', sessionIds);
+
+                // Get total enrolled across all active circles
+                const { count: totalEnrolled } = await supabase
+                    .from('quran_enrollments')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('status', 'active');
+
+                if (totalEnrolled && totalEnrolled > 0 && allSessions.length > 0) {
+                    const avgPerSession = (totalAttendanceRecords || 0) / allSessions.length;
+                    avgAttendance = Math.round((avgPerSession / totalEnrolled) * 100);
+                    if (avgAttendance > 100) avgAttendance = 100;
+                }
+            }
+
+            // Find most active circle (most sessions)
+            const circleSessionCounts: Record<string, number> = {};
+            allSessions.forEach(s => {
+                circleSessionCounts[s.circle_id] = (circleSessionCounts[s.circle_id] || 0) + 1;
+            });
+            let mostActiveCircleId = '';
+            let maxSessionCount = 0;
+            Object.entries(circleSessionCounts).forEach(([cid, count]) => {
+                if (count > maxSessionCount) {
+                    maxSessionCount = count;
+                    mostActiveCircleId = cid;
+                }
+            });
 
             setStats({
                 activeCircles: activeCirclesData.length,
                 totalBeneficiaries: beneficiariesRes.count || 0,
                 totalTeachers: totalTeachersCount,
-                totalPoints: 0, // Placeholder for now
+                totalSessions: allSessions.length,
+                avgAttendance,
+                mostActiveCircle: '', // Will be set from circles below
             });
 
             // 2. Active Circles Data
@@ -81,15 +126,28 @@ const CommitteeDashboard = () => {
                         if (teacher) teacherName = teacher.name;
                     }
 
+                    const sessCount = circleSessionCounts[circle.id] || 0;
+
                     return {
                         id: circle.id,
                         teacher_name: teacherName,
                         schedule: (circle.schedule as unknown as { day: number; time: string }[]) || [],
                         is_active: circle.is_active,
                         students_count: count || 0,
+                        sessions_count: sessCount,
                     };
                 })
             );
+
+            // Update most active circle name
+            const mostActive = circlesWithCounts.find(c => c.id === mostActiveCircleId);
+            if (mostActive) {
+                setStats(prev => ({
+                    ...prev,
+                    mostActiveCircle: isRTL ? `حلقة ${mostActive.teacher_name}` : `${mostActive.teacher_name}'s Circle`
+                }));
+            }
+
             setActiveCircles(circlesWithCounts);
 
         } catch (error) {
@@ -115,7 +173,7 @@ const CommitteeDashboard = () => {
             </div>
 
             {/* Stats */}
-            <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+            <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-3">
                 <StatsCard
                     title={isRTL ? 'الحلقات النشطة' : 'Active Circles'}
                     value={stats.activeCircles}
@@ -135,11 +193,25 @@ const CommitteeDashboard = () => {
                     description={isRTL ? 'محفظ نشط' : 'active teachers'}
                 />
                 <StatsCard
-                    title={isRTL ? 'النقاط' : 'Points'}
-                    value={stats.totalPoints}
-                    icon={Activity}
-                    description={isRTL ? 'إجمالي النقاط' : 'total points'}
+                    title={isRTL ? 'إجمالي الجلسات' : 'Total Sessions'}
+                    value={stats.totalSessions}
+                    icon={Calendar}
+                    description={isRTL ? 'جلسة منعقدة' : 'sessions held'}
                 />
+                <StatsCard
+                    title={isRTL ? 'متوسط الحضور' : 'Avg Attendance'}
+                    value={`${stats.avgAttendance}%`}
+                    icon={TrendingUp}
+                    description={isRTL ? 'نسبة الحضور المتوسطة' : 'average attendance rate'}
+                />
+                {stats.mostActiveCircle && (
+                    <StatsCard
+                        title={isRTL ? 'أنشط حلقة' : 'Most Active'}
+                        value={stats.mostActiveCircle}
+                        icon={BarChart3}
+                        description={isRTL ? 'أكثر حلقة عقدت جلسات' : 'most sessions held'}
+                    />
+                )}
             </div>
 
             {/* Active Circles Overview */}
@@ -158,19 +230,19 @@ const CommitteeDashboard = () => {
                 <CardContent>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {activeCircles.map(circle => (
-                            <div key={circle.id} className="p-4 rounded-lg border bg-card hover:shadow-sm transition-shadow">
-                                <div className="flex justify-between items-start mb-2">
+                            <div key={circle.id} className="p-4 rounded-lg border bg-card hover:shadow-md transition-all relative overflow-hidden group">
+                                <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary via-primary/60 to-transparent" />
+                                <div className="flex justify-between items-start mb-3">
                                     <h3 className="font-semibold text-lg">
                                         {isRTL ? 'حلقة' : 'Circle'} {circle.teacher_name}
-                                        <span className="text-sm font-normal text-muted-foreground mx-2">
-                                            {isRTL ? '- تحفيظ ومراجعة' : '- Memorization & Revision'}
-                                        </span>
                                     </h3>
-                                    <span className="bg-primary/10 text-primary text-xs px-2 py-1 rounded-full">{circle.students_count} {isRTL ? 'طالب' : 'Students'}</span>
+                                    <span className="bg-primary/10 text-primary text-xs px-2.5 py-1 rounded-full font-medium">
+                                        {circle.students_count} {isRTL ? 'طالب' : 'Students'}
+                                    </span>
                                 </div>
-                                <div className="space-y-1 text-sm text-muted-foreground">
+                                <div className="space-y-1.5 text-sm text-muted-foreground">
                                     <div className="flex items-center gap-2">
-                                        <Clock className="w-3 h-3" />
+                                        <Clock className="w-3.5 h-3.5" />
                                         <span>
                                             {circle.schedule.map(s => {
                                                 const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -179,15 +251,22 @@ const CommitteeDashboard = () => {
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <Activity className="w-3 h-3" />
-                                        <span className="text-green-600">{isRTL ? 'نشطة' : 'Active'}</span>
+                                        <Calendar className="w-3.5 h-3.5" />
+                                        <span>{circle.sessions_count} {isRTL ? 'جلسة منعقدة' : 'sessions held'}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Activity className="w-3.5 h-3.5" />
+                                        <span className="text-green-600 font-medium">{isRTL ? 'نشطة' : 'Active'}</span>
                                     </div>
                                 </div>
                             </div>
                         ))}
                         {activeCircles.length === 0 && (
-                            <div className="col-span-full text-center py-8 text-muted-foreground">
-                                {isRTL ? 'لا توجد حلقات نشطة حالياً' : 'No active circles at the moment'}
+                            <div className="col-span-full flex flex-col items-center py-12 text-muted-foreground">
+                                <div className="p-4 rounded-full bg-muted/50 mb-3">
+                                    <BookOpen className="h-10 w-10 opacity-30" />
+                                </div>
+                                <p className="font-medium">{isRTL ? 'لا توجد حلقات نشطة حالياً' : 'No active circles at the moment'}</p>
                             </div>
                         )}
                     </div>
@@ -277,7 +356,7 @@ const VolunteerDashboard = () => {
 
             <div className="flex flex-col sm:flex-row gap-4">
                 <Button size="lg" className="w-full sm:w-auto" asChild>
-                    <Link to="/quran/my-circles">
+                    <Link to="/my-quran-circles">
                         <BookOpen className="mr-2 h-5 w-5 rtl:ml-2 rtl:mr-0" />
                         {isRTL ? 'إدارة حلقاتي' : 'Manage My Circles'}
                     </Link>

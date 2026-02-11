@@ -48,9 +48,9 @@ export default function AshbalManagement() {
             setLoading(true);
             const { data, error } = await supabase
                 .from('profiles')
-                .select('*')
+                .select('id, full_name, email, phone, avatar_url, level, is_ashbal, join_date, created_at')
                 .eq('is_ashbal', true)
-                .order('created_at', { ascending: false });
+                .order('created_at', { ascending: false }) as any;
 
             if (error) throw error;
             setUsers(data || []);

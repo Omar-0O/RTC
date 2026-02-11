@@ -1150,6 +1150,7 @@ export type Database = {
           join_date: string
           level: Database["public"]["Enums"]["volunteer_level"]
           phone: string | null
+          is_ashbal: boolean | null
           total_points: number
           updated_at: string
           visible_password: string | null
@@ -1169,6 +1170,7 @@ export type Database = {
           join_date?: string
           level?: Database["public"]["Enums"]["volunteer_level"]
           phone?: string | null
+          is_ashbal?: boolean | null
           total_points?: number
           updated_at?: string
           visible_password?: string | null
@@ -1188,6 +1190,7 @@ export type Database = {
           join_date?: string
           level?: Database["public"]["Enums"]["volunteer_level"]
           phone?: string | null
+          is_ashbal?: boolean | null
           total_points?: number
           updated_at?: string
           visible_password?: string | null

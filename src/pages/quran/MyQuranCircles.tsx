@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -20,8 +21,8 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-    BookOpen, Calendar, Clock, Users, Plus, Check, X,
-    MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User, CalendarDays
+    BookOpen, Calendar, Clock, Users, Plus, Check, X, Trash2,
+    MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User, CalendarDays, TrendingUp, Percent
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +34,16 @@ import { ar, enUS } from 'date-fns/locale';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as XLSX from 'xlsx';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface ScheduleItem {
     day: number;
@@ -89,6 +100,7 @@ export default function MyQuranCircles() {
     const { user } = useAuth();
     const { isRTL } = useLanguage();
     const locale = isRTL ? ar : enUS;
+    const [searchParams, setSearchParams] = useSearchParams();
 
     // Main state
     const [circles, setCircles] = useState<QuranCircle[]>([]);
@@ -117,9 +129,25 @@ export default function MyQuranCircles() {
     const [guestName, setGuestName] = useState('');
     const [guestPhone, setGuestPhone] = useState('');
 
+    // Delete session state
+    const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
+
     useEffect(() => {
         if (user) fetchMyCircles();
     }, [user]);
+
+    // Auto-open circle details if navigated from admin with circle ID
+    useEffect(() => {
+        const circleId = searchParams.get('circle');
+        if (circleId && circles.length > 0) {
+            const circle = circles.find(c => c.id === circleId);
+            if (circle) {
+                openCircleDetails(circle);
+                // Remove the query param after opening
+                setSearchParams({});
+            }
+        }
+    }, [searchParams, circles]);
 
     const fetchMyCircles = async () => {
         setLoading(true);
@@ -146,13 +174,23 @@ export default function MyQuranCircles() {
                     teacher_id,
                     schedule,
                     target_group,
-                    description,
-                    quran_circle_sessions(id)
+                    description
                 `)
                 .in('id', circleIds)
                 .eq('is_active', true);
 
             if (error) throw error;
+
+            // Fetch session counts separately to avoid ambiguous filter
+            const { data: sessionData } = await supabase
+                .from('quran_circle_sessions')
+                .select('circle_id')
+                .in('circle_id', circleIds);
+
+            const sessionCounts: Record<string, number> = {};
+            (sessionData || []).forEach(s => {
+                sessionCounts[s.circle_id] = (sessionCounts[s.circle_id] || 0) + 1;
+            });
 
             // Fetch teachers separately to avoid join issues
             const { data: teachersData } = await supabase
@@ -174,7 +212,7 @@ export default function MyQuranCircles() {
                 enrollmentCounts[e.circle_id] = (enrollmentCounts[e.circle_id] || 0) + 1;
             });
 
-            const formatted = data?.map((c: any) => {
+            const formatted: QuranCircle[] = (data?.map((c: any) => {
                 const teacher = teachersMap.get(c.teacher_id);
                 return {
                     id: c.id,
@@ -182,14 +220,14 @@ export default function MyQuranCircles() {
                     teacher_name: teacher?.name,
                     target_group: c.target_group,
                     teacher_gender: teacher?.target_gender,
-                    teaching_mode: teacher?.teaching_mode,
+                    teaching_mode: teacher?.teaching_mode as 'online' | 'offline' | 'mixed' | undefined,
                     description: c.description,
                     is_active: true, // filtered by is_active=true anyway
                     schedule: c.schedule || [],
-                    sessions_count: c.quran_circle_sessions?.length || 0,
+                    sessions_count: sessionCounts[c.id] || 0,
                     enrolled_count: enrollmentCounts[c.id] || 0
                 };
-            }) || [];
+            }) || []) as QuranCircle[];
 
             setCircles(formatted);
         } catch (error) {
@@ -279,7 +317,82 @@ export default function MyQuranCircles() {
             setSessionDate(new Date().toISOString().split('T')[0]);
             setSessionNotes('');
 
+            // --- Record Teacher Participation ---
+            try {
+                // 1. Get Teacher User ID
+                const { data: teacherData } = await supabase
+                    .from('quran_teachers')
+                    .select('user_id')
+                    .eq('id', selectedCircle.teacher_id)
+                    .single();
 
+                if (teacherData?.user_id) {
+                    // 2. Get or create the Quran committee
+                    let committeeId: string;
+                    const { data: existingComm } = await supabase
+                        .from('committees')
+                        .select('id')
+                        .eq('name', 'Quran')
+                        .single();
+
+                    if (existingComm) {
+                        committeeId = existingComm.id;
+                    } else {
+                        const { data: newComm, error: commErr } = await supabase
+                            .from('committees')
+                            .insert({ name: 'Quran', name_ar: 'قرآن' })
+                            .select('id')
+                            .single();
+                        if (commErr || !newComm) throw commErr;
+                        committeeId = newComm.id;
+                    }
+
+                    // 3. Get or create the activity type
+                    let activityTypeId: string;
+                    let points: number;
+                    const { data: existingAct } = await supabase
+                        .from('activity_types')
+                        .select('id, points')
+                        .eq('name', 'Quran Circle')
+                        .single();
+
+                    if (existingAct) {
+                        activityTypeId = existingAct.id;
+                        points = existingAct.points;
+                    } else {
+                        const { data: newAct, error: actErr } = await supabase
+                            .from('activity_types')
+                            .insert({
+                                name: 'Quran Circle',
+                                name_ar: 'حلقة قرآن',
+                                points: 10,
+                                committee_id: committeeId
+                            })
+                            .select('id, points')
+                            .single();
+                        if (actErr || !newAct) throw actErr;
+                        activityTypeId = newAct.id;
+                        points = newAct.points;
+                    }
+
+                    // 4. Insert the activity submission
+                    const { error: partError } = await supabase.from('activity_submissions').insert({
+                        volunteer_id: teacherData.user_id,
+                        committee_id: committeeId,
+                        activity_type_id: activityTypeId,
+                        description: `حلقة قرآن: ${selectedCircle.teacher_name || ''} - ${sessionDate}`,
+                        status: 'approved',
+                        points_awarded: points,
+                        participant_type: 'quran_teacher'
+                    } as any);
+
+                    if (partError) console.error('Error recording participation:', partError);
+                    else toast.success(isRTL ? 'تم تسجيل مشاركة المحفظ' : 'Teacher participation recorded');
+                }
+            } catch (partErr) {
+                console.error('Participation logic error:', partErr);
+            }
+            // ------------------------------------
 
             // Refresh sessions
             await openCircleDetails(selectedCircle);
@@ -438,6 +551,55 @@ export default function MyQuranCircles() {
 
     const removeGuest = (index: number) => {
         setGuests(guests.filter((_, i) => i !== index));
+    };
+
+    // Delete session
+    const handleDeleteSession = async () => {
+        if (!deleteSessionId || !selectedCircle) return;
+        try {
+            // Delete attendance records first
+            await supabase
+                .from('quran_circle_beneficiaries')
+                .delete()
+                .eq('session_id', deleteSessionId);
+
+            const { error } = await supabase
+                .from('quran_circle_sessions')
+                .delete()
+                .eq('id', deleteSessionId);
+
+            if (error) throw error;
+            toast.success(isRTL ? 'تم حذف الجلسة' : 'Session deleted');
+            setDeleteSessionId(null);
+            await openCircleDetails(selectedCircle);
+        } catch (error: any) {
+            console.error('Error deleting session:', error);
+            toast.error(error.message || 'Error deleting session');
+        }
+    };
+
+    // Smart date: get next scheduled day from circle schedule
+    const getNextScheduleDate = (schedule: ScheduleItem[]) => {
+        if (!schedule || schedule.length === 0) return new Date().toISOString().split('T')[0];
+        const today = new Date();
+        const todayDay = today.getDay();
+        const scheduledDays = schedule.map(s => s.day).sort((a, b) => a - b);
+
+        // Find the next scheduled day from today
+        let nextDay = scheduledDays.find(d => d >= todayDay);
+        if (nextDay === undefined) nextDay = scheduledDays[0]; // wrap to next week
+
+        const diff = (nextDay - todayDay + 7) % 7;
+        const nextDate = new Date(today);
+        nextDate.setDate(today.getDate() + diff);
+        return nextDate.toISOString().split('T')[0];
+    };
+
+    // Get attendance percentage for a session
+    const getAttendanceRate = (session: Session) => {
+        if (!beneficiaries.length) return null;
+        const att = attendanceData[session.id] || [];
+        return Math.round((att.length / beneficiaries.length) * 100);
     };
 
     const getCircleName = (circle: QuranCircle) => {
@@ -702,9 +864,12 @@ export default function MyQuranCircles() {
                 ))}
 
                 {circles.length === 0 && !loading && (
-                    <div className="col-span-full flex flex-col items-center justify-center p-8 border rounded-lg border-dashed text-muted-foreground">
-                        <BookOpen className="w-12 h-12 mb-2 opacity-20" />
-                        <p>{isRTL ? 'لا توجد حلقات مسندة إليك' : 'No circles assigned to you'}</p>
+                    <div className="col-span-full flex flex-col items-center justify-center p-12 border rounded-xl border-dashed text-muted-foreground bg-gradient-to-br from-muted/30 to-transparent">
+                        <div className="p-4 rounded-full bg-primary/5 mb-4">
+                            <BookOpen className="w-12 h-12 opacity-30 text-primary" />
+                        </div>
+                        <p className="font-medium text-lg">{isRTL ? 'لا توجد حلقات مسندة إليك' : 'No circles assigned to you'}</p>
+                        <p className="text-sm mt-1">{isRTL ? 'تواصل مع مسؤول القرآن لإضافتك' : 'Contact the Quran admin to get assigned'}</p>
                     </div>
                 )}
             </div>
@@ -735,7 +900,12 @@ export default function MyQuranCircles() {
                                         {sessions.length} {isRTL ? 'جلسة' : 'sessions'}
                                     </p>
                                 </div>
-                                <Button onClick={() => setIsSessionDialogOpen(true)} size="sm">
+                                <Button onClick={() => {
+                                    if (selectedCircle) {
+                                        setSessionDate(getNextScheduleDate(selectedCircle.schedule));
+                                    }
+                                    setIsSessionDialogOpen(true);
+                                }} size="sm">
                                     <Plus className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
                                     {isRTL ? 'جلسة جديدة' : 'New Session'}
                                 </Button>
@@ -752,35 +922,75 @@ export default function MyQuranCircles() {
 
                             {/* Sessions List */}
                             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                {sessions.map(session => (
-                                    <div
-                                        key={session.id}
-                                        className="flex items-center justify-between p-3 rounded-lg border"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div className="p-2 rounded-full bg-primary/10">
-                                                <Calendar className="h-4 w-4 text-primary" />
+                                {sessions.map(session => {
+                                    const rate = getAttendanceRate(session);
+                                    const hasAttendance = session.attendees_count > 0;
+                                    return (
+                                        <div
+                                            key={session.id}
+                                            className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm ${hasAttendance
+                                                ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/10 hover:bg-green-50 dark:hover:bg-green-950/20'
+                                                : 'hover:bg-muted/50'
+                                                }`}
+                                            onClick={() => {
+                                                setSelectedSession(session);
+                                                setAttendance(attendanceData[session.id] || []);
+                                                setGuests([]);
+                                                setBeneficiarySearch('');
+                                                setIsAttendanceDialogOpen(true);
+                                            }}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-full ${hasAttendance ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary/10'}`}>
+                                                    <Calendar className={`h-4 w-4 ${hasAttendance ? 'text-green-600 dark:text-green-400' : 'text-primary'}`} />
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium">
+                                                        {format(new Date(session.session_date), 'EEEE, d MMMM', { locale })}
+                                                    </p>
+                                                    {session.notes && (
+                                                        <p className="text-xs text-muted-foreground">{session.notes}</p>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="font-medium">
-                                                    {format(new Date(session.session_date), 'EEEE, d MMMM', { locale })}
-                                                </p>
-                                                {session.notes && (
-                                                    <p className="text-xs text-muted-foreground">{session.notes}</p>
+                                            <div className="flex items-center gap-2">
+                                                {rate !== null && hasAttendance && (
+                                                    <Badge variant="secondary" className={`text-xs ${rate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                                        rate >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                        }`}>
+                                                        <Percent className="h-3 w-3 ltr:mr-0.5 rtl:ml-0.5" />
+                                                        {rate}
+                                                    </Badge>
                                                 )}
+                                                <Badge variant={hasAttendance ? 'default' : 'outline'}>
+                                                    <Users className="h-3 w-3 ltr:mr-1 rtl:ml-1" />
+                                                    {session.attendees_count || 0}
+                                                </Badge>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setDeleteSessionId(session.id);
+                                                    }}
+                                                >
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
                                             </div>
                                         </div>
-                                        <Badge variant={session.attendees_count ? 'default' : 'outline'}>
-                                            <Users className="h-3 w-3 ltr:mr-1 rtl:ml-1" />
-                                            {session.attendees_count || 0}
-                                        </Badge>
-                                    </div>
-                                ))}
+                                    );
+                                })}
 
                                 {sessions.length === 0 && (
-                                    <p className="text-center text-muted-foreground py-8">
-                                        {isRTL ? 'لا توجد جلسات بعد' : 'No sessions yet'}
-                                    </p>
+                                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                                        <div className="p-3 rounded-full bg-muted/50 mb-3">
+                                            <Calendar className="h-8 w-8 opacity-30" />
+                                        </div>
+                                        <p className="font-medium">{isRTL ? 'لا توجد جلسات بعد' : 'No sessions yet'}</p>
+                                        <p className="text-sm mt-1">{isRTL ? 'أنشئ أول جلسة للبدء' : 'Create the first session to get started'}</p>
+                                    </div>
                                 )}
                             </div>
                         </TabsContent>
@@ -1126,6 +1336,26 @@ export default function MyQuranCircles() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Delete Session Confirmation */}
+            <AlertDialog open={!!deleteSessionId} onOpenChange={(open) => !open && setDeleteSessionId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{isRTL ? 'حذف الجلسة' : 'Delete Session'}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {isRTL
+                                ? 'هل أنت متأكد من حذف هذه الجلسة؟ سيتم حذف جميع بيانات الحضور المرتبطة بها.'
+                                : 'Are you sure? All attendance data for this session will be deleted.'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteSession} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            {isRTL ? 'حذف' : 'Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

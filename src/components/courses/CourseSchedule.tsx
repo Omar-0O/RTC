@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, MapPin, User, Phone, FileSpreadsheet, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, MapPin, User, Users, Phone, FileSpreadsheet, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 
@@ -33,6 +33,7 @@ interface CourseOrganizer {
 interface QuranCircle {
     id: string;
     teacher_name?: string;
+    teacher_gender?: string;
     schedule: { day: number; time: string }[];
     is_active: boolean;
     time?: string;
@@ -108,23 +109,34 @@ export default function CourseSchedule() {
 
     const fetchCircles = async () => {
         try {
-            const { data, error } = await supabase
+            // Fetch circles
+            const { data: circlesData, error: circlesError } = await supabase
                 .from('quran_circles')
-                .select(`
-                    id,
-                    schedule,
-                    is_active,
-                    teacher: trainers(name_ar)
-                `)
+                .select('id, schedule, is_active, teacher_id')
                 .eq('is_active', true);
 
-            if (error) throw error;
-            setCircles(data?.map((c: any) => ({
-                id: c.id,
-                teacher_name: c.teacher?.name_ar,
-                schedule: c.schedule || [],
-                is_active: c.is_active
-            })) || []);
+            if (circlesError) throw circlesError;
+
+            // Fetch teachers
+            const { data: teachersData, error: teachersError } = await supabase
+                .from('quran_teachers')
+                .select('id, name, target_gender');
+
+            if (teachersError) throw teachersError;
+
+            // Create a map of teachers for easy lookup
+            const teachersMap = new Map(teachersData?.map(t => [t.id, t]) || []);
+
+            setCircles(circlesData?.map((c: any) => {
+                const teacher = teachersMap.get(c.teacher_id);
+                return {
+                    id: c.id,
+                    teacher_name: teacher?.name,
+                    teacher_gender: teacher?.target_gender,
+                    schedule: c.schedule || [],
+                    is_active: c.is_active
+                };
+            }) || []);
         } catch (error) {
             console.error('Error fetching circles:', error);
         }
@@ -220,30 +232,80 @@ export default function CourseSchedule() {
         downloadCSV(data, 'courses_schedule');
     };
 
-    // Get courses for a specific date (only active courses)
-    const getCoursesForDate = (date: Date) => {
+    interface CalendarEvent {
+        id: string;
+        type: 'lecture' | 'interview';
+        title: string;
+        time: string; // HH:mm
+        course: Course;
+        room?: string;
+    }
+
+    const getEventsForDate = (date: Date) => {
+        const events: CalendarEvent[] = [];
         const dayName = DAY_MAP[getDay(date)];
-        const dateStr = date.toDateString();
-        return courses.filter(c => {
-            // Check if the day matches
-            if (!c.schedule_days.includes(dayName)) return false;
+        const dateStr = format(date, 'yyyy-MM-dd');
 
-            // Normalize dates to midnight local time for proper comparison
-            const checkDate = new Date(date);
-            checkDate.setHours(0, 0, 0, 0);
+        // Normalize check date
+        const checkDate = new Date(date);
+        checkDate.setHours(0, 0, 0, 0);
 
-            // Check if course has started (start_date <= date)
-            const startDate = new Date(c.start_date + 'T00:00:00'); // Parse as local time
-            if (startDate.setHours(0, 0, 0, 0) > checkDate.getTime()) return false;
-
-            // Check if course hasn't ended (end_date is null or end_date >= date)
-            if (c.end_date) {
-                const endDate = new Date(c.end_date + 'T00:00:00'); // Parse as local time
-                if (endDate.setHours(0, 0, 0, 0) < checkDate.getTime()) return false;
+        courses.forEach(c => {
+            // 1. Check for Lectures
+            let isLectureDay = false;
+            // Check day of week
+            if (c.schedule_days.includes(dayName)) {
+                const startDate = new Date(c.start_date + 'T00:00:00');
+                // Check start date
+                if (startDate.setHours(0, 0, 0, 0) <= checkDate.getTime()) {
+                    // Check end date
+                    if (!c.end_date) {
+                        isLectureDay = true;
+                    } else {
+                        const endDate = new Date(c.end_date + 'T00:00:00');
+                        if (endDate.setHours(0, 0, 0, 0) >= checkDate.getTime()) {
+                            isLectureDay = true;
+                        }
+                    }
+                }
             }
 
-            return true;
+            if (isLectureDay) {
+                events.push({
+                    id: `${c.id}-lecture-${dateStr}`,
+                    type: 'lecture',
+                    title: c.name,
+                    time: c.schedule_time,
+                    course: c,
+                    room: c.room
+                });
+            }
+
+            // 2. Check for Interviews
+            if (c.has_interview && c.interview_date) {
+                // Determine interview date (handling both ISO 'yyyy-MM-dd' and potential time components if any)
+                // Assuming interview_date is YYYY-MM-DD
+                if (c.interview_date === dateStr) {
+                    events.push({
+                        id: `${c.id}-interview`,
+                        type: 'interview',
+                        title: `${isRTL ? 'مقابلة' : 'Interview'}: ${c.name}`,
+                        time: "09:00", // Default or if you have a specific time for interviews? 
+                        // Ideally course.schedule_time or a separate field. 
+                        // Just using course time for now or a generic start
+                        // The schema doesn't seem to have specific 'interview_time', 
+                        // so we might assume it starts at a standard time or same as schedule_time?
+                        // Let's use schedule_time for now as a fallback or "All Day" logic if needed.
+                        // But let's stick to schedule_time to sort it properly.
+                        course: c,
+                        room: 'interview'
+                    });
+                }
+            }
         });
+
+        // Sort by time
+        return events.sort((a, b) => a.time.localeCompare(b.time));
     };
 
     // Get circles for a specific date based on their recurring schedule
@@ -332,7 +394,7 @@ export default function CourseSchedule() {
                                         if (!day) {
                                             return <div key={`empty-${idx}`} className="min-h-[120px] bg-muted/20 rounded"></div>;
                                         }
-                                        const dayCourses = getCoursesForDate(day);
+                                        const dayEvents = getEventsForDate(day);
                                         const isDayToday = isToday(day);
                                         return (
                                             <div
@@ -343,18 +405,26 @@ export default function CourseSchedule() {
                                                     {format(day, 'd')}
                                                 </div>
                                                 <div className="space-y-1 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-muted-foreground/20">
-                                                    {dayCourses.slice(0, 10).map(course => (
+                                                    {dayEvents.slice(0, 10).map(event => (
                                                         <div
-                                                            key={course.id}
-                                                            className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 group transition-all ${getRoomBg(course.room)}`}
-                                                            onClick={() => openCourseDetails(course)}
-                                                            title={`${course.name} - ${formatTime(course.schedule_time)}`}
+                                                            key={event.id}
+                                                            className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 group transition-all ${event.type === 'interview'
+                                                                ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 font-medium'
+                                                                : getRoomBg(event.room || '')
+                                                                }`}
+                                                            onClick={() => openCourseDetails(event.course)}
+                                                            title={`${event.title} - ${formatTime(event.time)}`}
                                                         >
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span className="font-medium truncate flex-1">{course.name}</span>
-                                                                <span className="text-[10px] opacity-70 group-hover:opacity-100 whitespace-nowrap">
-                                                                    {formatTime(course.schedule_time)}
+                                                                <span className="truncate flex-1 flex items-center gap-1.5">
+                                                                    {event.type === 'interview' && <Users className="h-3 w-3 shrink-0" />}
+                                                                    {event.title}
                                                                 </span>
+                                                                {event.type === 'lecture' && (
+                                                                    <span className="text-[10px] opacity-70 group-hover:opacity-100 whitespace-nowrap">
+                                                                        {formatTime(event.time)}
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     ))}
@@ -362,21 +432,28 @@ export default function CourseSchedule() {
                                                     {getCirclesForDate(day).map(circle => (
                                                         <div
                                                             key={`circle-${circle.id}`}
-                                                            className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 group transition-all ${getRoomBg('quran_circle')}`}
+                                                            className={`p-1.5 rounded text-xs border cursor-pointer hover:opacity-80 group transition-all bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400`}
                                                             title={`${circle.teacher_name ? (isRTL ? 'حلقة المحفظ ' : '') + circle.teacher_name : (isRTL ? 'حلقة قرآن' : 'Quran Circle')} - ${circle.time}`}
                                                             onClick={() => openCircleDetails(circle)}
                                                         >
                                                             <div className="flex items-center justify-between gap-2">
-                                                                <span className="font-medium truncate flex-1">{circle.teacher_name ? (isRTL ? 'حلقة المحفظ ' + circle.teacher_name : circle.teacher_name + "'s Circle") : (isRTL ? 'حلقة قرآن' : 'Quran Circle')}</span>
+                                                                <div className="flex items-center gap-1.5 min-w-0">
+                                                                    <BookOpen className="h-3 w-3 shrink-0" />
+                                                                    <span className="font-medium truncate">
+                                                                        {circle.teacher_name
+                                                                            ? (isRTL ? `حلقة: ${circle.teacher_name}` : `${circle.teacher_name}`)
+                                                                            : (isRTL ? 'حلقة قرآن' : 'Quran Circle')}
+                                                                    </span>
+                                                                </div>
                                                                 <span className="text-[10px] opacity-70 group-hover:opacity-100 whitespace-nowrap">
                                                                     {formatTime(circle.time)}
                                                                 </span>
                                                             </div>
                                                         </div>
                                                     ))}
-                                                    {dayCourses.length > 10 && (
+                                                    {dayEvents.length > 10 && (
                                                         <p className="text-[10px] text-muted-foreground text-center pt-1 font-medium">
-                                                            <span dir="ltr">+{dayCourses.length - 10}</span> {isRTL ? 'المزيد' : 'more'}
+                                                            <span dir="ltr">+{dayEvents.length - 10}</span> {isRTL ? 'المزيد' : 'more'}
                                                         </p>
                                                     )}
                                                 </div>
@@ -393,9 +470,9 @@ export default function CourseSchedule() {
                                     today.setHours(0, 0, 0, 0);
                                     return day >= today;
                                 }).map((day) => {
-                                    const dayCourses = getCoursesForDate(day);
+                                    const dayEvents = getEventsForDate(day);
                                     const dayCircles = getCirclesForDate(day);
-                                    if (dayCourses.length === 0 && dayCircles.length === 0) return null; // Only show days with courses or circles
+                                    if (dayEvents.length === 0 && dayCircles.length === 0) return null; // Only show days with courses or circles
 
                                     const isDayToday = isToday(day);
                                     return (
@@ -411,23 +488,38 @@ export default function CourseSchedule() {
                                                 )}
                                             </div>
                                             <div className="space-y-3">
-                                                {dayCourses.map(course => (
+                                                {dayEvents.map(event => (
                                                     <div
-                                                        key={course.id}
-                                                        className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${getRoomBg(course.room)}`}
-                                                        onClick={() => openCourseDetails(course)}
+                                                        key={event.id}
+                                                        className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${event.type === 'interview'
+                                                            ? 'bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-700'
+                                                            : getRoomBg(event.room || '')
+                                                            }`}
+                                                        onClick={() => openCourseDetails(event.course)}
                                                     >
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="font-semibold text-sm truncate mb-1">{course.name}</p>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                {event.type === 'interview' && <Users className="h-4 w-4 text-violet-600 dark:text-violet-400" />}
+                                                                <p className={`font-semibold text-sm truncate ${event.type === 'interview' ? 'text-violet-700 dark:text-violet-300' : ''}`}>
+                                                                    {event.title}
+                                                                </p>
+                                                            </div>
                                                             <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                                                <div className="flex items-center gap-1">
-                                                                    <Clock className="h-3 w-3" />
-                                                                    {formatTime(course.schedule_time)}
-                                                                </div>
-                                                                {isHead && (
+                                                                {event.type === 'lecture' && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Clock className="h-3 w-3" />
+                                                                        {formatTime(event.time)}
+                                                                    </div>
+                                                                )}
+                                                                {isHead && event.type === 'lecture' && (
                                                                     <div className="flex items-center gap-1">
                                                                         <MapPin className="h-3 w-3" />
-                                                                        {getRoomLabel(course.room)}
+                                                                        {getRoomLabel(event.room || '')}
+                                                                    </div>
+                                                                )}
+                                                                {event.type === 'interview' && (
+                                                                    <div className="flex items-center gap-1 text-violet-600/80 dark:text-violet-400/80 font-medium">
+                                                                        {isRTL ? 'مقابلة شخصية' : 'Personal Interview'}
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -438,22 +530,23 @@ export default function CourseSchedule() {
                                                 {dayCircles.map(circle => (
                                                     <div
                                                         key={`circle-${circle.id}`}
-                                                        className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform ${getRoomBg('quran_circle')}`}
+                                                        className={`p-3 rounded-md border flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800`}
                                                         onClick={() => openCircleDetails(circle)}
                                                     >
                                                         <div className="flex-1 min-w-0">
-                                                            <p className="font-semibold text-sm truncate mb-1">{circle.teacher_name ? (isRTL ? 'حلقة المحفظ ' + circle.teacher_name : circle.teacher_name + "'s Circle") : (isRTL ? 'حلقة قرآن' : 'Quran Circle')}</p>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <BookOpen className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                                                <p className="font-semibold text-sm truncate text-emerald-900 dark:text-emerald-100">
+                                                                    {circle.teacher_name
+                                                                        ? (isRTL ? `حلقة القرآن - ${circle.teacher_name}` : `Quran Circle - ${circle.teacher_name}`)
+                                                                        : (isRTL ? 'حلقة قرآن' : 'Quran Circle')}
+                                                                </p>
+                                                            </div>
                                                             <div className="flex items-center gap-3 text-xs text-muted-foreground">
                                                                 <div className="flex items-center gap-1">
                                                                     <Clock className="h-3 w-3" />
                                                                     {formatTime(circle.time)}
                                                                 </div>
-                                                                {isHead && (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <MapPin className="h-3 w-3" />
-                                                                        {getRoomLabel('quran_circle')}
-                                                                    </div>
-                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -479,8 +572,13 @@ export default function CourseSchedule() {
                                     ))}
                                     {/* Circle Legend */}
                                     <div className="flex items-center gap-2 text-sm">
-                                        <div className="w-4 h-4 rounded bg-teal-500"></div>
+                                        <div className="w-4 h-4 rounded bg-emerald-500"></div>
                                         <span>{isRTL ? 'حلقات القرآن' : 'Quran Circles'}</span>
+                                    </div>
+                                    {/* Interview Legend */}
+                                    <div className="flex items-center gap-2 text-sm">
+                                        <div className="w-4 h-4 rounded bg-violet-500"></div>
+                                        <span>{isRTL ? 'مقابلات' : 'Interviews'}</span>
                                     </div>
                                 </div>
                             )}
@@ -587,13 +685,7 @@ export default function CourseSchedule() {
                                         <p className="font-medium">{selectedCircle?.teacher_name || '—'}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                                    <div>
-                                        <p className="text-muted-foreground">{isRTL ? 'المكان' : 'Location'}</p>
-                                        <p className="font-medium">{isRTL ? 'المسجد / حلقة قرآن' : 'Mosque / Quran Circle'}</p>
-                                    </div>
-                                </div>
+
                             </div>
 
                             <div className="flex flex-col items-center justify-center text-center gap-4 border-t pt-4">
