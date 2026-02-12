@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Search, UserPlus, MoreHorizontal, User, Mail, Shield, Pencil } from "lucide-react";
-import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Loader2, Search, UserPlus, MoreHorizontal, User, Mail, Shield, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { AddUserForm } from "../admin/AddUserForm";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Progress } from "@/components/ui/progress";
@@ -31,6 +31,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Profile from '@/pages/volunteer/Profile';
 import { EditAshbalDialog } from "./EditAshbalDialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 export default function AshbalManagement() {
     const { isRTL, t } = useLanguage();
@@ -39,54 +40,36 @@ export default function AshbalManagement() {
     const [users, setUsers] = useState<any[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-    const [trimesterTarget, setTrimesterTarget] = useState(0);
+    const [activeAshbalsCount, setActiveAshbalsCount] = useState(0);
     const [viewProfileUser, setViewProfileUser] = useState<any | null>(null);
     const [editUser, setEditUser] = useState<any | null>(null);
+    const [deleteUser, setDeleteUser] = useState<any | null>(null);
+    const [isRenewDialogOpen, setIsRenewDialogOpen] = useState(false);
+    const [isRenewing, setIsRenewing] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const fetchAshbalUsers = async () => {
         try {
             setLoading(true);
             const { data, error } = await supabase
                 .from('profiles')
-                .select('id, full_name, email, phone, avatar_url, level, is_ashbal, join_date, created_at')
+                .select('id, full_name, email, phone, avatar_url, level, is_ashbal, join_date, created_at, ashbal_status')
                 .eq('is_ashbal', true)
                 .order('created_at', { ascending: false }) as any;
 
             if (error) throw error;
             setUsers(data || []);
 
-            calculateTarget(data || []);
+            // Count active ashbals
+            const activeCount = (data || []).filter((u: any) => u.ashbal_status === 'active' || !u.ashbal_status).length;
+            setActiveAshbalsCount(activeCount);
+
         } catch (error) {
             console.error('Error fetching ashbal users:', error);
             toast.error(isRTL ? "حدث خطأ أثناء تحميل البيانات" : "Error loading data");
         } finally {
             setLoading(false);
         }
-    };
-
-    const calculateTarget = (ashbalUsers: any[]) => {
-        // Current Trimester Logic
-        const now = new Date();
-        const currentMonth = now.getMonth(); // 0-11
-        // Trimester 1: 0,1,2,3 (Jan-Apr)
-        // Trimester 2: 4,5,6,7 (May-Aug)
-        // Trimester 3: 8,9,10,11 (Sep-Dec)
-
-        let startMonth, endMonth;
-        if (currentMonth <= 3) { startMonth = 0; endMonth = 3; }
-        else if (currentMonth <= 7) { startMonth = 4; endMonth = 7; }
-        else { startMonth = 8; endMonth = 11; }
-
-        const currentYear = now.getFullYear();
-
-        const count = ashbalUsers.filter(u => {
-            const joinDate = new Date(u.join_date || u.created_at);
-            return joinDate.getFullYear() === currentYear &&
-                joinDate.getMonth() >= startMonth &&
-                joinDate.getMonth() <= endMonth;
-        }).length;
-
-        setTrimesterTarget(count);
     };
 
     useEffect(() => {
@@ -98,30 +81,55 @@ export default function AshbalManagement() {
         u.phone?.includes(searchQuery)
     );
 
-    const getTrimesterRange = () => {
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        let startMonth;
-        if (currentMonth <= 3) startMonth = 0;
-        else if (currentMonth <= 7) startMonth = 4;
-        else startMonth = 8;
+    // Active users are those with status 'active' OR null (for backward compatibility)
+    const currentTrimesterUsers = filteredUsers.filter(u => u.ashbal_status === 'active' || !u.ashbal_status);
 
-        const start = new Date(now.getFullYear(), startMonth, 1);
-        const end = new Date(now.getFullYear(), startMonth + 4, 0);
-        return { start, end };
+    // Previous users are those with status 'previous'
+    const previousUsers = filteredUsers.filter(u => u.ashbal_status === 'previous');
+
+    const handleRenewTarget = async () => {
+        try {
+            setIsRenewing(true);
+            const { data, error } = await supabase.rpc('renew_ashbal_target');
+
+            if (error) throw error;
+
+            toast.success(isRTL ? "تم تجديد التارجت بنجاح" : "Target renewed successfully");
+            setIsRenewDialogOpen(false);
+            fetchAshbalUsers();
+        } catch (error) {
+            console.error('Error renewing target:', error);
+            toast.error(isRTL ? "حدث خطأ أثناء تجديد التارجت" : "Error renewing target");
+        } finally {
+            setIsRenewing(false);
+        }
     };
 
-    const { start: trimesterStart, end: trimesterEnd } = getTrimesterRange();
+    const handleDeleteUser = async () => {
+        if (!deleteUser) return;
 
-    const currentTrimesterUsers = filteredUsers.filter(u => {
-        const joinDate = new Date(u.join_date || u.created_at);
-        return joinDate >= trimesterStart && joinDate <= trimesterEnd;
-    });
+        try {
+            setIsDeleting(true);
+            const { data, error } = await supabase.rpc('delete_user_account', {
+                target_user_id: deleteUser.id
+            });
 
-    const previousUsers = filteredUsers.filter(u => {
-        const joinDate = new Date(u.join_date || u.created_at);
-        return joinDate < trimesterStart;
-    });
+            if (error) throw error;
+
+            if (data && typeof data === 'object' && 'error' in data && (data as any).error) {
+                throw new Error((data as any).error);
+            }
+
+            toast.success(isRTL ? "تم حذف المستخدم بنجاح" : "User deleted successfully");
+            setDeleteUser(null);
+            fetchAshbalUsers();
+        } catch (error: any) {
+            console.error('Error deleting user:', error);
+            toast.error(error.message || (isRTL ? "حدث خطأ أثناء حذف المستخدم" : "Error deleting user"));
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     const UserList = ({ users }: { users: any[] }) => (
         <div className="rounded-md border bg-card">
@@ -187,10 +195,16 @@ export default function AshbalManagement() {
                                                 <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                                                 <DropdownMenuSeparator />
                                                 {['admin', 'head_ashbal'].includes(primaryRole) && (
-                                                    <DropdownMenuItem onClick={() => setEditUser(user)}>
-                                                        <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                        {t('common.edit')}
-                                                    </DropdownMenuItem>
+                                                    <>
+                                                        <DropdownMenuItem onClick={() => setEditUser(user)}>
+                                                            <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                            {t('common.edit')}
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => setDeleteUser(user)} className="text-red-600 focus:text-red-600">
+                                                            <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                            {isRTL ? "حذف" : "Delete"}
+                                                        </DropdownMenuItem>
+                                                    </>
                                                 )}
                                                 <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
                                                     <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
@@ -256,10 +270,16 @@ export default function AshbalManagement() {
                                             <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                                             <DropdownMenuSeparator />
                                             {['admin', 'head_ashbal'].includes(primaryRole) && (
-                                                <DropdownMenuItem onClick={() => setEditUser(user)}>
-                                                    <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                    {t('common.edit')}
-                                                </DropdownMenuItem>
+                                                <>
+                                                    <DropdownMenuItem onClick={() => setEditUser(user)}>
+                                                        <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {t('common.edit')}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => setDeleteUser(user)} className="text-red-600 focus:text-red-600">
+                                                        <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? "حذف" : "Delete"}
+                                                    </DropdownMenuItem>
+                                                </>
                                             )}
                                             <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
                                                 <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
@@ -335,20 +355,31 @@ export default function AshbalManagement() {
 
             {/* Target Section */}
             <Card>
-                <CardHeader className="pb-2">
+                <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-lg font-medium">
-                        {isRTL ? "تارجت الثلث السنوي" : "Trimester Target (Add Ashbal)"}
+                        {isRTL ? "التارجت الحالي" : "Current Target"}
                     </CardTitle>
+                    {['admin', 'head_ashbal'].includes(primaryRole) && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-2"
+                            onClick={() => setIsRenewDialogOpen(true)}
+                        >
+                            <RefreshCw className="h-4 w-4" />
+                            {isRTL ? "تجديد التارجت" : "Renew Target"}
+                        </Button>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-2">
                         <div className="flex justify-between text-sm">
-                            <span>{trimesterTarget} / 10</span>
+                            <span>{activeAshbalsCount} / 10</span>
                             <span className="text-muted-foreground">
-                                {Math.min(100, (trimesterTarget / 10) * 100).toFixed(0)}%
+                                {Math.min(100, (activeAshbalsCount / 10) * 100).toFixed(0)}%
                             </span>
                         </div>
-                        <Progress value={(trimesterTarget / 10) * 100} className="h-2" />
+                        <Progress value={(activeAshbalsCount / 10) * 100} className="h-2" />
                     </div>
                 </CardContent>
             </Card>
@@ -402,6 +433,56 @@ export default function AshbalManagement() {
                     setEditUser(null);
                 }}
             />
+
+            {/* Renew Target Confirmation Dialog */}
+            <AlertDialog open={isRenewDialogOpen} onOpenChange={setIsRenewDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{isRTL ? "تجديد التارجت" : "Renew Target"}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {isRTL
+                                ? "هل أنت متأكد من تجديد التارجت؟ سيتم نقل جميع الأشبال الحاليين إلى قائمة السابقين، وسيبدأ تارجت جديد."
+                                : "Are you sure you want to renew the target? All current active Ashbals will be moved to the previous list, and a new target will start."}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{isRTL ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleRenewTarget} disabled={isRenewing}>
+                            {isRenewing ? (
+                                <Loader2 className="h-4 w-4 animate-spin ltr:mr-2 rtl:ml-2" />
+                            ) : null}
+                            {isRTL ? "تأكيد التجديد" : "Confirm Renewal"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Delete User Confirmation Dialog */}
+            <AlertDialog open={!!deleteUser} onOpenChange={(open) => !open && setDeleteUser(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{isRTL ? "حذف المستخدم" : "Delete User"}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {isRTL
+                                ? `هل أنت متأكد من حذف ${deleteUser?.full_name}؟ لا يمكن التراجع عن هذا الإجراء.`
+                                : `Are you sure you want to delete ${deleteUser?.full_name}? This action cannot be undone.`}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>{isRTL ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteUser}
+                            disabled={isDeleting}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            {isDeleting ? (
+                                <Loader2 className="h-4 w-4 animate-spin ltr:mr-2 rtl:ml-2" />
+                            ) : null}
+                            {isRTL ? "مسح" : "Delete"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

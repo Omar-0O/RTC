@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
     BookOpen, Calendar, Clock, Users, Plus, Check, X, Trash2,
-    MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User, CalendarDays, TrendingUp, Percent
+    MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User, CalendarDays, TrendingUp, Percent, UserPlus
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -131,6 +131,11 @@ export default function MyQuranCircles() {
 
     // Delete session state
     const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
+
+    // Quick Add Student State
+    const [isQuickAddDialogOpen, setIsQuickAddDialogOpen] = useState(false);
+    const [quickAddName, setQuickAddName] = useState('');
+    const [quickAddPhone, setQuickAddPhone] = useState('');
 
     useEffect(() => {
         if (user) fetchMyCircles();
@@ -578,6 +583,83 @@ export default function MyQuranCircles() {
         }
     };
 
+    const handleQuickAddStudent = async () => {
+        if (!selectedCircle) return;
+        if (!quickAddName.trim()) {
+            toast.error(isRTL ? 'يرجى إدخال اسم الطالب' : 'Please enter student name');
+            return;
+        }
+        if (!quickAddPhone.trim()) {
+            toast.error(isRTL ? 'يرجى إدخال رقم الهاتف' : 'Please enter phone number');
+            return;
+        }
+
+        try {
+            // 1. Check if beneficiary exists by phone
+            const { data: existingBen, error: fetchError } = await supabase
+                .from('quran_beneficiaries')
+                .select('id')
+                .eq('phone', quickAddPhone.trim())
+                .single();
+
+            if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+
+            let beneficiaryId = existingBen?.id;
+
+            // 2. If not exists, create new
+            if (!beneficiaryId) {
+                const { data: newBen, error: createError } = await supabase
+                    .from('quran_beneficiaries')
+                    .insert({
+                        name_ar: quickAddName.trim(),
+                        phone: quickAddPhone.trim(),
+                        is_active: true
+                    })
+                    .select('id')
+                    .single();
+
+                if (createError) throw createError;
+                beneficiaryId = newBen.id;
+            }
+
+            // 3. Enroll in current circle
+            // Check if already enrolled
+            const { data: existingEnrollment, error: enrollCheckError } = await supabase
+                .from('quran_enrollments')
+                .select('id')
+                .eq('circle_id', selectedCircle.id)
+                .eq('beneficiary_id', beneficiaryId)
+                .single();
+
+            if (enrollCheckError && enrollCheckError.code !== 'PGRST116') throw enrollCheckError;
+
+            if (existingEnrollment) {
+                toast.warning(isRTL ? 'الطالب مسجل بالفعل في هذه الحلقة' : 'Student already enrolled in this circle');
+            } else {
+                const { error: enrollError } = await supabase
+                    .from('quran_enrollments')
+                    .insert({
+                        circle_id: selectedCircle.id,
+                        beneficiary_id: beneficiaryId,
+                        status: 'active'
+                    });
+
+                if (enrollError) throw enrollError;
+                toast.success(isRTL ? 'تم إضافة الطالب بنجاح' : 'Student added successfully');
+            }
+
+            // 4. Refresh data
+            setIsQuickAddDialogOpen(false);
+            setQuickAddName('');
+            setQuickAddPhone('');
+            await openCircleDetails(selectedCircle);
+
+        } catch (error: any) {
+            console.error('Error adding student:', error);
+            toast.error(error.message || 'Error occurred');
+        }
+    };
+
     // Smart date: get next scheduled day from circle schedule
     const getNextScheduleDate = (schedule: ScheduleItem[]) => {
         if (!schedule || schedule.length === 0) return new Date().toISOString().split('T')[0];
@@ -885,8 +967,9 @@ export default function MyQuranCircles() {
                     </DialogHeader>
 
                     <Tabs defaultValue="sessions" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
+                        <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="sessions">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
+                            <TabsTrigger value="students">{isRTL ? 'الطلاب' : 'Students'}</TabsTrigger>
                             <TabsTrigger value="sheet">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
                         </TabsList>
 
@@ -990,6 +1073,48 @@ export default function MyQuranCircles() {
                                         </div>
                                         <p className="font-medium">{isRTL ? 'لا توجد جلسات بعد' : 'No sessions yet'}</p>
                                         <p className="text-sm mt-1">{isRTL ? 'أنشئ أول جلسة للبدء' : 'Create the first session to get started'}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </TabsContent>
+
+                        {/* Students Tab */}
+                        <TabsContent value="students" className="space-y-4 py-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h3 className="font-semibold">{isRTL ? 'الطلاب المسجلين' : 'Enrolled Students'}</h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        {beneficiaries.length} {isRTL ? 'طالب' : 'student'}
+                                    </p>
+                                </div>
+                                <Button onClick={() => setIsQuickAddDialogOpen(true)} size="sm">
+                                    <UserPlus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                    {isRTL ? 'إضافة طالب' : 'Add Student'}
+                                </Button>
+                            </div>
+
+                            <div className="space-y-2">
+                                {beneficiaries.map(student => (
+                                    <div key={student.id} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                                        <div className="flex items-center gap-3">
+                                            <Avatar>
+                                                <AvatarImage src={student.image_url || undefined} />
+                                                <AvatarFallback>{student.name_ar?.slice(0, 2)}</AvatarFallback>
+                                            </Avatar>
+                                            <div>
+                                                <p className="font-medium">{student.name_ar}</p>
+                                                {student.name_en && <p className="text-xs text-muted-foreground">{student.name_en}</p>}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {beneficiaries.length === 0 && (
+                                    <div className="text-center py-12 text-muted-foreground">
+                                        <Users className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                                        <p>{isRTL ? 'لا يوجد طلاب مسجلين' : 'No students enrolled'}</p>
+                                        <Button variant="link" onClick={() => setIsQuickAddDialogOpen(true)}>
+                                            {isRTL ? 'أضف أول طالب' : 'Add your first student'}
+                                        </Button>
                                     </div>
                                 )}
                             </div>
@@ -1172,6 +1297,44 @@ export default function MyQuranCircles() {
                             )}
                         </TabsContent>
                     </Tabs>
+                </DialogContent>
+            </Dialog>
+
+            {/* Quick Add Student Dialog */}
+            <Dialog open={isQuickAddDialogOpen} onOpenChange={setIsQuickAddDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{isRTL ? 'إضافة طالب جديد' : 'Add New Student'}</DialogTitle>
+                        <DialogDescription>
+                            {isRTL ? 'أدخل بيانات الطالب لإضافته للحلقة مباشرة' : 'Enter student details to add them to the circle directly'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">{isRTL ? 'الاسم' : 'Name'}</label>
+                            <Input
+                                value={quickAddName}
+                                onChange={e => setQuickAddName(e.target.value)}
+                                placeholder={isRTL ? 'اسم الطالب' : 'Student Name'}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">{isRTL ? 'رقم الهاتف' : 'Phone Number'}</label>
+                            <Input
+                                value={quickAddPhone}
+                                onChange={e => setQuickAddPhone(e.target.value)}
+                                placeholder={isRTL ? 'رقم الهاتف' : 'Phone Number'}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setIsQuickAddDialogOpen(false)}>
+                            {isRTL ? 'إلغاء' : 'Cancel'}
+                        </Button>
+                        <Button onClick={handleQuickAddStudent}>
+                            {isRTL ? 'إضافة' : 'Add'}
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
 

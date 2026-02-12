@@ -37,6 +37,7 @@ const Caravans = lazy(() => import("./pages/caravans/Caravans"));
 const CaravanManagement = lazy(() => import("./pages/caravans/CaravanManagement"));
 const Events = lazy(() => import("./pages/events/Events"));
 const EventManagement = lazy(() => import("./pages/events/EventManagement"));
+const MyEvents = lazy(() => import("./pages/events/MyEvents"));
 const CourseManagement = lazy(() => import("./pages/courses/CourseManagement"));
 const MyCourses = lazy(() => import("./pages/courses/MyCourses"));
 const SubmissionManagement = lazy(() => import("./pages/hr/SubmissionManagement"));
@@ -192,6 +193,7 @@ function AppRoutes() {
         {/* Course Routes */}
         <Route path="/courses" element={<CourseManagement />} />
         <Route path="/my-courses" element={<MyCourses />} />
+        <Route path="/my-events" element={<MyEvents />} />
         <Route path="/trainers" element={<TrainerManagement />} />
 
         {/* HR Routes */}
@@ -211,12 +213,12 @@ function AppRoutes() {
         <Route path="/admin/reports" element={<Reports />} />
         <Route path="/admin/reports" element={<Reports />} />
         <Route path="/admin/badges" element={<BadgeManagement />} />
-        <Route path="/admin/quran" element={<QuranManagement />} />
+
         <Route path="/admin/quran-dashboard" element={<QuranDashboard />} />
         <Route path="/admin/quran/participations" element={<QuranParticipations />} />
         <Route path="/admin/quran/members" element={<QuranMembers />} />
         <Route path="/admin/quran/badges" element={<QuranBadges />} />
-        <Route path="/admin/quran/:id" element={<BeneficiaryDetails />} />
+
         <Route path="/admin/quran-circles" element={<QuranCircles />} />
         <Route path="/admin/quran-teachers" element={<QuranTeachers />} />
         <Route path="/my-quran-circles" element={<MyQuranCircles />} />

@@ -799,13 +799,13 @@ export default function CaravanManagement() {
         <div className="space-y-6">
 
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold">{t('caravans.title')}</h1>
-                    <p className="text-muted-foreground text-sm sm:text-base">{t('admin.overview')}</p>
-                </div>
-                <div className="flex flex-wrap gap-2 w-full sm:w-auto items-center">
-                    <div className="relative w-full sm:w-64">
+            {/* Header Section */}
+            <div className="flex flex-col gap-4">
+                <h1 className="text-2xl sm:text-3xl font-bold">{t('caravans.title')}</h1>
+
+                {/* Filters and Actions Row */}
+                <div className="flex flex-wrap gap-2 items-center">
+                    <div className="relative flex-1 min-w-[200px]">
                         <Search className="absolute ltr:left-2.5 rtl:right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             type="search"
@@ -836,13 +836,7 @@ export default function CaravanManagement() {
                         </SelectContent>
                     </Select>
 
-                    <div className="bg-card text-card-foreground shadow-sm border rounded-md px-3 h-10 flex items-center gap-2 min-w-fit">
-                        <Bus className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-semibold text-sm">{filteredCaravans.length}</span>
-                        <span className="text-xs text-muted-foreground hidden lg:inline">{isRTL ? 'قافلة' : 'Caravans'}</span>
-                    </div>
-
-                    <Button variant="outline" onClick={exportAllCaravans} className="flex-1 sm:flex-none">
+                    <Button variant="outline" onClick={exportAllCaravans} className="flex-none">
                         <FileSpreadsheet className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                         <span className="text-xs sm:text-sm">
                             {t('caravans.exportAll')} ({getFilterDisplayLabel(timeFilter)})
@@ -850,7 +844,7 @@ export default function CaravanManagement() {
                     </Button>
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
-                            <Button className="flex-1 sm:flex-none" onClick={() => { resetForm(); setIsCreateOpen(true); }}>
+                            <Button className="flex-none" onClick={() => { resetForm(); setIsCreateOpen(true); }}>
                                 <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                 <span className="text-xs sm:text-sm">{t('caravans.add')}</span>
                             </Button>
@@ -1058,6 +1052,26 @@ export default function CaravanManagement() {
                         </DialogContent>
                     </Dialog>
                 </div>
+            </div>
+
+            {/* Statistics Cards */}
+            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                <StatsCard
+                    title={isRTL ? 'إجمالي القوافل' : 'Total Caravans'}
+                    value={filteredCaravans.length.toString()}
+                    icon={Bus}
+                    description={getFilterDisplayLabel(timeFilter)}
+                />
+                <StatsCard
+                    title={isRTL ? 'إجمالي المشاركين' : 'Total Participants'}
+                    value={filteredCaravans.reduce((sum, c) => sum + (c.participants_count || 0), 0).toString()}
+                    icon={Users}
+                />
+                <StatsCard
+                    title={isRTL ? 'آخر قافلة' : 'Most Recent'}
+                    value={filteredCaravans.length > 0 ? format(new Date(filteredCaravans[0].date), 'MMM dd, yyyy') : (isRTL ? 'لا يوجد' : 'None')}
+                    icon={Calendar}
+                />
             </div>
 
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">

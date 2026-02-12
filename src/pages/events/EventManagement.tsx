@@ -23,10 +23,18 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Plus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, Sparkles, Download, Pencil } from 'lucide-react';
+import { Plus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, Sparkles, Download, Pencil, Mic, UserPlus, Link as LinkIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+
+interface Committee {
+    id: string;
+    name: string;
+    name_ar: string;
+}
 
 interface Event {
     id: string;
@@ -37,6 +45,8 @@ interface Event {
     time: string | null;
     description: string | null;
     created_by: string;
+    committee_id: string | null;
+    committee_name?: string;
     participants_count?: number;
 }
 
@@ -48,6 +58,25 @@ interface Participant {
     is_volunteer: boolean;
 }
 
+interface Speaker {
+    id?: string;
+    name: string;
+    phone: string;
+    social_media_link: string;
+}
+
+interface EventOrganizer {
+    id?: string;
+    volunteer_id: string;
+    volunteer_name?: string;
+}
+
+interface EventBeneficiary {
+    id?: string;
+    name: string;
+    phone: string;
+}
+
 interface Volunteer {
     id: string;
     full_name: string;
@@ -56,13 +85,14 @@ interface Volunteer {
 }
 
 export default function EventManagement() {
-    const { user } = useAuth();
+    const { user, hasRole, primaryRole } = useAuth();
     const { t, language, isRTL } = useLanguage();
 
     const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
+    const [committees, setCommittees] = useState<Committee[]>([]);
 
     // Filter State
     const [searchQuery, setSearchQuery] = useState('');
@@ -75,13 +105,28 @@ export default function EventManagement() {
         location: '',
         date: format(new Date(), 'yyyy-MM-dd'),
         time: '',
-        description: ''
+        description: '',
+        committee_id: ''
     });
 
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [openCombobox, setOpenCombobox] = useState(false);
     const [guestName, setGuestName] = useState('');
     const [guestPhone, setGuestPhone] = useState('');
+
+    // Speakers state
+    const [speakers, setSpeakers] = useState<Speaker[]>([]);
+    const [newSpeaker, setNewSpeaker] = useState<Speaker>({ name: '', phone: '', social_media_link: '' });
+
+    // Organizers state
+    const [organizers, setOrganizers] = useState<EventOrganizer[]>([]);
+    const [openOrgCombobox, setOpenOrgCombobox] = useState(false);
+
+    // Beneficiaries state
+    const [beneficiariesDialogOpen, setBeneficiariesDialogOpen] = useState(false);
+    const [selectedEventForBeneficiaries, setSelectedEventForBeneficiaries] = useState<Event | null>(null);
+    const [eventBeneficiaries, setEventBeneficiaries] = useState<EventBeneficiary[]>([]);
+    const [newBeneficiary, setNewBeneficiary] = useState({ name: '', phone: '' });
 
     // Delete state
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -90,10 +135,24 @@ export default function EventManagement() {
 
     const [eventsCommitteeId, setEventsCommitteeId] = useState<string | null>(null);
 
+    // Role-based committee mapping
+    const ROLE_COMMITTEE_MAP: Record<string, string> = {
+        head_events: 'Events', head_caravans: 'Caravans', head_ethics: 'Ethics',
+        head_quran: 'Quran', head_ashbal: 'Ashbal', head_marketing: 'Marketing',
+        head_production: 'Production', head_fourth_year: 'Fourth Year', head_hr: 'HR'
+    };
+
+    const isAdmin = hasRole('admin') || hasRole('supervisor');
+    const userCommitteeName = ROLE_COMMITTEE_MAP[primaryRole] || null;
+
     useEffect(() => {
-        fetchEvents();
-        fetchVolunteers();
-        fetchEventsCommittee();
+        const loadData = async () => {
+            fetchVolunteers();
+            fetchEventsCommittee();
+            const committeesData = await fetchCommittees();
+            fetchEvents(committeesData);
+        };
+        loadData();
     }, []);
 
     const filteredEvents = events.filter(event => {
@@ -106,25 +165,54 @@ export default function EventManagement() {
         const { data } = await supabase
             .from('committees')
             .select('id')
-            .ilike('name', 'Events') // Match name or adjust if different
+            .ilike('name', 'Events')
             .maybeSingle();
         if (data) setEventsCommitteeId(data.id);
     };
 
-    const fetchEvents = async () => {
+    const fetchCommittees = async () => {
+        const { data } = await supabase
+            .from('committees')
+            .select('id, name, name_ar')
+            .order('name');
+        if (data) {
+            setCommittees(data);
+            // Auto-set committee_id for non-admin heads
+            if (!isAdmin && userCommitteeName) {
+                const match = data.find(c => c.name === userCommitteeName);
+                if (match) setFormData(prev => ({ ...prev, committee_id: match.id }));
+            }
+            return data;
+        }
+        return [];
+    };
+
+    const fetchEvents = async (committeesList?: Committee[]) => {
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('events')
                 .select(`
                     *,
+                    committees(name, name_ar),
                     event_participants (count)
                 `)
                 .order('date', { ascending: false });
 
+            // Non-admin heads only see events for their committee
+            if (!isAdmin && userCommitteeName) {
+                const currentCommittees = committeesList || committees;
+                const committeeMatch = currentCommittees.find(c => c.name === userCommitteeName);
+                if (committeeMatch) {
+                    query = query.eq('committee_id', committeeMatch.id);
+                }
+            }
+
+            const { data, error } = await query;
             if (error) throw error;
 
             const eventsData = data?.map((event: any) => ({
                 ...event,
+                committee_name: event.committees?.name_ar || event.committees?.name || '',
                 participants_count: event.event_participants?.[0]?.count || 0
             })) || [];
 
@@ -161,6 +249,78 @@ export default function EventManagement() {
             .maybeSingle();
 
         return data?.id;
+    };
+
+    // Speaker management
+    const handleAddSpeaker = () => {
+        if (!newSpeaker.name) return;
+        setSpeakers([...speakers, { ...newSpeaker }]);
+        setNewSpeaker({ name: '', phone: '', social_media_link: '' });
+    };
+
+    const handleRemoveSpeaker = (idx: number) => {
+        setSpeakers(speakers.filter((_, i) => i !== idx));
+    };
+
+    // Organizer management
+    const handleAddOrganizer = (volunteerId: string) => {
+        const volunteer = volunteers.find(v => v.id === volunteerId);
+        if (!volunteer) return;
+        if (organizers.some(o => o.volunteer_id === volunteerId)) {
+            toast.error(isRTL ? 'المنظم مضاف بالفعل' : 'Organizer already added');
+            return;
+        }
+        setOrganizers([...organizers, { volunteer_id: volunteer.id, volunteer_name: volunteer.full_name }]);
+        setOpenOrgCombobox(false);
+    };
+
+    const handleRemoveOrganizer = (idx: number) => {
+        setOrganizers(organizers.filter((_, i) => i !== idx));
+    };
+
+    // Beneficiary management
+    const openBeneficiaries = async (event: Event) => {
+        setSelectedEventForBeneficiaries(event);
+        setBeneficiariesDialogOpen(true);
+        const { data } = await supabase
+            .from('event_beneficiaries')
+            .select('*')
+            .eq('event_id', event.id)
+            .order('name');
+        setEventBeneficiaries((data as EventBeneficiary[]) || []);
+    };
+
+    const handleAddBeneficiary = async () => {
+        if (!selectedEventForBeneficiaries || !newBeneficiary.name) return;
+        try {
+            const { data, error } = await supabase
+                .from('event_beneficiaries')
+                .insert({
+                    event_id: selectedEventForBeneficiaries.id,
+                    name: newBeneficiary.name,
+                    phone: newBeneficiary.phone || null
+                })
+                .select()
+                .single();
+            if (error) throw error;
+            setEventBeneficiaries([...eventBeneficiaries, data as EventBeneficiary]);
+            setNewBeneficiary({ name: '', phone: '' });
+            toast.success(isRTL ? 'تم إضافة المستفيد' : 'Beneficiary added');
+        } catch (error) {
+            console.error('Error adding beneficiary:', error);
+            toast.error(isRTL ? 'فشل إضافة المستفيد' : 'Failed to add beneficiary');
+        }
+    };
+
+    const handleRemoveBeneficiary = async (id: string) => {
+        try {
+            const { error } = await supabase.from('event_beneficiaries').delete().eq('id', id);
+            if (error) throw error;
+            setEventBeneficiaries(eventBeneficiaries.filter(b => b.id !== id));
+            toast.success(isRTL ? 'تم حذف المستفيد' : 'Beneficiary removed');
+        } catch (error) {
+            toast.error(isRTL ? 'فشل حذف المستفيد' : 'Failed to remove beneficiary');
+        }
     };
 
     const handleAddVolunteer = (volunteerId: string) => {
@@ -205,13 +365,12 @@ export default function EventManagement() {
     const handleEditEvent = async (event: Event) => {
         setLoading(true);
         try {
-            // Fetch full participant details for this event
-            const { data: parts, error } = await supabase
-                .from('event_participants')
-                .select('*')
-                .eq('event_id', event.id);
-
-            if (error) throw error;
+            // Fetch participants, speakers, organizers in parallel
+            const [partsRes, speakersRes, orgsRes] = await Promise.all([
+                supabase.from('event_participants').select('*').eq('event_id', event.id),
+                supabase.from('event_speakers').select('*').eq('event_id', event.id),
+                supabase.from('event_organizers').select('*, profiles:volunteer_id(full_name)').eq('event_id', event.id)
+            ]);
 
             setFormData({
                 name: event.name,
@@ -219,15 +378,23 @@ export default function EventManagement() {
                 location: event.location,
                 date: event.date,
                 time: event.time || '',
-                description: event.description || ''
+                description: event.description || '',
+                committee_id: event.committee_id || ''
             });
 
-            setParticipants((parts || []).map((p: any) => ({
-                id: p.id, // Keep ID to track existing
-                volunteer_id: p.volunteer_id,
-                name: p.name,
-                phone: p.phone,
-                is_volunteer: p.is_volunteer
+            setParticipants((partsRes.data || []).map((p: any) => ({
+                id: p.id, volunteer_id: p.volunteer_id,
+                name: p.name, phone: p.phone, is_volunteer: p.is_volunteer
+            })));
+
+            setSpeakers((speakersRes.data || []).map((s: any) => ({
+                id: s.id, name: s.name, phone: s.phone || '',
+                social_media_link: s.social_media_link || ''
+            })));
+
+            setOrganizers((orgsRes.data || []).map((o: any) => ({
+                id: o.id, volunteer_id: o.volunteer_id,
+                volunteer_name: o.profiles?.full_name || ''
             })));
 
             setSelectedEventId(event.id);
@@ -248,7 +415,7 @@ export default function EventManagement() {
         }
 
         try {
-            // 1. Create Event
+            // 1. Create Event with committee_id
             const { data: event, error: eventError } = await supabase
                 .from('events')
                 .insert({
@@ -258,13 +425,13 @@ export default function EventManagement() {
                     date: formData.date,
                     time: formData.time || null,
                     description: formData.description || null,
+                    committee_id: formData.committee_id === 'general' ? null : (formData.committee_id || null),
                     created_by: user?.id
                 })
                 .select()
                 .single();
 
             if (eventError) throw eventError;
-
             const eventData = event as any;
 
             // 2. Add Participants & Award Points
@@ -274,49 +441,43 @@ export default function EventManagement() {
                     .insert(participants.map(p => ({
                         event_id: eventData.id,
                         volunteer_id: p.volunteer_id || null,
-                        name: p.name,
-                        phone: p.phone,
-                        is_volunteer: p.is_volunteer
+                        name: p.name, phone: p.phone, is_volunteer: p.is_volunteer
                     })));
-
                 if (partsError) throw partsError;
+            }
 
-                // Award Points for Volunteers
-                const volunteerParticipants = participants.filter(p => p.is_volunteer && p.volunteer_id);
-                if (volunteerParticipants.length > 0) {
-                    const activityTypeId = await ensureEventActivityType();
-                    // Fallback to first available committee if 'Events' not found, or user's committee?
-                    // Ideally should be 'Events' committee. If not found, using first one as fallback to avoid crash, 
-                    // requires better handling but for now assuming it exists or preventing insert if critical.
-                    // Using Optional Chaining or default to avoid hard crash, but DB will reject if null.
-                    // Let's rely on eventCommitteeId being present.
+            // 3. Save speakers
+            if (speakers.length > 0) {
+                await supabase.from('event_speakers').insert(
+                    speakers.map(s => ({
+                        event_id: eventData.id,
+                        name: s.name, phone: s.phone || null,
+                        social_media_link: s.social_media_link || null
+                    }))
+                );
+            }
 
-                    const targetCommitteeId = eventsCommitteeId || (await supabase.from('committees').select('id').limit(1).single()).data?.id;
+            // 4. Save organizers & award participation
+            if (organizers.length > 0) {
+                await supabase.from('event_organizers').insert(
+                    organizers.map(o => ({ event_id: eventData.id, volunteer_id: o.volunteer_id }))
+                );
 
-                    if (activityTypeId && targetCommitteeId) {
-                        const submissions = volunteerParticipants.map(p => ({
-                            volunteer_id: p.volunteer_id,
+                // Award points to organizers
+                const activityTypeId = await ensureEventActivityType();
+                const targetCommitteeId = formData.committee_id || eventsCommitteeId;
+                if (activityTypeId && targetCommitteeId) {
+                    await supabase.from('activity_submissions').insert(
+                        organizers.map(o => ({
+                            volunteer_id: o.volunteer_id,
                             activity_type_id: activityTypeId,
                             committee_id: targetCommitteeId,
                             status: 'approved' as const,
                             points_awarded: 5,
                             submitted_at: new Date().toISOString(),
                             description: `Event: ${formData.name}`,
-                        }));
-
-                        const { error: pointsError } = await supabase
-                            .from('activity_submissions')
-                            .insert(submissions);
-
-                        if (pointsError) {
-                            console.error('Error awarding points:', pointsError);
-                            toast.error(isRTL ? 'تم إنشاء الإيفينت ولكن فشل تسجيل النقاط' : 'Event created but failed to award points');
-                        } else {
-                            toast.success(isRTL ? 'تم تسجيل 5 نقاط للمتطوعين' : 'Awarded 5 points to volunteers');
-                        }
-                    } else {
-                        console.warn('Could not award points: Missing activity type or committee ID');
-                    }
+                        }))
+                    );
                 }
             }
 
@@ -347,92 +508,53 @@ export default function EventManagement() {
                     date: formData.date,
                     time: formData.time || null,
                     description: formData.description || null,
+                    committee_id: formData.committee_id === 'general' ? null : (formData.committee_id || null),
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', selectedEventId);
 
             if (updateError) throw updateError;
 
-            // 2. Manage Participants
-            // Fetch existing to compare
+            // 2. Manage Participants (existing logic)
             const { data: existingPartsType } = await supabase
                 .from('event_participants')
                 .select('id, volunteer_id, is_volunteer')
                 .eq('event_id', selectedEventId);
-
             const existingParts = existingPartsType as any[] || [];
-
-            // Identify Added, Removed, Kept
-            const currentParticipantIds = participants.filter(p => p.id).map(p => p.id); // IDs of those still in the list
-            const existingIds = existingParts.map(p => p.id);
-
+            const currentParticipantIds = participants.filter(p => p.id).map(p => p.id);
             const toRemove = existingParts.filter(p => !currentParticipantIds.includes(p.id));
-            const toAdd = participants.filter(p => !p.id); // No ID means new
+            const toAdd = participants.filter(p => !p.id);
 
-            // Remove deleted participants
             if (toRemove.length > 0) {
-                const removeIds = toRemove.map(p => p.id);
-                await supabase.from('event_participants').delete().in('id', removeIds);
-
-                // Remove points (activity_submissions) for removed volunteers
-                const volIdsToRemove = toRemove
-                    .filter(p => p.is_volunteer && p.volunteer_id)
-                    .map(p => p.volunteer_id);
-
-                if (volIdsToRemove.length > 0) {
-                    // Use the original event name to find submissions to delete
-                    const originalEvent = events.find(e => e.id === selectedEventId);
-                    const originalEventName = originalEvent?.name || formData.name;
-
-                    // Cleanup based on standard description format "Event: <EventName>"
-                    const { error: deletePointsError } = await supabase
-                        .from('activity_submissions')
-                        .delete()
-                        .in('volunteer_id', volIdsToRemove)
-                        .eq('description', `Event: ${originalEventName}`);
-
-                    if (deletePointsError) {
-                        console.error('Error removing points for removed participants:', deletePointsError);
-                    }
-                }
+                await supabase.from('event_participants').delete().in('id', toRemove.map(p => p.id));
             }
 
-            // Add new participants
             if (toAdd.length > 0) {
-                const { data: newParts, error: addError } = await supabase
-                    .from('event_participants')
-                    .insert(toAdd.map(p => ({
+                await supabase.from('event_participants').insert(toAdd.map(p => ({
+                    event_id: selectedEventId,
+                    volunteer_id: p.volunteer_id || null,
+                    name: p.name, phone: p.phone, is_volunteer: p.is_volunteer
+                })));
+            }
+
+            // 3. Sync speakers (delete all + reinsert)
+            await supabase.from('event_speakers').delete().eq('event_id', selectedEventId);
+            if (speakers.length > 0) {
+                await supabase.from('event_speakers').insert(
+                    speakers.map(s => ({
                         event_id: selectedEventId,
-                        volunteer_id: p.volunteer_id || null,
-                        name: p.name,
-                        phone: p.phone,
-                        is_volunteer: p.is_volunteer
-                    })))
-                    .select();
+                        name: s.name, phone: s.phone || null,
+                        social_media_link: s.social_media_link || null
+                    }))
+                );
+            }
 
-                if (addError) throw addError;
-
-                // Award points for NEW volunteers
-                const newVolunteers = toAdd.filter(p => p.is_volunteer && p.volunteer_id);
-                if (newVolunteers.length > 0) {
-                    const activityTypeId = await ensureEventActivityType();
-                    // Use stored committee ID or fallback
-                    const targetCommitteeId = eventsCommitteeId || (await supabase.from('committees').select('id').limit(1).single()).data?.id;
-
-                    if (activityTypeId && targetCommitteeId) {
-                        const submissions = newVolunteers.map(p => ({
-                            volunteer_id: p.volunteer_id,
-                            activity_type_id: activityTypeId,
-                            committee_id: targetCommitteeId,
-                            status: 'approved' as const,
-                            points_awarded: 5,
-                            submitted_at: new Date().toISOString(),
-                            description: `Event: ${formData.name}`,
-                        }));
-                        await supabase.from('activity_submissions').insert(submissions);
-                        toast.success(isRTL ? `تم إضافة ${newVolunteers.length} نقاط جديدة` : `Awarded points to ${newVolunteers.length} new volunteers`);
-                    }
-                }
+            // 4. Sync organizers (delete all + reinsert)
+            await supabase.from('event_organizers').delete().eq('event_id', selectedEventId);
+            if (organizers.length > 0) {
+                await supabase.from('event_organizers').insert(
+                    organizers.map(o => ({ event_id: selectedEventId, volunteer_id: o.volunteer_id }))
+                );
             }
 
             toast.success(isRTL ? 'تم تحديث الإيفينت بنجاح' : 'Event updated successfully');
@@ -458,16 +580,20 @@ export default function EventManagement() {
 
     const resetForm = () => {
         setFormData({
-            name: '',
-            type: '',
-            location: '',
+            name: '', type: '', location: '',
             date: format(new Date(), 'yyyy-MM-dd'),
-            time: '',
-            description: ''
+            time: '', description: '', committee_id: ''
         });
         setParticipants([]);
+        setSpeakers([]);
+        setOrganizers([]);
         setIsEditMode(false);
         setSelectedEventId(null);
+        // Re-set default committee for non-admin heads
+        if (!isAdmin && userCommitteeName) {
+            const match = committees.find(c => c.name === userCommitteeName);
+            if (match) setFormData(prev => ({ ...prev, committee_id: match.id }));
+        }
     };
 
     const handleExportAllEvents = () => {
@@ -603,6 +729,11 @@ export default function EventManagement() {
                     <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
                         <Sparkles className="h-7 w-7" />
                         {isRTL ? 'إدارة الإيفينتات' : 'Event Management'}
+                        {!isAdmin && userCommitteeName && (
+                            <span className="text-lg font-normal text-muted-foreground">
+                                - {isRTL ? committees.find(c => c.name === userCommitteeName)?.name_ar : userCommitteeName}
+                            </span>
+                        )}
                     </h1>
                     <p className="text-muted-foreground">{isRTL ? 'إنشاء وإدارة الإيفينتات' : 'Create and manage events'}</p>
                 </div>
@@ -689,101 +820,132 @@ export default function EventManagement() {
                                 />
                             </div>
 
-                            {/* Participants Section */}
+                            {/* Committee Selector */}
+                            <div className="grid gap-2">
+                                <Label>{isRTL ? 'اللجنة' : 'Committee'}</Label>
+                                <Select
+                                    value={formData.committee_id || 'general'}
+                                    onValueChange={(val) => setFormData({ ...formData, committee_id: val })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={isRTL ? 'اختر اللجنة' : 'Select committee'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {(isAdmin || !userCommitteeName) && (
+                                            <SelectItem value="general">{isRTL ? 'عام (بدون لجنة)' : 'General (No Committee)'}</SelectItem>
+                                        )}
+                                        {committees
+                                            .filter(c => isAdmin || !userCommitteeName || c.name === userCommitteeName)
+                                            .map(c => (
+                                                <SelectItem key={c.id} value={c.id}>
+                                                    {isRTL ? c.name_ar : c.name}
+                                                </SelectItem>
+                                            ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            {/* Speakers Section */}
                             <div className="border-t pt-4 mt-2">
-                                <h4 className="font-medium mb-3">{isRTL ? 'المشاركين' : 'Participants'}</h4>
-
-                                {/* Add Volunteer */}
+                                <h4 className="font-medium mb-3 flex items-center gap-2">
+                                    <Mic className="h-4 w-4" />
+                                    {isRTL ? 'المتحدثون' : 'Speakers'}
+                                </h4>
                                 <div className="space-y-3">
-                                    <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                                        <PopoverTrigger asChild>
-                                            <Button variant="outline" role="combobox" className="w-full justify-between">
-                                                {isRTL ? 'اختر متطوع...' : 'Select volunteer...'}
-                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-full p-0">
-                                            <Command>
-                                                <CommandInput placeholder={isRTL ? 'بحث...' : 'Search...'} />
-                                                <CommandList>
-                                                    <CommandEmpty>{isRTL ? 'لا توجد نتائج' : 'No results'}</CommandEmpty>
-                                                    <CommandGroup>
-                                                        {volunteers.map((v) => (
-                                                            <CommandItem
-                                                                key={v.id}
-                                                                value={v.full_name || v.id}
-                                                                onSelect={() => handleAddVolunteer(v.id)}
-                                                            >
-                                                                <div className="flex items-center gap-2">
-                                                                    <Check className={cn("mr-2 h-4 w-4", participants.some(p => p.volunteer_id === v.id) ? "opacity-100" : "opacity-0")} />
-                                                                    <Avatar className="h-6 w-6">
-                                                                        <AvatarImage src={v.avatar_url || undefined} />
-                                                                        <AvatarFallback className="text-[10px]">{v.full_name?.charAt(0)}</AvatarFallback>
-                                                                    </Avatar>
-                                                                    {v.full_name}
-                                                                </div>
-                                                            </CommandItem>
-                                                        ))}
-                                                    </CommandGroup>
-                                                </CommandList>
-                                            </Command>
-                                        </PopoverContent>
-                                    </Popover>
-
-                                    {/* Add Guest */}
                                     <div className="flex gap-2">
                                         <Input
-                                            placeholder={isRTL ? 'اسم الضيف (ثلاثي)' : 'Guest name (tripartite)'}
-                                            value={guestName}
-                                            onChange={(e) => setGuestName(e.target.value)}
+                                            placeholder={isRTL ? 'اسم المتحدث' : 'Speaker name'}
+                                            value={newSpeaker.name}
+                                            onChange={(e) => setNewSpeaker({ ...newSpeaker, name: e.target.value })}
                                             className="flex-1"
                                         />
                                         <Input
-                                            placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
-                                            value={guestPhone}
-                                            onChange={(e) => setGuestPhone(e.target.value)}
-                                            className="w-32"
+                                            placeholder={isRTL ? 'الهاتف' : 'Phone'}
+                                            value={newSpeaker.phone}
+                                            onChange={(e) => setNewSpeaker({ ...newSpeaker, phone: e.target.value })}
+                                            className="w-28"
                                         />
-                                        <Button type="button" variant="secondary" onClick={handleAddGuest}>
+                                        <Input
+                                            placeholder={isRTL ? 'رابط التواصل' : 'Social link'}
+                                            value={newSpeaker.social_media_link}
+                                            onChange={(e) => setNewSpeaker({ ...newSpeaker, social_media_link: e.target.value })}
+                                            className="w-36"
+                                        />
+                                        <Button type="button" variant="secondary" onClick={handleAddSpeaker}>
                                             <Plus className="h-4 w-4" />
                                         </Button>
                                     </div>
+                                    {speakers.length > 0 && (
+                                        <div className="space-y-2">
+                                            {speakers.map((s, idx) => (
+                                                <div key={idx} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2 text-sm">
+                                                    <div className="flex items-center gap-3">
+                                                        <Mic className="h-4 w-4 text-primary" />
+                                                        <span className="font-medium">{s.name}</span>
+                                                        {s.phone && <span className="text-muted-foreground">{s.phone}</span>}
+                                                        {s.social_media_link && (
+                                                            <a href={s.social_media_link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                                                                <LinkIcon className="h-3 w-3" />
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveSpeaker(idx)}>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
+                            </div>
 
-                                {/* Participants List */}
-                                {participants.length > 0 && (
-                                    <div className="mt-4 border rounded-md overflow-hidden">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                    <TableHead>{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
-                                                    <TableHead>{isRTL ? 'النوع' : 'Type'}</TableHead>
-                                                    <TableHead className="w-12"></TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {participants.map((p, idx) => (
-                                                    <TableRow key={idx}>
-                                                        <TableCell>{p.name}</TableCell>
-                                                        <TableCell>{p.phone || '—'}</TableCell>
-                                                        <TableCell>
-                                                            <span className={cn("text-xs px-2 py-0.5 rounded-full", p.is_volunteer ? "bg-primary/10 text-primary" : "bg-muted")}>
-                                                                {p.is_volunteer ? (isRTL ? 'متطوع' : 'Volunteer') : (isRTL ? 'ضيف' : 'Guest')}
-                                                            </span>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Button variant="ghost" size="icon" onClick={() => removeParticipant(idx)}>
-                                                                <Trash2 className="h-4 w-4 text-destructive" />
-                                                            </Button>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
+                            {/* Organizers Section */}
+                            <div className="border-t pt-4 mt-2">
+                                <h4 className="font-medium mb-3 flex items-center gap-2">
+                                    <UserPlus className="h-4 w-4" />
+                                    {isRTL ? 'المنظمون' : 'Organizers'}
+                                </h4>
+                                <Popover open={openOrgCombobox} onOpenChange={setOpenOrgCombobox}>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" role="combobox" className="w-full justify-between">
+                                            {isRTL ? 'اختر منظم...' : 'Select organizer...'}
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-full p-0">
+                                        <Command>
+                                            <CommandInput placeholder={isRTL ? 'بحث...' : 'Search...'} />
+                                            <CommandList>
+                                                <CommandEmpty>{isRTL ? 'لا توجد نتائج' : 'No results'}</CommandEmpty>
+                                                <CommandGroup>
+                                                    {volunteers.map((v) => (
+                                                        <CommandItem key={v.id} value={v.full_name || v.id} onSelect={() => handleAddOrganizer(v.id)}>
+                                                            <Check className={cn("mr-2 h-4 w-4", organizers.some(o => o.volunteer_id === v.id) ? "opacity-100" : "opacity-0")} />
+                                                            {v.full_name}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                                {organizers.length > 0 && (
+                                    <div className="space-y-2 mt-3">
+                                        {organizers.map((o, idx) => (
+                                            <div key={idx} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2 text-sm">
+                                                <div className="flex items-center gap-2">
+                                                    <UserPlus className="h-4 w-4 text-green-600" />
+                                                    <span>{o.volunteer_name}</span>
+                                                </div>
+                                                <Button variant="ghost" size="icon" onClick={() => handleRemoveOrganizer(idx)}>
+                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                </Button>
+                                            </div>
+                                        ))}
                                     </div>
                                 )}
                             </div>
+                            {/* Participants Section Removed as per user request (Redundant with Organizers) */}
                         </div>
 
                         <DialogFooter>
@@ -834,6 +996,11 @@ export default function EventManagement() {
                                     <div>
                                         <CardTitle className="text-lg">{event.name}</CardTitle>
                                         <CardDescription>{event.type}</CardDescription>
+                                        {event.committee_name && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary mt-1 inline-block">
+                                                {event.committee_name}
+                                            </span>
+                                        )}
                                     </div>
                                     <Button
                                         variant="ghost"
@@ -885,6 +1052,10 @@ export default function EventManagement() {
                                     <Users className="h-4 w-4" />
                                     <span>{event.participants_count || 0} {isRTL ? 'مشارك' : 'participants'}</span>
                                 </div>
+                                <Button variant="outline" size="sm" className="w-full mt-3" onClick={() => openBeneficiaries(event)}>
+                                    <Users className="h-3 w-3 ltr:mr-1 rtl:ml-1" />
+                                    {isRTL ? 'إدارة المستفيدين' : 'Manage Beneficiaries'}
+                                </Button>
                             </CardContent>
                         </Card>
                     ))}
@@ -914,6 +1085,63 @@ export default function EventManagement() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Beneficiaries Dialog */}
+            <Dialog open={beneficiariesDialogOpen} onOpenChange={setBeneficiariesDialogOpen}>
+                <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>{isRTL ? 'إدارة المستفيدين' : 'Manage Beneficiaries'} - {selectedEventForBeneficiaries?.name}</DialogTitle>
+                        <DialogDescription>{isRTL ? 'إضافة وإزالة المستفيدين من الإيفينت' : 'Add and remove event beneficiaries'}</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="flex gap-2">
+                            <Input
+                                placeholder={isRTL ? 'اسم المستفيد' : 'Beneficiary name'}
+                                value={newBeneficiary.name}
+                                onChange={(e) => setNewBeneficiary({ ...newBeneficiary, name: e.target.value })}
+                                className="flex-1"
+                            />
+                            <Input
+                                placeholder={isRTL ? 'الهاتف' : 'Phone'}
+                                value={newBeneficiary.phone}
+                                onChange={(e) => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
+                                className="w-32"
+                            />
+                            <Button onClick={handleAddBeneficiary}>
+                                <Plus className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        {eventBeneficiaries.length > 0 ? (
+                            <div className="border rounded-md overflow-hidden">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                            <TableHead>{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
+                                            <TableHead className="w-12"></TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {eventBeneficiaries.map((b) => (
+                                            <TableRow key={b.id}>
+                                                <TableCell>{b.name}</TableCell>
+                                                <TableCell>{b.phone || '—'}</TableCell>
+                                                <TableCell>
+                                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveBeneficiary(b.id!)}>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        ) : (
+                            <p className="text-center text-muted-foreground py-4">{isRTL ? 'لا يوجد مستفيدين' : 'No beneficiaries yet'}</p>
+                        )}
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

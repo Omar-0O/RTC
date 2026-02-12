@@ -8,6 +8,7 @@ import { LevelBadge } from '@/components/ui/level-badge';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
+import CourseSchedule from '@/components/courses/CourseSchedule';
 
 type DashboardStats = {
   totalVolunteers: number;
@@ -264,6 +265,9 @@ export default function AdminDashboard() {
       </div>
 
       <CourseAdsTable />
+
+      {/* Monthly Course Schedule Calendar */}
+      <CourseSchedule />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Recent Participations */}

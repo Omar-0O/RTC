@@ -57,6 +57,7 @@ interface UserWithDetails {
     phone?: string;
     attended_mini_camp?: boolean;
     attended_camp?: boolean;
+    last_seen_at?: string | null;
 }
 
 export default function SupervisorUserManagement() {
@@ -121,7 +122,8 @@ export default function SupervisorUserManagement() {
                 join_date: profile.created_at,
                 phone: profile.phone,
                 attended_mini_camp: profile.attended_mini_camp || false,
-                attended_camp: profile.attended_camp || false
+                attended_camp: profile.attended_camp || false,
+                last_seen_at: profile.last_seen_at || null
             }));
 
             setUsers(usersWithDetails);
@@ -237,6 +239,21 @@ export default function SupervisorUserManagement() {
             case 'head_quran': return t('common.head_quran');
             default: return t('common.volunteer');
         }
+    };
+
+    const getLastSeenText = (lastSeen: string | null | undefined) => {
+        if (!lastSeen) return { text: language === 'ar' ? 'غير معروف' : 'Unknown', color: 'text-muted-foreground', dot: 'bg-gray-400' };
+        const now = new Date();
+        const seen = new Date(lastSeen);
+        const diffMs = now.getTime() - seen.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+        const diffHours = Math.floor(diffMs / 3600000);
+        const diffDays = Math.floor(diffMs / 86400000);
+
+        if (diffMins < 3) return { text: language === 'ar' ? 'متصل الآن' : 'Online', color: 'text-emerald-600', dot: 'bg-emerald-500' };
+        if (diffMins < 60) return { text: language === 'ar' ? `منذ ${diffMins} دقيقة` : `${diffMins}m ago`, color: 'text-yellow-600', dot: 'bg-yellow-500' };
+        if (diffHours < 24) return { text: language === 'ar' ? `منذ ${diffHours} ساعة` : `${diffHours}h ago`, color: 'text-orange-600', dot: 'bg-orange-500' };
+        return { text: language === 'ar' ? `منذ ${diffDays} يوم` : `${diffDays}d ago`, color: 'text-muted-foreground', dot: 'bg-gray-400' };
     };
 
     if (isLoading) {
@@ -368,8 +385,16 @@ export default function SupervisorUserManagement() {
                                                     <span className="font-medium">{user.total_points.toLocaleString()}</span>
                                                 </div>
                                                 <div className="flex justify-between items-center py-1">
-                                                    <span className="text-muted-foreground">{t('users.joined')}</span>
-                                                    <span>{new Date(user.join_date).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB')}</span>
+                                                    <span className="text-muted-foreground">{language === 'ar' ? 'آخر ظهور' : 'Last Seen'}</span>
+                                                    {(() => {
+                                                        const status = getLastSeenText(user.last_seen_at);
+                                                        return (
+                                                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${status.color}`}>
+                                                                <span className={`h-2 w-2 rounded-full ${status.dot}`} />
+                                                                {status.text}
+                                                            </span>
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         </CardContent>
@@ -387,7 +412,7 @@ export default function SupervisorUserManagement() {
                                             <TableHead className="text-start">{t('users.committee')}</TableHead>
                                             <TableHead className="text-start">{t('users.level')}</TableHead>
                                             <TableHead className="text-start">{t('common.points')}</TableHead>
-                                            <TableHead className="text-start">{t('users.joined')}</TableHead>
+                                            <TableHead className="text-start">{language === 'ar' ? 'آخر ظهور' : 'Last Seen'}</TableHead>
                                             <TableHead className="w-[100px]"></TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -423,9 +448,15 @@ export default function SupervisorUserManagement() {
                                                     <span className="font-medium">{user.total_points.toLocaleString()}</span>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <span className="text-sm text-muted-foreground">
-                                                        {new Date(user.join_date).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB')}
-                                                    </span>
+                                                    {(() => {
+                                                        const status = getLastSeenText(user.last_seen_at);
+                                                        return (
+                                                            <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${status.color}`}>
+                                                                <span className={`h-2 w-2 rounded-full ${status.dot}`} />
+                                                                {status.text}
+                                                            </span>
+                                                        );
+                                                    })()}
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex items-center justify-end gap-1">

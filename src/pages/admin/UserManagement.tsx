@@ -91,6 +91,7 @@ interface UserWithDetails {
   attended_camp?: boolean;
   is_ashbal?: boolean;
   birth_date?: string | null;
+  last_seen_at?: string | null;
 }
 
 import Profile from '@/pages/volunteer/Profile';
@@ -409,6 +410,7 @@ export default function UserManagement() {
           attended_camp: profile.attended_camp,
           is_ashbal: profile.is_ashbal,
           birth_date: profile.birth_date,
+          last_seen_at: profile.last_seen_at || null,
         };
       });
 
@@ -852,7 +854,6 @@ export default function UserManagement() {
       // Actually if existing users have it they will be migrated. But to avoid runtime error if data is stale:
       case 'head_caravans':
       case 'head_events':
-      case 'head_events':
       case 'head_ethics':
       case 'head_quran':
         return 'bg-blue-100 text-blue-700';
@@ -875,6 +876,21 @@ export default function UserManagement() {
       case 'head_quran': return t('common.head_quran');
       default: return t('common.volunteer');
     }
+  };
+
+  const getLastSeenText = (lastSeen: string | null | undefined) => {
+    if (!lastSeen) return { text: language === 'ar' ? 'غير معروف' : 'Unknown', color: 'text-muted-foreground', dot: 'bg-gray-400' };
+    const now = new Date();
+    const seen = new Date(lastSeen);
+    const diffMs = now.getTime() - seen.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 3) return { text: language === 'ar' ? 'متصل الآن' : 'Online', color: 'text-emerald-600', dot: 'bg-emerald-500' };
+    if (diffMins < 60) return { text: language === 'ar' ? `منذ ${diffMins} دقيقة` : `${diffMins}m ago`, color: 'text-yellow-600', dot: 'bg-yellow-500' };
+    if (diffHours < 24) return { text: language === 'ar' ? `منذ ${diffHours} ساعة` : `${diffHours}h ago`, color: 'text-orange-600', dot: 'bg-orange-500' };
+    return { text: language === 'ar' ? `منذ ${diffDays} يوم` : `${diffDays}d ago`, color: 'text-muted-foreground', dot: 'bg-gray-400' };
   };
 
   const downloadCSV = (data: any[], filename: string) => {
@@ -1715,7 +1731,7 @@ export default function UserManagement() {
                       <TableHead className="text-start">{t('users.committee')}</TableHead>
                       <TableHead className="text-start">{t('users.level')}</TableHead>
                       <TableHead className="text-start">{language === 'ar' ? 'عدد المشاركات' : 'Number of Participations'}</TableHead>
-                      <TableHead className="text-start">{t('users.joined')}</TableHead>
+                      <TableHead className="text-start">{language === 'ar' ? 'آخر ظهور' : 'Last Seen'}</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1752,9 +1768,15 @@ export default function UserManagement() {
                           <span className="font-medium">{user.participation_count || 0}</span>
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm text-muted-foreground">
-                            {new Date(user.join_date).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB')}
-                          </span>
+                          {(() => {
+                            const status = getLastSeenText(user.last_seen_at);
+                            return (
+                              <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${status.color}`}>
+                                <span className={`h-2 w-2 rounded-full ${status.dot}`} />
+                                {status.text}
+                              </span>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
@@ -1899,8 +1921,16 @@ export default function UserManagement() {
                           <p className="font-medium">{user.participation_count || 0}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-muted-foreground mb-0.5">{t('users.joined')}</p>
-                          <p>{new Date(user.join_date).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-GB')}</p>
+                          <p className="text-xs text-muted-foreground mb-0.5">{language === 'ar' ? 'آخر ظهور' : 'Last Seen'}</p>
+                          {(() => {
+                            const status = getLastSeenText(user.last_seen_at);
+                            return (
+                              <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${status.color}`}>
+                                <span className={`h-2 w-2 rounded-full ${status.dot}`} />
+                                {status.text}
+                              </span>
+                            );
+                          })()}
                         </div>
                         {user.phone && (
                           <div>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
@@ -141,7 +141,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [fetchProfile]);
 
+  // Heartbeat: update last_seen_at on login and every 2 minutes
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const updateLastSeen = async (uid: string) => {
+      try {
+        await supabase.from('profiles').update({ last_seen_at: new Date().toISOString() }).eq('id', uid);
+      } catch { /* silent */ }
+    };
+
+    if (user?.id) {
+      // Update immediately
+      updateLastSeen(user.id);
+      // Then every 2 minutes
+      heartbeatRef.current = setInterval(() => updateLastSeen(user.id), 2 * 60 * 1000);
+    }
+
+    return () => {
+      if (heartbeatRef.current) {
+        clearInterval(heartbeatRef.current);
+        heartbeatRef.current = null;
+      }
+    };
+  }, [user?.id]);
+
   const signOut = useCallback(async () => {
+    if (heartbeatRef.current) {
+      clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+    }
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -65,7 +66,7 @@ import * as XLSX from 'xlsx';
 import {
     Activity, BookOpen, Calendar, Clock, Users, Plus, Check, X, Trash2,
     MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User,
-    CalendarDays, TrendingUp, Percent, Filter, Search, MoreVertical, Pencil, UserPlus, ClipboardList
+    CalendarDays, TrendingUp, Percent, Filter, Search, MoreVertical, Pencil, UserPlus, UserMinus, ClipboardList
 } from 'lucide-react';
 
 interface Teacher {
@@ -135,6 +136,7 @@ interface Beneficiary {
     image_url: string | null;
     gender: 'male' | 'female' | null;
     beneficiary_type: 'child' | 'adult';
+    phone: string | null;
 }
 
 const DAYS = [
@@ -153,6 +155,9 @@ const DAYS_SHORT_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export default function QuranCircles() {
     const { isRTL, language } = useLanguage();
     const navigate = useNavigate();
+    const { hasRole } = useAuth();
+    const canManageOrganizers = hasRole('admin') || hasRole('head_quran');
+
     const [circles, setCircles] = useState<QuranCircle[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
@@ -210,6 +215,17 @@ export default function QuranCircles() {
     const [allBeneficiaries, setAllBeneficiaries] = useState<Beneficiary[]>([]);
     const [beneficiarySearch, setBeneficiarySearch] = useState('');
     const [enrollmentLoading, setEnrollmentLoading] = useState(false);
+
+    // New Beneficiary Management State
+    const [isAddingBeneficiary, setIsAddingBeneficiary] = useState(false);
+    const [editingBeneficiary, setEditingBeneficiary] = useState<Beneficiary | null>(null);
+    const [newBeneficiary, setNewBeneficiary] = useState({
+        name_ar: '',
+        name_en: '',
+        phone: '',
+        gender: 'male' as 'male' | 'female',
+        beneficiary_type: 'adult' as 'child' | 'adult'
+    });
 
     useEffect(() => {
         fetchCircles();
@@ -349,6 +365,63 @@ export default function QuranCircles() {
             setFormData({ ...formData, schedule_days: formData.schedule_days.filter(d => d !== day) });
         } else {
             setFormData({ ...formData, schedule_days: [...formData.schedule_days, day] });
+        }
+    };
+
+    const handleAddOrganizerToCircle = async (organizer: Organizer) => {
+        if (!selectedCircle || !organizer.volunteer_id) return;
+
+        try {
+            const { error } = await supabase
+                .from('quran_circle_organizers')
+                .insert({
+                    circle_id: selectedCircle.id,
+                    volunteer_id: organizer.volunteer_id,
+                    name: organizer.name,
+                    phone: organizer.phone
+                });
+
+            if (error) throw error;
+
+            toast.success(isRTL ? 'تم إضافة المنظم' : 'Organizer added');
+
+            // Update local state
+            const updatedOrganizers = [...(selectedCircle.organizers || []), organizer];
+            const updatedCircle = { ...selectedCircle, organizers: updatedOrganizers };
+
+            setSelectedCircle(updatedCircle);
+            setCircles(circles.map(c => c.id === selectedCircle.id ? updatedCircle : c));
+
+        } catch (error) {
+            console.error('Error adding organizer:', error);
+            toast.error(isRTL ? 'فشل إضافة المنظم' : 'Failed to add organizer');
+        }
+    };
+
+    const handleRemoveOrganizerFromCircle = async (organizer: Organizer) => {
+        if (!selectedCircle || !organizer.volunteer_id) return;
+
+        try {
+            const { error } = await supabase
+                .from('quran_circle_organizers')
+                .delete()
+                .eq('circle_id', selectedCircle.id)
+                .eq('volunteer_id', organizer.volunteer_id);
+
+            if (error) throw error;
+
+            toast.success(isRTL ? 'تم حذف المنظم' : 'Organizer removed');
+
+            // Update local state
+            const updatedOrganizers = (selectedCircle.organizers || []).filter(o => o.volunteer_id !== organizer.volunteer_id);
+            const updatedCircle = { ...selectedCircle, organizers: updatedOrganizers };
+
+            setSelectedCircle(updatedCircle);
+            setCircles(circles.map(c => c.id === selectedCircle.id ? updatedCircle : c));
+
+        } catch (error) {
+            console.error('Error removing organizer:', error);
+            toast.error(isRTL ? 'فشل حذف المنظم' : 'Failed to remove organizer');
         }
     };
 
@@ -500,7 +573,7 @@ export default function QuranCircles() {
         try {
             const { data, error } = await supabase
                 .from('quran_beneficiaries')
-                .select('id, name_ar, name_en, image_url, gender, beneficiary_type')
+                .select('id, name_ar, name_en, image_url, gender, beneficiary_type, phone')
                 .order('name_ar');
             if (error) throw error;
             setAllBeneficiaries((data as unknown as Beneficiary[]) || []);
@@ -516,7 +589,7 @@ export default function QuranCircles() {
                 .from('quran_enrollments')
                 .select(`
                     beneficiary_id,
-                    quran_beneficiaries!inner(id, name_ar, name_en, image_url, gender, beneficiary_type)
+                    quran_beneficiaries!inner(id, name_ar, name_en, image_url, gender, beneficiary_type, phone)
                 `)
                 .eq('circle_id', circleId)
                 .eq('status', 'active');
@@ -529,7 +602,8 @@ export default function QuranCircles() {
                 name_en: e.quran_beneficiaries.name_en,
                 image_url: e.quran_beneficiaries.image_url,
                 gender: e.quran_beneficiaries.gender,
-                beneficiary_type: e.quran_beneficiaries.beneficiary_type
+                beneficiary_type: e.quran_beneficiaries.beneficiary_type,
+                phone: e.quran_beneficiaries.phone
             })) || [];
 
             setEnrolledBeneficiaries(beneficiaries);
@@ -562,6 +636,11 @@ export default function QuranCircles() {
             toast.success(isRTL ? 'تم تسجيل المستفيد' : 'Beneficiary enrolled');
             await fetchEnrollments(enrollmentCircle.id);
             fetchCircles(); // Refresh count
+
+            // Refresh details view if open for this circle
+            if (selectedCircle?.id === enrollmentCircle.id) {
+                openCircleDetails(selectedCircle);
+            }
         } catch (error: any) {
             console.error('Error enrolling:', error);
             toast.error(error.message || 'Error enrolling');
@@ -581,6 +660,11 @@ export default function QuranCircles() {
             toast.success(isRTL ? 'تم إلغاء التسجيل' : 'Enrollment removed');
             await fetchEnrollments(enrollmentCircle.id);
             fetchCircles(); // Refresh count
+
+            // Refresh details view if open for this circle
+            if (selectedCircle?.id === enrollmentCircle.id) {
+                openCircleDetails(selectedCircle);
+            }
         } catch (error: any) {
             console.error('Error unenrolling:', error);
             toast.error(error.message || 'Error unenrolling');
@@ -632,7 +716,7 @@ export default function QuranCircles() {
             .from('quran_enrollments')
             .select(`
                 beneficiary_id,
-                quran_beneficiaries!inner(id, name_ar, name_en, image_url, gender, beneficiary_type)
+                quran_beneficiaries!inner(id, name_ar, name_en, phone, image_url, gender, beneficiary_type)
             `)
             .eq('circle_id', circle.id)
             .eq('status', 'active');
@@ -642,6 +726,7 @@ export default function QuranCircles() {
                 id: e.quran_beneficiaries.id,
                 name_ar: e.quran_beneficiaries.name_ar,
                 name_en: e.quran_beneficiaries.name_en,
+                phone: e.quran_beneficiaries.phone,
                 image_url: e.quran_beneficiaries.image_url,
                 gender: e.quran_beneficiaries.gender,
                 beneficiary_type: e.quran_beneficiaries.beneficiary_type
@@ -839,8 +924,7 @@ export default function QuranCircles() {
                 if (uniqueNewGuests.size > 0) {
                     const toInsert = Array.from(uniqueNewGuests.values()).map(g => ({
                         name_ar: g.name,
-                        phone: g.phone,
-                        is_active: true
+                        phone: g.phone
                     }));
 
                     const { data: createdBens, error: createError } = await supabase
@@ -883,11 +967,16 @@ export default function QuranCircles() {
                 }
             }
 
-            // Single Bulk Insert
+            // Single Bulk Insert - Remove duplicates based on beneficiary_id
             if (allRecords.length > 0) {
+                // Deduplicate by beneficiary_id to prevent duplicate key errors
+                const uniqueRecords = Array.from(
+                    new Map(allRecords.map(r => [r.beneficiary_id, r])).values()
+                );
+
                 const { error } = await supabase
                     .from('quran_circle_beneficiaries')
-                    .insert(allRecords);
+                    .insert(uniqueRecords);
 
                 if (error) throw error;
             }
@@ -1112,6 +1201,108 @@ export default function QuranCircles() {
         b.name_ar.toLowerCase().includes(sessionBeneficiarySearch.toLowerCase()) ||
         (b.name_en?.toLowerCase() || '').includes(sessionBeneficiarySearch.toLowerCase())
     );
+
+    const handleAddBeneficiary = async () => {
+        if (!selectedCircle) return;
+        if (!newBeneficiary.name_ar.trim()) {
+            toast.error(isRTL ? 'يرجى إدخال اسم المستفيد' : 'Please enter beneficiary name');
+            return;
+        }
+
+        try {
+            if (editingBeneficiary) {
+                // Update existing
+                const { error } = await supabase
+                    .from('quran_beneficiaries')
+                    .update({
+                        name_ar: newBeneficiary.name_ar,
+                        name_en: newBeneficiary.name_en || null,
+                        phone: newBeneficiary.phone || null,
+                        gender: newBeneficiary.gender,
+                        beneficiary_type: newBeneficiary.beneficiary_type
+                    })
+                    .eq('id', editingBeneficiary.id);
+
+                if (error) throw error;
+                toast.success(isRTL ? 'تم تحديث بيانات المستفيد' : 'Beneficiary updated successfully');
+            } else {
+                // Create new logic (existing)
+                let beneficiaryId: string | undefined;
+
+                // 1. Check if beneficiary exists by phone (if phone is provided)
+                if (newBeneficiary.phone) {
+                    const { data: existingBen } = await supabase
+                        .from('quran_beneficiaries')
+                        .select('id')
+                        .eq('phone', newBeneficiary.phone)
+                        .single();
+
+                    if (existingBen) beneficiaryId = existingBen.id;
+                }
+
+                // 2. If not exists, create new
+                if (!beneficiaryId) {
+                    const { data: newBen, error: createError } = await supabase
+                        .from('quran_beneficiaries')
+                        .insert({
+                            name_ar: newBeneficiary.name_ar,
+                            name_en: newBeneficiary.name_en || null,
+                            phone: newBeneficiary.phone || null,
+                            gender: newBeneficiary.gender,
+                            beneficiary_type: newBeneficiary.beneficiary_type
+                        })
+                        .select('id')
+                        .single();
+
+                    if (createError) throw createError;
+                    beneficiaryId = newBen.id;
+                }
+
+                // 3. Enroll in current circle
+                if (beneficiaryId) {
+                    // Check if already enrolled
+                    const { data: existingEnrollment } = await supabase
+                        .from('quran_enrollments')
+                        .select('id')
+                        .eq('circle_id', selectedCircle.id)
+                        .eq('beneficiary_id', beneficiaryId)
+                        .single();
+
+                    if (existingEnrollment) {
+                        toast.warning(isRTL ? 'المستفيد مسجل بالفعل في هذه الحلقة' : 'Beneficiary already enrolled');
+                    } else {
+                        const { error: enrollError } = await supabase
+                            .from('quran_enrollments')
+                            .insert({
+                                circle_id: selectedCircle.id,
+                                beneficiary_id: beneficiaryId,
+                                status: 'active'
+                            });
+
+                        if (enrollError) throw enrollError;
+                        toast.success(isRTL ? 'تم إضافة المستفيد بنجاح' : 'Beneficiary added successfully');
+                    }
+                }
+            }
+
+            // 4. Refresh data and reset
+            setIsAddingBeneficiary(false);
+            setEditingBeneficiary(null);
+            setNewBeneficiary({
+                name_ar: '',
+                name_en: '',
+                phone: '',
+                gender: 'male',
+                beneficiary_type: 'adult'
+            });
+            await openCircleDetails(selectedCircle);
+            fetchCircles(); // Refresh counts
+
+        } catch (error: any) {
+            console.error('Error saving beneficiary:', error);
+            toast.error(error.message || (isRTL ? 'حدث خطأ أثناء الحفظ' : 'Error saving beneficiary'));
+        }
+    };
 
     const handleViewDetails = (circleId: string) => {
         // Find the circle
@@ -1443,10 +1634,7 @@ export default function QuranCircles() {
                                                 <ClipboardList className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => openEnrollmentDialog(c)}>
-                                                <UserPlus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                {isRTL ? 'إدارة المسجلين' : 'Manage Students'}
-                                            </DropdownMenuItem>
+
                                             <DropdownMenuItem onClick={() => handleEdit(c)}>
                                                 <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'تعديل' : 'Edit'}
@@ -1518,9 +1706,13 @@ export default function QuranCircles() {
                     </DialogHeader>
 
                     <Tabs defaultValue="sessions" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2">
+                        <TabsList className={`grid w-full ${canManageOrganizers ? 'grid-cols-4' : 'grid-cols-3'}`}>
                             <TabsTrigger value="sessions">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
                             <TabsTrigger value="sheet">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                            <TabsTrigger value="beneficiaries">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
+                            {canManageOrganizers && (
+                                <TabsTrigger value="organizers">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
+                            )}
                         </TabsList>
 
                         {/* Sessions Tab */}
@@ -1630,6 +1822,217 @@ export default function QuranCircles() {
                                         <p className="font-medium">{isRTL ? 'لا توجد جلسات بعد' : 'No sessions yet'}</p>
                                         <p className="text-sm mt-1">{isRTL ? 'أنشئ أول جلسة للبدء' : 'Create the first session to get started'}</p>
                                     </div>
+                                )}
+                            </div>
+                        </TabsContent>
+
+                        {/* Beneficiaries Tab */}
+                        <TabsContent value="beneficiaries" className="space-y-4 py-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h3 className="font-semibold">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</h3>
+                                    <p className="text-sm text-muted-foreground">
+                                        {detailsBeneficiaries.length} {isRTL ? 'مستفيد' : 'beneficiaries'}
+                                    </p>
+                                </div>
+                                <Button onClick={() => {
+                                    if (isAddingBeneficiary) {
+                                        setIsAddingBeneficiary(false);
+                                        setEditingBeneficiary(null);
+                                        setNewBeneficiary({
+                                            name_ar: '',
+                                            name_en: '',
+                                            phone: '',
+                                            gender: 'male',
+                                            beneficiary_type: 'adult'
+                                        });
+                                    } else {
+                                        setIsAddingBeneficiary(true);
+                                    }
+                                }} size="sm">
+                                    {isAddingBeneficiary ? (
+                                        <>
+                                            <X className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                            {isRTL ? 'إلغاء' : 'Cancel'}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                            {isRTL ? 'إضافة جديد' : 'Add New'}
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+
+                            {/* Add/Edit Beneficiary Form */}
+                            {isAddingBeneficiary && (
+                                <div className="p-4 border rounded-lg bg-muted/30 space-y-4 animate-in fade-in slide-in-from-top-2">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="font-semibold text-sm">
+                                            {editingBeneficiary
+                                                ? (isRTL ? 'تعديل بيانات مستفيد' : 'Edit Beneficiary')
+                                                : (isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary')}
+                                        </h4>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <Label>{isRTL ? 'الاسم (عربي)' : 'Name (Arabic)'}</Label>
+                                            <Input
+                                                value={newBeneficiary.name_ar}
+                                                onChange={(e) => setNewBeneficiary({ ...newBeneficiary, name_ar: e.target.value })}
+                                                placeholder={isRTL ? 'الاسم رباعي' : 'Full Name'}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>{isRTL ? 'الاسم (إنجليزي - اختياري)' : 'Name (English - Optional)'}</Label>
+                                            <Input
+                                                value={newBeneficiary.name_en}
+                                                onChange={(e) => setNewBeneficiary({ ...newBeneficiary, name_en: e.target.value })}
+                                                placeholder="Name in English"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>{isRTL ? 'رقم الهاتف' : 'Phone Number'}</Label>
+                                            <Input
+                                                value={newBeneficiary.phone}
+                                                onChange={(e) => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
+                                                placeholder="01xxxxxxxxx"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>{isRTL ? 'النوع' : 'Gender'}</Label>
+                                            <Select
+                                                value={newBeneficiary.gender}
+                                                onValueChange={(val: 'male' | 'female') => setNewBeneficiary({ ...newBeneficiary, gender: val })}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="male">{isRTL ? 'ذكر' : 'Male'}</SelectItem>
+                                                    <SelectItem value="female">{isRTL ? 'أنثى' : 'Female'}</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>{isRTL ? 'نوع المستفيد' : 'Beneficiary Type'}</Label>
+                                            <Select
+                                                value={newBeneficiary.beneficiary_type}
+                                                onValueChange={(val: 'adult' | 'child') => setNewBeneficiary({ ...newBeneficiary, beneficiary_type: val })}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="adult">{isRTL ? 'بالغ' : 'Adult'}</SelectItem>
+                                                    <SelectItem value="child">{isRTL ? 'طفل' : 'Child'}</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end gap-2 pt-2">
+                                        <Button variant="outline" size="sm" onClick={() => {
+                                            setIsAddingBeneficiary(false);
+                                            setEditingBeneficiary(null);
+                                            setNewBeneficiary({
+                                                name_ar: '',
+                                                name_en: '',
+                                                phone: '',
+                                                gender: 'male',
+                                                beneficiary_type: 'adult'
+                                            });
+                                        }}>
+                                            {isRTL ? 'إلغاء' : 'Cancel'}
+                                        </Button>
+                                        <Button size="sm" onClick={handleAddBeneficiary}>
+                                            {editingBeneficiary
+                                                ? (isRTL ? 'تحديث البيانات' : 'Update Beneficiary')
+                                                : (isRTL ? 'حفظ وإضافة' : 'Save & Add')}
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Search */}
+                            <Input
+                                placeholder={isRTL ? 'بحث عن مستفيد...' : 'Search beneficiaries...'}
+                                value={sessionBeneficiarySearch}
+                                onChange={(e) => setSessionBeneficiarySearch(e.target.value)}
+                            />
+
+                            {/* List */}
+                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                                {filteredDetailsBeneficiaries.length === 0 ? (
+                                    <div className="text-center py-8 text-muted-foreground">
+                                        <Users className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                                        <p>{isRTL ? 'لا يوجد نتائج' : 'No beneficiaries found'}</p>
+                                    </div>
+                                ) : (
+                                    filteredDetailsBeneficiaries.map((b) => (
+                                        <div
+                                            key={b.id}
+                                            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <Avatar>
+                                                    <AvatarImage src={b.image_url || undefined} />
+                                                    <AvatarFallback>{b.name_ar?.slice(0, 2)}</AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <p className="font-medium">{b.name_ar}</p>
+                                                    {(b.phone || b.name_en) && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {b.phone} {b.phone && b.name_en && '•'} {b.name_en}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                                    onClick={() => {
+                                                        setEditingBeneficiary(b);
+                                                        setNewBeneficiary({
+                                                            name_ar: b.name_ar,
+                                                            name_en: b.name_en || '',
+                                                            phone: b.phone || '', // Need to add phone to view query first if missing
+                                                            gender: b.gender || 'male',
+                                                            beneficiary_type: b.beneficiary_type || 'adult'
+                                                        });
+                                                        setIsAddingBeneficiary(true);
+                                                    }}
+                                                >
+                                                    <Pencil className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                    onClick={async () => {
+                                                        if (!confirm(isRTL ? 'هل أنت متأكد من إزالة هذا الطالب من الحلقة؟' : 'Are you sure you want to remove this student?')) return;
+                                                        try {
+                                                            const { error } = await supabase
+                                                                .from('quran_enrollments')
+                                                                .update({ status: 'inactive' })
+                                                                .eq('circle_id', selectedCircle?.id)
+                                                                .eq('beneficiary_id', b.id);
+
+                                                            if (error) throw error;
+                                                            toast.success(isRTL ? 'تم إلغاء التسجيل' : 'Unenrolled successfully');
+                                                            if (selectedCircle) openCircleDetails(selectedCircle);
+                                                            fetchCircles();
+                                                        } catch (err: any) {
+                                                            toast.error(err.message);
+                                                        }
+                                                    }}
+                                                >
+                                                    <UserMinus className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ))
                                 )}
                             </div>
                         </TabsContent>
@@ -1810,6 +2213,92 @@ export default function QuranCircles() {
                                 </div>
                             )}
                         </TabsContent>
+
+                        {/* Organizers Tab */}
+                        {canManageOrganizers && (
+                            <TabsContent value="organizers" className="space-y-4 py-4">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h3 className="font-semibold">{isRTL ? 'المنظمين' : 'Organizers'}</h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            {selectedCircle?.organizers?.length || 0} {isRTL ? 'منظم' : 'organizer'}
+                                        </p>
+                                    </div>
+                                    <Popover open={organizerPopoverOpen} onOpenChange={setOrganizerPopoverOpen}>
+                                        <PopoverTrigger asChild>
+                                            <Button size="sm">
+                                                <UserPlus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'إضافة منظم' : 'Add Organizer'}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="p-0" align={isRTL ? "end" : "start"}>
+                                            <Command>
+                                                <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
+                                                <CommandList>
+                                                    <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results found.'}</CommandEmpty>
+                                                    <CommandGroup>
+                                                        {volunteers.map(volunteer => (
+                                                            <CommandItem
+                                                                key={volunteer.id}
+                                                                onSelect={() => {
+                                                                    handleAddOrganizerToCircle({
+                                                                        volunteer_id: volunteer.id,
+                                                                        name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
+                                                                        phone: volunteer.phone || ''
+                                                                    });
+                                                                    setOrganizerPopoverOpen(false);
+                                                                }}
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    <Avatar className="h-6 w-6">
+                                                                        <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                        <AvatarFallback>{volunteer.full_name.charAt(0)}</AvatarFallback>
+                                                                    </Avatar>
+                                                                    <div className="flex flex-col">
+                                                                        <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
+                                                                        {volunteer.phone && <span className="text-xs text-muted-foreground">{volunteer.phone}</span>}
+                                                                    </div>
+                                                                </div>
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {selectedCircle?.organizers?.map((organizer, index) => (
+                                        <div key={index} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 rounded-full bg-primary/10 text-primary">
+                                                    <User className="h-4 w-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-medium">{organizer.name}</p>
+                                                    {organizer.phone && <p className="text-sm text-muted-foreground">{organizer.phone}</p>}
+                                                </div>
+                                            </div>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-muted-foreground hover:text-destructive"
+                                                onClick={() => handleRemoveOrganizerFromCircle(organizer)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                    {(!selectedCircle?.organizers || selectedCircle.organizers.length === 0) && (
+                                        <div className="text-center py-8 text-muted-foreground">
+                                            <Users className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                                            <p>{isRTL ? 'لا يوجد منظمين لهذه الحلقة' : 'No organizers for this circle'}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </TabsContent>
+                        )}
                     </Tabs>
                 </DialogContent>
             </Dialog>

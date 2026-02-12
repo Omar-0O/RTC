@@ -1012,8 +1012,112 @@ export type Database = {
           },
         ]
       }
+      event_speakers: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          name: string
+          phone: string | null
+          social_media_link: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          name: string
+          phone?: string | null
+          social_media_link?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          social_media_link?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_speakers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_organizers: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          volunteer_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          volunteer_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          volunteer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_organizers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_organizers_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_beneficiaries: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          name: string
+          phone: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          name: string
+          phone?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          name?: string
+          phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_beneficiaries_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
+          committee_id: string | null
           created_at: string | null
           created_by: string | null
           date: string
@@ -1026,6 +1130,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          committee_id?: string | null
           created_at?: string | null
           created_by?: string | null
           date: string
@@ -1038,6 +1143,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          committee_id?: string | null
           created_at?: string | null
           created_by?: string | null
           date?: string
@@ -1055,6 +1161,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_committee_id_fkey"
+            columns: ["committee_id"]
+            isOneToOne: false
+            referencedRelation: "committees"
             referencedColumns: ["id"]
           },
         ]
@@ -1155,6 +1268,7 @@ export type Database = {
           updated_at: string
           visible_password: string | null
           birth_date: string | null
+          last_seen_at: string | null
         }
         Insert: {
           activities_count?: number
@@ -1175,6 +1289,7 @@ export type Database = {
           updated_at?: string
           visible_password?: string | null
           birth_date?: string | null
+          last_seen_at?: string | null
         }
         Update: {
           activities_count?: number
@@ -1195,6 +1310,7 @@ export type Database = {
           updated_at?: string
           visible_password?: string | null
           birth_date?: string | null
+          last_seen_at?: string | null
         }
         Relationships: [
           {
@@ -1723,6 +1839,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      renew_ashbal_target: {
+        Args: Record<string, never>
+        Returns: undefined
       }
     }
     Enums: {
