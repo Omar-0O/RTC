@@ -247,40 +247,77 @@ export default function TrainerManagement(): JSX.Element {
 
             const today = new Date().toISOString().split('T')[0];
 
-            // Fetch stats and active status for each trainer
-            const trainersWithStats = await Promise.all(
-                (data || []).map(async (trainer: any) => {
-                    // Get stats
-                    const { data: stats } = await supabase
-                        .rpc('get_trainer_stats', { p_trainer_id: trainer.id });
+            // Optimized: Fetch all courses for these trainers in batches to avoid limits
+            const trainersList = data || [];
+            const trainerIds = trainersList.map((t: any) => t.id);
 
-                    // Check if trainer has active courses (end_date >= today)
-                    const { data: activeCourses } = await supabase
-                        .from('courses')
-                        .select('id')
-                        .eq('trainer_id', trainer.id)
-                        .gte('end_date', today)
-                        .limit(1);
+            let allCourses: any[] = [];
 
-                    // Get completed courses count (end_date < today)
-                    const { count: completedCount } = await supabase
-                        .from('courses')
-                        .select('id', { count: 'exact', head: true })
-                        .eq('trainer_id', trainer.id)
-                        .lt('end_date', today);
+            if (trainerIds.length > 0) {
+                const BATCH_SIZE = 10;
+                const batches = [];
+                for (let i = 0; i < trainerIds.length; i += BATCH_SIZE) {
+                    batches.push(trainerIds.slice(i, i + BATCH_SIZE));
+                }
 
-                    return {
-                        ...trainer,
-                        committee_name: trainer.committee
-                            ? (isRTL ? trainer.committee.name_ar : trainer.committee.name)
-                            : null,
-                        courses_count: stats?.[0]?.courses_count || 0,
-                        completed_courses_count: completedCount || 0,
-                        certificates_delivered_count: stats?.[0]?.certificates_delivered_count || 0,
-                        is_active: (activeCourses && activeCourses.length > 0)
-                    };
-                })
-            );
+                try {
+                    const batchResults = await Promise.all(
+                        batches.map(async (batchIds) => {
+                            const { data: coursesData, error } = await supabase
+                                .from('courses')
+                                .select(`
+                                    id,
+                                    trainer_id,
+                                    end_date,
+                                    has_certificates,
+                                    certificate_status,
+                                    course_beneficiaries(count)
+                                `)
+                                .in('trainer_id', batchIds);
+
+                            if (error) throw error;
+                            return coursesData || [];
+                        })
+                    );
+
+                    allCourses = batchResults.flat();
+                } catch (error) {
+                    console.error('Error fetching courses in bulk:', error);
+                    toast.error(isRTL ? 'فشل في تحميل إحصائيات المدربين' : 'Failed to fetch trainer stats');
+                }
+            }
+
+            const trainersWithStats = trainersList.map((trainer: any) => {
+                const trainerCourses = allCourses.filter(c => c.trainer_id === trainer.id);
+
+                const courses_count = trainerCourses.length;
+                // Check for active courses (end_date >= today)
+                const active = trainerCourses.some(c => c.end_date && c.end_date >= today);
+                // Check for completed courses (end_date < today)
+                const completedCount = trainerCourses.filter(c => c.end_date && c.end_date < today).length;
+
+                // Calculate certificates delivered count
+                const certificates_delivered_count = trainerCourses
+                    .filter(c => c.has_certificates && c.certificate_status === 'delivered')
+                    .reduce((sum, c) => {
+                        const countData = c.course_beneficiaries;
+                        if (Array.isArray(countData) && countData.length > 0) {
+                            return sum + (countData[0].count || 0);
+                        }
+                        return sum;
+                    }, 0);
+
+                return {
+                    ...trainer,
+                    committee_name: trainer.committee
+                        ? (isRTL ? trainer.committee.name_ar : trainer.committee.name)
+                        : null,
+                    courses_count: courses_count,
+                    completed_courses_count: completedCount,
+                    certificates_delivered_count: certificates_delivered_count,
+                    is_active: active
+                };
+            });
 
             setTrainers(trainersWithStats);
         } catch (error) {
