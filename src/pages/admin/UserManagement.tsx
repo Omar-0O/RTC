@@ -852,7 +852,6 @@ export default function UserManagement() {
       // Actually if existing users have it they will be migrated. But to avoid runtime error if data is stale:
       case 'head_caravans':
       case 'head_events':
-      case 'head_events':
       case 'head_ethics':
       case 'head_quran':
         return 'bg-blue-100 text-blue-700';
@@ -1071,11 +1070,13 @@ export default function UserManagement() {
                       minLength={6}
                       required
                       className="ltr:pr-10 rtl:pl-10"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
+                      className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+                      aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -1459,11 +1460,13 @@ export default function UserManagement() {
                       placeholder={language === 'ar' ? 'اترك فارغاً للاحتفاظ بكلمة المرور الحالية' : 'Leave empty to keep current password'}
                       minLength={6}
                       className="ltr:pr-10 rtl:pl-10"
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
+                      className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+                      aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />
