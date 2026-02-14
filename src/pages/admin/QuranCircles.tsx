@@ -66,7 +66,7 @@ import * as XLSX from 'xlsx';
 import {
     Activity, BookOpen, Calendar, Clock, Users, Plus, Check, X, Trash2,
     MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User,
-    CalendarDays, TrendingUp, Percent, Filter, Search, MoreVertical, Pencil, UserPlus, UserMinus, ClipboardList
+    CalendarDays, TrendingUp, Percent, Filter, Search, MoreVertical, Pencil, UserPlus, UserMinus, ClipboardList, Megaphone
 } from 'lucide-react';
 
 interface Teacher {
@@ -107,6 +107,7 @@ interface QuranCircle {
     enrolled_count?: number;
     description?: string;
     target_group?: string; // 'adults' | 'children'
+    beneficiary_gender?: 'male' | 'female';
     sessions_count?: number;
 }
 
@@ -137,6 +138,14 @@ interface Beneficiary {
     gender: 'male' | 'female' | null;
     beneficiary_type: 'child' | 'adult';
     phone: string | null;
+}
+
+interface QuranCircleMarketer {
+    id?: string;
+    circle_id?: string;
+    volunteer_id?: string;
+    name: string;
+    phone: string;
 }
 
 const DAYS = [
@@ -200,7 +209,8 @@ export default function QuranCircles() {
         schedule_time: '18:00',
         is_active: true,
         description: '',
-        target_group: 'adults'
+        target_group: 'adults',
+        beneficiary_gender: 'male' as 'male' | 'female'
     });
     const [organizers, setOrganizers] = useState<Organizer[]>([]);
 
@@ -226,6 +236,10 @@ export default function QuranCircles() {
         gender: 'male' as 'male' | 'female',
         beneficiary_type: 'adult' as 'child' | 'adult'
     });
+
+    // Marketing Team State
+    const [marketers, setMarketers] = useState<QuranCircleMarketer[]>([]);
+    const [marketerPopoverOpen, setMarketerPopoverOpen] = useState(false);
 
     useEffect(() => {
         fetchCircles();
@@ -279,7 +293,8 @@ export default function QuranCircles() {
                     organizers: circle.quran_circle_organizers || [],
                     enrolled_count: enrollmentCounts[circle.id] || 0,
                     description: circle.description,
-                    target_group: circle.target_group
+                    target_group: circle.target_group,
+                    beneficiary_gender: circle.beneficiary_gender
                 };
             });
 
@@ -341,7 +356,15 @@ export default function QuranCircles() {
 
         return schedule.map(s => {
             const day = DAYS.find(d => d.value === s.day);
-            return `${day?.label[language as 'en' | 'ar'] || ''} ${s.time}`;
+
+            // Convert 24-hour time to 12-hour format with AM/PM
+            const [hours, minutes] = s.time.split(':');
+            const hour = parseInt(hours);
+            const period = hour >= 12 ? (isRTL ? 'مساءً' : 'PM') : (isRTL ? 'صباحاً' : 'AM');
+            const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+            const time12 = `${hour12}:${minutes} ${period}`;
+
+            return `${day?.label[language as 'en' | 'ar'] || ''} ${time12}`;
         }).join(' • ');
     };
 
@@ -358,6 +381,23 @@ export default function QuranCircles() {
 
     const removeOrganizer = (index: number) => {
         setOrganizers(organizers.filter((_, i) => i !== index));
+    };
+
+    const handleAddMarketer = (volunteer: Volunteer) => {
+        // Check if already added
+        if (marketers.some(m => m.volunteer_id === volunteer.id)) {
+            return;
+        }
+        setMarketers([...marketers, {
+            volunteer_id: volunteer.id,
+            name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
+            phone: volunteer.phone || ''
+        }]);
+        setMarketerPopoverOpen(false);
+    };
+
+    const removeMarketer = (index: number) => {
+        setMarketers(marketers.filter((_, i) => i !== index));
     };
 
     const toggleDay = (day: number) => {
@@ -456,7 +496,8 @@ export default function QuranCircles() {
                 name: 'auto', // Legacy
                 date: new Date().toISOString().split('T')[0], // Legacy
                 description: formData.description,
-                target_group: formData.target_group
+                target_group: formData.target_group,
+                beneficiary_gender: formData.beneficiary_gender
             };
 
             let circleId = selectedId;
@@ -488,6 +529,18 @@ export default function QuranCircles() {
                             volunteer_id: o.volunteer_id || null,
                             name: o.name,
                             phone: o.phone
+                        }))
+                    );
+                }
+
+                // Update marketers - delete all and re-insert
+                await supabase.from('quran_circle_marketers').delete().eq('circle_id', circleId);
+
+                if (marketers.length > 0) {
+                    await supabase.from('quran_circle_marketers').insert(
+                        marketers.map(m => ({
+                            circle_id: circleId,
+                            volunteer_id: m.volunteer_id
                         }))
                     );
                 }
@@ -534,7 +587,8 @@ export default function QuranCircles() {
             schedule_time: scheduleTime,
             is_active: circle.is_active,
             description: circle.description || '',
-            target_group: circle.target_group || 'adults'
+            target_group: circle.target_group || 'adults',
+            beneficiary_gender: circle.beneficiary_gender || 'male'
         });
 
         // Fetch organizers
@@ -549,6 +603,32 @@ export default function QuranCircles() {
             phone: o.phone || ''
         })) || []);
 
+        // Fetch marketers
+        const { data: marketersData } = await supabase
+            .from('quran_circle_marketers')
+            .select(`
+                id,
+                circle_id,
+                volunteer_id,
+                profiles:volunteer_id (
+                    full_name,
+                    full_name_ar,
+                    phone
+                )
+            `)
+            .eq('circle_id', circle.id);
+
+        if (marketersData) {
+            const formattedMarketers = marketersData.map((m: any) => ({
+                id: m.id,
+                circle_id: m.circle_id,
+                volunteer_id: m.volunteer_id,
+                name: isRTL && m.profiles?.full_name_ar ? m.profiles.full_name_ar : m.profiles?.full_name || '',
+                phone: m.profiles?.phone || ''
+            }));
+            setMarketers(formattedMarketers);
+        }
+
         setSelectedId(circle.id);
         setIsEditMode(true);
         setIsCreateOpen(true);
@@ -561,9 +641,11 @@ export default function QuranCircles() {
             schedule_time: '18:00',
             is_active: true,
             description: '',
-            target_group: 'adults'
+            target_group: 'adults',
+            beneficiary_gender: 'male'
         });
         setOrganizers([]);
+        setMarketers([]);
         setIsEditMode(false);
         setSelectedId(null);
     };
@@ -683,12 +765,10 @@ export default function QuranCircles() {
         if (enrollmentCircle.target_group === 'children' && !isChild) return false;
         if (enrollmentCircle.target_group === 'adults' && isChild) return false;
 
-        // Filter by Teacher Gender Logic check
-        // If teacher targets 'men', we show only 'male' beneficiaries
-        // If teacher targets 'women', we show only 'female' beneficiaries
-        // We now use the circle object's teacher info directly
-        if (enrollmentCircle.teacher_gender === 'men' && b.gender !== 'male') return false;
-        if (enrollmentCircle.teacher_gender === 'women' && b.gender !== 'female') return false;
+        // Filter by Circle Beneficiary Gender
+        // Use the circle's explicit beneficiary_gender field instead of teacher gender
+        if (enrollmentCircle.beneficiary_gender === 'male' && b.gender !== 'male') return false;
+        if (enrollmentCircle.beneficiary_gender === 'female' && b.gender !== 'female') return false;
 
         return true;
     });
@@ -924,7 +1004,13 @@ export default function QuranCircles() {
                 if (uniqueNewGuests.size > 0) {
                     const toInsert = Array.from(uniqueNewGuests.values()).map(g => ({
                         name_ar: g.name,
-                        phone: g.phone
+                        phone: g.phone,
+                        // Use circle's beneficiary_gender with fallback to teacher_gender for backward compatibility
+                        gender: (selectedCircle.beneficiary_gender || selectedCircle.teacher_gender) === 'female' ||
+                            (selectedCircle.beneficiary_gender || selectedCircle.teacher_gender) === 'women'
+                            ? 'female' : 'male',
+                        // Determine beneficiary type from circle's target_group
+                        beneficiary_type: selectedCircle.target_group === 'children' ? 'child' : 'adult'
                     }));
 
                     const { data: createdBens, error: createError } = await supabase
@@ -987,6 +1073,70 @@ export default function QuranCircles() {
         } catch (error: any) {
             console.error('Error saving attendance:', error);
             toast.error(error.message || 'Error occurred');
+        }
+    };
+
+    const toggleCircleAttendance = async (sessionId: string, beneficiaryId: string) => {
+        const currentSessionAtt = attendanceData[sessionId] || [];
+        const existing = currentSessionAtt.find(a => a.beneficiary_id === beneficiaryId);
+
+        try {
+            if (existing) {
+                // Remove
+                const { error } = await supabase
+                    .from('quran_circle_beneficiaries')
+                    .delete()
+                    .eq('session_id', sessionId)
+                    .eq('beneficiary_id', beneficiaryId);
+
+                if (error) throw error;
+
+                setAttendanceData(prev => ({
+                    ...prev,
+                    [sessionId]: prev[sessionId].filter(a => a.beneficiary_id !== beneficiaryId)
+                }));
+            } else {
+                // Add
+                const { error } = await supabase
+                    .from('quran_circle_beneficiaries')
+                    .insert({
+                        session_id: sessionId,
+                        beneficiary_id: beneficiaryId,
+                        attendance_type: 'memorization'
+                    });
+
+                if (error) throw error;
+
+                setAttendanceData(prev => ({
+                    ...prev,
+                    [sessionId]: [...(prev[sessionId] || []), { beneficiary_id: beneficiaryId, attendance_type: 'memorization' }]
+                }));
+            }
+        } catch (error) {
+            console.error('Error toggling attendance:', error);
+            toast.error(isRTL ? 'فشل تحديث الحضور' : 'Failed to update attendance');
+        }
+    };
+
+    const updateSheetAttendanceType = async (sessionId: string, beneficiaryId: string, type: 'memorization' | 'revision') => {
+        try {
+            const { error } = await supabase
+                .from('quran_circle_beneficiaries')
+                .update({ attendance_type: type })
+                .eq('session_id', sessionId)
+                .eq('beneficiary_id', beneficiaryId);
+
+            if (error) throw error;
+
+            setAttendanceData(prev => ({
+                ...prev,
+                [sessionId]: prev[sessionId].map(a =>
+                    a.beneficiary_id === beneficiaryId ? { ...a, attendance_type: type } : a
+                )
+            }));
+        } catch (error) {
+            console.error('Error updating attendance type:', error);
+            toast.error(isRTL ? 'فشل تحديث النوع' : 'Failed to update type');
         }
     };
 
@@ -1192,7 +1342,7 @@ export default function QuranCircles() {
 
         // Convert to AM/PM
         const [hours, minutes] = time24.split(':').map(Number);
-        const period = hours >= 12 ? (isRTL ? 'م' : 'PM') : (isRTL ? 'ص' : 'AM');
+        const period = hours >= 12 ? (isRTL ? 'مساءً' : 'PM') : (isRTL ? 'صباحاً' : 'AM');
         const hours12 = hours % 12 || 12;
         return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
     };
@@ -1390,6 +1540,36 @@ export default function QuranCircles() {
                                 </Select>
                             </div>
 
+                            {/* Beneficiary Gender */}
+                            <div className="grid gap-2">
+                                <Label className="flex items-center gap-2">
+                                    <Users className="h-4 w-4" />
+                                    {isRTL ? 'نوع المستفيدين' : 'Beneficiary Gender'}
+                                </Label>
+                                <Select
+                                    value={formData.beneficiary_gender}
+                                    onValueChange={val => setFormData({ ...formData, beneficiary_gender: val as 'male' | 'female' })}
+                                >
+                                    <SelectTrigger className="h-12">
+                                        <SelectValue placeholder={isRTL ? 'اختر النوع...' : 'Select Gender...'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="male">
+                                            <div className="flex items-center gap-2">
+                                                <User className="h-4 w-4" />
+                                                {isRTL ? 'رجال' : 'Men'}
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="female">
+                                            <div className="flex items-center gap-2">
+                                                <User className="h-4 w-4" />
+                                                {isRTL ? 'نساء' : 'Women'}
+                                            </div>
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                             {/* Schedule Days */}
                             <div className="grid gap-3">
                                 <Label className="flex items-center gap-2">
@@ -1502,6 +1682,66 @@ export default function QuranCircles() {
                                 )}
                             </div>
 
+                            {/* Marketing Team */}
+                            <div className="grid gap-3">
+                                <Label className="flex items-center gap-2">
+                                    <Megaphone className="h-4 w-4" />
+                                    {isRTL ? 'فريق التسويق' : 'Marketing Team'}
+                                </Label>
+
+                                <Popover open={marketerPopoverOpen} onOpenChange={setMarketerPopoverOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="h-12 justify-start gap-2">
+                                            <Plus className="h-4 w-4" />
+                                            {isRTL ? 'إضافة مسوق' : 'Add Marketer'}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-80 p-0" align="start">
+                                        <Command>
+                                            <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
+                                            <CommandList>
+                                                <CommandEmpty>{isRTL ? 'لم يتم العثور على نتائج' : 'No results found'}</CommandEmpty>
+                                                <CommandGroup>
+                                                    {volunteers.map(v => (
+                                                        <CommandItem
+                                                            key={v.id}
+                                                            onSelect={() => handleAddMarketer(v)}
+                                                            className="flex items-center gap-2 cursor-pointer"
+                                                        >
+                                                            <Avatar className="h-8 w-8">
+                                                                <AvatarImage src={v.avatar_url || undefined} />
+                                                                <AvatarFallback>{v.full_name?.slice(0, 2)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <div className="flex-1">
+                                                                <p className="font-medium">{isRTL && v.full_name_ar ? v.full_name_ar : v.full_name}</p>
+                                                                <p className="text-xs text-muted-foreground">{v.phone}</p>
+                                                            </div>
+                                                            {marketers.some(m => m.volunteer_id === v.id) && (
+                                                                <Check className="h-4 w-4 text-primary" />
+                                                            )}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+
+                                {marketers.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {marketers.map((mkt, idx) => (
+                                            <Badge key={idx} variant="secondary" className="px-3 py-2 gap-2">
+                                                <span>{mkt.name}</span>
+                                                <button onClick={() => removeMarketer(idx)} className="hover:text-destructive">
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+
                             {/* Active Toggle */}
                             <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
                                 <div>
@@ -1557,75 +1797,40 @@ export default function QuranCircles() {
                     filteredCircles.map((c) => (
                         <Card
                             key={c.id}
-                            className={`group relative overflow-hidden transition-all hover:shadow-md ${c.is_active ? 'hover:border-primary/50' : 'opacity-60'
+                            className={`group relative overflow-hidden transition-all duration-300 hover:shadow-lg ${c.is_active ? 'hover:border-primary/50 hover:-translate-y-1' : 'opacity-70'
                                 }`}
                         >
-                            {/* Gradient accent */}
-                            <div className={`absolute inset-x-0 top-0 h-1 ${c.is_active
-                                ? 'bg-gradient-to-r from-primary via-primary/60 to-transparent'
-                                : 'bg-muted'}`} />
-                            <CardHeader className="pb-2">
-                                <div className="flex justify-between items-start">
-                                    <div className="space-y-1 flex-1">
-                                        <div className="flex items-center gap-2">
-                                            <CardTitle className="text-lg leading-tight">
+                            {/* Status indicator bar */}
+                            <div className={`absolute inset-x-0 top-0 h-1.5 ${c.is_active
+                                ? 'bg-gradient-to-r from-primary via-primary/70 to-primary/30'
+                                : 'bg-gradient-to-r from-muted to-muted/50'
+                                }`} />
+
+                            <CardHeader className="pb-3 space-y-3">
+                                {/* Title Row with Actions */}
+                                <div className="flex justify-between items-start gap-3">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <CardTitle className="text-lg font-semibold truncate">
                                                 {getCircleName(c)}
                                             </CardTitle>
                                             {c.enrolled_count !== undefined && c.enrolled_count > 0 && (
-                                                <span className="bg-primary/10 text-primary text-xs px-2 py-0.5 rounded-full font-medium">
+                                                <Badge className="bg-primary/15 text-primary hover:bg-primary/20 border-0 px-2.5 py-0.5 text-xs font-semibold">
                                                     {c.enrolled_count} {isRTL ? 'طالب' : 'students'}
-                                                </span>
+                                                </Badge>
                                             )}
-                                            <div className="flex flex-col gap-2 mt-3 w-full">
-                                                <div className="flex flex-wrap gap-2 text-xs">
-                                                    {/* Target Group & Gender Row */}
-                                                    {c.target_group && (
-                                                        <Badge variant="outline" className={`flex items-center gap-1.5 px-2.5 py-1 ${c.target_group === 'children' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
-                                                            <Users className="h-3.5 w-3.5" />
-                                                            {c.target_group === 'children' ? (isRTL ? 'أطفال' : 'Children') : (isRTL ? 'بالغين' : 'Adults')}
-                                                        </Badge>
-                                                    )}
-
-                                                    {c.teacher_gender && (
-                                                        <Badge variant="outline" className={`flex items-center gap-1.5 px-2.5 py-1 ${c.teacher_gender === 'men' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-pink-50 text-pink-700 border-pink-200'}`}>
-                                                            <User className="h-3.5 w-3.5" />
-                                                            {c.teacher_gender === 'men' ? (isRTL ? 'رجال' : 'Men') : (isRTL ? 'نساء' : 'Women')}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-
-                                                <div className="flex flex-wrap gap-2">
-                                                    {/* Mode Row */}
-                                                    {c.teaching_mode && (
-                                                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1.5 px-2.5 py-1">
-                                                            {c.teaching_mode === 'online' ? <Globe className="h-3.5 w-3.5" /> : (c.teaching_mode === 'offline' ? <MapPin className="h-3.5 w-3.5" /> : <MonitorPlay className="h-3.5 w-3.5" />)}
-                                                            {c.teaching_mode === 'online' ? (isRTL ? 'أونلاين' : 'Online') :
-                                                                c.teaching_mode === 'offline' ? (isRTL ? 'حضوري' : 'Offline') :
-                                                                    (isRTL ? 'كلاهما' : 'Mixed')}
-                                                        </Badge>
-                                                    )}
-
-                                                    {!c.is_active && (
-                                                        <Badge variant="secondary" className="text-xs px-2.5 py-1">
-                                                            {isRTL ? 'متوقفة' : 'Inactive'}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                            </div>
                                         </div>
-                                        <CardDescription className="flex items-center gap-2 mt-2">
-                                            <CalendarDays className="h-3.5 w-3.5" />
-                                            <span>{getScheduleDisplay(c.schedule)}</span>
+
+                                        {/* Schedule Info */}
+                                        <CardDescription className="flex items-center gap-1.5 mt-2 text-xs">
+                                            <CalendarDays className="h-3.5 w-3.5 flex-shrink-0" />
+                                            <span className="truncate">{getScheduleDisplay(c.schedule)}</span>
                                         </CardDescription>
-                                        {c.description && (
-                                            <p className="text-sm text-muted-foreground line-clamp-2 mt-2">
-                                                {c.description}
-                                            </p>
-                                        )}
                                     </div>
+
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
                                                 <MoreVertical className="h-4 w-4" />
                                             </Button>
                                         </DropdownMenuTrigger>
@@ -1634,7 +1839,6 @@ export default function QuranCircles() {
                                                 <ClipboardList className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
                                             </DropdownMenuItem>
-
                                             <DropdownMenuItem onClick={() => handleEdit(c)}>
                                                 <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'تعديل' : 'Edit'}
@@ -1646,12 +1850,73 @@ export default function QuranCircles() {
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>
+
+                                {/* Badges Row - All in one line */}
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                    {/* Target Group Badge */}
+                                    {c.target_group && (
+                                        <Badge
+                                            variant="outline"
+                                            className={`flex items-center gap-1.5 px-2.5 py-1 font-medium ${c.target_group === 'children'
+                                                ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800'
+                                                : 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/30 dark:text-slate-400 dark:border-slate-800'
+                                                }`}
+                                        >
+                                            <Users className="h-3.5 w-3.5" />
+                                            {c.target_group === 'children' ? (isRTL ? 'أطفال' : 'Children') : (isRTL ? 'بالغين' : 'Adults')}
+                                        </Badge>
+                                    )}
+
+                                    {/* Beneficiary Gender Badge */}
+                                    {c.beneficiary_gender && (
+                                        <Badge
+                                            variant="outline"
+                                            className={`flex items-center gap-1.5 px-2.5 py-1 font-medium ${c.beneficiary_gender === 'male'
+                                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-800'
+                                                : 'bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-950/30 dark:text-pink-400 dark:border-pink-800'
+                                                }`}
+                                        >
+                                            <User className="h-3.5 w-3.5" />
+                                            {c.beneficiary_gender === 'male' ? (isRTL ? 'رجال' : 'Men') : (isRTL ? 'نساء' : 'Women')}
+                                        </Badge>
+                                    )}
+
+                                    {/* Teaching Mode Badge */}
+                                    {c.teaching_mode && (
+                                        <Badge
+                                            variant="outline"
+                                            className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800 flex items-center gap-1.5 px-2.5 py-1 font-medium"
+                                        >
+                                            {c.teaching_mode === 'online' ? <Globe className="h-3.5 w-3.5" /> :
+                                                c.teaching_mode === 'offline' ? <MapPin className="h-3.5 w-3.5" /> :
+                                                    <MonitorPlay className="h-3.5 w-3.5" />}
+                                            {c.teaching_mode === 'online' ? (isRTL ? 'أونلاين' : 'Online') :
+                                                c.teaching_mode === 'offline' ? (isRTL ? 'حضوري' : 'Offline') :
+                                                    (isRTL ? 'كلاهما' : 'Mixed')}
+                                        </Badge>
+                                    )}
+
+                                    {/* Inactive Badge */}
+                                    {!c.is_active && (
+                                        <Badge variant="secondary" className="text-xs px-2.5 py-1 font-medium">
+                                            {isRTL ? 'متوقفة' : 'Inactive'}
+                                        </Badge>
+                                    )}
+                                </div>
+
+                                {/* Description */}
+                                {c.description && (
+                                    <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
+                                        {c.description}
+                                    </p>
+                                )}
                             </CardHeader>
-                            <CardContent>
+
+                            <CardContent className="pt-0">
                                 {/* Organizers */}
                                 {c.organizers && c.organizers.length > 0 && (
-                                    <div className="flex items-center gap-2 pt-2 border-t">
-                                        <div className="flex -space-x-2">
+                                    <div className="flex items-center gap-2 pt-3 border-t">
+                                        <div className="flex -space-x-2 rtl:space-x-reverse">
                                             {c.organizers.slice(0, 3).map((org, idx) => (
                                                 <Avatar key={idx} className="h-7 w-7 border-2 border-background">
                                                     <AvatarFallback className="text-xs">
@@ -1672,11 +1937,12 @@ export default function QuranCircles() {
                             </CardContent>
                         </Card>
                     ))
-                )}
-            </div>
+                )
+                }
+            </div >
 
             {/* Delete Confirmation */}
-            <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+            < AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>{isRTL ? 'تأكيد الحذف' : 'Confirm Delete'}</AlertDialogTitle>
@@ -1693,10 +1959,10 @@ export default function QuranCircles() {
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
-            </AlertDialog>
+            </AlertDialog >
 
             {/* Circle Details Dialog */}
-            <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+            < Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen} >
                 <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{selectedCircle && getCircleName(selectedCircle)}</DialogTitle>
@@ -1847,6 +2113,17 @@ export default function QuranCircles() {
                                             beneficiary_type: 'adult'
                                         });
                                     } else {
+                                        // Auto-fill based on circle properties
+                                        const autoGender = (selectedCircle?.beneficiary_gender === 'female' || selectedCircle?.teacher_gender === 'women') ? 'female' : 'male';
+                                        const autoBeneficiaryType = (selectedCircle?.target_group === 'children' || selectedCircle?.target_group === 'child' || selectedCircle?.target_group === 'kids') ? 'child' : 'adult';
+
+                                        setNewBeneficiary({
+                                            name_ar: '',
+                                            name_en: '',
+                                            phone: '',
+                                            gender: autoGender,
+                                            beneficiary_type: autoBeneficiaryType
+                                        });
                                         setIsAddingBeneficiary(true);
                                     }
                                 }} size="sm">
@@ -1904,6 +2181,7 @@ export default function QuranCircles() {
                                             <Select
                                                 value={newBeneficiary.gender}
                                                 onValueChange={(val: 'male' | 'female') => setNewBeneficiary({ ...newBeneficiary, gender: val })}
+                                                disabled={!editingBeneficiary}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue />
@@ -1913,12 +2191,18 @@ export default function QuranCircles() {
                                                     <SelectItem value="female">{isRTL ? 'أنثى' : 'Female'}</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            {!editingBeneficiary && (
+                                                <p className="text-xs text-muted-foreground">
+                                                    {isRTL ? 'محدد تلقائياً بناءً على نوع الحلقة' : 'Auto-filled based on circle type'}
+                                                </p>
+                                            )}
                                         </div>
                                         <div className="space-y-2">
                                             <Label>{isRTL ? 'نوع المستفيد' : 'Beneficiary Type'}</Label>
                                             <Select
                                                 value={newBeneficiary.beneficiary_type}
                                                 onValueChange={(val: 'adult' | 'child') => setNewBeneficiary({ ...newBeneficiary, beneficiary_type: val })}
+                                                disabled={!editingBeneficiary}
                                             >
                                                 <SelectTrigger>
                                                     <SelectValue />
@@ -1928,6 +2212,11 @@ export default function QuranCircles() {
                                                     <SelectItem value="child">{isRTL ? 'طفل' : 'Child'}</SelectItem>
                                                 </SelectContent>
                                             </Select>
+                                            {!editingBeneficiary && (
+                                                <p className="text-xs text-muted-foreground">
+                                                    {isRTL ? 'محدد تلقائياً بناءً على الفئة المستهدفة' : 'Auto-filled based on target group'}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex justify-end gap-2 pt-2">
@@ -2038,180 +2327,90 @@ export default function QuranCircles() {
                         </TabsContent>
 
                         {/* Attendance Sheet Tab */}
-                        <TabsContent value="sheet" className="py-4 space-y-4">
-                            {/* Session Selector */}
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">{isRTL ? 'اختر الجلسة' : 'Select Session'}</label>
-                                <select
-                                    className="w-full p-2 border rounded-md bg-background"
-                                    value={selectedSession?.id || ''}
-                                    onChange={(e) => {
-                                        const session = sessions.find(s => s.id === e.target.value);
-                                        if (session) {
-                                            setSelectedSession(session);
-                                            setAttendance(attendanceData[session.id] || []);
-                                            setGuests([]);
-                                        } else {
-                                            setSelectedSession(null);
-                                            setAttendance([]);
-                                        }
-                                    }}
-                                >
-                                    <option value="">{isRTL ? '-- اختر جلسة --' : '-- Select a session --'}</option>
-                                    {sessions.map(s => (
-                                        <option key={s.id} value={s.id}>
-                                            {format(new Date(s.session_date), 'EEEE, d MMMM', { locale: isRTL ? ar : enUS })}
-                                        </option>
-                                    ))}
-                                </select>
+                        <TabsContent value="sheet" className="py-4">
+                            <div className="border rounded-lg overflow-x-auto max-h-[600px]">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="min-w-[200px] sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                            <TableHead className="min-w-[120px]">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                            {sessions.map((s, idx) => (
+                                                <TableHead key={s.id} className="text-center min-w-[80px]">
+                                                    <div className="flex flex-col items-center">
+                                                        <span>{idx + 1}</span>
+                                                        <span className="text-[10px] font-normal text-muted-foreground">
+                                                            {format(new Date(s.session_date), 'd/M')}
+                                                        </span>
+                                                    </div>
+                                                </TableHead>
+                                            ))}
+                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'حضر' : 'Attended'}</TableHead>
+                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'غاب' : 'Missed'}</TableHead>
+                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'نسبة' : '%'}</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {detailsBeneficiaries.map(beneficiary => {
+                                            const studentAttendance = sessions.map(s =>
+                                                attendanceData[s.id]?.find(a => a.beneficiary_id === beneficiary.id)
+                                            );
+                                            const attendedCount = studentAttendance.filter(Boolean).length;
+                                            const missedCount = sessions.length - attendedCount;
+                                            const attendanceRate = sessions.length > 0 ? Math.round((attendedCount / sessions.length) * 100) : 0;
+
+                                            return (
+                                                <TableRow key={beneficiary.id}>
+                                                    <TableCell className="font-medium sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">
+                                                        {beneficiary.name_ar}
+                                                    </TableCell>
+                                                    <TableCell className="text-sm text-muted-foreground">{beneficiary.phone || '-'}</TableCell>
+                                                    {sessions.map((session, idx) => {
+                                                        const attendanceRecord = attendanceData[session.id]?.find(a => a.beneficiary_id === beneficiary.id);
+                                                        const isPresent = !!attendanceRecord;
+
+                                                        return (
+                                                            <TableCell key={session.id} className="text-center p-2">
+                                                                <div className="flex flex-col items-center gap-1">
+                                                                    <Checkbox
+                                                                        checked={isPresent}
+                                                                        onCheckedChange={() => toggleCircleAttendance(session.id, beneficiary.id)}
+                                                                        className="mx-auto"
+                                                                    />
+                                                                    {isPresent && (
+                                                                        <select
+                                                                            className="text-[10px] border rounded bg-transparent p-0.5 w-[50px] text-center"
+                                                                            value={attendanceRecord?.attendance_type}
+                                                                            onChange={(e) => updateSheetAttendanceType(session.id, beneficiary.id, e.target.value as any)}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        >
+                                                                            <option value="memorization">{isRTL ? 'حفظ' : 'Mem'}</option>
+                                                                            <option value="revision">{isRTL ? 'مراجعة' : 'Rev'}</option>
+                                                                        </select>
+                                                                    )}
+                                                                </div>
+                                                            </TableCell>
+                                                        );
+                                                    })}
+                                                    <TableCell className="text-center font-bold text-green-600">{attendedCount}</TableCell>
+                                                    <TableCell className="text-center font-bold text-red-600">{missedCount}</TableCell>
+                                                    <TableCell className="text-center font-bold">
+                                                        <span className={`${attendanceRate >= 80 ? 'text-green-600' : attendanceRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                                                            {attendanceRate}%
+                                                        </span>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                        {detailsBeneficiaries.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={sessions.length + 5} className="text-center py-8 text-muted-foreground">
+                                                    {isRTL ? 'لا يوجد طلاب مسجلين' : 'No students enrolled'}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
                             </div>
-
-                            {selectedSession ? (
-                                <>
-                                    {/* Quick Actions */}
-                                    <div className="flex gap-2">
-                                        <Button variant="outline" size="sm" onClick={markAllPresent}>
-                                            <Check className="h-4 w-4 ltr:mr-1 rtl:ml-1" />
-                                            {isRTL ? 'تحديد الكل' : 'Mark All'}
-                                        </Button>
-                                        <Button variant="outline" size="sm" onClick={() => setAttendance([])}>
-                                            <X className="h-4 w-4 ltr:mr-1 rtl:ml-1" />
-                                            {isRTL ? 'إلغاء الكل' : 'Clear All'}
-                                        </Button>
-                                    </div>
-
-                                    {/* Search */}
-                                    <Input
-                                        placeholder={isRTL ? 'بحث عن مستفيد...' : 'Search...'}
-                                        value={sessionBeneficiarySearch}
-                                        onChange={e => setSessionBeneficiarySearch(e.target.value)}
-                                    />
-
-                                    {/* Beneficiaries List */}
-                                    <ScrollArea className="h-[300px] border rounded-md p-2">
-                                        <div className="space-y-1">
-                                            {filteredDetailsBeneficiaries.map(b => {
-                                                const isPresent = attendance.some(a => a.beneficiary_id === b.id);
-                                                const attendanceRecord = attendance.find(a => a.beneficiary_id === b.id);
-
-                                                return (
-                                                    <div
-                                                        key={b.id}
-                                                        className={`flex items-center justify-between p-2 rounded-md ${isPresent ? 'bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800' : 'hover:bg-muted'
-                                                            }`}
-                                                    >
-                                                        <div
-                                                            className="flex items-center gap-2 flex-1 cursor-pointer"
-                                                            onClick={() => toggleBeneficiary(b.id)}
-                                                        >
-                                                            <Checkbox checked={isPresent} />
-                                                            <Avatar className="h-8 w-8">
-                                                                <AvatarImage src={b.image_url || undefined} />
-                                                                <AvatarFallback>{b.name_ar?.slice(0, 2)}</AvatarFallback>
-                                                            </Avatar>
-                                                            <span className="font-medium">{b.name_ar}</span>
-                                                        </div>
-
-                                                        {isPresent && (
-                                                            <div className="flex items-center gap-1 bg-background rounded-md border p-0.5">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => updateAttendanceType(b.id, 'memorization')}
-                                                                    className={`px-2 py-1 text-xs rounded-sm transition-all ${attendanceRecord?.attendance_type === 'memorization'
-                                                                        ? 'bg-primary text-primary-foreground'
-                                                                        : 'hover:bg-muted'
-                                                                        }`}
-                                                                >
-                                                                    {isRTL ? 'حفظ' : 'Mem'}
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => updateAttendanceType(b.id, 'revision')}
-                                                                    className={`px-2 py-1 text-xs rounded-sm transition-all ${attendanceRecord?.attendance_type === 'revision'
-                                                                        ? 'bg-amber-500 text-white'
-                                                                        : 'hover:bg-muted'
-                                                                        }`}
-                                                                >
-                                                                    {isRTL ? 'مراجعة' : 'Rev'}
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </ScrollArea>
-
-                                    {/* Guests Section */}
-                                    <div className="border rounded-lg p-3 space-y-3 bg-muted/20">
-                                        <h4 className="font-medium text-sm">{isRTL ? 'إضافة ضيوف' : 'Add Guests'}</h4>
-                                        <div className="flex gap-2 flex-wrap">
-                                            <Input
-                                                placeholder={isRTL ? 'اسم الضيف' : 'Guest name'}
-                                                value={guestName}
-                                                onChange={e => setGuestName(e.target.value)}
-                                                className="flex-1 min-w-[120px]"
-                                            />
-                                            <Input
-                                                placeholder={isRTL ? 'رقم الضيف' : 'Guest phone'}
-                                                value={guestPhone}
-                                                onChange={e => setGuestPhone(e.target.value)}
-                                                className="flex-1 min-w-[120px]"
-                                            />
-                                            <Button onClick={addGuest} size="sm">
-                                                <Plus className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                        {guests.length > 0 && (
-                                            <div className="space-y-1">
-                                                {guests.map((g, i) => (
-                                                    <div key={i} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-950/20 rounded border border-blue-200 dark:border-blue-800">
-                                                        <div className="flex items-center gap-2">
-                                                            <Badge variant="secondary">{isRTL ? 'ضيف' : 'Guest'}</Badge>
-                                                            <span>{g.name}</span>
-                                                            {g.phone && <span className="text-xs text-muted-foreground">({g.phone})</span>}
-                                                        </div>
-                                                        <Button variant="ghost" size="icon" onClick={() => removeGuest(i)}>
-                                                            <X className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Summary */}
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                                            <span>{isRTL ? 'الحضور:' : 'Present:'}</span>
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="text-lg px-3">{attendance.length + guests.length}</Badge>
-                                                <span className="text-muted-foreground text-sm">
-                                                    ({attendance.length} {isRTL ? 'مسجل' : 'enrolled'} + {guests.length} {isRTL ? 'ضيف' : 'guests'})
-                                                </span>
-                                            </div>
-                                        </div>
-                                        {detailsBeneficiaries.length > 0 && (
-                                            <div className="w-full bg-muted rounded-full h-2">
-                                                <div
-                                                    className="bg-primary h-2 rounded-full transition-all"
-                                                    style={{ width: `${(attendance.length / detailsBeneficiaries.length) * 100}%` }}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Save Button */}
-                                    <Button onClick={handleSaveAttendance} className="w-full">
-                                        {isRTL ? 'حفظ الحضور' : 'Save Attendance'}
-                                    </Button>
-                                </>
-                            ) : (
-                                <div className="text-center py-12 text-muted-foreground">
-                                    <Users className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                                    <p>{isRTL ? 'اختر جلسة لتسجيل الحضور' : 'Select a session to record attendance'}</p>
-                                </div>
-                            )}
                         </TabsContent>
 
                         {/* Organizers Tab */}
@@ -2301,10 +2500,10 @@ export default function QuranCircles() {
                         )}
                     </Tabs>
                 </DialogContent>
-            </Dialog>
+            </Dialog >
 
             {/* New Session Dialog */}
-            <Dialog open={isSessionDialogOpen} onOpenChange={setIsSessionDialogOpen}>
+            < Dialog open={isSessionDialogOpen} onOpenChange={setIsSessionDialogOpen} >
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>{isRTL ? 'جلسة جديدة' : 'New Session'}</DialogTitle>
@@ -2339,10 +2538,10 @@ export default function QuranCircles() {
                         </Button>
                     </div>
                 </DialogContent>
-            </Dialog>
+            </Dialog >
 
             {/* Attendance Dialog - Reused Logic */}
-            <Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen}>
+            < Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen} >
                 <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
@@ -2463,10 +2662,10 @@ export default function QuranCircles() {
                         </Button>
                     </div>
                 </DialogContent>
-            </Dialog>
+            </Dialog >
 
             {/* Session Delete Confirmation */}
-            <AlertDialog open={!!deleteSessionId} onOpenChange={(open) => !open && setDeleteSessionId(null)}>
+            < AlertDialog open={!!deleteSessionId} onOpenChange={(open) => !open && setDeleteSessionId(null)}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>{isRTL ? 'حذف الجلسة' : 'Delete Session'}</AlertDialogTitle>
@@ -2483,10 +2682,10 @@ export default function QuranCircles() {
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
-            </AlertDialog>
+            </AlertDialog >
 
             {/* Enrollment Management Dialog */}
-            <Dialog open={isEnrollmentOpen} onOpenChange={setIsEnrollmentOpen}>
+            < Dialog open={isEnrollmentOpen} onOpenChange={setIsEnrollmentOpen} >
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
@@ -2575,7 +2774,7 @@ export default function QuranCircles() {
                         </Button>
                     </div>
                 </DialogContent>
-            </Dialog>
-        </div>
+            </Dialog >
+        </div >
     );
 }

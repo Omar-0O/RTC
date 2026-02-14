@@ -11,16 +11,21 @@ import { ar, enUS } from 'date-fns/locale';
 
 interface CourseAd {
     id: string;
-    course_id: string;
+    course_id?: string;
+    circle_id?: string;
     ad_number: number;
     ad_date: string;
     poster_done: boolean;
     content_done: boolean;
+    ad_type?: 'course' | 'circle';
     course?: {
         name: string;
         start_date: string;
         has_interview: boolean;
         interview_date: string | null;
+    };
+    circle?: {
+        teacher_name: string;
     };
     [key: string]: any; // Allow other properties
 }
@@ -65,14 +70,31 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
 
     useEffect(() => {
         const fetchMarketers = async () => {
-            if (!selectedAd || !selectedAd.course_id) return;
+            if (!selectedAd) return;
 
             setLoadingMarketers(true);
             try {
-                const { data, error } = await supabase
-                    .from('course_marketers')
-                    .select('id, profiles:volunteer_id(full_name, full_name_ar, phone, avatar_url)')
-                    .eq('course_id', selectedAd.course_id);
+                let data, error;
+
+                if (selectedAd.ad_type === 'circle' && selectedAd.circle_id) {
+                    // Fetch circle marketers
+                    const result: any = await supabase
+                        .from('quran_circle_marketers')
+                        .select('id, profiles:volunteer_id(full_name, full_name_ar, phone, avatar_url)')
+                        .eq('circle_id', selectedAd.circle_id);
+
+                    data = result.data;
+                    error = result.error;
+                } else if (selectedAd.course_id) {
+                    // Fetch course marketers
+                    const result: any = await supabase
+                        .from('course_marketers')
+                        .select('id, profiles:volunteer_id(full_name, full_name_ar, phone, avatar_url)')
+                        .eq('course_id', selectedAd.course_id);
+
+                    data = result.data;
+                    error = result.error;
+                }
 
                 if (error) throw error;
                 setMarketers(data || []);
@@ -101,8 +123,8 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
 
     const fetchAds = async () => {
         try {
-            // Fetch all ads (or optimization: fetch based on range if needed)
-            const { data, error } = await supabase
+            // Fetch course ads
+            const { data: courseAdsData, error: courseError } = await supabase
                 .from('course_ads')
                 .select(`
           id,
@@ -115,16 +137,59 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
         `)
                 .order('ad_date', { ascending: true });
 
-            if (error) throw error;
+            if (courseError) throw courseError;
 
-            const formattedData = (data || []).map((item: any) => ({
+            // Fetch quran circle ads
+            const { data: circleAdsData, error: circleError } = await supabase
+                .from('quran_circle_ads')
+                .select(`
+          id,
+          circle_id,
+          ad_number,
+          ad_date,
+          poster_done,
+          content_done,
+          quran_circles!inner(
+            teacher_id,
+            quran_teachers(name)
+          )
+        `)
+                .order('ad_date', { ascending: true });
+
+            if (circleError) console.error('Error fetching circle ads:', circleError);
+
+            // Format course ads
+            const formattedCourseAds = (courseAdsData || []).map((item: any) => ({
                 ...item,
+                ad_type: 'course',
                 course: item.course || { name: 'Unknown Course' }
             }));
 
-            setAds(formattedData);
+            // Format circle ads
+            const formattedCircleAds = (circleAdsData || []).map((item: any) => {
+                const teacherName = item.quran_circles?.quran_teachers?.name || 'Unknown Teacher';
+                return {
+                    ...item,
+                    ad_type: 'circle',
+                    circle: {
+                        teacher_name: teacherName
+                    },
+                    course: {
+                        name: `حلقة ${teacherName}`,
+                        start_date: item.ad_date,
+                        has_interview: false,
+                        interview_date: null
+                    }
+                };
+            });
+
+            // Combine and sort all ads
+            const allAds = [...formattedCourseAds, ...formattedCircleAds]
+                .sort((a, b) => a.ad_date.localeCompare(b.ad_date));
+
+            setAds(allAds);
         } catch (error) {
-            console.error('Error fetching course ads:', error);
+            console.error('Error fetching ads:', error);
         } finally {
             setLoading(false);
         }

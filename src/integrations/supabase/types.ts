@@ -110,39 +110,6 @@ export type Database = {
           },
         ]
       }
-      activity_type_committees: {
-        Row: {
-          activity_type_id: string
-          committee_id: string
-          created_at: string
-        }
-        Insert: {
-          activity_type_id: string
-          committee_id: string
-          created_at?: string
-        }
-        Update: {
-          activity_type_id?: string
-          committee_id?: string
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "activity_type_committees_activity_type_id_fkey"
-            columns: ["activity_type_id"]
-            isOneToOne: false
-            referencedRelation: "activity_types"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "activity_type_committees_committee_id_fkey"
-            columns: ["committee_id"]
-            isOneToOne: false
-            referencedRelation: "committees"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
       activity_types: {
         Row: {
           committee_id: string | null
@@ -243,89 +210,6 @@ export type Database = {
           points_required?: number | null
         }
         Relationships: []
-      }
-      calls: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          date: string
-          description: string | null
-          id: string
-          name: string
-          updated_at: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          date: string
-          description?: string | null
-          id?: string
-          name: string
-          updated_at?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          date?: string
-          description?: string | null
-          id?: string
-          name?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "calls_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      call_participants: {
-        Row: {
-          call_id: string
-          created_at: string | null
-          id: string
-          is_volunteer: boolean | null
-          name: string
-          phone: string | null
-          volunteer_id: string | null
-        }
-        Insert: {
-          call_id: string
-          created_at?: string | null
-          id?: string
-          is_volunteer?: boolean | null
-          name: string
-          phone?: string | null
-          volunteer_id?: string | null
-        }
-        Update: {
-          call_id?: string
-          created_at?: string | null
-          id?: string
-          is_volunteer?: boolean | null
-          name?: string
-          phone?: string | null
-          volunteer_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "call_participants_call_id_fkey"
-            columns: ["call_id"]
-            isOneToOne: false
-            referencedRelation: "calls"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "call_participants_volunteer_id_fkey"
-            columns: ["volunteer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       caravan_participants: {
         Row: {
@@ -585,7 +469,6 @@ export type Database = {
           id: string
           name: string
           phone: string
-          national_id: string | null
         }
         Insert: {
           course_id?: string | null
@@ -594,7 +477,6 @@ export type Database = {
           id?: string
           name: string
           phone: string
-          national_id?: string | null
         }
         Update: {
           course_id?: string | null
@@ -603,7 +485,6 @@ export type Database = {
           id?: string
           name?: string
           phone?: string
-          national_id?: string | null
         }
         Relationships: [
           {
@@ -616,73 +497,6 @@ export type Database = {
           {
             foreignKeyName: "course_beneficiaries_created_by_fkey"
             columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      course_ads: {
-        Row: {
-          id: string
-          course_id: string
-          ad_number: number
-          ad_date: string
-          poster_url: string | null
-          content: string | null
-          poster_done: boolean
-          content_done: boolean
-          created_by: string | null
-          updated_by: string | null
-          created_at: string | null
-          updated_at: string | null
-        }
-        Insert: {
-          id?: string
-          course_id: string
-          ad_number: number
-          ad_date: string
-          poster_url?: string | null
-          content?: string | null
-          poster_done?: boolean
-          content_done?: boolean
-          created_by?: string | null
-          updated_by?: string | null
-          created_at?: string | null
-          updated_at?: string | null
-        }
-        Update: {
-          id?: string
-          course_id?: string
-          ad_number?: number
-          ad_date?: string
-          poster_url?: string | null
-          content?: string | null
-          poster_done?: boolean
-          content_done?: boolean
-          created_by?: string | null
-          updated_by?: string | null
-          created_at?: string | null
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "course_ads_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
-            referencedRelation: "courses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "course_ads_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "course_ads_updated_by_fkey"
-            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -759,42 +573,6 @@ export type Database = {
           },
           {
             foreignKeyName: "course_organizers_volunteer_id_fkey"
-            columns: ["volunteer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      course_marketers: {
-        Row: {
-          id: string
-          course_id: string
-          volunteer_id: string
-          created_at: string | null
-        }
-        Insert: {
-          id?: string
-          course_id: string
-          volunteer_id: string
-          created_at?: string | null
-        }
-        Update: {
-          id?: string
-          course_id?: string
-          volunteer_id?: string
-          created_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "course_marketers_course_id_fkey"
-            columns: ["course_id"]
-            isOneToOne: false
-            referencedRelation: "courses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "course_marketers_volunteer_id_fkey"
             columns: ["volunteer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
@@ -1012,112 +790,8 @@ export type Database = {
           },
         ]
       }
-      event_speakers: {
-        Row: {
-          created_at: string | null
-          event_id: string
-          id: string
-          name: string
-          phone: string | null
-          social_media_link: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          event_id: string
-          id?: string
-          name: string
-          phone?: string | null
-          social_media_link?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          event_id?: string
-          id?: string
-          name?: string
-          phone?: string | null
-          social_media_link?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_speakers_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      event_organizers: {
-        Row: {
-          created_at: string | null
-          event_id: string
-          id: string
-          volunteer_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          event_id: string
-          id?: string
-          volunteer_id: string
-        }
-        Update: {
-          created_at?: string | null
-          event_id?: string
-          id?: string
-          volunteer_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_organizers_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "event_organizers_volunteer_id_fkey"
-            columns: ["volunteer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      event_beneficiaries: {
-        Row: {
-          created_at: string | null
-          event_id: string
-          id: string
-          name: string
-          phone: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          event_id: string
-          id?: string
-          name: string
-          phone?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          event_id?: string
-          id?: string
-          name?: string
-          phone?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_beneficiaries_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       events: {
         Row: {
-          committee_id: string | null
           created_at: string | null
           created_by: string | null
           date: string
@@ -1130,7 +804,6 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          committee_id?: string | null
           created_at?: string | null
           created_by?: string | null
           date: string
@@ -1143,7 +816,6 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          committee_id?: string | null
           created_at?: string | null
           created_by?: string | null
           date?: string
@@ -1161,13 +833,6 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "events_committee_id_fkey"
-            columns: ["committee_id"]
-            isOneToOne: false
-            referencedRelation: "committees"
             referencedColumns: ["id"]
           },
         ]
@@ -1227,27 +892,6 @@ export type Database = {
           },
         ]
       }
-      rooms: {
-        Row: {
-          id: string
-          name: string
-          name_ar: string
-          created_at: string
-        }
-        Insert: {
-          id: string
-          name: string
-          name_ar: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          name_ar?: string
-          created_at?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           activities_count: number
@@ -1263,12 +907,9 @@ export type Database = {
           join_date: string
           level: Database["public"]["Enums"]["volunteer_level"]
           phone: string | null
-          is_ashbal: boolean | null
           total_points: number
           updated_at: string
           visible_password: string | null
-          birth_date: string | null
-          last_seen_at: string | null
         }
         Insert: {
           activities_count?: number
@@ -1284,12 +925,9 @@ export type Database = {
           join_date?: string
           level?: Database["public"]["Enums"]["volunteer_level"]
           phone?: string | null
-          is_ashbal?: boolean | null
           total_points?: number
           updated_at?: string
           visible_password?: string | null
-          birth_date?: string | null
-          last_seen_at?: string | null
         }
         Update: {
           activities_count?: number
@@ -1305,12 +943,9 @@ export type Database = {
           join_date?: string
           level?: Database["public"]["Enums"]["volunteer_level"]
           phone?: string | null
-          is_ashbal?: boolean | null
           total_points?: number
           updated_at?: string
           visible_password?: string | null
-          birth_date?: string | null
-          last_seen_at?: string | null
         }
         Relationships: [
           {
@@ -1332,9 +967,7 @@ export type Database = {
           name_en: string
           phone: string | null
           specialization: string | null
-          type: string
           updated_at: string | null
-          user_id: string | null
         }
         Insert: {
           committee_id?: string | null
@@ -1345,9 +978,7 @@ export type Database = {
           name_en: string
           phone?: string | null
           specialization?: string | null
-          type?: string
           updated_at?: string | null
-          user_id?: string | null
         }
         Update: {
           committee_id?: string | null
@@ -1358,9 +989,7 @@ export type Database = {
           name_en?: string
           phone?: string | null
           specialization?: string | null
-          type?: string
           updated_at?: string | null
-          user_id?: string | null
         }
         Relationships: [
           {
@@ -1368,13 +997,6 @@ export type Database = {
             columns: ["committee_id"]
             isOneToOne: false
             referencedRelation: "committees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "trainers_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1459,343 +1081,6 @@ export type Database = {
         }
         Relationships: []
       }
-      quran_circles: {
-        Row: {
-          id: string
-          teacher_id: string | null
-          organizer_id: string | null
-          schedule: Json
-          is_active: boolean
-          created_at: string
-          guest_names: Json
-        }
-        Insert: {
-          id?: string
-          teacher_id?: string | null
-          organizer_id?: string | null
-          schedule?: Json
-          is_active?: boolean
-          created_at?: string
-          guest_names?: Json
-        }
-        Update: {
-          id?: string
-          teacher_id?: string | null
-          organizer_id?: string | null
-          schedule?: Json
-          is_active?: boolean
-          created_at?: string
-          guest_names?: Json
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quran_circles_teacher_id_fkey"
-            columns: ["teacher_id"]
-            isOneToOne: false
-            referencedRelation: "trainers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quran_circles_organizer_id_fkey"
-            columns: ["organizer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      quran_circle_organizers: {
-        Row: {
-          id: string
-          circle_id: string
-          volunteer_id: string | null
-          name: string
-          phone: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          circle_id: string
-          volunteer_id?: string | null
-          name: string
-          phone?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          circle_id?: string
-          volunteer_id?: string | null
-          name?: string
-          phone?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quran_circle_organizers_circle_id_fkey"
-            columns: ["circle_id"]
-            isOneToOne: false
-            referencedRelation: "quran_circles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quran_circle_organizers_volunteer_id_fkey"
-            columns: ["volunteer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      quran_teachers: {
-        Row: {
-          id: string
-          name: string
-          phone: string
-          teaching_mode: string | null
-          target_gender: string | null
-          specialization: string | null
-          created_at: string | null
-          updated_at: string | null
-          user_id: string | null
-        }
-        Insert: {
-          id?: string
-          name: string
-          phone: string
-          teaching_mode?: string | null
-          target_gender?: string | null
-          specialization?: string | null
-          created_at?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          id?: string
-          name?: string
-          phone?: string
-          teaching_mode?: string | null
-          target_gender?: string | null
-          specialization?: string | null
-          created_at?: string | null
-          updated_at?: string | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quran_teachers_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      quran_circle_sessions: {
-        Row: {
-          id: string
-          circle_id: string
-          session_date: string
-          notes: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          circle_id: string
-          session_date: string
-          notes?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          circle_id?: string
-          session_date?: string
-          notes?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quran_circle_sessions_circle_id_fkey"
-            columns: ["circle_id"]
-            isOneToOne: false
-            referencedRelation: "quran_circles"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      quran_enrollments: {
-        Row: {
-          id: string
-          circle_id: string
-          beneficiary_id: string
-          enrollment_date: string
-          status: string
-          notes: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          circle_id: string
-          beneficiary_id: string
-          enrollment_date?: string
-          status?: string
-          notes?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          circle_id?: string
-          beneficiary_id?: string
-          enrollment_date?: string
-          status?: string
-          notes?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quran_enrollments_circle_id_fkey"
-            columns: ["circle_id"]
-            isOneToOne: false
-            referencedRelation: "quran_circles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quran_enrollments_beneficiary_id_fkey"
-            columns: ["beneficiary_id"]
-            isOneToOne: false
-            referencedRelation: "quran_beneficiaries"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      quran_beneficiaries: {
-        Row: {
-          id: string
-          name_ar: string
-          name_en: string | null
-          image_url: string | null
-          phone: string | null
-          is_active: boolean | null
-        }
-        Insert: {
-          id?: string
-          name_ar: string
-          name_en?: string | null
-          image_url?: string | null
-          phone?: string | null
-          is_active?: boolean | null
-        }
-        Update: {
-          id?: string
-          name_ar?: string
-          name_en?: string | null
-          image_url?: string | null
-          phone?: string | null
-          is_active?: boolean | null
-        }
-        Relationships: []
-      }
-      quran_circle_beneficiaries: {
-        Row: {
-          session_id: string
-          circle_id: string
-          beneficiary_id: string
-          attendance_type: string | null
-          memorization_log: Json | null
-          revision_log: Json | null
-          notes: string | null
-          created_at: string
-        }
-        Insert: {
-          session_id: string
-          circle_id: string
-          beneficiary_id: string
-          attendance_type?: string | null
-          memorization_log?: Json | null
-          revision_log?: Json | null
-          notes?: string | null
-          created_at?: string
-        }
-        Update: {
-          session_id?: string
-          circle_id?: string
-          beneficiary_id?: string
-          attendance_type?: string | null
-          memorization_log?: Json | null
-          revision_log?: Json | null
-          notes?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quran_circle_beneficiaries_session_id_fkey"
-            columns: ["session_id"]
-            isOneToOne: false
-            referencedRelation: "quran_circle_sessions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quran_circle_beneficiaries_circle_id_fkey"
-            columns: ["circle_id"]
-            isOneToOne: false
-            referencedRelation: "quran_circles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "quran_circle_beneficiaries_beneficiary_id_fkey"
-            columns: ["beneficiary_id"]
-            isOneToOne: false
-            referencedRelation: "quran_beneficiaries"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      beneficiary_surah_progress: {
-        Row: {
-          id: string
-          beneficiary_id: string
-          surah_number: number
-          status: string
-          from_ayah: number | null
-          to_ayah: number | null
-          notes: string | null
-          last_updated: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          beneficiary_id: string
-          surah_number: number
-          status?: string
-          from_ayah?: number | null
-          to_ayah?: number | null
-          notes?: string | null
-          last_updated?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          beneficiary_id?: string
-          surah_number?: number
-          status?: string
-          from_ayah?: number | null
-          to_ayah?: number | null
-          notes?: string | null
-          last_updated?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "beneficiary_surah_progress_beneficiary_id_fkey"
-            columns: ["beneficiary_id"]
-            isOneToOne: false
-            referencedRelation: "quran_beneficiaries"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
     }
     Views: {
       [_ in never]: never
@@ -1840,39 +1125,31 @@ export type Database = {
         }
         Returns: boolean
       }
-      renew_ashbal_target: {
-        Args: Record<string, never>
-        Returns: undefined
-      }
     }
     Enums: {
       activity_mode: "individual" | "group"
       app_role:
-      | "volunteer"
-      | "supervisor"
-      | "admin"
-      | "committee_leader"
-      | "hr"
-      | "head_hr"
-      | "head_caravans"
-      | "head_production"
-      | "head_fourth_year"
-      | "head_events"
-      | "head_ethics"
-      | "head_quran"
-      | "head_marketing"
-      | "head_ashbal"
-      | "marketing_member"
+        | "admin"
+        | "supervisor"
+        | "committee_leader"
+        | "volunteer"
+        | "hr"
+        | "head_hr"
+        | "head_caravans"
+        | "head_production"
+        | "head_fourth_year"
+        | "head_events"
+        | "head_ethics"
       submission_status: "pending" | "approved" | "rejected"
       volunteer_level:
-      | "bronze"
-      | "silver"
-      | "gold"
-      | "platinum"
-      | "diamond"
-      | "under_follow_up"
-      | "project_responsible"
-      | "responsible"
+        | "bronze"
+        | "silver"
+        | "gold"
+        | "platinum"
+        | "diamond"
+        | "under_follow_up"
+        | "project_responsible"
+        | "responsible"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1886,116 +1163,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-  : never = never,
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-  ? R
-  : never
+    ? R
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : never
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
+      Insert: infer I
+    }
+    ? I
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Update: infer U
-  }
-  ? U
-  : never
+      Update: infer U
+    }
+    ? U
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-  | keyof DefaultSchema["Enums"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-  | keyof DefaultSchema["CompositeTypes"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   public: {

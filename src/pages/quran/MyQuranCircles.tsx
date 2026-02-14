@@ -63,6 +63,7 @@ interface QuranCircle {
     teacher_gender?: 'men' | 'women';
     is_active?: boolean;
     description?: string;
+    beneficiary_gender?: 'male' | 'female';
 }
 
 interface Session {
@@ -79,6 +80,7 @@ interface Beneficiary {
     name_ar: string;
     name_en: string | null;
     image_url: string | null;
+    phone?: string | null;
 }
 
 interface Attendance {
@@ -179,6 +181,7 @@ export default function MyQuranCircles() {
                     teacher_id,
                     schedule,
                     target_group,
+                    beneficiary_gender,
                     description
                 `)
                 .in('id', circleIds)
@@ -227,6 +230,7 @@ export default function MyQuranCircles() {
                     teacher_gender: teacher?.target_gender,
                     teaching_mode: teacher?.teaching_mode as 'online' | 'offline' | 'mixed' | undefined,
                     description: c.description,
+                    beneficiary_gender: c.beneficiary_gender,
                     is_active: true, // filtered by is_active=true anyway
                     schedule: c.schedule || [],
                     sessions_count: sessionCounts[c.id] || 0,
@@ -266,7 +270,7 @@ export default function MyQuranCircles() {
             .from('quran_enrollments')
             .select(`
                 beneficiary_id,
-                quran_beneficiaries!inner(id, name_ar, name_en, image_url)
+                quran_beneficiaries!inner(id, name_ar, name_en, image_url, phone)
             `)
             .eq('circle_id', circle.id)
             .eq('status', 'active');
@@ -276,7 +280,8 @@ export default function MyQuranCircles() {
                 id: e.quran_beneficiaries.id,
                 name_ar: e.quran_beneficiaries.name_ar,
                 name_en: e.quran_beneficiaries.name_en,
-                image_url: e.quran_beneficiaries.image_url
+                image_url: e.quran_beneficiaries.image_url,
+                phone: e.quran_beneficiaries.phone
             }));
             setBeneficiaries(bens);
         }
@@ -532,6 +537,70 @@ export default function MyQuranCircles() {
         }
     };
 
+    const toggleCircleAttendance = async (sessionId: string, beneficiaryId: string) => {
+        const currentSessionAtt = attendanceData[sessionId] || [];
+        const existing = currentSessionAtt.find(a => a.beneficiary_id === beneficiaryId);
+
+        try {
+            if (existing) {
+                // Remove
+                const { error } = await supabase
+                    .from('quran_circle_beneficiaries')
+                    .delete()
+                    .eq('session_id', sessionId)
+                    .eq('beneficiary_id', beneficiaryId);
+
+                if (error) throw error;
+
+                setAttendanceData(prev => ({
+                    ...prev,
+                    [sessionId]: prev[sessionId].filter(a => a.beneficiary_id !== beneficiaryId)
+                }));
+            } else {
+                // Add
+                const { error } = await supabase
+                    .from('quran_circle_beneficiaries')
+                    .insert({
+                        session_id: sessionId,
+                        beneficiary_id: beneficiaryId,
+                        attendance_type: 'memorization'
+                    });
+
+                if (error) throw error;
+
+                setAttendanceData(prev => ({
+                    ...prev,
+                    [sessionId]: [...(prev[sessionId] || []), { beneficiary_id: beneficiaryId, attendance_type: 'memorization' }]
+                }));
+            }
+        } catch (error) {
+            console.error('Error toggling attendance:', error);
+            toast.error(isRTL ? 'فشل تحديث الحضور' : 'Failed to update attendance');
+        }
+    };
+
+    const updateSheetAttendanceType = async (sessionId: string, beneficiaryId: string, type: 'memorization' | 'revision') => {
+        try {
+            const { error } = await supabase
+                .from('quran_circle_beneficiaries')
+                .update({ attendance_type: type })
+                .eq('session_id', sessionId)
+                .eq('beneficiary_id', beneficiaryId);
+
+            if (error) throw error;
+
+            setAttendanceData(prev => ({
+                ...prev,
+                [sessionId]: prev[sessionId].map(a =>
+                    a.beneficiary_id === beneficiaryId ? { ...a, attendance_type: type } : a
+                )
+            }));
+        } catch (error) {
+            console.error('Error updating attendance type:', error);
+            toast.error(isRTL ? 'فشل تحديث النوع' : 'Failed to update type');
+        }
+    };
+
     const markAllPresent = () => {
         setAttendance(beneficiaries.map(b => ({
             beneficiary_id: b.id,
@@ -613,7 +682,9 @@ export default function MyQuranCircles() {
                     .insert({
                         name_ar: quickAddName.trim(),
                         phone: quickAddPhone.trim(),
-                        is_active: true
+                        is_active: true,
+                        gender: (selectedCircle.beneficiary_gender === 'female' || selectedCircle.teacher_gender === 'women') ? 'female' : 'male',
+                        beneficiary_type: (selectedCircle.target_group === 'children') ? 'child' : 'adult'
                     })
                     .select('id')
                     .single();
@@ -704,7 +775,7 @@ export default function MyQuranCircles() {
 
         // Convert to AM/PM
         const [hours, minutes] = time24.split(':').map(Number);
-        const period = hours >= 12 ? (isRTL ? 'م' : 'PM') : (isRTL ? 'ص' : 'AM');
+        const period = hours >= 12 ? (isRTL ? 'مساءً' : 'PM') : (isRTL ? 'صباحاً' : 'AM');
         const hours12 = hours % 12 || 12;
         return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
     };
@@ -1121,180 +1192,90 @@ export default function MyQuranCircles() {
                         </TabsContent>
 
                         {/* Attendance Sheet Tab */}
-                        <TabsContent value="sheet" className="py-4 space-y-4">
-                            {/* Session Selector */}
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">{isRTL ? 'اختر الجلسة' : 'Select Session'}</label>
-                                <select
-                                    className="w-full p-2 border rounded-md bg-background"
-                                    value={selectedSession?.id || ''}
-                                    onChange={(e) => {
-                                        const session = sessions.find(s => s.id === e.target.value);
-                                        if (session) {
-                                            setSelectedSession(session);
-                                            setAttendance(attendanceData[session.id] || []);
-                                            setGuests([]);
-                                        } else {
-                                            setSelectedSession(null);
-                                            setAttendance([]);
-                                        }
-                                    }}
-                                >
-                                    <option value="">{isRTL ? '-- اختر جلسة --' : '-- Select a session --'}</option>
-                                    {sessions.map(s => (
-                                        <option key={s.id} value={s.id}>
-                                            {format(new Date(s.session_date), 'EEEE, d MMMM', { locale })}
-                                        </option>
-                                    ))}
-                                </select>
+                        <TabsContent value="sheet" className="py-4">
+                            <div className="border rounded-lg overflow-x-auto max-h-[600px]">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="min-w-[200px] sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                            <TableHead className="min-w-[120px]">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                            {sessions.map((s, idx) => (
+                                                <TableHead key={s.id} className="text-center min-w-[80px]">
+                                                    <div className="flex flex-col items-center">
+                                                        <span>{idx + 1}</span>
+                                                        <span className="text-[10px] font-normal text-muted-foreground">
+                                                            {format(new Date(s.session_date), 'd/M')}
+                                                        </span>
+                                                    </div>
+                                                </TableHead>
+                                            ))}
+                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'حضر' : 'Attended'}</TableHead>
+                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'غاب' : 'Missed'}</TableHead>
+                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'نسبة' : '%'}</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {beneficiaries.map(beneficiary => {
+                                            const studentAttendance = sessions.map(s =>
+                                                attendanceData[s.id]?.find(a => a.beneficiary_id === beneficiary.id)
+                                            );
+                                            const attendedCount = studentAttendance.filter(Boolean).length;
+                                            const missedCount = sessions.length - attendedCount;
+                                            const attendanceRate = sessions.length > 0 ? Math.round((attendedCount / sessions.length) * 100) : 0;
+
+                                            return (
+                                                <TableRow key={beneficiary.id}>
+                                                    <TableCell className="font-medium sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">
+                                                        {beneficiary.name_ar}
+                                                    </TableCell>
+                                                    <TableCell className="text-sm text-muted-foreground">{beneficiary.phone || '-'}</TableCell>
+                                                    {sessions.map((session, idx) => {
+                                                        const attendanceRecord = attendanceData[session.id]?.find(a => a.beneficiary_id === beneficiary.id);
+                                                        const isPresent = !!attendanceRecord;
+
+                                                        return (
+                                                            <TableCell key={session.id} className="text-center p-2">
+                                                                <div className="flex flex-col items-center gap-1">
+                                                                    <Checkbox
+                                                                        checked={isPresent}
+                                                                        onCheckedChange={() => toggleCircleAttendance(session.id, beneficiary.id)}
+                                                                        className="mx-auto"
+                                                                    />
+                                                                    {isPresent && (
+                                                                        <select
+                                                                            className="text-[10px] border rounded bg-transparent p-0.5 w-[50px] text-center"
+                                                                            value={attendanceRecord?.attendance_type}
+                                                                            onChange={(e) => updateSheetAttendanceType(session.id, beneficiary.id, e.target.value as any)}
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        >
+                                                                            <option value="memorization">{isRTL ? 'حفظ' : 'Mem'}</option>
+                                                                            <option value="revision">{isRTL ? 'مراجعة' : 'Rev'}</option>
+                                                                        </select>
+                                                                    )}
+                                                                </div>
+                                                            </TableCell>
+                                                        );
+                                                    })}
+                                                    <TableCell className="text-center font-bold text-green-600">{attendedCount}</TableCell>
+                                                    <TableCell className="text-center font-bold text-red-600">{missedCount}</TableCell>
+                                                    <TableCell className="text-center font-bold">
+                                                        <span className={`${attendanceRate >= 80 ? 'text-green-600' : attendanceRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                                                            {attendanceRate}%
+                                                        </span>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                        {beneficiaries.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={sessions.length + 5} className="text-center py-8 text-muted-foreground">
+                                                    {isRTL ? 'لا يوجد طلاب مسجلين' : 'No students enrolled'}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
                             </div>
-
-                            {selectedSession ? (
-                                <>
-                                    {/* Quick Actions */}
-                                    <div className="flex gap-2">
-                                        <Button variant="outline" size="sm" onClick={markAllPresent}>
-                                            <Check className="h-4 w-4 ltr:mr-1 rtl:ml-1" />
-                                            {isRTL ? 'تحديد الكل' : 'Mark All'}
-                                        </Button>
-                                        <Button variant="outline" size="sm" onClick={() => setAttendance([])}>
-                                            <X className="h-4 w-4 ltr:mr-1 rtl:ml-1" />
-                                            {isRTL ? 'إلغاء الكل' : 'Clear All'}
-                                        </Button>
-                                    </div>
-
-                                    {/* Search */}
-                                    <Input
-                                        placeholder={isRTL ? 'بحث عن مستفيد...' : 'Search...'}
-                                        value={beneficiarySearch}
-                                        onChange={e => setBeneficiarySearch(e.target.value)}
-                                    />
-
-                                    {/* Beneficiaries List */}
-                                    <ScrollArea className="h-[300px] border rounded-md p-2">
-                                        <div className="space-y-1">
-                                            {filteredBeneficiaries.map(b => {
-                                                const isPresent = attendance.some(a => a.beneficiary_id === b.id);
-                                                const attendanceRecord = attendance.find(a => a.beneficiary_id === b.id);
-
-                                                return (
-                                                    <div
-                                                        key={b.id}
-                                                        className={`flex items-center justify-between p-2 rounded-md ${isPresent ? 'bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800' : 'hover:bg-muted'
-                                                            }`}
-                                                    >
-                                                        <div
-                                                            className="flex items-center gap-2 flex-1 cursor-pointer"
-                                                            onClick={() => toggleBeneficiary(b.id)}
-                                                        >
-                                                            <Checkbox checked={isPresent} />
-                                                            <Avatar className="h-8 w-8">
-                                                                <AvatarImage src={b.image_url || undefined} />
-                                                                <AvatarFallback>{b.name_ar?.slice(0, 2)}</AvatarFallback>
-                                                            </Avatar>
-                                                            <span className="font-medium">{b.name_ar}</span>
-                                                        </div>
-
-                                                        {isPresent && (
-                                                            <div className="flex items-center gap-1 bg-background rounded-md border p-0.5">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => updateAttendanceType(b.id, 'memorization')}
-                                                                    className={`px-2 py-1 text-xs rounded-sm transition-all ${attendanceRecord?.attendance_type === 'memorization'
-                                                                        ? 'bg-primary text-primary-foreground'
-                                                                        : 'hover:bg-muted'
-                                                                        }`}
-                                                                >
-                                                                    {isRTL ? 'حفظ' : 'Mem'}
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => updateAttendanceType(b.id, 'revision')}
-                                                                    className={`px-2 py-1 text-xs rounded-sm transition-all ${attendanceRecord?.attendance_type === 'revision'
-                                                                        ? 'bg-amber-500 text-white'
-                                                                        : 'hover:bg-muted'
-                                                                        }`}
-                                                                >
-                                                                    {isRTL ? 'مراجعة' : 'Rev'}
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </ScrollArea>
-
-                                    {/* Guests Section */}
-                                    <div className="border rounded-lg p-3 space-y-3 bg-muted/20">
-                                        <h4 className="font-medium text-sm">{isRTL ? 'إضافة ضيوف' : 'Add Guests'}</h4>
-                                        <div className="flex gap-2 flex-wrap">
-                                            <Input
-                                                placeholder={isRTL ? 'اسم الضيف' : 'Guest name'}
-                                                value={guestName}
-                                                onChange={e => setGuestName(e.target.value)}
-                                                className="flex-1 min-w-[120px]"
-                                            />
-                                            <Input
-                                                placeholder={isRTL ? 'رقم الضيف' : 'Guest phone'}
-                                                value={guestPhone}
-                                                onChange={e => setGuestPhone(e.target.value)}
-                                                className="flex-1 min-w-[120px]"
-                                            />
-                                            <Button onClick={addGuest} size="sm">
-                                                <Plus className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                        {guests.length > 0 && (
-                                            <div className="space-y-1">
-                                                {guests.map((g, i) => (
-                                                    <div key={i} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-950/20 rounded border border-blue-200 dark:border-blue-800">
-                                                        <div className="flex items-center gap-2">
-                                                            <Badge variant="secondary">{isRTL ? 'ضيف' : 'Guest'}</Badge>
-                                                            <span>{g.name}</span>
-                                                            {g.phone && <span className="text-xs text-muted-foreground">({g.phone})</span>}
-                                                        </div>
-                                                        <Button variant="ghost" size="icon" onClick={() => removeGuest(i)}>
-                                                            <X className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Summary */}
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                                            <span>{isRTL ? 'الحضور:' : 'Present:'}</span>
-                                            <div className="flex items-center gap-2">
-                                                <Badge className="text-lg px-3">{attendance.length + guests.length}</Badge>
-                                                <span className="text-muted-foreground text-sm">
-                                                    ({attendance.length} {isRTL ? 'مسجل' : 'enrolled'} + {guests.length} {isRTL ? 'ضيف' : 'guests'})
-                                                </span>
-                                            </div>
-                                        </div>
-                                        {beneficiaries.length > 0 && (
-                                            <div className="w-full bg-muted rounded-full h-2">
-                                                <div
-                                                    className="bg-primary h-2 rounded-full transition-all"
-                                                    style={{ width: `${(attendance.length / beneficiaries.length) * 100}%` }}
-                                                />
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Save Button */}
-                                    <Button onClick={handleSaveAttendance} className="w-full">
-                                        {isRTL ? 'حفظ الحضور' : 'Save Attendance'}
-                                    </Button>
-                                </>
-                            ) : (
-                                <div className="text-center py-12 text-muted-foreground">
-                                    <Users className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                                    <p>{isRTL ? 'اختر جلسة لتسجيل الحضور' : 'Select a session to record attendance'}</p>
-                                </div>
-                            )}
                         </TabsContent>
                     </Tabs>
                 </DialogContent>
