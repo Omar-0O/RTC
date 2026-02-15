@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Download, Calendar, TrendingUp, Users, Activity, Award } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -170,7 +170,7 @@ export default function Reports() {
   };
 
   // Get date range based on selection
-  const getDateRange = () => {
+  const getDateRange = useCallback(() => {
     const now = new Date();
     switch (dateRange) {
       case 'week':
@@ -188,7 +188,7 @@ export default function Reports() {
       default:
         return { start: startOfMonth(now), end: endOfMonth(now) };
     }
-  };
+  }, [dateRange]);
 
   // Helper function to get level name in Arabic for exports
   const getLevelName = (level: string): string => {
@@ -223,28 +223,58 @@ export default function Reports() {
   };
 
   // Filter submissions by date range
-  const filteredSubmissions = submissions.filter(s => {
+  const filteredSubmissions = useMemo(() => {
     const { start, end } = getDateRange();
-    const submittedDate = new Date(s.submitted_at);
-    return submittedDate >= start && submittedDate <= end;
-  }).sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+    return submissions.filter(s => {
+      const submittedDate = new Date(s.submitted_at);
+      return submittedDate >= start && submittedDate <= end;
+    }).sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
+  }, [submissions, getDateRange]);
 
   // Committee distribution data
-  const committeeData = committees.map(committee => {
-    const volunteers = profiles.filter(p => p.committee_id === committee.id);
-    return {
-      name: language === 'ar' ? committee.name_ar : committee.name,
-      volunteers: volunteers.length,
-      points: volunteers.reduce((sum, v) => sum + (v.total_points || 0), 0),
-    };
-  }).filter(c => c.volunteers > 0);
+  const committeeData = useMemo(() => {
+    const profilesByCommittee = new Map<string, Profile[]>();
+    profiles.forEach(p => {
+      if (p.committee_id) {
+        const list = profilesByCommittee.get(p.committee_id) || [];
+        list.push(p);
+        profilesByCommittee.set(p.committee_id, list);
+      }
+    });
+
+    return committees.map(committee => {
+      const volunteers = profilesByCommittee.get(committee.id) || [];
+      return {
+        name: language === 'ar' ? committee.name_ar : committee.name,
+        volunteers: volunteers.length,
+        points: volunteers.reduce((sum, v) => sum + (v.total_points || 0), 0),
+      };
+    }).filter(c => c.volunteers > 0);
+  }, [committees, profiles, language]);
 
   // Level distribution data
-  const levelData = [
-    { name: t('level.under_follow_up'), value: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length, color: '#64748b' }, // slate-500
-    { name: t('level.project_responsible'), value: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length, color: '#3b82f6' }, // blue-500
-    { name: t('level.responsible'), value: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length, color: '#9333ea' }, // purple-600
-  ].filter(l => l.value > 0);
+  const levelData = useMemo(() => {
+    let underFollowUp = 0;
+    let projectResponsible = 0;
+    let responsible = 0;
+
+    profiles.forEach(p => {
+      const level = p.level || 'under_follow_up';
+      if (['responsible', 'platinum', 'diamond'].includes(level)) {
+        responsible++;
+      } else if (['project_responsible', 'gold'].includes(level)) {
+        projectResponsible++;
+      } else {
+        underFollowUp++;
+      }
+    });
+
+    return [
+      { name: t('level.under_follow_up'), value: underFollowUp, color: '#64748b' },
+      { name: t('level.project_responsible'), value: projectResponsible, color: '#3b82f6' },
+      { name: t('level.responsible'), value: responsible, color: '#9333ea' },
+    ].filter(l => l.value > 0);
+  }, [profiles, t]);
 
   const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name, fill }: any) => {
     const RADIAN = Math.PI / 180;
@@ -276,7 +306,7 @@ export default function Reports() {
   };
 
   // Activity submissions over time (last 6 months) by Level
-  const activityTrend = Array.from({ length: 6 }, (_, i) => {
+  const activityTrend = useMemo(() => Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
@@ -312,17 +342,24 @@ export default function Reports() {
       month: format(date, 'MMM'),
       ...counts
     };
-  });
+  }), [submissions, profilesMap]);
 
   // Top activities by submissions
-  const activityStats = activityTypes.map(activity => {
-    const activitySubmissions = filteredSubmissions.filter(s => s.activity_type_id === activity.id);
-    return {
-      name: language === 'ar' ? activity.name_ar : activity.name,
-      count: activitySubmissions.length,
-      points: activity.points,
-    };
-  }).filter(a => a.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
+  const activityStats = useMemo(() => {
+    const counts = new Map<string, number>();
+    filteredSubmissions.forEach(s => {
+      counts.set(s.activity_type_id, (counts.get(s.activity_type_id) || 0) + 1);
+    });
+
+    return activityTypes.map(activity => {
+      const count = counts.get(activity.id) || 0;
+      return {
+        name: language === 'ar' ? activity.name_ar : activity.name,
+        count: count,
+        points: activity.points,
+      };
+    }).filter(a => a.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [activityTypes, filteredSubmissions, language]);
 
   // CSV Export functions
   const downloadCSV = (data: any[], filename: string) => {
@@ -526,15 +563,27 @@ export default function Reports() {
 
   // Calculate summary stats
   const totalVolunteers = profiles.length;
-  const totalApprovedActivities = filteredSubmissions.filter(s => s.status === 'approved').length;
+  const totalApprovedActivities = useMemo(() => filteredSubmissions.filter(s => s.status === 'approved').length, [filteredSubmissions]);
   const totalSubmissions = filteredSubmissions.length;
 
   // Calculate volunteers by level
-  const volunteersByLevel = {
-    under_follow_up: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length,
-    project_responsible: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length,
-    responsible: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length
-  };
+  const volunteersByLevel = useMemo(() => {
+    let under_follow_up = 0;
+    let project_responsible = 0;
+    let responsible = 0;
+
+    profiles.forEach(p => {
+      const level = p.level || 'under_follow_up';
+      if (['responsible', 'platinum', 'diamond'].includes(level)) {
+        responsible++;
+      } else if (['project_responsible', 'gold'].includes(level)) {
+        project_responsible++;
+      } else {
+        under_follow_up++;
+      }
+    });
+    return { under_follow_up, project_responsible, responsible };
+  }, [profiles]);
 
   if (isLoading) {
     return (
