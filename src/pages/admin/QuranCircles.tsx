@@ -192,7 +192,6 @@ export default function QuranCircles() {
     const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
     const [selectedSession, setSelectedSession] = useState<Session | null>(null);
     const [attendance, setAttendance] = useState<Attendance[]>([]);
-    const [sessionBeneficiarySearch, setSessionBeneficiarySearch] = useState('');
 
     // Guest state
     const [guests, setGuests] = useState<Guest[]>([]);
@@ -225,6 +224,7 @@ export default function QuranCircles() {
     const [allBeneficiaries, setAllBeneficiaries] = useState<Beneficiary[]>([]);
     const [beneficiarySearch, setBeneficiarySearch] = useState('');
     const [enrollmentLoading, setEnrollmentLoading] = useState(false);
+    const [sessionBeneficiarySearch, setSessionBeneficiarySearch] = useState('');
 
     // New Beneficiary Management State
     const [isAddingBeneficiary, setIsAddingBeneficiary] = useState(false);
@@ -263,10 +263,10 @@ export default function QuranCircles() {
             // Fetch enrolled counts
             const circleIds = (data || []).map(c => c.id);
             const { data: enrollments } = await supabase
-                .from('quran_enrollments')
+                .from('quran_enrollments' as any)
                 .select('circle_id')
                 .in('circle_id', circleIds)
-                .eq('status', 'active');
+                .eq('status', 'active') as any;
 
             const enrollmentCounts: Record<string, number> = {};
             (enrollments || []).forEach(e => {
@@ -668,13 +668,13 @@ export default function QuranCircles() {
         setEnrollmentLoading(true);
         try {
             const { data, error } = await supabase
-                .from('quran_enrollments')
+                .from('quran_enrollments' as any)
                 .select(`
                     beneficiary_id,
                     quran_beneficiaries!inner(id, name_ar, name_en, image_url, gender, beneficiary_type, phone)
                 `)
                 .eq('circle_id', circleId)
-                .eq('status', 'active');
+                .eq('status', 'active') as any;
 
             if (error) throw error;
 
@@ -707,7 +707,7 @@ export default function QuranCircles() {
         if (!enrollmentCircle) return;
         try {
             const { error } = await supabase
-                .from('quran_enrollments')
+                .from('quran_enrollments' as any)
                 .insert({
                     circle_id: enrollmentCircle.id,
                     beneficiary_id: beneficiaryId,
@@ -733,7 +733,7 @@ export default function QuranCircles() {
         if (!enrollmentCircle) return;
         try {
             const { error } = await supabase
-                .from('quran_enrollments')
+                .from('quran_enrollments' as any)
                 .delete()
                 .eq('circle_id', enrollmentCircle.id)
                 .eq('beneficiary_id', beneficiaryId);
@@ -776,6 +776,15 @@ export default function QuranCircles() {
     const openCircleDetails = async (circle: QuranCircle) => {
         setSelectedCircle(circle);
         setIsDetailsOpen(true);
+
+        // Auto-fill defaults for new beneficiary
+        setNewBeneficiary({
+            name_ar: '',
+            name_en: '',
+            phone: '',
+            gender: (circle.beneficiary_gender === 'female' || circle.teacher_gender === 'women') ? 'female' : 'male',
+            beneficiary_type: (circle.target_group === 'children' || circle.target_group === 'child') ? 'child' : 'adult'
+        });
 
         // Fetch sessions
         const { data: sessionsData } = await supabase
@@ -837,6 +846,11 @@ export default function QuranCircles() {
     const handleCreateSession = async () => {
         if (!selectedCircle) return;
 
+        if (new Date(sessionDate) > new Date()) {
+            toast.error(isRTL ? 'لا يمكن إنشاء جلسة في المستقبل' : 'Cannot create future session');
+            return;
+        }
+
         try {
             const { data, error } = await supabase
                 .from('quran_circle_sessions')
@@ -852,94 +866,20 @@ export default function QuranCircles() {
 
             toast.success(isRTL ? 'تم إنشاء الجلسة' : 'Session created');
             setIsSessionDialogOpen(false);
-            setSessionDate(new Date().toISOString().split('T')[0]);
+            setSessionDate(new Date().toISOString().split('T')[0]); // Reset to today (approx) or keep last used? Let's use local today.
+            const localDate = new Date();
+            const localDateString = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+            setSessionDate(localDateString);
             setSessionNotes('');
-
-            // --- Record Teacher Participation ---
-            try {
-                const { data: teacherData } = await supabase
-                    .from('quran_teachers')
-                    .select('user_id')
-                    .eq('id', selectedCircle.teacher_id)
-                    .single();
-
-                if (teacherData?.user_id) {
-                    // 1. Get or create the Quran committee
-                    let committeeId: string;
-                    const { data: existingComm } = await supabase
-                        .from('committees')
-                        .select('id')
-                        .eq('name', 'Quran')
-                        .single();
-
-                    if (existingComm) {
-                        committeeId = existingComm.id;
-                    } else {
-                        const { data: newComm, error: commErr } = await supabase
-                            .from('committees')
-                            .insert({ name: 'Quran', name_ar: 'قرآن' })
-                            .select('id')
-                            .single();
-                        if (commErr || !newComm) throw commErr;
-                        committeeId = newComm.id;
-                    }
-
-                    // 2. Get or create the activity type
-                    let activityTypeId: string;
-                    let points: number;
-                    const { data: existingAct } = await supabase
-                        .from('activity_types')
-                        .select('id, points')
-                        .eq('name', 'Quran Circle')
-                        .single();
-
-                    if (existingAct) {
-                        activityTypeId = existingAct.id;
-                        points = existingAct.points;
-                    } else {
-                        const { data: newAct, error: actErr } = await supabase
-                            .from('activity_types')
-                            .insert({
-                                name: 'Quran Circle',
-                                name_ar: 'حلقة قرآن',
-                                points: 10,
-                                committee_id: committeeId
-                            })
-                            .select('id, points')
-                            .single();
-                        if (actErr || !newAct) throw actErr;
-                        activityTypeId = newAct.id;
-                        points = newAct.points;
-                    }
-
-                    // 3. Insert the activity submission
-                    const { error: partError } = await supabase.from('activity_submissions').insert({
-                        volunteer_id: teacherData.user_id,
-                        committee_id: committeeId,
-                        activity_type_id: activityTypeId,
-                        description: `حلقة قرآن: ${selectedCircle.teacher_name || ''} - ${sessionDate}`,
-                        status: 'approved',
-                        points_awarded: points,
-                        participant_type: 'trainer'
-                    } as any);
-
-                    if (partError) {
-                        console.error('Error recording participation:', partError);
-                    } else {
-                        toast.success(isRTL ? 'تم تسجيل مشاركة المحفظ' : 'Teacher participation recorded');
-                    }
-                }
-            } catch (partErr) {
-                console.error('Participation logic error:', partErr);
-            }
 
             // Refresh sessions
             await openCircleDetails(selectedCircle);
 
-            // Auto-open attendance dialog
-            setSelectedSession(data);
-            setAttendance([]);
-            setIsAttendanceDialogOpen(true);
+            // Auto-open attendance dialog (Disabled per user request)
+            // setSelectedSession(data);
+            // setAttendance([]);
+            // setSessionBeneficiarySearch('');
+            // setIsAttendanceDialogOpen(true);
         } catch (error: any) {
             console.error('Error creating session:', error);
             toast.error(error.message || 'Error occurred');
@@ -950,6 +890,7 @@ export default function QuranCircles() {
         setSelectedSession(session);
         setAttendance(attendanceData[session.id] || []);
         setGuests([]);
+        setSessionBeneficiarySearch('');
         setGuestName('');
         setGuestPhone('');
         setIsAttendanceDialogOpen(true);
@@ -1101,6 +1042,7 @@ export default function QuranCircles() {
                     .from('quran_circle_beneficiaries')
                     .insert({
                         session_id: sessionId,
+                        circle_id: selectedCircle?.id, // Ensure circle_id is included for RLS
                         beneficiary_id: beneficiaryId,
                         attendance_type: 'memorization'
                     });
@@ -1348,8 +1290,9 @@ export default function QuranCircles() {
     };
 
     const filteredDetailsBeneficiaries = detailsBeneficiaries.filter(b =>
-        b.name_ar.toLowerCase().includes(sessionBeneficiarySearch.toLowerCase()) ||
-        (b.name_en?.toLowerCase() || '').includes(sessionBeneficiarySearch.toLowerCase())
+        (b.name_ar?.toLowerCase() || '').includes(sessionBeneficiarySearch.toLowerCase()) ||
+        (b.name_en?.toLowerCase() || '').includes(sessionBeneficiarySearch.toLowerCase()) ||
+        (b.phone || '').includes(sessionBeneficiarySearch)
     );
 
     const handleAddBeneficiary = async () => {
@@ -1973,9 +1916,9 @@ export default function QuranCircles() {
 
                     <Tabs defaultValue="sessions" className="w-full">
                         <TabsList className={`grid w-full ${canManageOrganizers ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                            <TabsTrigger value="beneficiaries">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
                             <TabsTrigger value="sessions">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
                             <TabsTrigger value="sheet">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
-                            <TabsTrigger value="beneficiaries">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
                             {canManageOrganizers && (
                                 <TabsTrigger value="organizers">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
                             )}
@@ -2012,42 +1955,48 @@ export default function QuranCircles() {
                                 <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2">
                                     <Users className="h-4 w-4" />
                                     {isRTL
-                                        ? 'لا يوجد مستفيدين مسجلين.'
-                                        : 'No students enrolled.'}
+                                        ? 'يمكنك إضافة مستفيدين جديد من تبويب المستفيدين.'
+                                        : 'You can add new beneficiaries from the Beneficiaries tab.'}
                                 </div>
                             )}
 
                             {/* Sessions List */}
                             <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                {sessions.map(session => {
+                                {sessions.map((session, index) => {
                                     const rate = getAttendanceRate(session);
                                     const hasAttendance = session.attendees_count !== undefined && session.attendees_count > 0;
                                     return (
                                         <div
                                             key={session.id}
-                                            className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm ${hasAttendance
+                                            className={`flex items-center justify-between p-3 rounded-lg border transition-all hover:shadow-sm ${hasAttendance
                                                 ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/10 hover:bg-green-50 dark:hover:bg-green-950/20'
                                                 : 'hover:bg-muted/50'
                                                 }`}
-                                            onClick={() => {
-                                                setSelectedSession(session);
-                                                setAttendance(attendanceData[session.id] || []);
-                                                setGuests([]);
-                                                setSessionBeneficiarySearch('');
-                                                setIsAttendanceDialogOpen(true);
-                                            }}
                                         >
                                             <div className="flex items-center gap-3">
                                                 <div className={`p-2 rounded-full ${hasAttendance ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary/10'}`}>
                                                     <Calendar className={`h-4 w-4 ${hasAttendance ? 'text-green-600 dark:text-green-400' : 'text-primary'}`} />
                                                 </div>
                                                 <div>
-                                                    <p className="font-medium">
-                                                        {format(new Date(session.session_date), 'EEEE, d MMMM', { locale: isRTL ? ar : enUS })}
-                                                    </p>
-                                                    {session.notes && (
-                                                        <p className="text-xs text-muted-foreground">{session.notes}</p>
-                                                    )}
+                                                    <div className="flex flex-col">
+                                                        <div className="flex items-center gap-2">
+                                                            <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-mono">
+                                                                #{sessions.length - index}
+                                                            </Badge>
+                                                            <p className="font-medium">
+                                                                {format(new Date(session.session_date), 'EEEE, d MMMM', { locale: isRTL ? ar : enUS })}
+                                                            </p>
+                                                        </div>
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            {isRTL ? 'الحضور:' : 'Attendance:'} <span className={hasAttendance ? 'font-bold text-green-600 dark:text-green-400' : ''}>{session.attendees_count || 0}</span> / {detailsBeneficiaries.length}
+                                                        </p>
+                                                        {session.notes && (
+                                                            <div className="flex items-start gap-1 mt-2 text-xs text-muted-foreground bg-muted/50 p-1.5 rounded w-full">
+                                                                <span className="shrink-0 mt-0.5">📝</span>
+                                                                <span className="break-words line-clamp-2">{session.notes}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -2094,235 +2043,214 @@ export default function QuranCircles() {
 
                         {/* Beneficiaries Tab */}
                         <TabsContent value="beneficiaries" className="space-y-4 py-4">
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <h3 className="font-semibold">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</h3>
-                                    <p className="text-sm text-muted-foreground">
-                                        {detailsBeneficiaries.length} {isRTL ? 'مستفيد' : 'beneficiaries'}
-                                    </p>
-                                </div>
-                                <Button onClick={() => {
-                                    if (isAddingBeneficiary) {
-                                        setIsAddingBeneficiary(false);
-                                        setEditingBeneficiary(null);
-                                        setNewBeneficiary({
-                                            name_ar: '',
-                                            name_en: '',
-                                            phone: '',
-                                            gender: 'male',
-                                            beneficiary_type: 'adult'
-                                        });
-                                    } else {
-                                        // Auto-fill based on circle properties
-                                        const autoGender = (selectedCircle?.beneficiary_gender === 'female' || selectedCircle?.teacher_gender === 'women') ? 'female' : 'male';
-                                        const autoBeneficiaryType = (selectedCircle?.target_group === 'children' || selectedCircle?.target_group === 'child' || selectedCircle?.target_group === 'kids') ? 'child' : 'adult';
-
-                                        setNewBeneficiary({
-                                            name_ar: '',
-                                            name_en: '',
-                                            phone: '',
-                                            gender: autoGender,
-                                            beneficiary_type: autoBeneficiaryType
-                                        });
-                                        setIsAddingBeneficiary(true);
-                                    }
-                                }} size="sm">
-                                    {isAddingBeneficiary ? (
-                                        <>
-                                            <X className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                            {isRTL ? 'إلغاء' : 'Cancel'}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                            {isRTL ? 'إضافة جديد' : 'Add New'}
-                                        </>
-                                    )}
-                                </Button>
-                            </div>
-
-                            {/* Add/Edit Beneficiary Form */}
-                            {isAddingBeneficiary && (
-                                <div className="p-4 border rounded-lg bg-muted/30 space-y-4 animate-in fade-in slide-in-from-top-2">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="font-semibold text-sm">
-                                            {editingBeneficiary
-                                                ? (isRTL ? 'تعديل بيانات مستفيد' : 'Edit Beneficiary')
-                                                : (isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary')}
-                                        </h4>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <Label>{isRTL ? 'الاسم (عربي)' : 'Name (Arabic)'}</Label>
+                            {/* Add Beneficiary Form */}
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base">{isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary'}</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="flex flex-col gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                                             <Input
+                                                placeholder={isRTL ? 'الاسم (عربي)' : 'Name (Arabic)'}
                                                 value={newBeneficiary.name_ar}
                                                 onChange={(e) => setNewBeneficiary({ ...newBeneficiary, name_ar: e.target.value })}
-                                                placeholder={isRTL ? 'الاسم رباعي' : 'Full Name'}
                                             />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>{isRTL ? 'الاسم (إنجليزي - اختياري)' : 'Name (English - Optional)'}</Label>
                                             <Input
-                                                value={newBeneficiary.name_en}
-                                                onChange={(e) => setNewBeneficiary({ ...newBeneficiary, name_en: e.target.value })}
-                                                placeholder="Name in English"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>{isRTL ? 'رقم الهاتف' : 'Phone Number'}</Label>
-                                            <Input
+                                                placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
                                                 value={newBeneficiary.phone}
                                                 onChange={(e) => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
-                                                placeholder="01xxxxxxxxx"
                                             />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>{isRTL ? 'النوع' : 'Gender'}</Label>
                                             <Select
                                                 value={newBeneficiary.gender}
                                                 onValueChange={(val: 'male' | 'female') => setNewBeneficiary({ ...newBeneficiary, gender: val })}
-                                                disabled={!editingBeneficiary}
                                             >
                                                 <SelectTrigger>
-                                                    <SelectValue />
+                                                    <SelectValue placeholder={isRTL ? 'النوع' : 'Gender'} />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="male">{isRTL ? 'ذكر' : 'Male'}</SelectItem>
                                                     <SelectItem value="female">{isRTL ? 'أنثى' : 'Female'}</SelectItem>
                                                 </SelectContent>
                                             </Select>
-                                            {!editingBeneficiary && (
-                                                <p className="text-xs text-muted-foreground">
-                                                    {isRTL ? 'محدد تلقائياً بناءً على نوع الحلقة' : 'Auto-filled based on circle type'}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label>{isRTL ? 'نوع المستفيد' : 'Beneficiary Type'}</Label>
                                             <Select
                                                 value={newBeneficiary.beneficiary_type}
                                                 onValueChange={(val: 'adult' | 'child') => setNewBeneficiary({ ...newBeneficiary, beneficiary_type: val })}
-                                                disabled={!editingBeneficiary}
                                             >
                                                 <SelectTrigger>
-                                                    <SelectValue />
+                                                    <SelectValue placeholder={isRTL ? 'نوع المستفيد' : 'Type'} />
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="adult">{isRTL ? 'بالغ' : 'Adult'}</SelectItem>
                                                     <SelectItem value="child">{isRTL ? 'طفل' : 'Child'}</SelectItem>
                                                 </SelectContent>
                                             </Select>
-                                            {!editingBeneficiary && (
-                                                <p className="text-xs text-muted-foreground">
-                                                    {isRTL ? 'محدد تلقائياً بناءً على الفئة المستهدفة' : 'Auto-filled based on target group'}
-                                                </p>
+                                        </div>
+                                        <div className="flex justify-end">
+                                            <Button onClick={handleAddBeneficiary} className="w-full sm:w-auto">
+                                                <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'إضافة' : 'Add'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+
+
+                            {/* Beneficiaries Table */}
+                            <div className="border rounded-lg overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                <TableHead>{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                                <TableHead>{isRTL ? 'النوع' : 'Gender'}</TableHead>
+                                                <TableHead>{isRTL ? 'الفئة' : 'Type'}</TableHead>
+                                                <TableHead className="w-24"></TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {filteredDetailsBeneficiaries.length === 0 ? (
+                                                <TableRow>
+                                                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                                        {isRTL ? 'لا يوجد مستفيدين' : 'No beneficiaries found'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ) : (
+                                                filteredDetailsBeneficiaries.map((b) => (
+                                                    <TableRow key={b.id}>
+                                                        <TableCell className="font-medium">
+                                                            {/* Inline Edit for Name */}
+                                                            {editingBeneficiary?.id === b.id ? (
+                                                                <Input
+                                                                    value={newBeneficiary.name_ar}
+                                                                    onChange={e => setNewBeneficiary({ ...newBeneficiary, name_ar: e.target.value })}
+                                                                    className="h-8"
+                                                                />
+                                                            ) : (
+                                                                <div>
+                                                                    <div>{b.name_ar}</div>
+                                                                    {b.name_en && <div className="text-xs text-muted-foreground">{b.name_en}</div>}
+                                                                </div>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {editingBeneficiary?.id === b.id ? (
+                                                                <Input
+                                                                    value={newBeneficiary.phone}
+                                                                    onChange={e => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
+                                                                    className="h-8"
+                                                                />
+                                                            ) : (
+                                                                b.phone || '-'
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {editingBeneficiary?.id === b.id ? (
+                                                                <Select
+                                                                    value={newBeneficiary.gender}
+                                                                    onValueChange={(val: 'male' | 'female') => setNewBeneficiary({ ...newBeneficiary, gender: val })}
+                                                                >
+                                                                    <SelectTrigger className="h-8">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="male">{isRTL ? 'ذكر' : 'Male'}</SelectItem>
+                                                                        <SelectItem value="female">{isRTL ? 'أنثى' : 'Female'}</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            ) : (
+                                                                <span className={b.gender === 'male' ? 'text-blue-600' : 'text-pink-600'}>
+                                                                    {b.gender === 'male' ? (isRTL ? 'ذكر' : 'Male') : (isRTL ? 'أنثى' : 'Female')}
+                                                                </span>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {editingBeneficiary?.id === b.id ? (
+                                                                <Select
+                                                                    value={newBeneficiary.beneficiary_type}
+                                                                    onValueChange={(val: 'adult' | 'child') => setNewBeneficiary({ ...newBeneficiary, beneficiary_type: val })}
+                                                                >
+                                                                    <SelectTrigger className="h-8">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="adult">{isRTL ? 'بالغ' : 'Adult'}</SelectItem>
+                                                                        <SelectItem value="child">{isRTL ? 'طفل' : 'Child'}</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            ) : (
+                                                                <Badge variant="outline">
+                                                                    {b.beneficiary_type === 'adult' ? (isRTL ? 'بالغ' : 'Adult') : (isRTL ? 'طفل' : 'Child')}
+                                                                </Badge>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {editingBeneficiary?.id === b.id ? (
+                                                                <div className="flex gap-1">
+                                                                    <Button size="sm" variant="ghost" onClick={handleAddBeneficiary}>
+                                                                        <Check className="w-4 h-4 text-green-600" />
+                                                                    </Button>
+                                                                    <Button size="sm" variant="ghost" onClick={() => {
+                                                                        setEditingBeneficiary(null);
+                                                                        setNewBeneficiary({
+                                                                            name_ar: '',
+                                                                            name_en: '',
+                                                                            phone: '',
+                                                                            gender: 'male',
+                                                                            beneficiary_type: 'adult'
+                                                                        });
+                                                                    }}>
+                                                                        <X className="w-4 h-4 text-red-600" />
+                                                                    </Button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex gap-1">
+                                                                    <Button size="sm" variant="ghost" onClick={() => {
+                                                                        setEditingBeneficiary(b);
+                                                                        setNewBeneficiary({
+                                                                            name_ar: b.name_ar,
+                                                                            name_en: b.name_en || '',
+                                                                            phone: b.phone || '',
+                                                                            gender: b.gender || 'male',
+                                                                            beneficiary_type: b.beneficiary_type || 'adult'
+                                                                        });
+                                                                    }}>
+                                                                        <Pencil className="w-4 h-4" />
+                                                                    </Button>
+                                                                    <Button size="sm" variant="ghost" onClick={async () => {
+                                                                        if (!confirm(isRTL ? 'هل أنت متأكد من إزالة هذا الطالب من الحلقة؟' : 'Are you sure you want to remove this student?')) return;
+                                                                        try {
+                                                                            const { error } = await supabase
+                                                                                .from('quran_enrollments')
+                                                                                .update({ status: 'inactive' })
+                                                                                .eq('circle_id', selectedCircle?.id)
+                                                                                .eq('beneficiary_id', b.id);
+
+                                                                            if (error) throw error;
+                                                                            toast.success(isRTL ? 'تم إلغاء التسجيل' : 'Unenrolled successfully');
+                                                                            if (selectedCircle) openCircleDetails(selectedCircle);
+                                                                            fetchCircles();
+                                                                        } catch (err: any) {
+                                                                            toast.error(err.message);
+                                                                        }
+                                                                    }}>
+                                                                        <UserMinus className="w-4 h-4 text-destructive" />
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))
                                             )}
-                                        </div>
-                                    </div>
-                                    <div className="flex justify-end gap-2 pt-2">
-                                        <Button variant="outline" size="sm" onClick={() => {
-                                            setIsAddingBeneficiary(false);
-                                            setEditingBeneficiary(null);
-                                            setNewBeneficiary({
-                                                name_ar: '',
-                                                name_en: '',
-                                                phone: '',
-                                                gender: 'male',
-                                                beneficiary_type: 'adult'
-                                            });
-                                        }}>
-                                            {isRTL ? 'إلغاء' : 'Cancel'}
-                                        </Button>
-                                        <Button size="sm" onClick={handleAddBeneficiary}>
-                                            {editingBeneficiary
-                                                ? (isRTL ? 'تحديث البيانات' : 'Update Beneficiary')
-                                                : (isRTL ? 'حفظ وإضافة' : 'Save & Add')}
-                                        </Button>
-                                    </div>
+                                        </TableBody>
+                                    </Table>
                                 </div>
-                            )}
-
-                            {/* Search */}
-                            <Input
-                                placeholder={isRTL ? 'بحث عن مستفيد...' : 'Search beneficiaries...'}
-                                value={sessionBeneficiarySearch}
-                                onChange={(e) => setSessionBeneficiarySearch(e.target.value)}
-                            />
-
-                            {/* List */}
-                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                {filteredDetailsBeneficiaries.length === 0 ? (
-                                    <div className="text-center py-8 text-muted-foreground">
-                                        <Users className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                                        <p>{isRTL ? 'لا يوجد نتائج' : 'No beneficiaries found'}</p>
-                                    </div>
-                                ) : (
-                                    filteredDetailsBeneficiaries.map((b) => (
-                                        <div
-                                            key={b.id}
-                                            className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <Avatar>
-                                                    <AvatarImage src={b.image_url || undefined} />
-                                                    <AvatarFallback>{b.name_ar?.slice(0, 2)}</AvatarFallback>
-                                                </Avatar>
-                                                <div>
-                                                    <p className="font-medium">{b.name_ar}</p>
-                                                    {(b.phone || b.name_en) && (
-                                                        <p className="text-xs text-muted-foreground">
-                                                            {b.phone} {b.phone && b.name_en && '•'} {b.name_en}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-muted-foreground hover:text-primary"
-                                                    onClick={() => {
-                                                        setEditingBeneficiary(b);
-                                                        setNewBeneficiary({
-                                                            name_ar: b.name_ar,
-                                                            name_en: b.name_en || '',
-                                                            phone: b.phone || '', // Need to add phone to view query first if missing
-                                                            gender: b.gender || 'male',
-                                                            beneficiary_type: b.beneficiary_type || 'adult'
-                                                        });
-                                                        setIsAddingBeneficiary(true);
-                                                    }}
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                                    onClick={async () => {
-                                                        if (!confirm(isRTL ? 'هل أنت متأكد من إزالة هذا الطالب من الحلقة؟' : 'Are you sure you want to remove this student?')) return;
-                                                        try {
-                                                            const { error } = await supabase
-                                                                .from('quran_enrollments')
-                                                                .update({ status: 'inactive' })
-                                                                .eq('circle_id', selectedCircle?.id)
-                                                                .eq('beneficiary_id', b.id);
-
-                                                            if (error) throw error;
-                                                            toast.success(isRTL ? 'تم إلغاء التسجيل' : 'Unenrolled successfully');
-                                                            if (selectedCircle) openCircleDetails(selectedCircle);
-                                                            fetchCircles();
-                                                        } catch (err: any) {
-                                                            toast.error(err.message);
-                                                        }
-                                                    }}
-                                                >
-                                                    <UserMinus className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                                {isRTL ? `إجمالي المستفيدين: ${filteredDetailsBeneficiaries.length}` : `Total beneficiaries: ${filteredDetailsBeneficiaries.length}`}
                             </div>
                         </TabsContent>
 
@@ -2503,7 +2431,16 @@ export default function QuranCircles() {
             </Dialog >
 
             {/* New Session Dialog */}
-            < Dialog open={isSessionDialogOpen} onOpenChange={setIsSessionDialogOpen} >
+            <Dialog open={isSessionDialogOpen} onOpenChange={(open) => {
+                setIsSessionDialogOpen(open);
+                if (open) {
+                    // Use local date string YYYY-MM-DD
+                    const localDate = new Date();
+                    const localDateString = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+                    setSessionDate(localDateString);
+                    setSessionNotes('');
+                }
+            }}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>{isRTL ? 'جلسة جديدة' : 'New Session'}</DialogTitle>
@@ -2516,6 +2453,7 @@ export default function QuranCircles() {
                             <label className="text-sm font-medium">{isRTL ? 'التاريخ' : 'Date'}</label>
                             <Input
                                 type="date"
+                                max={new Date().toISOString().split('T')[0]}
                                 value={sessionDate}
                                 onChange={e => setSessionDate(e.target.value)}
                             />
