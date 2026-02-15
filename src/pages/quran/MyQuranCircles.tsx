@@ -1391,15 +1391,18 @@ export default function MyQuranCircles() {
                                                                         className="mx-auto"
                                                                     />
                                                                     {isPresent && (
-                                                                        <select
-                                                                            className="text-[10px] border rounded bg-transparent p-0.5 w-[50px] text-center"
+                                                                        <Select
                                                                             value={attendanceRecord?.attendance_type}
-                                                                            onChange={(e) => updateSheetAttendanceType(session.id, beneficiary.id, e.target.value as any)}
-                                                                            onClick={(e) => e.stopPropagation()}
+                                                                            onValueChange={(val: 'memorization' | 'revision') => updateSheetAttendanceType(session.id, beneficiary.id, val)}
                                                                         >
-                                                                            <option value="memorization">{isRTL ? 'حفظ' : 'Mem'}</option>
-                                                                            <option value="revision">{isRTL ? 'مراجعة' : 'Rev'}</option>
-                                                                        </select>
+                                                                            <SelectTrigger className="h-6 text-[10px] w-[65px] px-1 bg-background">
+                                                                                <SelectValue />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="memorization">{isRTL ? 'حفظ' : 'Mem'}</SelectItem>
+                                                                                <SelectItem value="revision">{isRTL ? 'مراجعة' : 'Rev'}</SelectItem>
+                                                                            </SelectContent>
+                                                                        </Select>
                                                                     )}
                                                                 </div>
                                                             </TableCell>

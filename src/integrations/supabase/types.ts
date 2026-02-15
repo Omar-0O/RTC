@@ -108,8 +108,42 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
+
         ]
-      }
+      },
+      activity_type_committees: {
+        Row: {
+          activity_type_id: string
+          committee_id: string
+          created_at: string
+        }
+        Insert: {
+          activity_type_id: string
+          committee_id: string
+          created_at?: string
+        }
+        Update: {
+          activity_type_id?: string
+          committee_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_type_committees_activity_type_id_fkey"
+            columns: ["activity_type_id"]
+            isOneToOne: false
+            referencedRelation: "activity_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_type_committees_committee_id_fkey"
+            columns: ["committee_id"]
+            isOneToOne: false
+            referencedRelation: "committees"
+            referencedColumns: ["id"]
+          },
+        ]
+      },
       activity_types: {
         Row: {
           committee_id: string | null
@@ -538,6 +572,42 @@ export type Database = {
           },
         ]
       }
+      course_marketers: {
+        Row: {
+          course_id: string
+          created_at: string
+          id: string
+          volunteer_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          id?: string
+          volunteer_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          id?: string
+          volunteer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_marketers_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_marketers_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_organizers: {
         Row: {
           course_id: string | null
@@ -738,6 +808,48 @@ export type Database = {
             columns: ["call_id"]
             isOneToOne: false
             referencedRelation: "ethics_calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_organizers: {
+        Row: {
+          created_at: string | null
+          event_id: string | null
+          id: string
+          name: string
+          phone: string | null
+          volunteer_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_id?: string | null
+          id?: string
+          name: string
+          phone?: string | null
+          volunteer_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string | null
+          id?: string
+          name?: string
+          phone?: string | null
+          volunteer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_organizers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_organizers_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
