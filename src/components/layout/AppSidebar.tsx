@@ -288,7 +288,8 @@ export function AppSidebar() {
         ];
       case 'head_quran':
         return [
-          { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/admin/quran-dashboard', icon: Home },
+          { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/dashboard', icon: Home },
+          { title: isRTL ? 'داشبورد اللجنة' : 'Committee Dashboard', url: '/admin/quran-dashboard', icon: Building2 },
 
           { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
           { title: isRTL ? 'إدارة المحفظين' : 'Quran Teachers', url: '/admin/quran-teachers', icon: Users },
