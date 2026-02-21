@@ -166,6 +166,7 @@ export default function QuranCircles() {
     const navigate = useNavigate();
     const { hasRole } = useAuth();
     const canManageOrganizers = hasRole('admin') || hasRole('head_quran');
+    const canManageAds = hasRole('admin') || hasRole('head_quran') || hasRole('head_marketing');
 
     const [circles, setCircles] = useState<QuranCircle[]>([]);
     const [loading, setLoading] = useState(true);
@@ -182,6 +183,16 @@ export default function QuranCircles() {
     const [sessions, setSessions] = useState<Session[]>([]);
     const [detailsBeneficiaries, setDetailsBeneficiaries] = useState<Beneficiary[]>([]);
     const [attendanceData, setAttendanceData] = useState<Record<string, Attendance[]>>({});
+    interface CircleAd {
+        id: string;
+        circle_id: string;
+        ad_number: number;
+        ad_date: string;
+        poster_done: boolean;
+        content_done: boolean;
+    }
+    const [circleAds, setCircleAds] = useState<CircleAd[]>([]);
+    const [adsLoading, setAdsLoading] = useState(false);
 
     // Session creation
     const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
@@ -840,6 +851,18 @@ export default function QuranCircles() {
                 });
             });
             setAttendanceData(attMap);
+        }
+
+        // Fetch circle ads
+        if (canManageAds) {
+            setAdsLoading(true);
+            const { data: adsData } = await (supabase as any)
+                .from('quran_circle_ads')
+                .select('*')
+                .eq('circle_id', circle.id)
+                .order('ad_number');
+            setCircleAds(adsData || []);
+            setAdsLoading(false);
         }
     };
 
@@ -1915,12 +1938,15 @@ export default function QuranCircles() {
                     </DialogHeader>
 
                     <Tabs defaultValue="sessions" className="w-full">
-                        <TabsList className={`grid w-full ${canManageOrganizers ? 'grid-cols-4' : 'grid-cols-3'}`}>
+                        <TabsList className={`grid w-full ${canManageOrganizers && canManageAds ? 'grid-cols-5' : (canManageOrganizers || canManageAds) ? 'grid-cols-4' : 'grid-cols-3'}`}>
                             <TabsTrigger value="beneficiaries">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
                             <TabsTrigger value="sessions">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
                             <TabsTrigger value="sheet">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
                             {canManageOrganizers && (
                                 <TabsTrigger value="organizers">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
+                            )}
+                            {canManageAds && (
+                                <TabsTrigger value="ads">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
                             )}
                         </TabsList>
 
@@ -2424,6 +2450,108 @@ export default function QuranCircles() {
                                         </div>
                                     )}
                                 </div>
+                            </TabsContent>
+                        )}
+
+                        {/* Ads Tab */}
+                        {canManageAds && (
+                            <TabsContent value="ads" className="space-y-4 py-4">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h3 className="font-semibold">{isRTL ? 'إعلانات الحلقة' : 'Circle Ads'}</h3>
+                                        <p className="text-sm text-muted-foreground">
+                                            {circleAds.length} {isRTL ? 'إعلان' : 'ads'}
+                                        </p>
+                                    </div>
+                                    <Button size="sm" onClick={async () => {
+                                        if (!selectedCircle) return;
+                                        const nextAdNum = circleAds.length > 0 ? Math.max(...circleAds.map(a => a.ad_number)) + 1 : 1;
+                                        const { data, error } = await (supabase as any)
+                                            .from('quran_circle_ads')
+                                            .insert({
+                                                circle_id: selectedCircle.id,
+                                                ad_number: nextAdNum,
+                                                ad_date: new Date().toISOString().split('T')[0],
+                                                poster_done: false,
+                                                content_done: false,
+                                            })
+                                            .select()
+                                            .single();
+                                        if (!error && data) {
+                                            setCircleAds(prev => [...prev, data]);
+                                            toast.success(isRTL ? 'تم إضافة الإعلان' : 'Ad added');
+                                        } else {
+                                            toast.error(error?.message || 'Error');
+                                        }
+                                    }}>
+                                        <Plus className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
+                                        {isRTL ? 'إضافة إعلان' : 'Add Ad'}
+                                    </Button>
+                                </div>
+
+                                {adsLoading ? (
+                                    <div className="flex justify-center py-8">
+                                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                    </div>
+                                ) : circleAds.length === 0 ? (
+                                    <div className="text-center py-10 text-muted-foreground">
+                                        <Megaphone className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                                        <p>{isRTL ? 'لا توجد إعلانات بعد' : 'No ads yet'}</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {circleAds.map(ad => (
+                                            <div key={ad.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/30 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
+                                                        <Megaphone className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-medium">#{ad.ad_number}</p>
+                                                        <p className="text-xs text-muted-foreground">{ad.ad_date}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Checkbox
+                                                            id={`poster-${ad.id}`}
+                                                            checked={ad.poster_done}
+                                                            onCheckedChange={async (checked) => {
+                                                                await (supabase as any).from('quran_circle_ads').update({ poster_done: checked, updated_at: new Date().toISOString() }).eq('id', ad.id);
+                                                                setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, poster_done: !!checked } : a));
+                                                            }}
+                                                        />
+                                                        <label htmlFor={`poster-${ad.id}`} className="text-sm cursor-pointer">{isRTL ? 'بوستر' : 'Poster'}</label>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Checkbox
+                                                            id={`content-${ad.id}`}
+                                                            checked={ad.content_done}
+                                                            onCheckedChange={async (checked) => {
+                                                                await (supabase as any).from('quran_circle_ads').update({ content_done: checked, updated_at: new Date().toISOString() }).eq('id', ad.id);
+                                                                setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, content_done: !!checked } : a));
+                                                            }}
+                                                        />
+                                                        <label htmlFor={`content-${ad.id}`} className="text-sm cursor-pointer">{isRTL ? 'محتوى' : 'Content'}</label>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                                        onClick={async () => {
+                                                            if (!confirm(isRTL ? 'هل تريد حذف هذا الإعلان؟' : 'Delete this ad?')) return;
+                                                            await (supabase as any).from('quran_circle_ads').delete().eq('id', ad.id);
+                                                            setCircleAds(prev => prev.filter(a => a.id !== ad.id));
+                                                            toast.success(isRTL ? 'تم حذف الإعلان' : 'Ad deleted');
+                                                        }}
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </TabsContent>
                         )}
                     </Tabs>

@@ -126,7 +126,7 @@ export default function MyCourses() {
 
     const fetchRooms = async () => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('rooms')
                 .select('id, name, name_ar');
 
@@ -208,7 +208,7 @@ export default function MyCourses() {
                 content_done: false
             };
 
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('course_ads')
                 .insert(newAdData)
                 .select()
@@ -216,7 +216,7 @@ export default function MyCourses() {
 
             if (error) throw error;
 
-            setCourseAds([...courseAds, data as CourseAd]);
+            setCourseAds([...courseAds, data as unknown as CourseAd]);
             toast.success(isRTL ? 'تم إضافة إعلان جديد' : 'New ad added successfully');
         } catch (error) {
             console.error('Error adding ad:', error);
@@ -226,7 +226,7 @@ export default function MyCourses() {
 
     const handleUpdateAd = async (adId: string, updates: Partial<CourseAd>) => {
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('course_ads')
                 .update({ ...updates, updated_by: user?.id, updated_at: new Date().toISOString() })
                 .eq('id', adId);
@@ -245,7 +245,7 @@ export default function MyCourses() {
         if (!confirm(isRTL ? 'هل أنت متأكد من حذف هذا الإعلان؟' : 'Are you sure you want to delete this ad?')) return;
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('course_ads')
                 .delete()
                 .eq('id', adId);
@@ -282,7 +282,7 @@ export default function MyCourses() {
         }
 
         // Fetch Course Ads
-        const { data: adsData } = await supabase
+        const { data: adsData } = await (supabase as any)
             .from('course_ads')
             .select(`
                 *,
@@ -290,7 +290,7 @@ export default function MyCourses() {
             `)
             .eq('course_id', course.id)
             .order('ad_number');
-        if (adsData) setCourseAds(adsData);
+        if (adsData) setCourseAds(adsData as CourseAd[]);
 
         // Fetch lectures
         const { data: lecturesData } = await supabase
@@ -351,7 +351,7 @@ export default function MyCourses() {
 
         try {
             // Get trainer info to find user_id
-            const { data: trainerData } = await supabase
+            const { data: trainerData } = await (supabase as any)
                 .from('trainers')
                 .select('user_id')
                 .eq('id', course.trainer_id)
@@ -1062,10 +1062,6 @@ export default function MyCourses() {
                             <TabsContent value="marketing" className="space-y-4 py-4">
                                 <div className="flex justify-between items-center mb-4">
                                     <h3 className="text-lg font-semibold">{isRTL ? 'إعلانات الكورس' : 'Course Ads'}</h3>
-                                    <Button onClick={handleAddAd} size="sm">
-                                        <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                        {isRTL ? 'إضافة إعلان' : 'Add Ad'}
-                                    </Button>
                                 </div>
 
                                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">

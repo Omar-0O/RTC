@@ -22,7 +22,8 @@ import {
   Sun,
   Moon,
   Laptop,
-  Cake
+  Cake,
+  Heart
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
@@ -102,7 +103,7 @@ export function AppSidebar() {
     };
     checkCourseAccess();
 
-    // Check if user is a circle organizer OR enrolled in a circle
+    // Check if user is a circle organizer OR a circle marketer
     const checkCircleOrganizer = async () => {
       if (!user?.id) return;
 
@@ -118,16 +119,18 @@ export function AppSidebar() {
         return;
       }
 
-      // Check if enrolled in any circle (as a beneficiary linked to volunteer)
-      // FIXME: Schema update needed. quran_beneficiaries table does not have volunteer_id.
-      // const { data: enrollmentData } = await supabase
-      //   .from('quran_enrollments')
-      //   .select('id, beneficiary:quran_beneficiaries!inner(volunteer_id)')
-      //   .eq('beneficiary.volunteer_id', user.id)
-      //   .limit(1);
+      // Check if assigned as circle marketer
+      const { data: marketerData } = await (supabase as any)
+        .from('quran_circle_marketers')
+        .select('id')
+        .eq('volunteer_id', user.id)
+        .limit(1);
 
-      // setIsCircleOrganizer(enrollmentData && enrollmentData.length > 0);
+      if (marketerData && marketerData.length > 0) {
+        setIsCircleOrganizer(true);
+      }
     };
+
     checkCircleOrganizer();
 
     // Check if user is an event organizer
@@ -214,6 +217,7 @@ export function AppSidebar() {
     { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
     { title: isRTL ? 'إدارة المحفظين' : 'Quran Teachers', url: '/admin/quran-teachers', icon: Users },
     { title: isRTL ? 'إدارة الغرامات' : 'Fines Management', url: '/admin/fines', icon: FileCheck },
+    { title: isRTL ? 'المهتمين' : 'Interested', url: '/admin/interested', icon: Heart },
   ];
 
   const hrNavItems = [
@@ -314,7 +318,7 @@ export function AppSidebar() {
           { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
           { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
           { title: t('nav.events'), url: '/events', icon: Calendar },
-          { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
+          { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/marketing/quran-circles', icon: BookOpen },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },
         ];

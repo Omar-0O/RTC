@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
     BookOpen, Calendar, Clock, Users, Plus, Check, X, Trash2,
-    MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User, CalendarDays, TrendingUp, Percent, UserPlus, Pencil, UserMinus, Search
+    MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User, CalendarDays, TrendingUp, Percent, UserPlus, Pencil, UserMinus, Search, Megaphone
 
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -117,6 +117,20 @@ export default function MyQuranCircles() {
     // Main state
     const [circles, setCircles] = useState<QuranCircle[]>([]);
     const [loading, setLoading] = useState(true);
+    const [marketerCircleIds, setMarketerCircleIds] = useState<Set<string>>(new Set());
+    const [organizerCircleIds, setOrganizerCircleIds] = useState<Set<string>>(new Set());
+
+    // Circle Ads state
+    interface CircleAd {
+        id: string;
+        circle_id: string;
+        ad_number: number;
+        ad_date: string;
+        poster_done: boolean;
+        content_done: boolean;
+    }
+    const [circleAds, setCircleAds] = useState<CircleAd[]>([]);
+    const [adsLoading, setAdsLoading] = useState(false);
 
     // Details dialog
     const [selectedCircle, setSelectedCircle] = useState<QuranCircle | null>(null);
@@ -181,6 +195,7 @@ export default function MyQuranCircles() {
     const fetchMyCircles = async () => {
         setLoading(true);
         try {
+            // Fetch circles I'm an organizer of
             const { data: organizerData, error: orgError } = await supabase
                 .from('quran_circle_organizers')
                 .select('circle_id')
@@ -188,9 +203,21 @@ export default function MyQuranCircles() {
 
             if (orgError) throw orgError;
 
-            const circleIds = organizerData?.map(o => o.circle_id) || [];
+            // Fetch circles I'm a marketer of
+            const { data: marketerData } = await (supabase as any)
+                .from('quran_circle_marketers')
+                .select('circle_id')
+                .eq('volunteer_id', user?.id);
 
-            if (circleIds.length === 0) {
+            const orgCircleIds = organizerData?.map((o: any) => o.circle_id) || [];
+            const marketerIds: string[] = marketerData?.map((m: any) => m.circle_id) || [];
+
+            // Union of all circle IDs
+            const allCircleIds = [...new Set([...orgCircleIds, ...marketerIds])];
+            setMarketerCircleIds(new Set(marketerIds));
+            setOrganizerCircleIds(new Set(orgCircleIds));
+
+            if (allCircleIds.length === 0) {
                 setCircles([]);
                 setLoading(false);
                 return;
@@ -206,7 +233,7 @@ export default function MyQuranCircles() {
                     beneficiary_gender,
                     description
                 `)
-                .in('id', circleIds)
+                .in('id', allCircleIds)
                 .eq('is_active', true);
 
             if (error) throw error;
@@ -215,7 +242,7 @@ export default function MyQuranCircles() {
             const { data: sessionData } = await supabase
                 .from('quran_circle_sessions')
                 .select('circle_id')
-                .in('circle_id', circleIds);
+                .in('circle_id', allCircleIds);
 
             const sessionCounts: Record<string, number> = {};
             (sessionData || []).forEach(s => {
@@ -234,7 +261,7 @@ export default function MyQuranCircles() {
             const { data: enrollments } = await supabase
                 .from('quran_enrollments')
                 .select('circle_id')
-                .in('circle_id', circleIds)
+                .in('circle_id', allCircleIds)
                 .eq('status', 'active');
 
             const enrollmentCounts: Record<string, number> = {};
@@ -328,6 +355,16 @@ export default function MyQuranCircles() {
             });
             setAttendanceData(attMap);
         }
+
+        // Fetch circle ads (for all users who have access to this circle)
+        setAdsLoading(true);
+        const { data: adsData } = await (supabase as any)
+            .from('quran_circle_ads')
+            .select('*')
+            .eq('circle_id', circle.id)
+            .order('ad_number');
+        setCircleAds(adsData || []);
+        setAdsLoading(false);
     };
 
     const handleCreateSession = async () => {
@@ -906,97 +943,108 @@ export default function MyQuranCircles() {
                     {isRTL ? 'حلقاتي' : 'My Quran Circles'}
                 </h1>
                 <p className="text-muted-foreground">
-                    {isRTL ? 'الحلقات اللي بتنظمها' : 'Circles you are organizing'}
+                    {isRTL ? 'الحلقات اللي بتنظمها أو بتسوقها' : 'Circles you organize or market'}
                 </p>
             </div>
 
             {/* Circles Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {circles.map(circle => (
-                    <Card key={circle.id} className="group hover:shadow-md transition-shadow">
-                        <CardHeader className="pb-3">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <CardTitle className="text-lg">{getCircleName(circle)}</CardTitle>
-                                    <CardDescription>
-                                        {circle.sessions_count} {isRTL ? 'جلسة' : 'sessions'}
-                                    </CardDescription>
+                {circles.map(circle => {
+                    const isMarketer = marketerCircleIds.has(circle.id);
+                    return (
+                        <Card key={circle.id} className="group hover:shadow-md transition-shadow">
+                            <CardHeader className="pb-3">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <div className="flex items-center gap-2">
+                                            <CardTitle className="text-lg">{getCircleName(circle)}</CardTitle>
+                                            {isMarketer && (
+                                                <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 gap-1 text-xs">
+                                                    <Megaphone className="h-3 w-3" />
+                                                    {isRTL ? 'مسوق' : 'Marketer'}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <CardDescription>
+                                            {circle.sessions_count} {isRTL ? 'جلسة' : 'sessions'}
+                                        </CardDescription>
+                                    </div>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon">
+                                                <MoreHorizontal className="w-4 h-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => openCircleDetails(circle)}>
+                                                <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onClick={() => exportCircleToExcel(circle)}>
+                                                <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'تصدير Excel' : 'Export Excel'}
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon">
-                                            <MoreHorizontal className="w-4 h-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuItem onClick={() => openCircleDetails(circle)}>
-                                            <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                            {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => exportCircleToExcel(circle)}>
-                                            <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                            {isRTL ? 'تصدير Excel' : 'Export Excel'}
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="pt-0">
-                            {/* Badges Section */}
-                            <div className="flex flex-col gap-2 mb-4">
-                                <div className="flex flex-wrap gap-2 text-xs">
-                                    {circle.target_group && (
-                                        <Badge variant="outline" className={`flex items-center gap-1.5 px-2.5 py-1 ${circle.target_group === 'children' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
-                                            <Users className="h-3.5 w-3.5" />
-                                            {circle.target_group === 'children' ? (isRTL ? 'أطفال' : 'Children') : (isRTL ? 'بالغين' : 'Adults')}
-                                        </Badge>
-                                    )}
-                                    {circle.teacher_gender && (
-                                        <Badge variant="outline" className={`flex items-center gap-1.5 px-2.5 py-1 ${circle.teacher_gender === 'men' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-pink-50 text-pink-700 border-pink-200'}`}>
-                                            <User className="h-3.5 w-3.5" />
-                                            {circle.teacher_gender === 'men' ? (isRTL ? 'رجال' : 'Men') : (isRTL ? 'نساء' : 'Women')}
-                                        </Badge>
-                                    )}
+                            </CardHeader>
+                            <CardContent className="pt-0">
+                                {/* Badges Section */}
+                                <div className="flex flex-col gap-2 mb-4">
+                                    <div className="flex flex-wrap gap-2 text-xs">
+                                        {circle.target_group && (
+                                            <Badge variant="outline" className={`flex items-center gap-1.5 px-2.5 py-1 ${circle.target_group === 'children' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                                                <Users className="h-3.5 w-3.5" />
+                                                {circle.target_group === 'children' ? (isRTL ? 'أطفال' : 'Children') : (isRTL ? 'بالغين' : 'Adults')}
+                                            </Badge>
+                                        )}
+                                        {circle.teacher_gender && (
+                                            <Badge variant="outline" className={`flex items-center gap-1.5 px-2.5 py-1 ${circle.teacher_gender === 'men' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-pink-50 text-pink-700 border-pink-200'}`}>
+                                                <User className="h-3.5 w-3.5" />
+                                                {circle.teacher_gender === 'men' ? (isRTL ? 'رجال' : 'Men') : (isRTL ? 'نساء' : 'Women')}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {circle.teaching_mode && (
+                                            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1.5 px-2.5 py-1">
+                                                {circle.teaching_mode === 'online' ? <Globe className="h-3.5 w-3.5" /> : (circle.teaching_mode === 'offline' ? <MapPin className="h-3.5 w-3.5" /> : <MonitorPlay className="h-3.5 w-3.5" />)}
+                                                {circle.teaching_mode === 'online' ? (isRTL ? 'أونلاين' : 'Online') :
+                                                    circle.teaching_mode === 'offline' ? (isRTL ? 'حضوري' : 'Offline') :
+                                                        (isRTL ? 'كلاهما' : 'Mixed')}
+                                            </Badge>
+                                        )}
+                                        {!circle.is_active && (
+                                            <Badge variant="secondary" className="text-xs px-2.5 py-1">
+                                                {isRTL ? 'متوقفة' : 'Inactive'}
+                                            </Badge>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {circle.teaching_mode && (
-                                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1.5 px-2.5 py-1">
-                                            {circle.teaching_mode === 'online' ? <Globe className="h-3.5 w-3.5" /> : (circle.teaching_mode === 'offline' ? <MapPin className="h-3.5 w-3.5" /> : <MonitorPlay className="h-3.5 w-3.5" />)}
-                                            {circle.teaching_mode === 'online' ? (isRTL ? 'أونلاين' : 'Online') :
-                                                circle.teaching_mode === 'offline' ? (isRTL ? 'حضوري' : 'Offline') :
-                                                    (isRTL ? 'كلاهما' : 'Mixed')}
-                                        </Badge>
-                                    )}
-                                    {!circle.is_active && (
-                                        <Badge variant="secondary" className="text-xs px-2.5 py-1">
-                                            {isRTL ? 'متوقفة' : 'Inactive'}
-                                        </Badge>
-                                    )}
-                                </div>
-                            </div>
 
-                            <div className="space-y-2 text-sm border-t pt-3">
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <CalendarDays className="w-4 h-4" />
-                                    <span>{getScheduleDisplay(circle.schedule)}</span>
+                                <div className="space-y-2 text-sm border-t pt-3">
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <CalendarDays className="w-4 h-4" />
+                                        <span>{getScheduleDisplay(circle.schedule)}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Clock className="w-4 h-4" />
+                                        <span>{getScheduleTime(circle.schedule) || (isRTL ? 'غير محدد' : 'Not set')}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Users className="w-4 h-4" />
+                                        <span>{circle.enrolled_count} {isRTL ? 'مسجل' : 'enrolled'}</span>
+                                    </div>
+                                    {circle.description && (
+                                        <p className="text-xs text-muted-foreground line-clamp-2 mt-2 pt-2 border-t">
+                                            {circle.description}
+                                        </p>
+                                    )}
                                 </div>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <Clock className="w-4 h-4" />
-                                    <span>{getScheduleTime(circle.schedule) || (isRTL ? 'غير محدد' : 'Not set')}</span>
-                                </div>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <Users className="w-4 h-4" />
-                                    <span>{circle.enrolled_count} {isRTL ? 'مسجل' : 'enrolled'}</span>
-                                </div>
-                                {circle.description && (
-                                    <p className="text-xs text-muted-foreground line-clamp-2 mt-2 pt-2 border-t">
-                                        {circle.description}
-                                    </p>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+                            </CardContent>
+                        </Card>
+                    );
+                })}
 
                 {circles.length === 0 && !loading && (
                     <div className="col-span-full flex flex-col items-center justify-center p-12 border rounded-xl border-dashed text-muted-foreground bg-gradient-to-br from-muted/30 to-transparent">
@@ -1019,12 +1067,22 @@ export default function MyQuranCircles() {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <Tabs defaultValue="sessions" className="w-full">
-                        <TabsList className="grid w-full grid-cols-3">
-                            <TabsTrigger value="beneficiaries">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
-                            <TabsTrigger value="sessions">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
-                            <TabsTrigger value="sheet">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
-                        </TabsList>
+                    <Tabs defaultValue={selectedCircle && marketerCircleIds.has(selectedCircle.id) && !organizerCircleIds.has(selectedCircle.id) ? 'ads' : 'sessions'} className="w-full">
+                        {(() => {
+                            const isMarketerOnly = selectedCircle ? (marketerCircleIds.has(selectedCircle.id) && !organizerCircleIds.has(selectedCircle.id)) : false;
+                            return isMarketerOnly ? (
+                                <TabsList className="grid w-full grid-cols-1">
+                                    <TabsTrigger value="ads">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
+                                </TabsList>
+                            ) : (
+                                <TabsList className="grid w-full grid-cols-4">
+                                    <TabsTrigger value="beneficiaries">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
+                                    <TabsTrigger value="sessions">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
+                                    <TabsTrigger value="sheet">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                                    <TabsTrigger value="ads">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
+                                </TabsList>
+                            );
+                        })()}
 
                         {/* Beneficiaries Tab */}
                         <TabsContent value="beneficiaries" className="space-y-4 py-4">
@@ -1428,6 +1486,76 @@ export default function MyQuranCircles() {
                                     </TableBody>
                                 </Table>
                             </div>
+                        </TabsContent>
+
+                        {/* Ads Tab */}
+                        <TabsContent value="ads" className="space-y-4 py-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h3 className="font-semibold">{isRTL ? 'إعلانات الحلقة' : 'Circle Ads'}</h3>
+                                    <p className="text-sm text-muted-foreground">{circleAds.length} {isRTL ? 'إعلان' : 'ads'}</p>
+                                </div>
+                            </div>
+
+                            {adsLoading ? (
+                                <div className="flex justify-center py-8">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : circleAds.length === 0 ? (
+                                <div className="text-center py-10 text-muted-foreground">
+                                    <Megaphone className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                                    <p>{isRTL ? 'لا توجد إعلانات لهذه الحلقة بعد' : 'No ads for this circle yet'}</p>
+                                    <p className="text-xs mt-1">{isRTL ? 'يضيف مسؤول التسويق الإعلانات من لوحة التحكم' : 'Ads are added by the marketing admin'}</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {circleAds.map(ad => (
+                                        <div key={ad.id} className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/20 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
+                                                    <Megaphone className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold">#{ad.ad_number}</p>
+                                                    <p className="text-xs text-muted-foreground">{ad.ad_date}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-6">
+                                                <div className="flex items-center gap-2">
+                                                    <Checkbox
+                                                        id={`my-poster-${ad.id}`}
+                                                        checked={ad.poster_done}
+                                                        onCheckedChange={async (checked) => {
+                                                            await (supabase as any).from('quran_circle_ads').update({ poster_done: checked, updated_at: new Date().toISOString() }).eq('id', ad.id);
+                                                            setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, poster_done: !!checked } : a));
+                                                            toast.success(isRTL ? 'تم التحديث' : 'Updated');
+                                                        }}
+                                                    />
+                                                    <label htmlFor={`my-poster-${ad.id}`} className="text-sm font-medium cursor-pointer">
+                                                        {isRTL ? 'بوستر' : 'Poster'}
+                                                    </label>
+                                                    {ad.poster_done && <Check className="h-4 w-4 text-green-500" />}
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Checkbox
+                                                        id={`my-content-${ad.id}`}
+                                                        checked={ad.content_done}
+                                                        onCheckedChange={async (checked) => {
+                                                            await (supabase as any).from('quran_circle_ads').update({ content_done: checked, updated_at: new Date().toISOString() }).eq('id', ad.id);
+                                                            setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, content_done: !!checked } : a));
+                                                            toast.success(isRTL ? 'تم التحديث' : 'Updated');
+                                                        }}
+                                                    />
+                                                    <label htmlFor={`my-content-${ad.id}`} className="text-sm font-medium cursor-pointer">
+                                                        {isRTL ? 'محتوى' : 'Content'}
+                                                    </label>
+                                                    {ad.content_done && <Check className="h-4 w-4 text-green-500" />}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </TabsContent>
                     </Tabs>
                 </DialogContent>

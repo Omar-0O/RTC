@@ -51,11 +51,11 @@ export default function AshbalManagement() {
     const fetchAshbalUsers = async () => {
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('profiles')
+            const { data, error } = await (supabase
+                .from('profiles') as any)
                 .select('id, full_name, email, phone, avatar_url, level, is_ashbal, join_date, created_at, ashbal_status')
                 .eq('is_ashbal', true)
-                .order('created_at', { ascending: false }) as any;
+                .order('created_at', { ascending: false });
 
             if (error) throw error;
             setUsers(data || []);
@@ -90,7 +90,7 @@ export default function AshbalManagement() {
     const handleRenewTarget = async () => {
         try {
             setIsRenewing(true);
-            const { data, error } = await supabase.rpc('renew_ashbal_target');
+            const { data, error } = await (supabase as any).rpc('renew_ashbal_target');
 
             if (error) throw error;
 

@@ -101,21 +101,32 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
         setIsLoading(true);
 
         try {
-            // Fetch committee members with activity count
+            // Fetch committee members with activity details
             const { data: membersData, error: membersError } = await supabase
                 .from('profiles')
-                .select('*, activity_submissions:activity_submissions!activity_submissions_volunteer_id_fkey(count)')
+                .select('*, activity_submissions:activity_submissions!activity_submissions_volunteer_id_fkey(points_awarded, committee_id)')
                 .eq('committee_id', committeeId);
 
             if (membersError) throw membersError;
 
-            let membersWithCount: Profile[] = [];
+            let membersWithStats: Profile[] = [];
             if (membersData) {
-                membersWithCount = membersData.map((member: any) => ({
-                    ...member,
-                    activities_count: member.activity_submissions?.[0]?.count || 0
-                }));
-                setMembers(membersWithCount);
+                membersWithStats = membersData.map((member: any) => {
+                    const committeeSubmissions = member.activity_submissions?.filter(
+                        (sub: any) => sub.committee_id === committeeId
+                    ) || [];
+
+                    const committeePoints = committeeSubmissions.reduce(
+                        (sum: number, sub: any) => sum + (sub.points_awarded || 0), 0
+                    );
+
+                    return {
+                        ...member,
+                        total_points: committeePoints, // Override with committee-specific points
+                        activities_count: committeeSubmissions.length // Override with committee-specific count
+                    };
+                });
+                setMembers(membersWithStats);
             }
 
             // Fetch available volunteers (only those not in any committee)
@@ -131,7 +142,8 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
             if (volunteersData) {
                 const volunteers: Profile[] = volunteersData.map((v: any) => ({
                     ...v,
-                    activities_count: 0
+                    activities_count: 0,
+                    total_points: 0
                 }));
                 setAvailableVolunteers(volunteers);
             }
