@@ -31,7 +31,7 @@ export default function VolunteerDashboard() {
   const [impact, setImpact] = useState(0);
 
   // const points = profile?.total_points || 0; // Deprecated, using dynamic impact calculation
-  const activitiesCount = profile?.activities_count || 0;
+  const [totalActivities, setTotalActivities] = useState(0);
   const [monthlyActivities, setMonthlyActivities] = useState(0);
 
   useEffect(() => {
@@ -82,9 +82,8 @@ export default function VolunteerDashboard() {
     try {
       console.log('Fetching dashboard data for user:', user.id);
       const now = new Date();
-      const startOfMonthStr = startOfMonth(now).toISOString();
 
-      const [submissionsRes, badgesRes, allPointsRes] = await Promise.all([
+      const [submissionsRes, badgesRes, allActivitiesRes] = await Promise.all([
         supabase
           .from('activity_submissions')
           .select(`
@@ -104,10 +103,9 @@ export default function VolunteerDashboard() {
           .eq('user_id', user.id),
         supabase
           .from('activity_submissions')
-          .select('points_awarded')
+          .select('id, points_awarded, submitted_at')
           .eq('volunteer_id', user.id)
-          .is('fine_type_id', null) // Exclude fines
-          .gte('submitted_at', startOfMonthStr),
+          .is('fine_type_id', null) // Exclude fines (ALL TIME)
       ]);
 
       if (submissionsRes.data) {
@@ -120,22 +118,28 @@ export default function VolunteerDashboard() {
         })));
       }
 
-      setBadgeCount(badgesRes.count || 0);
+      // Calculate monthly impact and activities
+      if (allActivitiesRes.data) {
+        let monthlyImpactSum = 0;
+        let monthlyCount = 0;
 
-      // Calculate total impact
-      if (allPointsRes.data) {
-        const totalImpact = allPointsRes.data.reduce((sum, item) => sum + Math.max(0, item.points_awarded || 0), 0);
-        console.log('Total impact calculated:', totalImpact, 'from', allPointsRes.data.length, 'activities');
-        setImpact(totalImpact);
+        allActivitiesRes.data.forEach(item => {
+          // Parse the date using Javascript Date which handles ISO strings correctly
+          const activityDate = new Date(item.submitted_at);
+          // Compare month and year in local time
+          if (activityDate.getMonth() === now.getMonth() && activityDate.getFullYear() === now.getFullYear()) {
+            monthlyCount++;
+            monthlyImpactSum += Math.max(0, item.points_awarded || 0);
+          }
+        });
+
+        console.log('Monthly impact calculated:', monthlyImpactSum, 'Monthly activities:', monthlyCount);
+        setImpact(monthlyImpactSum);
+        setMonthlyActivities(monthlyCount);
+      } else {
+        setImpact(0);
+        setMonthlyActivities(0);
       }
-
-      const { count: monthlyCount } = await supabase
-        .from('activity_submissions')
-        .select('id', { count: 'exact', head: true })
-        .eq('volunteer_id', user.id)
-        .is('fine_type_id', null) // Exclude fines
-        .gte('submitted_at', startOfMonthStr);
-      setMonthlyActivities(monthlyCount || 0);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {

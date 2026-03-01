@@ -249,10 +249,10 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     return activityDate.getMonth() === now.getMonth() && activityDate.getFullYear() === now.getFullYear();
   });
 
-  const totalImpact = currentMonthActivities.reduce((sum, a) => sum + Math.max(0, a.points), 0);
+  const monthlyImpactCalculated = currentMonthActivities.reduce((sum, a) => sum + Math.max(0, a.points), 0);
 
   // Show monthly points consistently
-  const points = (!isViewOnly) ? monthlyPoints : totalImpact;
+  const points = monthlyImpactCalculated;
 
   // Level progress is now manual, so we don't calculate it from points
   const userLevel = displayProfile?.level;
@@ -291,25 +291,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       }
 
       // If viewing own profile, calculate monthly points
-      if (!isViewOnly) {
-        const now = new Date();
-        const startOfMonthStr = startOfMonth(now).toISOString();
-
-        const { data: monthlyData, error: monthlyError } = await supabase
-          .from('activity_submissions')
-          .select('points_awarded')
-          .eq('volunteer_id', targetUserId)
-          .is('fine_type_id', null) // Exclude fines
-          .gte('submitted_at', startOfMonthStr);
-
-        if (monthlyError) {
-          console.error('Error fetching monthly points:', monthlyError);
-        }
-
-        const mPoints = monthlyData?.reduce((sum, item) => sum + Math.max(0, item.points_awarded || 0), 0) || 0;
-        console.log('Monthly points calculated:', mPoints, 'from', monthlyData?.length, 'activities');
-        setMonthlyPoints(mPoints);
-      }
+      // We will do this from activitiesRes below to avoid UTC timezone cutoff issues
 
       // Fetch badges and activities in parallel
       // Explicitly type to avoid deep type instantiation errors
@@ -836,9 +818,9 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 </span>
               </div>
               <div className="flex flex-col items-center bg-muted/30 p-3 rounded-xl min-w-[100px] border">
-                <span className="text-2xl font-bold text-primary">{activities.length}</span>
+                <span className="text-2xl font-bold text-primary">{currentMonthActivities.length}</span>
                 <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
-                  {isRTL ? 'مشاركات' : 'Participations'}
+                  {isRTL ? 'مشاركات هذا الشهر' : 'Monthly Participations'}
                 </span>
               </div>
             </div>

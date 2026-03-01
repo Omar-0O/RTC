@@ -353,6 +353,12 @@ export default function LogActivity() {
           ? (selectedActivity.points_without_vest ?? selectedActivity.points)
           : selectedActivity.points; // Home activities get default points
 
+      // Construct a Date object from the selected date string in the local time zone,
+      // setting it to noon local time to avoid boundary issues, then get its ISO string.
+      const [year, month, day] = activityDate.split('-').map(Number);
+      const submissionDateObj = new Date(year, month - 1, day, 12, 0, 0);
+      const submissionTimestamp = submissionDateObj.toISOString();
+
       const submissionData = {
         activity_type_id: activityId,
         committee_id: committeeId,
@@ -366,7 +372,7 @@ export default function LogActivity() {
         reviewed_at: (isLeader ? new Date().toISOString() : null),
         reviewed_by: (isLeader ? user.id : null),
         proof_url: proofUrl,
-        submitted_at: activityDate + 'T12:00:00.000Z',
+        submitted_at: submissionTimestamp,
       };
 
       if (isGroupSubmission) {
@@ -422,7 +428,7 @@ export default function LogActivity() {
             committee_id: committeeId,
             guest_participants: guests.length > 0 ? guests : null,
             excel_sheet_url: excelUrl,
-            submitted_at: activityDate + 'T12:00:00.000Z'
+            submitted_at: submissionTimestamp
           })
           .select()
           .single();
