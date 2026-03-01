@@ -366,7 +366,7 @@ export default function LogActivity() {
         reviewed_at: (isLeader ? new Date().toISOString() : null),
         reviewed_by: (isLeader ? user.id : null),
         proof_url: proofUrl,
-        submitted_at: new Date(activityDate).toISOString(),
+        submitted_at: activityDate + 'T12:00:00.000Z',
       };
 
       if (isGroupSubmission) {
@@ -422,7 +422,7 @@ export default function LogActivity() {
             committee_id: committeeId,
             guest_participants: guests.length > 0 ? guests : null,
             excel_sheet_url: excelUrl,
-            submitted_at: new Date(activityDate).toISOString()
+            submitted_at: activityDate + 'T12:00:00.000Z'
           })
           .select()
           .single();
