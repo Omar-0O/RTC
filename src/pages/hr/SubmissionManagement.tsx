@@ -480,7 +480,7 @@ export default function SubmissionManagement() {
                 [isRTL ? 'نوع المشاركة' : 'Participation Type']: locationStr,
                 [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
                 [isRTL ? 'الأثر' : 'Impact']: s.points_awarded || 0,
-                [isRTL ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.created_at || s.submitted_at), 'yyyy-MM-dd'),
+                [isRTL ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
                 [isRTL ? 'الملاحظات' : 'Notes']: s.description || '',
                 [isRTL ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
             };
@@ -937,7 +937,7 @@ export default function SubmissionManagement() {
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <div className="text-xs text-muted-foreground whitespace-nowrap">
-                                                        {format(new Date(submission.created_at || submission.submitted_at), 'PPP p')}
+                                                        {format(new Date(submission.submitted_at), 'PPP')}
                                                     </div>
                                                     <Button
                                                         variant="ghost"
