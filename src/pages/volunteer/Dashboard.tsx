@@ -125,15 +125,14 @@ export default function VolunteerDashboard() {
         setImpact(totalImpact);
       }
 
-      // Fetch monthly activities count (current month)
       const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const startOfMonthStr = startOfMonth(now).toISOString();
       const { count: monthlyCount } = await supabase
         .from('activity_submissions')
         .select('id', { count: 'exact', head: true })
         .eq('volunteer_id', user.id)
         .is('fine_type_id', null) // Exclude fines
-        .gte('submitted_at', startOfMonth);
+        .gte('submitted_at', startOfMonthStr);
       setMonthlyActivities(monthlyCount || 0);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

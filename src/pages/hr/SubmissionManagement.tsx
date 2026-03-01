@@ -216,7 +216,8 @@ export default function SubmissionManagement() {
     const fetchSubmissions = async () => {
         setIsLoading(true);
         try {
-            const monthDate = new Date(selectedMonth + '-01');
+            const [year, month] = selectedMonth.split('-');
+            const monthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
             const startDate = startOfMonth(monthDate);
             const endDate = endOfMonth(monthDate);
 
@@ -321,7 +322,8 @@ export default function SubmissionManagement() {
         if (!isHeadHR) return;
 
         try {
-            const monthDate = new Date(selectedMonth + '-01');
+            const [year, month] = selectedMonth.split('-');
+            const monthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
             const startDate = startOfMonth(monthDate);
             const endDate = endOfMonth(monthDate);
 

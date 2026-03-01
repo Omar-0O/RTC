@@ -184,7 +184,8 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
 
       // Apply date filter if not 'all'
       if (selectedMonth !== 'all') {
-        const monthDate = new Date(selectedMonth + '-01');
+        const [year, month] = selectedMonth.split('-');
+        const monthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
         const startDate = startOfMonth(monthDate);
         const endDate = endOfMonth(monthDate);
         query = query

@@ -289,14 +289,14 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       // If viewing own profile, calculate monthly points
       if (!isViewOnly) {
         const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const startOfMonthStr = startOfMonth(now).toISOString();
 
         const { data: monthlyData, error: monthlyError } = await supabase
           .from('activity_submissions')
           .select('points_awarded')
           .eq('volunteer_id', targetUserId)
           .is('fine_type_id', null) // Exclude fines
-          .gte('submitted_at', startOfMonth);
+          .gte('submitted_at', startOfMonthStr);
 
         if (monthlyError) {
           console.error('Error fetching monthly points:', monthlyError);
