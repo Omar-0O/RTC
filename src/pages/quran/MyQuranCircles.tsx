@@ -1071,15 +1071,15 @@ export default function MyQuranCircles() {
                         {(() => {
                             const isMarketerOnly = selectedCircle ? (marketerCircleIds.has(selectedCircle.id) && !organizerCircleIds.has(selectedCircle.id)) : false;
                             return isMarketerOnly ? (
-                                <TabsList className="grid w-full grid-cols-1">
-                                    <TabsTrigger value="ads">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
+                                <TabsList className="flex flex-wrap h-auto w-full gap-1 p-1 sm:grid sm:grid-cols-1">
+                                    <TabsTrigger value="ads" className="flex-1 sm:flex-none">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
                                 </TabsList>
                             ) : (
-                                <TabsList className="grid w-full grid-cols-4">
-                                    <TabsTrigger value="beneficiaries">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
-                                    <TabsTrigger value="sessions">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
-                                    <TabsTrigger value="sheet">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
-                                    <TabsTrigger value="ads">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
+                                <TabsList className="flex flex-wrap h-auto w-full gap-1 p-1 sm:grid sm:grid-cols-4">
+                                    <TabsTrigger value="beneficiaries" className="flex-1 sm:flex-none">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
+                                    <TabsTrigger value="sessions" className="flex-1 sm:flex-none">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
+                                    <TabsTrigger value="sheet" className="flex-1 sm:flex-none">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                                    <TabsTrigger value="ads" className="flex-1 sm:flex-none">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
                                 </TabsList>
                             );
                         })()}

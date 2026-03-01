@@ -1938,15 +1938,15 @@ export default function QuranCircles() {
                     </DialogHeader>
 
                     <Tabs defaultValue="sessions" className="w-full">
-                        <TabsList className={`grid w-full ${canManageOrganizers && canManageAds ? 'grid-cols-5' : (canManageOrganizers || canManageAds) ? 'grid-cols-4' : 'grid-cols-3'}`}>
-                            <TabsTrigger value="beneficiaries">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
-                            <TabsTrigger value="sessions">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
-                            <TabsTrigger value="sheet">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                        <TabsList className={`flex flex-wrap h-auto w-full gap-1 p-1 sm:grid ${canManageOrganizers && canManageAds ? 'sm:grid-cols-5' : (canManageOrganizers || canManageAds) ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
+                            <TabsTrigger value="beneficiaries" className="flex-1 sm:flex-none">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
+                            <TabsTrigger value="sessions" className="flex-1 sm:flex-none">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
+                            <TabsTrigger value="sheet" className="flex-1 sm:flex-none">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
                             {canManageOrganizers && (
-                                <TabsTrigger value="organizers">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
+                                <TabsTrigger value="organizers" className="flex-1 sm:flex-none">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
                             )}
                             {canManageAds && (
-                                <TabsTrigger value="ads">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
+                                <TabsTrigger value="ads" className="flex-1 sm:flex-none">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
                             )}
                         </TabsList>
 

@@ -28,6 +28,7 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { utils, writeFile } from 'xlsx';
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
 
 interface Profile {
@@ -93,6 +94,7 @@ interface Trainer {
 export default function Reports() {
   const { t, language, isRTL } = useLanguage();
   const [dateRange, setDateRange] = useState('month');
+  const [archiveYear, setArchiveYear] = useState<number>(new Date().getFullYear());
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
@@ -504,16 +506,8 @@ export default function Reports() {
             [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
           };
         });
-        const { start: allStart, end: allEnd } = getDateRange();
-        const allDateStr = `${format(allStart, 'yyyy-MM-dd')}_to_${format(allEnd, 'yyyy-MM-dd')}`;
-        downloadCSV(allReportData, `all_participations_${allDateStr}`);
-        break;
-      }
-
-      case 'activities': {
-        // Volunteers only participations (only those with profiles)
         const volunteerSubmissions = filteredSubmissions.filter(s => profilesMap.has(s.volunteer_id));
-        const reportData = volunteerSubmissions.map(s => {
+        const volReportData = volunteerSubmissions.map(s => {
           const volunteer = profilesMap.get(s.volunteer_id);
           const activityType = activityTypesMap.get(s.activity_type_id);
           const committeeId = volunteer?.committee_id || s.committee_id;
@@ -523,7 +517,6 @@ export default function Reports() {
           if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
           else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
 
-          // Vest status for branch activities
           const vestStatus = (s.location === 'home' || s.location === 'remote')
             ? (language === 'ar' ? 'من البيت' : 'From Home')
             : (s.location === 'branch'
@@ -543,10 +536,32 @@ export default function Reports() {
             [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
           };
         });
-        // Use 'volunteers_participations' filename with dynamic date range
-        const { start, end } = getDateRange();
-        const dateStr = `${format(start, 'yyyy-MM-dd')}_to_${format(end, 'yyyy-MM-dd')}`;
-        downloadCSV(reportData, `volunteers_participations_${dateStr}`);
+
+        if (allReportData.length === 0) {
+          toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
+          return;
+        }
+
+        try {
+          const wb = utils.book_new();
+
+          const allWs = utils.json_to_sheet(allReportData);
+          utils.book_append_sheet(wb, allWs, language === 'ar' ? 'مشاركات كلي' : 'All Participations');
+
+          if (volReportData.length > 0) {
+            const volWs = utils.json_to_sheet(volReportData);
+            utils.book_append_sheet(wb, volWs, language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations');
+          }
+
+          const { start: allStart, end: allEnd } = getDateRange();
+          const allDateStr = `${format(allStart, 'yyyy-MM-dd')}_to_${format(allEnd, 'yyyy-MM-dd')}`;
+
+          writeFile(wb, `all_participations_${allDateStr}.xlsx`);
+          toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
+        } catch (error) {
+          console.error('Export error:', error);
+          toast.error(language === 'ar' ? 'فشل التصدير' : 'Export failed');
+        }
         break;
       }
 
@@ -861,19 +876,7 @@ export default function Reports() {
                 <Button variant="outline" className="w-full justify-start h-auto py-3 px-4 flex-wrap" onClick={() => handleExport('all_activities')}>
                   <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
                   <span className="flex flex-col items-start text-start sm:flex-row sm:items-center gap-1">
-                    <span>{language === 'ar' ? 'شيت مشاركات كلي' : 'All Participations'}</span>
-                    <span className="text-xs opacity-70">
-                      ({(() => {
-                        const { start, end } = getDateRange();
-                        return `${format(start, 'MM/dd')} - ${format(end, 'MM/dd')}`;
-                      })()})
-                    </span>
-                  </span>
-                </Button>
-                <Button variant="outline" className="w-full justify-start h-auto py-3 px-4 flex-wrap" onClick={() => handleExport('activities')}>
-                  <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
-                  <span className="flex flex-col items-start text-start sm:flex-row sm:items-center gap-1">
-                    <span>{language === 'ar' ? 'شيت مشاركات المتطوعين' : 'Volunteers Participations'}</span>
+                    <span>{language === 'ar' ? 'شيت مشاركات كلي والمطوعين' : 'All & Volunteer Participations'}</span>
                     <span className="text-xs opacity-70">
                       ({(() => {
                         const { start, end } = getDateRange();
@@ -890,22 +893,36 @@ export default function Reports() {
 
         <TabsContent value="archive" className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>{language === 'ar' ? 'أرشيف التقارير' : 'Reports Archive'}</CardTitle>
-              <CardDescription>{language === 'ar' ? 'تنزيل تقارير الشهور السابقة' : 'Download reports from previous months'}</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>{language === 'ar' ? 'أرشيف التقارير' : 'Reports Archive'}</CardTitle>
+                <CardDescription>{language === 'ar' ? 'تنزيل تقارير الشهور السابقة' : 'Download reports from previous months'}</CardDescription>
+              </div>
+              <Select value={archiveYear.toString()} onValueChange={(v) => setArchiveYear(parseInt(v))}>
+                <SelectTrigger className="w-[120px]">
+                  <Calendar className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: Math.max(1, new Date().getFullYear() - 2026 + 1) }, (_, i) => new Date().getFullYear() - i).map(y => (
+                    <SelectItem key={y} value={y.toString()}>{y}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {(() => {
                     const months = [];
-                    const startDate = new Date(2026, 0, 1); // Jan 1, 2026
-                    const now = new Date();
-                    let currentDate = now;
+                    const currentYear = new Date().getFullYear();
+                    const currentMonth = new Date().getMonth(); // 0-indexed
 
-                    while (currentDate >= startDate) {
-                      months.push(new Date(currentDate));
-                      currentDate = subMonths(currentDate, 1);
+                    const startMonth = 0; // Jan
+                    const endMonth = archiveYear === currentYear ? currentMonth : 11; // Dec
+
+                    for (let m = endMonth; m >= startMonth; m--) {
+                      months.push(new Date(archiveYear, m, 1));
                     }
 
                     return months.map((date, i) => {
@@ -928,7 +945,73 @@ export default function Reports() {
                             </p>
                           </div>
                           <Button variant="outline" size="sm" onClick={() => {
-                            const archiveData = monthSubmissions.map(s => {
+                            toast.info(language === 'ar' ? 'جاري تحضير التقرير...' : 'Preparing report...');
+
+                            const allReportData = monthSubmissions.map(s => {
+                              const volunteer = profilesMap.get(s.volunteer_id);
+                              const activityType = activityTypesMap.get(s.activity_type_id);
+                              const committeeId = s.committee_id || volunteer?.committee_id;
+                              const committee = committeeId ? committeesMap.get(committeeId) : undefined;
+
+                              let locationStr = s.location || 'branch';
+                              if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
+                              else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
+
+                              const vestStatus = (s.location === 'home' || s.location === 'remote')
+                                ? (language === 'ar' ? 'من البيت' : 'From Home')
+                                : (s.location === 'branch'
+                                  ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
+                                  : '');
+
+                              let participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
+                              let participantName = language === 'ar' ? 'غير معروف' : 'Unknown';
+                              let participantPhone = '';
+
+                              if (s.participant_type === 'guest' || s.guest_name) {
+                                participantType = language === 'ar' ? 'ضيف' : 'Guest';
+                                participantName = s.guest_name || participantName;
+                                participantPhone = s.guest_phone || '';
+                              } else if (s.participant_type === 'trainer' || s.trainer_id) {
+                                participantType = language === 'ar' ? 'مدرب' : 'Trainer';
+                                const linkedTrainer = s.trainer_id ? trainers.find(t => t.id === s.trainer_id) : null;
+                                if (linkedTrainer) {
+                                  participantName = language === 'ar' ? linkedTrainer.name_ar : linkedTrainer.name_en;
+                                  participantPhone = linkedTrainer.phone || '';
+                                } else if (volunteer) {
+                                  const trainerByUserId = trainers.find(t => t.user_id === s.volunteer_id);
+                                  if (trainerByUserId) {
+                                    participantName = language === 'ar' ? trainerByUserId.name_ar : trainerByUserId.name_en;
+                                    participantPhone = trainerByUserId.phone || '';
+                                  } else {
+                                    participantName = (language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName);
+                                    participantPhone = volunteer.phone || '';
+                                  }
+                                }
+                              } else if (volunteer) {
+                                participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
+                                participantName = (language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName);
+                                participantPhone = volunteer.phone || '';
+                              } else {
+                                participantType = language === 'ar' ? 'غير معروف' : 'Unknown';
+                              }
+
+                              return {
+                                [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+                                [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+                                [language === 'ar' ? 'نوع المشارك' : 'Participant Type']: participantType,
+                                [language === 'ar' ? 'اسم المشارك' : 'Participant Name']: participantName,
+                                [language === 'ar' ? 'رقم الهاتف' : 'Phone']: participantPhone ? `'${participantPhone}'` : '',
+                                [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
+                                [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
+                                [language === 'ar' ? 'الأثر' : 'Impact']: s.points_awarded || 0,
+                                [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+                                [language === 'ar' ? 'الملاحظات' : 'Notes']: s.description || '',
+                                [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
+                              };
+                            });
+
+                            const volunteerSubmissions = monthSubmissions.filter(s => profilesMap.has(s.volunteer_id));
+                            const volReportData = volunteerSubmissions.map(s => {
                               const volunteer = profilesMap.get(s.volunteer_id);
                               const activityType = activityTypesMap.get(s.activity_type_id);
                               const committeeId = volunteer?.committee_id || s.committee_id;
@@ -947,8 +1030,8 @@ export default function Reports() {
                               return {
                                 [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
                                 [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
-                                [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: volunteer?.full_name || '',
-                                [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone || '',
+                                [language === 'ar' ? 'اسم المتطوع' : 'Volunteer Name']: (language === 'ar' && volunteer?.full_name_ar) ? volunteer.full_name_ar : (volunteer?.full_name || ''),
+                                [language === 'ar' ? 'رقم الهاتف' : 'Phone']: volunteer?.phone ? `'${volunteer.phone}'` : '',
                                 [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
                                 [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
                                 [language === 'ar' ? 'الأثر' : 'Impact']: s.points_awarded || 0,
@@ -957,7 +1040,34 @@ export default function Reports() {
                                 [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
                               };
                             });
-                            downloadCSV(archiveData, `archive_report_${format(date, 'yyyy_MM')}`);
+
+                            if (allReportData.length === 0) {
+                              toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
+                              return;
+                            }
+
+                            try {
+                              const wb = utils.book_new();
+
+                              const wsAll = utils.json_to_sheet(allReportData);
+                              const wsVol = utils.json_to_sheet(volReportData);
+
+                              const colWidthsAll = Object.keys(allReportData[0] || {}).map(k => ({ wch: 20 }));
+                              wsAll['!cols'] = colWidthsAll;
+
+                              const colWidthsVol = Object.keys(volReportData[0] || {}).map(k => ({ wch: 20 }));
+                              wsVol['!cols'] = colWidthsVol;
+
+                              utils.book_append_sheet(wb, wsAll, language === 'ar' ? 'مشاركات كلي' : 'All Participations');
+                              utils.book_append_sheet(wb, wsVol, language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations');
+
+                              const fileName = `archive_report_${format(date, 'yyyy_MM')}.xlsx`;
+                              writeFile(wb, fileName);
+                              toast.success(language === 'ar' ? 'تم تصدير التقرير بنجاح' : 'Report exported successfully');
+                            } catch (err) {
+                              console.error(err);
+                              toast.error(language === 'ar' ? 'حدث خطأ أثناء التصدير' : 'An error occurred during export');
+                            }
                           }}>
                             <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                             {isRTL ? 'تحميل' : 'Download'}
