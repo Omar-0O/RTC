@@ -243,11 +243,15 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     }
   };
 
-  // Calculate total impact (positive points only) from activities if available, falling back to profile total_points (which might be net)
-  // Ideally, we should recalculate this from all activities to be accurate "Impact"
-  const totalImpact = activities.reduce((sum, a) => sum + Math.max(0, a.points), 0);
+  const currentMonthActivities = activities.filter(a => {
+    const activityDate = new Date(a.submitted_at);
+    const now = new Date();
+    return activityDate.getMonth() === now.getMonth() && activityDate.getFullYear() === now.getFullYear();
+  });
 
-  // Show monthly points if viewing own profile, otherwise total impact
+  const totalImpact = currentMonthActivities.reduce((sum, a) => sum + Math.max(0, a.points), 0);
+
+  // Show monthly points consistently
   const points = (!isViewOnly) ? monthlyPoints : totalImpact;
 
   // Level progress is now manual, so we don't calculate it from points

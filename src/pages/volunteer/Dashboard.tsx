@@ -81,6 +81,9 @@ export default function VolunteerDashboard() {
     setLoading(true);
     try {
       console.log('Fetching dashboard data for user:', user.id);
+      const now = new Date();
+      const startOfMonthStr = startOfMonth(now).toISOString();
+
       const [submissionsRes, badgesRes, allPointsRes] = await Promise.all([
         supabase
           .from('activity_submissions')
@@ -103,7 +106,8 @@ export default function VolunteerDashboard() {
           .from('activity_submissions')
           .select('points_awarded')
           .eq('volunteer_id', user.id)
-          .is('fine_type_id', null), // Exclude fines
+          .is('fine_type_id', null) // Exclude fines
+          .gte('submitted_at', startOfMonthStr),
       ]);
 
       if (submissionsRes.data) {
@@ -125,8 +129,6 @@ export default function VolunteerDashboard() {
         setImpact(totalImpact);
       }
 
-      const now = new Date();
-      const startOfMonthStr = startOfMonth(now).toISOString();
       const { count: monthlyCount } = await supabase
         .from('activity_submissions')
         .select('id', { count: 'exact', head: true })
