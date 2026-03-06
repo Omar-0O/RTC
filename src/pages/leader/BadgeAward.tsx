@@ -71,7 +71,7 @@ interface BadgeAwardProps {
 
 export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardProps) {
     const { isRTL } = useLanguage();
-    const { profile: authProfile } = useAuth();
+    const { profile: authProfile, hasRole } = useAuth();
     const [searchQuery, setSearchQuery] = useState('');
     const [isAwardDialogOpen, setIsAwardDialogOpen] = useState(false);
     const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
@@ -94,12 +94,19 @@ export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardP
 
         setLoading(true);
         try {
+            let profilesQuery = supabase
+                .from('profiles')
+                .select('id, full_name, full_name_ar, email, avatar_url, total_points, activities_count')
+                .order('full_name');
+
+            // If not admin/HR/supervisor, restrict to committee
+            if (!hasRole('admin') && !hasRole('head_hr') && !hasRole('hr') && !hasRole('supervisor')) {
+                profilesQuery = profilesQuery.eq('committee_id', committeeId);
+            }
+
             const [badgesRes, membersRes] = await Promise.all([
                 supabase.from('badges').select('*').order('created_at', { ascending: false }),
-                supabase.from('profiles')
-                    .select('id, full_name, full_name_ar, email, avatar_url, total_points, activities_count')
-                    .eq('committee_id', committeeId)
-                    .order('full_name'),
+                profilesQuery,
             ]);
 
             if (badgesRes.error) throw badgesRes.error;
@@ -307,7 +314,7 @@ export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardP
                         </DialogDescription>
                     </DialogHeader>
                     <div className="py-4">
-                        <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+                        <Popover open={openCombobox} onOpenChange={setOpenCombobox} modal={true}>
                             <PopoverTrigger asChild>
                                 <Button
                                     variant="outline"

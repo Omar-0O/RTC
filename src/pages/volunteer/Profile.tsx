@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
-import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X, MessageSquare, Plus, AlertCircle, Pencil, Trash2 } from 'lucide-react';
+import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X, MessageSquare, Plus, AlertCircle, Pencil, Trash2, Star, Trophy, Medal, Crown, Heart, Zap, Target } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -57,6 +57,22 @@ type ActivitySubmission = {
   submitted_at: string;
   proof_url: string | null;
   is_paid?: boolean; // Added is_paid
+};
+
+const BADGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  award: Award,
+  star: Star,
+  trophy: Trophy,
+  medal: Medal,
+  crown: Crown,
+  heart: Heart,
+  zap: Zap,
+  target: Target,
+};
+
+const getBadgeIcon = (iconName: string) => {
+  const IconComponent = BADGE_ICONS[iconName] || Award;
+  return <IconComponent className="h-8 w-8" />;
 };
 
 
@@ -930,6 +946,47 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="badges">
+          <Card>
+            <CardHeader>
+              <CardTitle>{t('profile.badges')}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : badges.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  {isRTL ? 'لم تحصل على شارات بعد. استمر في التطوع!' : 'No badges yet. Keep volunteering!'}
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {badges.map((userBadge) => {
+                    return (
+                      <div
+                        key={userBadge.id}
+                        className="flex flex-col items-center justify-center p-4 rounded-xl border bg-card transition-all hover:bg-muted/50 text-center gap-3"
+                      >
+                        <div
+                          className="w-16 h-16 rounded-full flex items-center justify-center shadow-sm"
+                          style={{ backgroundColor: userBadge.badge.color + '20', color: userBadge.badge.color }}
+                        >
+                          {getBadgeIcon(userBadge.badge.icon)}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="font-semibold text-sm">{isRTL ? userBadge.badge.name_ar : userBadge.badge.name}</p>
+                          <p className="text-xs text-muted-foreground">{formatDate(userBadge.earned_at)}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
