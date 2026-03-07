@@ -190,7 +190,7 @@ export default function VolunteerDashboard() {
               <p className="text-sm md:text-base font-medium flex items-center gap-2" style={{ fontFamily: '"Amiri", serif' }}>
                 <span className="text-lg">🌱</span>
                 "وَمَنْ تَطَوَّعَ خَيْرًا فَإِنَّ اللَّهَ شَاكِرٌ عَلِيمٌ"
-                <span className="text-lg">🤍</span>
+                <span className="text-lg">⭐</span>
               </p>
             </div>
           </div>
