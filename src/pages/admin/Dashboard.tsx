@@ -233,9 +233,11 @@ export default function AdminDashboard() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('admin.dashboard')}</h1>
-        <div className="mt-2 mb-3 inline-block bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 px-3 py-1.5 rounded-xl shadow-sm">
-          <p className="text-sm md:text-base font-medium text-primary" style={{ fontFamily: '"Amiri", serif' }}>
+        <div className="mt-2 mb-3 inline-block bg-primary text-primary-foreground px-4 py-1.5 rounded-xl shadow-sm">
+          <p className="text-sm md:text-base font-medium flex items-center gap-2" style={{ fontFamily: '"Amiri", serif' }}>
+            <span className="text-lg">🌱</span>
             "وَمَنْ تَطَوَّعَ خَيْرًا فَإِنَّ اللَّهَ شَاكِرٌ عَلِيمٌ"
+            <span className="text-lg">🤍</span>
           </p>
         </div>
         <p className="text-sm sm:text-base text-muted-foreground">{t('admin.overview')}</p>

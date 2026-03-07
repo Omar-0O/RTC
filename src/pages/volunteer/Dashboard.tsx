@@ -186,15 +186,13 @@ export default function VolunteerDashboard() {
             <h1 className="text-xl sm:text-2xl font-bold truncate flex items-center gap-2">
               {t('dashboard.welcome')}, {(isRTL ? (profile?.full_name_ar || profile?.full_name) : profile?.full_name)?.split(' ')[0] || (isRTL ? 'متطوع' : 'Volunteer')}! 👋
             </h1>
-            <div className="mt-2 mb-2 inline-block bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 px-3 py-1.5 rounded-xl shadow-sm">
-              <p className="text-sm md:text-base font-medium text-primary" style={{ fontFamily: '"Amiri", serif' }}>
+            <div className="mt-2 mb-2 inline-block bg-primary text-primary-foreground px-4 py-1.5 rounded-xl shadow-sm">
+              <p className="text-sm md:text-base font-medium flex items-center gap-2" style={{ fontFamily: '"Amiri", serif' }}>
+                <span className="text-lg">🌱</span>
                 "وَمَنْ تَطَوَّعَ خَيْرًا فَإِنَّ اللَّهَ شَاكِرٌ عَلِيمٌ"
+                <span className="text-lg">🤍</span>
               </p>
             </div>
-            <p className="text-sm text-muted-foreground font-medium flex items-center gap-1.5 mt-1">
-              <Star className="h-4 w-4 text-amber-500 fill-current" />
-              {t('dashboard.totalPoints')}: <span className="text-foreground">{impact}</span>
-            </p>
           </div>
         </div>
         <Button asChild className="w-full sm:w-auto sm:self-start">
