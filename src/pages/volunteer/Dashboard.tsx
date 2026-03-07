@@ -186,12 +186,15 @@ export default function VolunteerDashboard() {
             <h1 className="text-xl sm:text-2xl font-bold truncate flex items-center gap-2">
               {t('dashboard.welcome')}, {(isRTL ? (profile?.full_name_ar || profile?.full_name) : profile?.full_name)?.split(' ')[0] || (isRTL ? 'متطوع' : 'Volunteer')}! 👋
             </h1>
-            <div className="mt-2 mb-2 inline-block bg-primary text-primary-foreground px-4 py-1.5 rounded-xl shadow-sm">
-              <p className="text-sm md:text-base font-medium flex items-center gap-2" style={{ fontFamily: '"Amiri", serif' }}>
-                <span className="text-lg">🌱</span>
-                "وَمَنْ تَطَوَّعَ خَيْرًا فَإِنَّ اللَّهَ شَاكِرٌ عَلِيمٌ"
-                <span className="text-lg">⭐🤍</span>
+            <div className="mt-2 mb-2 inline-flex items-center gap-3 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground px-5 py-2 rounded-2xl shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-transform duration-300 border border-primary-foreground/10">
+              <span className="text-xl">🌱</span>
+              <p className="text-base md:text-lg font-medium leading-normal" style={{ fontFamily: '"Amiri", serif' }}>
+                ﴾ وَمَنْ تَطَوَّعَ خَيْرًا فَإِنَّ اللَّهَ شَاكِرٌ عَلِيمٌ ﴿
               </p>
+              <div className="flex gap-1 text-xl">
+                <span>⭐</span>
+                <span className="animate-pulse">🤍</span>
+              </div>
             </div>
           </div>
         </div>
