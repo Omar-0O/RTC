@@ -592,86 +592,88 @@ export default function ActivityManagement() {
 
             {/* Desktop View (Table) */}
             <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-start">{isRTL ? 'نوع المهمة' : 'Task Type Name'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'اللجنة' : 'Committee'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'الأثر' : 'Impact'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'النوع' : 'Mode'}</TableHead>
-                    <TableHead className="max-w-[200px] text-start">{isRTL ? 'الوصف' : 'Description'}</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredActivities.length === 0 ? (
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                        {isRTL ? 'لا توجد مهام' : 'No tasks found'}
-                      </TableCell>
+                      <TableHead className="text-start whitespace-nowrap">{isRTL ? 'نوع المهمة' : 'Task Type Name'}</TableHead>
+                      <TableHead className="text-start whitespace-nowrap">{isRTL ? 'اللجنة' : 'Committee'}</TableHead>
+                      <TableHead className="text-start whitespace-nowrap">{isRTL ? 'الأثر' : 'Impact'}</TableHead>
+                      <TableHead className="text-start whitespace-nowrap">{isRTL ? 'النوع' : 'Mode'}</TableHead>
+                      <TableHead className="max-w-[200px] text-start whitespace-nowrap">{isRTL ? 'الوصف' : 'Description'}</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
-                  ) : (
-                    filteredActivities.map((activity) => (
-                      <TableRow key={activity.id}>
-                        <TableCell className="font-medium">
-                          {isRTL ? activity.name_ar : activity.name}
-                        </TableCell>
-                        <TableCell>
-                          <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
-                            {getCommitteeName(activity)}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-bold text-primary">{activity.points} {isRTL ? 'أثر' : 'pts'}</span>
-                            {(activity.points_with_vest != null && activity.points_without_vest != null) && (
-                              <span className="text-[10px] text-muted-foreground">
-                                With Vest: {activity.points_with_vest} | No Vest: {activity.points_without_vest}
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${activity.mode === 'group' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
-                            }`}>
-                            {activity.mode === 'group' ? (isRTL ? 'جماعي' : 'Group') : (isRTL ? 'فردي' : 'Individual')}
-                          </span>
-                        </TableCell>
-                        <TableCell className="max-w-[200px]">
-                          <span className="text-sm text-muted-foreground truncate block">
-                            {isRTL ? activity.description_ar : activity.description}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditDialog(activity)}>
-                                <Pencil className="mr-2 h-4 w-4" />
-                                {isRTL ? 'تعديل' : 'Edit'}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => {
-                                  setSelectedActivity(activity);
-                                  setIsDeleteDialogOpen(true);
-                                }}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                {isRTL ? 'حذف' : 'Delete'}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredActivities.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          {isRTL ? 'لا توجد مهام' : 'No tasks found'}
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      filteredActivities.map((activity) => (
+                        <TableRow key={activity.id}>
+                          <TableCell className="font-medium">
+                            {isRTL ? activity.name_ar : activity.name}
+                          </TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium">
+                              {getCommitteeName(activity)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-bold text-primary">{activity.points} {isRTL ? 'أثر' : 'pts'}</span>
+                              {(activity.points_with_vest != null && activity.points_without_vest != null) && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  With Vest: {activity.points_with_vest} | No Vest: {activity.points_without_vest}
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${activity.mode === 'group' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                              }`}>
+                              {activity.mode === 'group' ? (isRTL ? 'جماعي' : 'Group') : (isRTL ? 'فردي' : 'Individual')}
+                            </span>
+                          </TableCell>
+                          <TableCell className="max-w-[200px]">
+                            <span className="text-sm text-muted-foreground truncate block">
+                              {isRTL ? activity.description_ar : activity.description}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEditDialog(activity)}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  {isRTL ? 'تعديل' : 'Edit'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => {
+                                    setSelectedActivity(activity);
+                                    setIsDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  {isRTL ? 'حذف' : 'Delete'}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </>
         </CardContent>

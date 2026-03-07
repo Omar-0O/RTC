@@ -2687,19 +2687,19 @@ export default function CourseManagement() {
 
                             {organizers.length > 0 && (
                                 <div className="border rounded-md mt-3 overflow-x-auto">
-                                    <Table className="min-w-[280px]">
+                                    <Table className="minw-[280px]">
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead className="text-xs sm:text-sm">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                <TableHead className="text-xs sm:text-sm">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
-                                                <TableHead className="w-10"></TableHead>
+                                                <TableHead className="text-xs sm:text-sm whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                <TableHead className="text-xs sm:text-sm whitespace-nowrap">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                                <TableHead className="w-10 whitespace-nowrap"></TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {organizers.map((org, idx) => (
                                                 <TableRow key={idx}>
-                                                    <TableCell className="text-xs sm:text-sm truncate max-w-[120px]">{org.name}</TableCell>
-                                                    <TableCell className="text-xs sm:text-sm">{org.phone || '-'}</TableCell>
+                                                    <TableCell className="text-xs sm:text-sm truncate max-w-[120px] whitespace-nowrap">{org.name}</TableCell>
+                                                    <TableCell className="text-xs sm:text-sm whitespace-nowrap">{org.phone || '-'}</TableCell>
                                                     <TableCell>
                                                         <Button variant="ghost" size="sm" onClick={() => removeOrganizer(idx)}>
                                                             <Trash2 className="w-4 h-4 text-destructive" />
@@ -2758,16 +2758,16 @@ export default function CourseManagement() {
                                     <Table className="min-w-[280px]">
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead className="text-xs sm:text-sm">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                <TableHead className="text-xs sm:text-sm">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
-                                                <TableHead className="w-10"></TableHead>
+                                                <TableHead className="text-xs sm:text-sm whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                <TableHead className="text-xs sm:text-sm whitespace-nowrap">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                                <TableHead className="w-10 whitespace-nowrap"></TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {marketers.map((mkt, idx) => (
                                                 <TableRow key={idx}>
-                                                    <TableCell className="text-xs sm:text-sm truncate max-w-[120px]">{mkt.name}</TableCell>
-                                                    <TableCell className="text-xs sm:text-sm">{mkt.phone || '-'}</TableCell>
+                                                    <TableCell className="text-xs sm:text-sm truncate max-w-[120px] whitespace-nowrap">{mkt.name}</TableCell>
+                                                    <TableCell className="text-xs sm:text-sm whitespace-nowrap">{mkt.phone || '-'}</TableCell>
                                                     <TableCell>
                                                         <Button variant="ghost" size="sm" onClick={() => removeMarketer(idx)}>
                                                             <Trash2 className="w-4 h-4 text-destructive" />
@@ -2914,16 +2914,16 @@ export default function CourseManagement() {
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                <TableHead>{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
-                                                <TableHead>{isRTL ? 'الرقم القومي' : 'National ID'}</TableHead>
-                                                <TableHead className="w-24"></TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم القومي' : 'National ID'}</TableHead>
+                                                <TableHead className="w-24 whitespace-nowrap"></TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {beneficiaries.map(b => (
                                                 <TableRow key={b.id}>
-                                                    <TableCell>
+                                                    <TableCell className="whitespace-nowrap">
                                                         {editingBeneficiary?.id === b.id ? (
                                                             <Input
                                                                 value={editingBeneficiary.name}
@@ -2934,7 +2934,7 @@ export default function CourseManagement() {
                                                             b.name
                                                         )}
                                                     </TableCell>
-                                                    <TableCell>
+                                                    <TableCell className="whitespace-nowrap">
                                                         {editingBeneficiary?.id === b.id ? (
                                                             <Input
                                                                 value={editingBeneficiary.phone}
@@ -2950,7 +2950,7 @@ export default function CourseManagement() {
                                                             b.phone
                                                         )}
                                                     </TableCell>
-                                                    <TableCell>
+                                                    <TableCell className="whitespace-nowrap">
                                                         {editingBeneficiary?.id === b.id ? (
                                                             <Input
                                                                 value={editingBeneficiary.national_id || ''}
@@ -2961,7 +2961,7 @@ export default function CourseManagement() {
                                                             b.national_id || '-'
                                                         )}
                                                     </TableCell>
-                                                    <TableCell>
+                                                    <TableCell className="whitespace-nowrap">
                                                         {editingBeneficiary?.id === b.id ? (
                                                             <div className="flex gap-1">
                                                                 <Button size="sm" variant="ghost" onClick={updateBeneficiary}>
@@ -3083,72 +3083,74 @@ export default function CourseManagement() {
                             ))}</TabsContent>
 
                         <TabsContent value="sheet" className="py-4">
-                            <div className="border rounded-lg overflow-x-auto">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                            <TableHead>{isRTL ? 'الرقم' : 'Phone'}</TableHead>
-                                            {lectures.map(l => (
-                                                <TableHead key={l.id} className="text-center w-12">
-                                                    L{l.lecture_number}
-                                                </TableHead>
-                                            ))}
-                                            <TableHead className="text-center">{isRTL ? 'حضر' : 'Attended'}</TableHead>
-                                            <TableHead className="text-center">{isRTL ? 'غاب' : 'Missed'}</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {beneficiaries.map(beneficiary => {
-                                            const studentAttendance = lectures.map(l =>
-                                                attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
-                                            );
-                                            const attendedCount = studentAttendance.filter(a => a && a.status === 'present').length;
-                                            const completedLectures = lectures.filter(l => l.status === 'completed');
-                                            const missedCount = completedLectures.filter(l =>
-                                                !attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
-                                            ).length;
-
-                                            return (
-                                                <TableRow key={beneficiary.id}>
-                                                    <TableCell className="font-medium">{beneficiary.name}</TableCell>
-                                                    <TableCell>{beneficiary.phone}</TableCell>
-                                                    {lectures.map((lecture, idx) => {
-                                                        const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone);
-                                                        const isCancelled = lecture.status === 'cancelled';
-                                                        const isCompleted = lecture.status === 'completed';
-                                                        const isOpen = isLectureOpen(lecture.date);
-                                                        const canMarkAttendance = isCompleted || isOpen;
-                                                        return (
-                                                            <TableCell key={idx} className="text-center">
-                                                                {isCancelled ? (
-                                                                    <span className="text-muted-foreground text-xs">-</span>
-                                                                ) : canMarkAttendance ? (
-                                                                    <Checkbox
-                                                                        checked={isPresent}
-                                                                        onCheckedChange={() => toggleBeneficiaryAttendance(lecture.id, beneficiary)}
-                                                                        className="mx-auto"
-                                                                    />
-                                                                ) : (
-                                                                    <span className="text-muted-foreground text-xs">-</span>
-                                                                )}
-                                                            </TableCell>
-                                                        );
-                                                    })}
-                                                    <TableCell className="text-center font-bold text-green-600">{attendedCount}</TableCell>
-                                                    <TableCell className="text-center font-bold text-red-600">{missedCount}</TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                        {beneficiaries.length === 0 && (
+                            <div className="border rounded-lg overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
                                             <TableRow>
-                                                <TableCell colSpan={lectures.length + 4} className="text-center py-8 text-muted-foreground">
-                                                    {isRTL ? 'لا يوجد مستفيدين - أضف مستفيدين من تبويب المستفيدين أولاً' : 'No beneficiaries - Add beneficiaries from the Beneficiaries tab first'}
-                                                </TableCell>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                                {lectures.map(l => (
+                                                    <TableHead key={l.id} className="text-center w-12 whitespace-nowrap">
+                                                        L{l.lecture_number}
+                                                    </TableHead>
+                                                ))}
+                                                <TableHead className="text-center whitespace-nowrap">{isRTL ? 'حضر' : 'Attended'}</TableHead>
+                                                <TableHead className="text-center whitespace-nowrap">{isRTL ? 'غاب' : 'Missed'}</TableHead>
                                             </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {beneficiaries.map(beneficiary => {
+                                                const studentAttendance = lectures.map(l =>
+                                                    attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
+                                                );
+                                                const attendedCount = studentAttendance.filter(a => a && a.status === 'present').length;
+                                                const completedLectures = lectures.filter(l => l.status === 'completed');
+                                                const missedCount = completedLectures.filter(l =>
+                                                    !attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
+                                                ).length;
+
+                                                return (
+                                                    <TableRow key={beneficiary.id}>
+                                                        <TableCell className="font-medium whitespace-nowrap">{beneficiary.name}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">{beneficiary.phone}</TableCell>
+                                                        {lectures.map((lecture, idx) => {
+                                                            const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone);
+                                                            const isCancelled = lecture.status === 'cancelled';
+                                                            const isCompleted = lecture.status === 'completed';
+                                                            const isOpen = isLectureOpen(lecture.date);
+                                                            const canMarkAttendance = isCompleted || isOpen;
+                                                            return (
+                                                                <TableCell key={idx} className="text-center">
+                                                                    {isCancelled ? (
+                                                                        <span className="text-muted-foreground text-xs">-</span>
+                                                                    ) : canMarkAttendance ? (
+                                                                        <Checkbox
+                                                                            checked={isPresent}
+                                                                            onCheckedChange={() => toggleBeneficiaryAttendance(lecture.id, beneficiary)}
+                                                                            className="mx-auto"
+                                                                        />
+                                                                    ) : (
+                                                                        <span className="text-muted-foreground text-xs">-</span>
+                                                                    )}
+                                                                </TableCell>
+                                                            );
+                                                        })}
+                                                        <TableCell className="text-center font-bold text-green-600 whitespace-nowrap">{attendedCount}</TableCell>
+                                                        <TableCell className="text-center font-bold text-red-600 whitespace-nowrap">{missedCount}</TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                            {beneficiaries.length === 0 && (
+                                                <TableRow>
+                                                    <TableCell colSpan={lectures.length + 4} className="text-center py-8 text-muted-foreground whitespace-nowrap">
+                                                        {isRTL ? 'لا يوجد مستفيدين - أضف مستفيدين من تبويب المستفيدين أولاً' : 'No beneficiaries - Add beneficiaries from the Beneficiaries tab first'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             </div>
                         </TabsContent>
                         {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_marketing')) && (
@@ -3196,36 +3198,38 @@ export default function CourseManagement() {
                                                 </PopoverContent>
                                             </Popover>
 
-                                            <div className="border rounded-lg">
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                            <TableHead>{isRTL ? 'الرقم' : 'Phone'}</TableHead>
-                                                            <TableHead className="w-16"></TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {detailsOrganizers.map(org => (
-                                                            <TableRow key={org.id}>
-                                                                <TableCell>{org.name}</TableCell>
-                                                                <TableCell>{org.phone}</TableCell>
-                                                                <TableCell>
-                                                                    <Button size="sm" variant="ghost" onClick={() => handleRemoveOrganizerFromDetails(org.id!)}>
-                                                                        <Trash2 className="w-4 h-4 text-destructive" />
-                                                                    </Button>
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                        {detailsOrganizers.length === 0 && (
+                                            <div className="border rounded-lg overflow-hidden">
+                                                <div className="overflow-x-auto">
+                                                    <Table>
+                                                        <TableHeader>
                                                             <TableRow>
-                                                                <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">
-                                                                    {isRTL ? 'لا يوجد منظمين' : 'No organizers'}
-                                                                </TableCell>
+                                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                                                <TableHead className="w-16 whitespace-nowrap"></TableHead>
                                                             </TableRow>
-                                                        )}
-                                                    </TableBody>
-                                                </Table>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {detailsOrganizers.map(org => (
+                                                                <TableRow key={org.id}>
+                                                                    <TableCell className="whitespace-nowrap">{org.name}</TableCell>
+                                                                    <TableCell className="whitespace-nowrap">{org.phone}</TableCell>
+                                                                    <TableCell className="whitespace-nowrap">
+                                                                        <Button size="sm" variant="ghost" onClick={() => handleRemoveOrganizerFromDetails(org.id!)}>
+                                                                            <Trash2 className="w-4 h-4 text-destructive" />
+                                                                        </Button>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                            {detailsOrganizers.length === 0 && (
+                                                                <TableRow>
+                                                                    <TableCell colSpan={3} className="text-center py-4 text-muted-foreground whitespace-nowrap">
+                                                                        {isRTL ? 'لا يوجد منظمين' : 'No organizers'}
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            )}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
                                             </div>
                                         </div>
                                     </CardContent>
@@ -3380,104 +3384,106 @@ export default function CourseManagement() {
                             </div>
                         ) : (
                             <div className="border rounded-md overflow-hidden">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="w-[60px] text-center">#</TableHead>
-                                            <TableHead>{isRTL ? 'تاريخ النشر' : 'Date'}</TableHead>
-                                            <TableHead>{isRTL ? 'البوستر' : 'Poster'}</TableHead>
-                                            <TableHead>{isRTL ? 'المحتوى' : 'Content'}</TableHead>
-                                            <TableHead>{isRTL ? 'آخر تحديث' : 'Updated By'}</TableHead>
-                                            <TableHead className="w-[80px]"></TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {courseAds.map((ad) => {
-                                            // Calculate max date for this ad (interview date or first lecture)
-                                            const maxDate = selectedMarketingCourse?.has_interview && selectedMarketingCourse?.interview_date
-                                                ? selectedMarketingCourse.interview_date
-                                                : selectedMarketingCourse?.start_date || '';
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="w-[60px] text-center whitespace-nowrap">#</TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'تاريخ النشر' : 'Date'}</TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'البوستر' : 'Poster'}</TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'المحتوى' : 'Content'}</TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'آخر تحديث' : 'Updated By'}</TableHead>
+                                                <TableHead className="w-[80px] whitespace-nowrap"></TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {courseAds.map((ad) => {
+                                                // Calculate max date for this ad (interview date or first lecture)
+                                                const maxDate = selectedMarketingCourse?.has_interview && selectedMarketingCourse?.interview_date
+                                                    ? selectedMarketingCourse.interview_date
+                                                    : selectedMarketingCourse?.start_date || '';
 
-                                            return (
-                                                <TableRow key={ad.id}>
-                                                    <TableCell className="text-center font-bold">{ad.ad_number}</TableCell>
-                                                    <TableCell>
-                                                        <Input
-                                                            type="date"
-                                                            value={ad.ad_date}
-                                                            max={maxDate}
-                                                            onChange={(e) => handleUpdateAdDate(ad.id, e.target.value)}
-                                                            className="w-[150px]"
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Button
-                                                            variant={ad.poster_done ? "default" : "outline"}
-                                                            size="sm"
-                                                            className={ad.poster_done ? "bg-green-600 hover:bg-green-700" : ""}
-                                                            onClick={() => handleUpdateAd(ad.id, { poster_done: !ad.poster_done })}
-                                                        >
-                                                            {ad.poster_done ? (
-                                                                <><Check className="h-4 w-4 mr-1" /> {isRTL ? 'جاهز' : 'Done'}</>
-                                                            ) : (
-                                                                <>{isRTL ? 'غير جاهز' : 'Pending'}</>
+                                                return (
+                                                    <TableRow key={ad.id}>
+                                                        <TableCell className="text-center font-bold whitespace-nowrap">{ad.ad_number}</TableCell>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            <Input
+                                                                type="date"
+                                                                value={ad.ad_date}
+                                                                max={maxDate}
+                                                                onChange={(e) => handleUpdateAdDate(ad.id, e.target.value)}
+                                                                className="w-[150px]"
+                                                            />
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            <Button
+                                                                variant={ad.poster_done ? "default" : "outline"}
+                                                                size="sm"
+                                                                className={ad.poster_done ? "bg-green-600 hover:bg-green-700" : ""}
+                                                                onClick={() => handleUpdateAd(ad.id, { poster_done: !ad.poster_done })}
+                                                            >
+                                                                {ad.poster_done ? (
+                                                                    <><Check className="h-4 w-4 mr-1" /> {isRTL ? 'جاهز' : 'Done'}</>
+                                                                ) : (
+                                                                    <>{isRTL ? 'غير جاهز' : 'Pending'}</>
+                                                                )}
+                                                            </Button>
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            <Button
+                                                                variant={ad.content_done ? "default" : "outline"}
+                                                                size="sm"
+                                                                className={ad.content_done ? "bg-green-600 hover:bg-green-700" : ""}
+                                                                onClick={() => handleUpdateAd(ad.id, { content_done: !ad.content_done })}
+                                                            >
+                                                                {ad.content_done ? (
+                                                                    <><Check className="h-4 w-4 mr-1" /> {isRTL ? 'جاهز' : 'Done'}</>
+                                                                ) : (
+                                                                    <>{isRTL ? 'غير جاهز' : 'Pending'}</>
+                                                                )}
+                                                            </Button>
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            {ad.updater && (
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    {isRTL ? ad.updater.full_name_ar : ad.updater.full_name}
+                                                                </span>
                                                             )}
-                                                        </Button>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <Button
-                                                            variant={ad.content_done ? "default" : "outline"}
-                                                            size="sm"
-                                                            className={ad.content_done ? "bg-green-600 hover:bg-green-700" : ""}
-                                                            onClick={() => handleUpdateAd(ad.id, { content_done: !ad.content_done })}
-                                                        >
-                                                            {ad.content_done ? (
-                                                                <><Check className="h-4 w-4 mr-1" /> {isRTL ? 'جاهز' : 'Done'}</>
-                                                            ) : (
-                                                                <>{isRTL ? 'غير جاهز' : 'Pending'}</>
-                                                            )}
-                                                        </Button>
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {ad.updater && (
-                                                            <span className="text-xs text-muted-foreground">
-                                                                {isRTL ? ad.updater.full_name_ar : ad.updater.full_name}
-                                                            </span>
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        <AlertDialog>
-                                                            <AlertDialogTrigger asChild>
-                                                                <Button variant="ghost" size="sm">
-                                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                                </Button>
-                                                            </AlertDialogTrigger>
-                                                            <AlertDialogContent>
-                                                                <AlertDialogHeader>
-                                                                    <AlertDialogTitle>{isRTL ? 'حذف الإعلان' : 'Delete Ad'}</AlertDialogTitle>
-                                                                    <AlertDialogDescription>
-                                                                        {isRTL
-                                                                            ? `هل أنت متأكد من حذف الإعلان رقم ${ad.ad_number}؟`
-                                                                            : `Are you sure you want to delete ad #${ad.ad_number}?`}
-                                                                    </AlertDialogDescription>
-                                                                </AlertDialogHeader>
-                                                                <AlertDialogFooter>
-                                                                    <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
-                                                                    <AlertDialogAction
-                                                                        onClick={() => handleDeleteAd(ad.id)}
-                                                                        className="bg-destructive hover:bg-destructive/90"
-                                                                    >
-                                                                        {isRTL ? 'حذف' : 'Delete'}
-                                                                    </AlertDialogAction>
-                                                                </AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                    </TableBody>
-                                </Table>
+                                                        </TableCell>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            <AlertDialog>
+                                                                <AlertDialogTrigger asChild>
+                                                                    <Button variant="ghost" size="sm">
+                                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                                    </Button>
+                                                                </AlertDialogTrigger>
+                                                                <AlertDialogContent>
+                                                                    <AlertDialogHeader>
+                                                                        <AlertDialogTitle>{isRTL ? 'حذف الإعلان' : 'Delete Ad'}</AlertDialogTitle>
+                                                                        <AlertDialogDescription>
+                                                                            {isRTL
+                                                                                ? `هل أنت متأكد من حذف الإعلان رقم ${ad.ad_number}؟`
+                                                                                : `Are you sure you want to delete ad #${ad.ad_number}?`}
+                                                                        </AlertDialogDescription>
+                                                                    </AlertDialogHeader>
+                                                                    <AlertDialogFooter>
+                                                                        <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+                                                                        <AlertDialogAction
+                                                                            onClick={() => handleDeleteAd(ad.id)}
+                                                                            className="bg-destructive hover:bg-destructive/90"
+                                                                        >
+                                                                            {isRTL ? 'حذف' : 'Delete'}
+                                                                        </AlertDialogAction>
+                                                                    </AlertDialogFooter>
+                                                                </AlertDialogContent>
+                                                            </AlertDialog>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })}
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             </div>
                         )}
                     </div>

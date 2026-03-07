@@ -618,146 +618,148 @@ export default function QuranManagement() {
             </div>
 
             <div className="border rounded-lg overflow-hidden">
-                <Table>
-                    <TableHeader>
-                        <TableRow className="bg-muted/50">
-                            <TableHead className="font-semibold">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                            <TableHead className="font-semibold">{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
-                            <TableHead className="w-[40%] font-semibold">{isRTL ? 'التقدم' : 'Progress'}</TableHead>
-                            <TableHead className="font-semibold">{isRTL ? 'إضافة حفظ' : 'Quick Add'}</TableHead>
-                            <TableHead className="w-[50px]"></TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading ? (
-                            Array.from({ length: 5 }).map((_, i) => (
-                                <TableRow key={i}>
-                                    <TableCell><div className="h-10 w-40 bg-muted animate-pulse rounded" /></TableCell>
-                                    <TableCell><div className="h-6 w-28 bg-muted animate-pulse rounded" /></TableCell>
-                                    <TableCell><div className="h-8 w-full bg-muted animate-pulse rounded" /></TableCell>
-                                    <TableCell><div className="h-8 w-20 bg-muted animate-pulse rounded" /></TableCell>
-                                    <TableCell><div className="h-8 w-8 bg-muted animate-pulse rounded" /></TableCell>
-                                </TableRow>
-                            ))
-                        ) : filteredBeneficiaries.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={5} className="h-32">
-                                    <div className="flex flex-col items-center justify-center text-muted-foreground">
-                                        <div className="p-3 rounded-full bg-muted/50 mb-2">
-                                            <BookOpen className="h-8 w-8 opacity-30" />
-                                        </div>
-                                        <p className="font-medium">{isRTL ? 'لا توجد بيانات' : 'No data found'}</p>
-                                        <p className="text-sm">{searchQuery ? (isRTL ? 'جرب كلمة بحث مختلفة' : 'Try a different search term') : (isRTL ? 'أضف أول مستفيد' : 'Add your first beneficiary')}</p>
-                                    </div>
-                                </TableCell>
+                <div className="overflow-x-auto">
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="bg-muted/50">
+                                <TableHead className="font-semibold whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                <TableHead className="font-semibold whitespace-nowrap">{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
+                                <TableHead className="w-[40%] font-semibold min-w-[300px] whitespace-nowrap">{isRTL ? 'التقدم' : 'Progress'}</TableHead>
+                                <TableHead className="font-semibold whitespace-nowrap">{isRTL ? 'إضافة حفظ' : 'Quick Add'}</TableHead>
+                                <TableHead className="w-[50px] whitespace-nowrap"></TableHead>
                             </TableRow>
-                        ) : (
-                            filteredBeneficiaries.map((b) => (
-                                <TableRow key={b.id} className="hover:bg-muted/50 transition-colors">
-                                    <TableCell>
-                                        <div className="flex items-center gap-3">
-                                            <Avatar className="h-9 w-9 border">
-                                                <AvatarImage src={b.image_url || undefined} />
-                                                <AvatarFallback className="font-bold text-primary">{b.name_en?.slice(0, 2).toUpperCase() || 'NA'}</AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex flex-col">
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-base">{b.name_ar}</span>
-                                                    {b.beneficiary_type === 'child' && (
-                                                        <span className="text-[10px] bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-medium">
-                                                            {isRTL ? 'طفل' : 'Child'}
-                                                        </span>
-                                                    )}
-                                                    {b.gender && (
-                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${b.gender === 'male'
+                        </TableHeader>
+                        <TableBody>
+                            {loading ? (
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <TableRow key={i}>
+                                        <TableCell><div className="h-10 w-40 bg-muted animate-pulse rounded" /></TableCell>
+                                        <TableCell><div className="h-6 w-28 bg-muted animate-pulse rounded" /></TableCell>
+                                        <TableCell><div className="h-8 w-full bg-muted animate-pulse rounded" /></TableCell>
+                                        <TableCell><div className="h-8 w-20 bg-muted animate-pulse rounded" /></TableCell>
+                                        <TableCell><div className="h-8 w-8 bg-muted animate-pulse rounded" /></TableCell>
+                                    </TableRow>
+                                ))
+                            ) : filteredBeneficiaries.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-32">
+                                        <div className="flex flex-col items-center justify-center text-muted-foreground">
+                                            <div className="p-3 rounded-full bg-muted/50 mb-2">
+                                                <BookOpen className="h-8 w-8 opacity-30" />
+                                            </div>
+                                            <p className="font-medium">{isRTL ? 'لا توجد بيانات' : 'No data found'}</p>
+                                            <p className="text-sm">{searchQuery ? (isRTL ? 'جرب كلمة بحث مختلفة' : 'Try a different search term') : (isRTL ? 'أضف أول مستفيد' : 'Add your first beneficiary')}</p>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filteredBeneficiaries.map((b) => (
+                                    <TableRow key={b.id} className="hover:bg-muted/50 transition-colors">
+                                        <TableCell>
+                                            <div className="flex items-center gap-3">
+                                                <Avatar className="h-9 w-9 border">
+                                                    <AvatarImage src={b.image_url || undefined} />
+                                                    <AvatarFallback className="font-bold text-primary">{b.name_en?.slice(0, 2).toUpperCase() || 'NA'}</AvatarFallback>
+                                                </Avatar>
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-base">{b.name_ar}</span>
+                                                        {b.beneficiary_type === 'child' && (
+                                                            <span className="text-[10px] bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-medium">
+                                                                {isRTL ? 'طفل' : 'Child'}
+                                                            </span>
+                                                        )}
+                                                        {b.gender && (
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${b.gender === 'male'
                                                                 ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400'
                                                                 : 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400'
-                                                            }`}>
-                                                            {b.gender === 'male' ? (isRTL ? 'ذكر' : 'M') : (isRTL ? 'أنثى' : 'F')}
-                                                        </span>
-                                                    )}
+                                                                }`}>
+                                                                {b.gender === 'male' ? (isRTL ? 'ذكر' : 'M') : (isRTL ? 'أنثى' : 'F')}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {b.name_en && <span className="text-xs text-muted-foreground">{b.name_en}</span>}
                                                 </div>
-                                                {b.name_en && <span className="text-xs text-muted-foreground">{b.name_en}</span>}
                                             </div>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <span dir="ltr" className="font-medium font-mono text-sm">{b.phone}</span>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="space-y-1.5">
-                                            <QuranProgress previousParts={b.previous_parts} currentParts={b.current_parts} readOnly />
-                                            <div className="flex justify-between items-center text-xs px-1">
-                                                <span className="text-muted-foreground">
-                                                    {isRTL ? 'مسبق: ' : 'Prev: '}
-                                                    <span className="font-medium text-foreground/80">{b.previous_parts / 8} {isRTL ? 'جزء' : 'Juz'}</span>
-                                                </span>
-                                                <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
-                                                    {isRTL ? 'جديد: ' : 'Curr: '}
-                                                    {b.current_parts / 8} {isRTL ? 'جزء' : 'Juz'}
-                                                </span>
+                                        </TableCell>
+                                        <TableCell className="whitespace-nowrap">
+                                            <span dir="ltr" className="font-medium font-mono text-sm">{b.phone}</span>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="space-y-1.5">
+                                                <QuranProgress previousParts={b.previous_parts} currentParts={b.current_parts} readOnly />
+                                                <div className="flex justify-between items-center text-xs px-1">
+                                                    <span className="text-muted-foreground">
+                                                        {isRTL ? 'مسبق: ' : 'Prev: '}
+                                                        <span className="font-medium text-foreground/80">{b.previous_parts / 8} {isRTL ? 'جزء' : 'Juz'}</span>
+                                                    </span>
+                                                    <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
+                                                        {isRTL ? 'جديد: ' : 'Curr: '}
+                                                        {b.current_parts / 8} {isRTL ? 'جزء' : 'Juz'}
+                                                    </span>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <Input
-                                                type="number"
-                                                min={0.25}
-                                                step={0.25}
-                                                placeholder={isRTL ? 'ربع' : 'Qtr'}
-                                                className="w-20 h-8 text-sm"
-                                                value={quickAddValues[b.id] || ''}
-                                                onChange={(e) => setQuickAddValues({ ...quickAddValues, [b.id]: e.target.value })}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        handleQuickAdd(b.id, b.current_parts);
-                                                    }
-                                                }}
-                                            />
-                                            <Button
-                                                size="sm"
-                                                variant="secondary"
-                                                className="h-8 w-8 p-0"
-                                                onClick={() => handleQuickAdd(b.id, b.current_parts)}
-                                                disabled={!quickAddValues[b.id]}
-                                            >
-                                                <Plus className="h-4 w-4 text-primary" />
-                                            </Button>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                    <MoreVertical className="h-4 w-4" />
+                                        </TableCell>
+                                        <TableCell className="whitespace-nowrap">
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    type="number"
+                                                    min={0.25}
+                                                    step={0.25}
+                                                    placeholder={isRTL ? 'ربع' : 'Qtr'}
+                                                    className="w-20 h-8 text-sm"
+                                                    value={quickAddValues[b.id] || ''}
+                                                    onChange={(e) => setQuickAddValues({ ...quickAddValues, [b.id]: e.target.value })}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') {
+                                                            handleQuickAdd(b.id, b.current_parts);
+                                                        }
+                                                    }}
+                                                />
+                                                <Button
+                                                    size="sm"
+                                                    variant="secondary"
+                                                    className="h-8 w-8 p-0"
+                                                    onClick={() => handleQuickAdd(b.id, b.current_parts)}
+                                                    disabled={!quickAddValues[b.id]}
+                                                >
+                                                    <Plus className="h-4 w-4 text-primary" />
                                                 </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => navigate(`/admin/quran/${b.id}`)}>
-                                                    <BookOpen className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                    {isRTL ? 'التفاصيل' : 'Details'}
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => handleEdit(b)}>
-                                                    <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                    {isRTL ? 'تعديل' : 'Edit'}
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onClick={() => handleWhatsApp(b.phone)}>
-                                                    <MessageCircle className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                    {isRTL ? 'واتساب' : 'WhatsApp'}
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(b.id)}>
-                                                    <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                    {isRTL ? 'حذف' : 'Delete'}
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                        <MoreVertical className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => navigate(`/admin/quran/${b.id}`)}>
+                                                        <BookOpen className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'التفاصيل' : 'Details'}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleEdit(b)}>
+                                                        <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'تعديل' : 'Edit'}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => handleWhatsApp(b.phone)}>
+                                                        <MessageCircle className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'واتساب' : 'WhatsApp'}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(b.id)}>
+                                                        <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'حذف' : 'Delete'}
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
             </div>
 
             {/* Delete Confirmation Dialog */}

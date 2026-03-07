@@ -2130,24 +2130,24 @@ export default function QuranCircles() {
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                <TableHead>{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
-                                                <TableHead>{isRTL ? 'النوع' : 'Gender'}</TableHead>
-                                                <TableHead>{isRTL ? 'الفئة' : 'Type'}</TableHead>
-                                                <TableHead className="w-24"></TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'النوع' : 'Gender'}</TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الفئة' : 'Type'}</TableHead>
+                                                <TableHead className="w-24 whitespace-nowrap"></TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                             {filteredDetailsBeneficiaries.length === 0 ? (
                                                 <TableRow>
-                                                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground whitespace-nowrap">
                                                         {isRTL ? 'لا يوجد مستفيدين' : 'No beneficiaries found'}
                                                     </TableCell>
                                                 </TableRow>
                                             ) : (
                                                 filteredDetailsBeneficiaries.map((b) => (
                                                     <TableRow key={b.id}>
-                                                        <TableCell className="font-medium">
+                                                        <TableCell className="font-medium whitespace-nowrap">
                                                             {/* Inline Edit for Name */}
                                                             {editingBeneficiary?.id === b.id ? (
                                                                 <Input
@@ -2162,7 +2162,7 @@ export default function QuranCircles() {
                                                                 </div>
                                                             )}
                                                         </TableCell>
-                                                        <TableCell>
+                                                        <TableCell className="whitespace-nowrap">
                                                             {editingBeneficiary?.id === b.id ? (
                                                                 <Input
                                                                     value={newBeneficiary.phone}
@@ -2173,7 +2173,7 @@ export default function QuranCircles() {
                                                                 b.phone || '-'
                                                             )}
                                                         </TableCell>
-                                                        <TableCell>
+                                                        <TableCell className="whitespace-nowrap">
                                                             {editingBeneficiary?.id === b.id ? (
                                                                 <Select
                                                                     value={newBeneficiary.gender}
@@ -2193,7 +2193,7 @@ export default function QuranCircles() {
                                                                 </span>
                                                             )}
                                                         </TableCell>
-                                                        <TableCell>
+                                                        <TableCell className="whitespace-nowrap">
                                                             {editingBeneficiary?.id === b.id ? (
                                                                 <Select
                                                                     value={newBeneficiary.beneficiary_type}
@@ -2213,7 +2213,7 @@ export default function QuranCircles() {
                                                                 </Badge>
                                                             )}
                                                         </TableCell>
-                                                        <TableCell>
+                                                        <TableCell className="whitespace-nowrap">
                                                             {editingBeneficiary?.id === b.id ? (
                                                                 <div className="flex gap-1">
                                                                     <Button size="sm" variant="ghost" onClick={handleAddBeneficiary}>
@@ -2286,10 +2286,10 @@ export default function QuranCircles() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="min-w-[200px] sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                            <TableHead className="min-w-[120px]">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                            <TableHead className="min-w-[200px] whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                            <TableHead className="min-w-[120px] whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
                                             {sessions.map((s, idx) => (
-                                                <TableHead key={s.id} className="text-center min-w-[80px]">
+                                                <TableHead key={s.id} className="text-center min-w-[80px] whitespace-nowrap">
                                                     <div className="flex flex-col items-center">
                                                         <span>{idx + 1}</span>
                                                         <span className="text-[10px] font-normal text-muted-foreground">
@@ -2298,9 +2298,9 @@ export default function QuranCircles() {
                                                     </div>
                                                 </TableHead>
                                             ))}
-                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'حضر' : 'Attended'}</TableHead>
-                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'غاب' : 'Missed'}</TableHead>
-                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'نسبة' : '%'}</TableHead>
+                                            <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'حضر' : 'Attended'}</TableHead>
+                                            <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'غاب' : 'Missed'}</TableHead>
+                                            <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'نسبة' : '%'}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>

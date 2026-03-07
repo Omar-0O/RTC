@@ -713,51 +713,53 @@ export default function CallsManagement() {
                                         {/* Participants List */}
                                         {participants.length > 0 && (
                                             <div className="mt-4 border rounded-md overflow-hidden">
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                            <TableHead>{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
-                                                            <TableHead>{isRTL ? 'النوع' : 'Type'}</TableHead>
-                                                            <TableHead>{isRTL ? 'إرتدى الـvest' : 'Vest'}</TableHead>
-                                                            <TableHead className="w-12"></TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {participants.map((p, idx) => (
-                                                            <TableRow key={idx}>
-                                                                <TableCell>{p.name}</TableCell>
-                                                                <TableCell>{p.phone || '—'}</TableCell>
-                                                                <TableCell>
-                                                                    <span className={cn("text-xs px-2 py-0.5 rounded-full", p.is_volunteer ? "bg-primary/10 text-primary" : "bg-muted")}>
-                                                                        {p.is_volunteer ? (isRTL ? 'متطوع' : 'Volunteer') : (isRTL ? 'ضيف' : 'Guest')}
-                                                                    </span>
-                                                                </TableCell>
-                                                                <TableCell>
-                                                                    {p.is_volunteer && (
-                                                                        <div className="flex items-center space-x-2">
-                                                                            <input
-                                                                                type="checkbox"
-                                                                                checked={p.wore_vest || false}
-                                                                                onChange={(e) => {
-                                                                                    const updated = [...participants];
-                                                                                    updated[idx].wore_vest = e.target.checked;
-                                                                                    setParticipants(updated);
-                                                                                }}
-                                                                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                                                            />
-                                                                        </div>
-                                                                    )}
-                                                                </TableCell>
-                                                                <TableCell>
-                                                                    <Button variant="ghost" size="icon" onClick={() => removeParticipant(idx)}>
-                                                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                                                    </Button>
-                                                                </TableCell>
+                                                <div className="overflow-x-auto">
+                                                    <Table>
+                                                        <TableHeader>
+                                                            <TableRow>
+                                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
+                                                                <TableHead className="whitespace-nowrap">{isRTL ? 'النوع' : 'Type'}</TableHead>
+                                                                <TableHead className="whitespace-nowrap">{isRTL ? 'إرتدى الـvest' : 'Vest'}</TableHead>
+                                                                <TableHead className="w-12 whitespace-nowrap"></TableHead>
                                                             </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {participants.map((p, idx) => (
+                                                                <TableRow key={idx}>
+                                                                    <TableCell className="whitespace-nowrap">{p.name}</TableCell>
+                                                                    <TableCell className="whitespace-nowrap">{p.phone || '—'}</TableCell>
+                                                                    <TableCell className="whitespace-nowrap">
+                                                                        <span className={cn("text-xs px-2 py-0.5 rounded-full", p.is_volunteer ? "bg-primary/10 text-primary" : "bg-muted")}>
+                                                                            {p.is_volunteer ? (isRTL ? 'متطوع' : 'Volunteer') : (isRTL ? 'ضيف' : 'Guest')}
+                                                                        </span>
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        {p.is_volunteer && (
+                                                                            <div className="flex items-center space-x-2">
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={p.wore_vest || false}
+                                                                                    onChange={(e) => {
+                                                                                        const updated = [...participants];
+                                                                                        updated[idx].wore_vest = e.target.checked;
+                                                                                        setParticipants(updated);
+                                                                                    }}
+                                                                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                                                                />
+                                                                            </div>
+                                                                        )}
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <Button variant="ghost" size="icon" onClick={() => removeParticipant(idx)}>
+                                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                                        </Button>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
                                             </div>
                                         )}
                                     </div>

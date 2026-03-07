@@ -121,57 +121,59 @@ export default function Birthdays() {
 
       <Card>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-start">{language === 'ar' ? 'يوم الميلاد' : 'Birthday'}</TableHead>
-                <TableHead className="text-start">{t('users.fullName')}</TableHead>
-                <TableHead className="text-start">{t('users.committee')}</TableHead>
-                <TableHead className="text-start">{t('users.level')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {users.length === 0 ? (
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                    {language === 'ar' ? 'لا توجد أعياد ميلاد هذا الشهر' : 'No birthdays this month'}
-                  </TableCell>
+                  <TableHead className="text-start whitespace-nowrap">{language === 'ar' ? 'يوم الميلاد' : 'Birthday'}</TableHead>
+                  <TableHead className="text-start whitespace-nowrap">{t('users.fullName')}</TableHead>
+                  <TableHead className="text-start whitespace-nowrap">{t('users.committee')}</TableHead>
+                  <TableHead className="text-start whitespace-nowrap">{t('users.level')}</TableHead>
                 </TableRow>
-              ) : (
-                users.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell>
-                      <div className="flex items-center justify-center bg-primary/10 text-primary font-bold rounded-full h-10 w-10">
-                        {getDayOfMonth(user.birth_date)}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
-                          <AvatarFallback>
-                            {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{user.full_name || 'No name'}</p>
-                          {user.full_name_ar && (
-                            <p className="text-sm text-muted-foreground">{user.full_name_ar}</p>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm">{user.committee_name || '—'}</span>
-                    </TableCell>
-                    <TableCell>
-                      <LevelBadge level={user.level} size="sm" />
+              </TableHeader>
+              <TableBody>
+                {users.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      {language === 'ar' ? 'لا توجد أعياد ميلاد هذا الشهر' : 'No birthdays this month'}
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  users.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <div className="flex items-center justify-center bg-primary/10 text-primary font-bold rounded-full h-10 w-10">
+                          {getDayOfMonth(user.birth_date)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                            <AvatarFallback>
+                              {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{user.full_name || 'No name'}</p>
+                            {user.full_name_ar && (
+                              <p className="text-sm text-muted-foreground">{user.full_name_ar}</p>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">{user.committee_name || '—'}</span>
+                      </TableCell>
+                      <TableCell>
+                        <LevelBadge level={user.level} size="sm" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

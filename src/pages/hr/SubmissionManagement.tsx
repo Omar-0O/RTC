@@ -799,52 +799,54 @@ export default function SubmissionManagement() {
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="overflow-auto flex-1">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>{isRTL ? 'المتطوع' : 'Volunteer'}</TableHead>
-                                                <TableHead>{isRTL ? 'الدرجة' : 'Level'}</TableHead>
-                                                <TableHead className="text-center">{isRTL ? 'عدد المشاركات' : 'Submissions'}</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {lowParticipationVolunteers.length === 0 ? (
+                                    <div className="overflow-x-auto">
+                                        <Table>
+                                            <TableHeader>
                                                 <TableRow>
-                                                    <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
-                                                        {isRTL ? 'لا يوجد متطوعين بمشاركات منخفضة 🎉' : 'No volunteers with low participation 🎉'}
-                                                    </TableCell>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'المتطوع' : 'Volunteer'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الدرجة' : 'Level'}</TableHead>
+                                                    <TableHead className="text-center whitespace-nowrap">{isRTL ? 'عدد المشاركات' : 'Submissions'}</TableHead>
                                                 </TableRow>
-                                            ) : (
-                                                lowParticipationVolunteers.map((summary) => (
-                                                    <TableRow key={summary.volunteer.id}>
-                                                        <TableCell>
-                                                            <div className="flex items-center gap-2">
-                                                                <Avatar className="h-8 w-8">
-                                                                    <AvatarImage src={summary.volunteer.avatar_url || undefined} />
-                                                                    <AvatarFallback className="text-xs">
-                                                                        {summary.volunteer.full_name?.substring(0, 2) || 'U'}
-                                                                    </AvatarFallback>
-                                                                </Avatar>
-                                                                <span className="font-medium">
-                                                                    {isRTL ? summary.volunteer.full_name_ar : summary.volunteer.full_name}
-                                                                </span>
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <Badge variant="outline" className="text-xs">
-                                                                {getLevelLabel(summary.volunteer.level)}
-                                                            </Badge>
-                                                        </TableCell>
-                                                        <TableCell className="text-center">
-                                                            <Badge variant={summary.submission_count === 0 ? 'destructive' : 'secondary'}>
-                                                                {summary.submission_count}
-                                                            </Badge>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {lowParticipationVolunteers.length === 0 ? (
+                                                    <TableRow>
+                                                        <TableCell colSpan={3} className="text-center text-muted-foreground py-8">
+                                                            {isRTL ? 'لا يوجد متطوعين بمشاركات منخفضة 🎉' : 'No volunteers with low participation 🎉'}
                                                         </TableCell>
                                                     </TableRow>
-                                                ))
-                                            )}
-                                        </TableBody>
-                                    </Table>
+                                                ) : (
+                                                    lowParticipationVolunteers.map((summary) => (
+                                                        <TableRow key={summary.volunteer.id}>
+                                                            <TableCell className="whitespace-nowrap">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Avatar className="h-8 w-8">
+                                                                        <AvatarImage src={summary.volunteer.avatar_url || undefined} />
+                                                                        <AvatarFallback className="text-xs">
+                                                                            {summary.volunteer.full_name?.substring(0, 2) || 'U'}
+                                                                        </AvatarFallback>
+                                                                    </Avatar>
+                                                                    <span className="font-medium">
+                                                                        {isRTL ? summary.volunteer.full_name_ar : summary.volunteer.full_name}
+                                                                    </span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="whitespace-nowrap">
+                                                                <Badge variant="outline" className="text-xs">
+                                                                    {getLevelLabel(summary.volunteer.level)}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell className="text-center whitespace-nowrap">
+                                                                <Badge variant={summary.submission_count === 0 ? 'destructive' : 'secondary'}>
+                                                                    {summary.submission_count}
+                                                                </Badge>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
                                 </div>
                             </DialogContent>
                         </Dialog>

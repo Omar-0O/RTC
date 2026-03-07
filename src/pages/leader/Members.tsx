@@ -377,11 +377,11 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>{t('users.fullName')}</TableHead>
-                                    <TableHead>{t('users.level')}</TableHead>
-                                    <TableHead>{t('common.points')}</TableHead>
-                                    <TableHead>{t('users.joined')}</TableHead>
-                                    <TableHead className="text-end">{language === 'ar' ? 'إجراءات' : 'Actions'}</TableHead>
+                                    <TableHead className="whitespace-nowrap">{t('users.fullName')}</TableHead>
+                                    <TableHead className="whitespace-nowrap">{t('users.level')}</TableHead>
+                                    <TableHead className="whitespace-nowrap">{t('common.points')}</TableHead>
+                                    <TableHead className="whitespace-nowrap">{t('users.joined')}</TableHead>
+                                    <TableHead className="text-end whitespace-nowrap">{language === 'ar' ? 'إجراءات' : 'Actions'}</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -394,7 +394,7 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
                                 ) : (
                                     filteredMembers.map((member) => (
                                         <TableRow key={member.id}>
-                                            <TableCell>
+                                            <TableCell className="whitespace-nowrap">
                                                 <div className="flex items-center gap-3">
                                                     <Avatar className="h-9 w-9">
                                                         <AvatarImage src={member.avatar_url || undefined} />
@@ -418,22 +418,22 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
                                                     </div>
                                                 </div>
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="whitespace-nowrap">
                                                 <LevelBadge level={displayLevel(member.level)} size="sm" />
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="whitespace-nowrap">
                                                 <div className="font-medium">{member.total_points}</div>
                                                 <div className="text-xs text-muted-foreground">
                                                     {member.activities_count} {language === 'ar' ? 'مشاركة' : 'activities'}
                                                 </div>
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="whitespace-nowrap">
                                                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                                     <Calendar className="h-3 w-3" />
                                                     {member.created_at ? format(new Date(member.created_at), 'PPP') : '-'}
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="text-end">
+                                            <TableCell className="text-end whitespace-nowrap">
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                         <Button variant="ghost" size="icon" className="h-8 w-8">

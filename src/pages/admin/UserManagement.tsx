@@ -1722,116 +1722,118 @@ export default function UserManagement() {
           ) : (
             <>
               {/* Desktop View */}
-              <div className="hidden lg:block overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-start">{t('users.fullName')}</TableHead>
-                      <TableHead className="text-start">{t('users.role')}</TableHead>
-                      <TableHead className="text-start">{t('users.committee')}</TableHead>
-                      <TableHead className="text-start">{t('users.level')}</TableHead>
-                      <TableHead className="text-start">{language === 'ar' ? 'عدد المشاركات' : 'Number of Participations'}</TableHead>
-                      <TableHead className="text-start">{language === 'ar' ? 'آخر ظهور' : 'Last Seen'}</TableHead>
-                      <TableHead className="w-[50px]"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
-                              <AvatarFallback className="text-xs">
-                                {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-medium">{user.full_name || 'No name'}</p>
-                              <p className="text-sm text-muted-foreground">{user.email}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
-                            {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
-                            {getRoleText(user.role)}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="text-sm">{user.committee_name || '—'}</span>
-                        </TableCell>
-                        <TableCell>
-                          <LevelBadge level={user.level} size="sm" />
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-medium">{user.participation_count || 0}</span>
-                        </TableCell>
-                        <TableCell>
-                          {(() => {
-                            const status = getLastSeenText(user.last_seen_at);
-                            return (
-                              <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${status.color}`}>
-                                <span className={`h-2 w-2 rounded-full ${status.dot}`} />
-                                {status.text}
-                              </span>
-                            );
-                          })()}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              {['admin', 'head_hr'].includes(primaryRole) && (
-                                <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                                  <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                  {t('common.edit')}
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
-                                <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                {t('users.viewProfile')}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  if (user.phone) {
-                                    window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
-                                  } else {
-                                    toast.error(language === 'ar' ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
-                                  }
-                                }}
-                              >
-                                <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                {t('users.sendWhatsapp')}
-                              </DropdownMenuItem>
-                              {primaryRole === 'admin' && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => {
-                                      setSelectedUser(user);
-                                      setIsDeleteDialogOpen(true);
-                                    }}
-                                  >
-                                    <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                    {t('common.delete')}
-                                  </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
+              <div className="hidden lg:block">
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-start whitespace-nowrap">{t('users.fullName')}</TableHead>
+                        <TableHead className="text-start whitespace-nowrap">{t('users.role')}</TableHead>
+                        <TableHead className="text-start whitespace-nowrap">{t('users.committee')}</TableHead>
+                        <TableHead className="text-start whitespace-nowrap">{t('users.level')}</TableHead>
+                        <TableHead className="text-start whitespace-nowrap">{language === 'ar' ? 'عدد المشاركات' : 'Number of Participations'}</TableHead>
+                        <TableHead className="text-start whitespace-nowrap">{language === 'ar' ? 'آخر ظهور' : 'Last Seen'}</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                                <AvatarFallback className="text-xs">
+                                  {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-medium">{user.full_name || 'No name'}</p>
+                                <p className="text-sm text-muted-foreground">{user.email}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
+                              {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
+                              {getRoleText(user.role)}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm">{user.committee_name || '—'}</span>
+                          </TableCell>
+                          <TableCell>
+                            <LevelBadge level={user.level} size="sm" />
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-medium">{user.participation_count || 0}</span>
+                          </TableCell>
+                          <TableCell>
+                            {(() => {
+                              const status = getLastSeenText(user.last_seen_at);
+                              return (
+                                <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${status.color}`}>
+                                  <span className={`h-2 w-2 rounded-full ${status.dot}`} />
+                                  {status.text}
+                                </span>
+                              );
+                            })()}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                {['admin', 'head_hr'].includes(primaryRole) && (
+                                  <DropdownMenuItem onClick={() => openEditDialog(user)}>
+                                    <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                    {t('common.edit')}
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
+                                  <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                  {t('users.viewProfile')}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    if (user.phone) {
+                                      window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
+                                    } else {
+                                      toast.error(language === 'ar' ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
+                                    }
+                                  }}
+                                >
+                                  <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                  {t('users.sendWhatsapp')}
+                                </DropdownMenuItem>
+                                {primaryRole === 'admin' && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-destructive"
+                                      onClick={() => {
+                                        setSelectedUser(user);
+                                        setIsDeleteDialogOpen(true);
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                      {t('common.delete')}
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
 
               {/* Mobile View */}

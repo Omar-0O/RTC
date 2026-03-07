@@ -134,61 +134,137 @@ export default function AshbalManagement() {
     const UserList = ({ users }: { users: any[] }) => (
         <div className="rounded-md border bg-card">
             {/* Desktop View */}
-            <div className="hidden lg:block overflow-x-auto">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="text-start">{isRTL ? "الاسم" : "Name"}</TableHead>
-                            <TableHead className="text-start">{isRTL ? "الهاتف" : "Phone"}</TableHead>
-                            <TableHead className="text-start">{isRTL ? "المستوى" : "Level"}</TableHead>
-                            <TableHead className="text-start">{isRTL ? "تاريخ الانضمام" : "Join Date"}</TableHead>
-                            <TableHead className="w-[50px]"></TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading ? (
+            <div className="hidden lg:block">
+                <div className="rounded-md border overflow-x-auto">
+                    <Table>
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center">
-                                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                                </TableCell>
+                                <TableHead className="text-start whitespace-nowrap">{isRTL ? "الاسم" : "Name"}</TableHead>
+                                <TableHead className="text-start whitespace-nowrap">{isRTL ? "الهاتف" : "Phone"}</TableHead>
+                                <TableHead className="text-start whitespace-nowrap">{isRTL ? "المستوى" : "Level"}</TableHead>
+                                <TableHead className="text-start whitespace-nowrap">{isRTL ? "تاريخ الانضمام" : "Join Date"}</TableHead>
+                                <TableHead className="w-[50px] whitespace-nowrap"></TableHead>
                             </TableRow>
-                        ) : users.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                                    {isRTL ? "لا يوجد أشبال" : "No Ashbal found"}
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            users.map((user) => (
-                                <TableRow key={user.id}>
-                                    <TableCell>
-                                        <div className="flex items-center gap-3">
-                                            <Avatar className="h-8 w-8">
+                        </TableHeader>
+                        <TableBody>
+                            {loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center">
+                                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                                    </TableCell>
+                                </TableRow>
+                            ) : users.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                        {isRTL ? "لا يوجد أشبال" : "No Ashbal found"}
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                users.map((user) => (
+                                    <TableRow key={user.id}>
+                                        <TableCell>
+                                            <div className="flex items-center gap-3">
+                                                <Avatar className="h-8 w-8">
+                                                    <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                                                    <AvatarFallback className="text-xs">
+                                                        {user.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <p className="font-medium">{user.full_name || 'No name'}</p>
+                                                    <p className="text-sm text-muted-foreground">{user.email}</p>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>{user.phone}</TableCell>
+                                        <TableCell>
+                                            <LevelBadge level={user.level} size="sm" />
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="text-sm text-muted-foreground">
+                                                {new Date(user.join_date || user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button variant="ghost" size="icon">
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
+                                                    <DropdownMenuSeparator />
+                                                    {['admin', 'head_ashbal'].includes(primaryRole) && (
+                                                        <>
+                                                            <DropdownMenuItem onClick={() => setEditUser(user)}>
+                                                                <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                                {t('common.edit')}
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => setDeleteUser(user)} className="text-red-600 focus:text-red-600">
+                                                                <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                                {isRTL ? "حذف" : "Delete"}
+                                                            </DropdownMenuItem>
+                                                        </>
+                                                    )}
+                                                    <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
+                                                        <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {t('users.viewProfile')}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => {
+                                                            if (user.phone) {
+                                                                window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
+                                                            } else {
+                                                                toast.error(isRTL ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {t('users.sendWhatsapp')}
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
+
+                {/* Mobile View */}
+                <div className="grid gap-4 lg:hidden p-4">
+                    {loading ? (
+                        <div className="text-center py-8">
+                            <Loader2 className="h-6 w-6 animate-spin mx-auto" />
+                        </div>
+                    ) : users.length === 0 ? (
+                        <div className="text-center text-muted-foreground py-8">
+                            {isRTL ? "لا يوجد أشبال" : "No Ashbal found"}
+                        </div>
+                    ) : (
+                        users.map((user) => (
+                            <Card key={user.id}>
+                                <CardContent className="p-4">
+                                    {/* Header with avatar and actions */}
+                                    <div className="flex items-start justify-between mb-3">
+                                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                                            <Avatar className="h-12 w-12 shrink-0">
                                                 <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
-                                                <AvatarFallback className="text-xs">
+                                                <AvatarFallback className="text-sm">
                                                     {user.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
                                                 </AvatarFallback>
                                             </Avatar>
-                                            <div>
-                                                <p className="font-medium">{user.full_name || 'No name'}</p>
-                                                <p className="text-sm text-muted-foreground">{user.email}</p>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-semibold truncate">{user.full_name || 'No name'}</p>
+                                                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
                                             </div>
                                         </div>
-                                    </TableCell>
-                                    <TableCell>{user.phone}</TableCell>
-                                    <TableCell>
-                                        <LevelBadge level={user.level} size="sm" />
-                                    </TableCell>
-                                    <TableCell>
-                                        <span className="text-sm text-muted-foreground">
-                                            {new Date(user.join_date || user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}
-                                        </span>
-                                    </TableCell>
-                                    <TableCell>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon">
-                                                    <MoreHorizontal className="h-4 w-4" />
+                                                <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 -mr-2 rtl:-ml-2">
+                                                    <MoreHorizontal className="h-5 w-5" />
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
@@ -224,103 +300,29 @@ export default function AshbalManagement() {
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
-
-            {/* Mobile View */}
-            <div className="grid gap-4 lg:hidden p-4">
-                {loading ? (
-                    <div className="text-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                    </div>
-                ) : users.length === 0 ? (
-                    <div className="text-center text-muted-foreground py-8">
-                        {isRTL ? "لا يوجد أشبال" : "No Ashbal found"}
-                    </div>
-                ) : (
-                    users.map((user) => (
-                        <Card key={user.id}>
-                            <CardContent className="p-4">
-                                {/* Header with avatar and actions */}
-                                <div className="flex items-start justify-between mb-3">
-                                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        <Avatar className="h-12 w-12 shrink-0">
-                                            <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
-                                            <AvatarFallback className="text-sm">
-                                                {user.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div className="min-w-0 flex-1">
-                                            <p className="font-semibold truncate">{user.full_name || 'No name'}</p>
-                                            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                                        </div>
                                     </div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 -mr-2 rtl:-ml-2">
-                                                <MoreHorizontal className="h-5 w-5" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
-                                            <DropdownMenuSeparator />
-                                            {['admin', 'head_ashbal'].includes(primaryRole) && (
-                                                <>
-                                                    <DropdownMenuItem onClick={() => setEditUser(user)}>
-                                                        <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                        {t('common.edit')}
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem onClick={() => setDeleteUser(user)} className="text-red-600 focus:text-red-600">
-                                                        <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                        {isRTL ? "حذف" : "Delete"}
-                                                    </DropdownMenuItem>
-                                                </>
-                                            )}
-                                            <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
-                                                <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                {t('users.viewProfile')}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                onClick={() => {
-                                                    if (user.phone) {
-                                                        window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
-                                                    } else {
-                                                        toast.error(isRTL ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
-                                                    }
-                                                }}
-                                            >
-                                                <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                {t('users.sendWhatsapp')}
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </div>
 
-                                <div className="flex flex-wrap items-center gap-2 mb-3">
-                                    <LevelBadge level={user.level} size="sm" />
-                                </div>
-
-                                <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 pt-3 border-t text-sm">
-                                    <div>
-                                        <p className="text-xs text-muted-foreground mb-0.5">{t('users.joined')}</p>
-                                        <p>{new Date(user.join_date || user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}</p>
+                                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                                        <LevelBadge level={user.level} size="sm" />
                                     </div>
-                                    {user.phone && (
+
+                                    <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 pt-3 border-t text-sm">
                                         <div>
-                                            <p className="text-xs text-muted-foreground mb-0.5">{t('users.phoneNumber')}</p>
-                                            <p dir="ltr" className={isRTL ? "text-right" : "text-left"}>{user.phone}</p>
+                                            <p className="text-xs text-muted-foreground mb-0.5">{t('users.joined')}</p>
+                                            <p>{new Date(user.join_date || user.created_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-GB')}</p>
                                         </div>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))
-                )}
+                                        {user.phone && (
+                                            <div>
+                                                <p className="text-xs text-muted-foreground mb-0.5">{t('users.phoneNumber')}</p>
+                                                <p dir="ltr" className={isRTL ? "text-right" : "text-left"}>{user.phone}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))
+                    )}
+                </div>
             </div>
         </div>
     );

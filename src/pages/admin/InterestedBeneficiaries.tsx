@@ -404,43 +404,45 @@ export default function InterestedBeneficiaries() {
                 </div>
 
                 {/* ── Desktop: table ── */}
-                <div className="hidden md:block overflow-x-auto">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>#</TableHead>
-                                <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                <TableHead>{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
-                                <TableHead>{isRTL ? 'المصدر' : 'Source'}</TableHead>
-                                <TableHead>{isRTL ? 'أضافه' : 'Added By'}</TableHead>
-                                <TableHead>{isRTL ? 'ملاحظات' : 'Notes'}</TableHead>
-                                <TableHead>{isRTL ? 'تاريخ الإضافة' : 'Added At'}</TableHead>
-                                <TableHead />
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {rows.map((b, i) => (
-                                <TableRow key={b.id}>
-                                    <TableCell className="text-muted-foreground">{i + 1}</TableCell>
-                                    <TableCell className="font-medium">{b.name}</TableCell>
-                                    <TableCell dir="ltr" className={isRTL ? 'text-right' : ''}>{b.phone}</TableCell>
-                                    <TableCell><SourceBadge b={b} /></TableCell>
-                                    <TableCell className="text-sm">{creatorName(b)}</TableCell>
-                                    <TableCell className="text-muted-foreground text-sm max-w-[180px] truncate">{b.notes || '—'}</TableCell>
-                                    <TableCell className="text-muted-foreground text-sm">{format(new Date(b.created_at), 'yyyy-MM-dd')}</TableCell>
-                                    <TableCell>
-                                        <Button
-                                            variant="ghost" size="icon"
-                                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                            onClick={() => setDeleteId(b.id)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </TableCell>
+                <div className="hidden md:block">
+                    <div className="rounded-md border overflow-x-auto">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="whitespace-nowrap">#</TableHead>
+                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
+                                    <TableHead className="whitespace-nowrap">{isRTL ? 'المصدر' : 'Source'}</TableHead>
+                                    <TableHead className="whitespace-nowrap">{isRTL ? 'أضافه' : 'Added By'}</TableHead>
+                                    <TableHead className="whitespace-nowrap">{isRTL ? 'ملاحظات' : 'Notes'}</TableHead>
+                                    <TableHead className="whitespace-nowrap">{isRTL ? 'تاريخ الإضافة' : 'Added At'}</TableHead>
+                                    <TableHead />
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {rows.map((b, i) => (
+                                    <TableRow key={b.id}>
+                                        <TableCell className="text-muted-foreground whitespace-nowrap">{i + 1}</TableCell>
+                                        <TableCell className="font-medium whitespace-nowrap">{b.name}</TableCell>
+                                        <TableCell dir="ltr" className={isRTL ? 'text-right whitespace-nowrap' : 'whitespace-nowrap'}>{b.phone}</TableCell>
+                                        <TableCell className="whitespace-nowrap"><SourceBadge b={b} /></TableCell>
+                                        <TableCell className="text-sm whitespace-nowrap">{creatorName(b)}</TableCell>
+                                        <TableCell className="text-muted-foreground text-sm max-w-[180px] truncate whitespace-nowrap">{b.notes || '—'}</TableCell>
+                                        <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{format(new Date(b.created_at), 'yyyy-MM-dd')}</TableCell>
+                                        <TableCell>
+                                            <Button
+                                                variant="ghost" size="icon"
+                                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                onClick={() => setDeleteId(b.id)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </div>
             </>
         );

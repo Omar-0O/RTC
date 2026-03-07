@@ -836,89 +836,91 @@ export default function MyCourses() {
                                 </Card>
 
                                 {/* Beneficiaries List */}
-                                <div className="border rounded-lg">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                <TableHead>{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
-                                                <TableHead>{isRTL ? 'الرقم القومي' : 'National ID'}</TableHead>
-                                                <TableHead className="w-24"></TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {beneficiaries.map(b => (
-                                                <TableRow key={b.id}>
-                                                    <TableCell>
-                                                        {editingBeneficiary?.id === b.id ? (
-                                                            <Input
-                                                                value={editingBeneficiary.name}
-                                                                onChange={e => setEditingBeneficiary({ ...editingBeneficiary, name: e.target.value })}
-                                                                className="h-8"
-                                                            />
-                                                        ) : (
-                                                            b.name
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {editingBeneficiary?.id === b.id ? (
-                                                            <Input
-                                                                value={editingBeneficiary.phone}
-                                                                onChange={e => {
-                                                                    const val = e.target.value;
-                                                                    if (/^[0-9+]*$/.test(val)) {
-                                                                        setEditingBeneficiary({ ...editingBeneficiary, phone: val });
-                                                                    }
-                                                                }}
-                                                                className="h-8"
-                                                            />
-                                                        ) : (
-                                                            b.phone
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {editingBeneficiary?.id === b.id ? (
-                                                            <Input
-                                                                value={editingBeneficiary.national_id || ''}
-                                                                onChange={e => setEditingBeneficiary({ ...editingBeneficiary, national_id: e.target.value })}
-                                                                className="h-8"
-                                                            />
-                                                        ) : (
-                                                            b.national_id || '-'
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {editingBeneficiary?.id === b.id ? (
-                                                            <div className="flex gap-1">
-                                                                <Button size="sm" variant="ghost" onClick={updateBeneficiary}>
-                                                                    <Check className="w-4 h-4 text-green-600" />
-                                                                </Button>
-                                                                <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(null)}>
-                                                                    <X className="w-4 h-4 text-red-600" />
-                                                                </Button>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex gap-1">
-                                                                <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(b)}>
-                                                                    <Pencil className="w-4 h-4" />
-                                                                </Button>
-                                                                <Button size="sm" variant="ghost" onClick={() => deleteBeneficiary(b.id)}>
-                                                                    <Trash2 className="w-4 h-4 text-destructive" />
-                                                                </Button>
-                                                            </div>
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                            {beneficiaries.length === 0 && (
+                                <div className="border rounded-lg overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <Table>
+                                            <TableHeader>
                                                 <TableRow>
-                                                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                                                        {isRTL ? 'لا يوجد مستفيدين بعد' : 'No beneficiaries yet'}
-                                                    </TableCell>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم القومي' : 'National ID'}</TableHead>
+                                                    <TableHead className="w-24 whitespace-nowrap"></TableHead>
                                                 </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {beneficiaries.map(b => (
+                                                    <TableRow key={b.id}>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            {editingBeneficiary?.id === b.id ? (
+                                                                <Input
+                                                                    value={editingBeneficiary.name}
+                                                                    onChange={e => setEditingBeneficiary({ ...editingBeneficiary, name: e.target.value })}
+                                                                    className="h-8"
+                                                                />
+                                                            ) : (
+                                                                b.name
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {editingBeneficiary?.id === b.id ? (
+                                                                <Input
+                                                                    value={editingBeneficiary.phone}
+                                                                    onChange={e => {
+                                                                        const val = e.target.value;
+                                                                        if (/^[0-9+]*$/.test(val)) {
+                                                                            setEditingBeneficiary({ ...editingBeneficiary, phone: val });
+                                                                        }
+                                                                    }}
+                                                                    className="h-8"
+                                                                />
+                                                            ) : (
+                                                                b.phone
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {editingBeneficiary?.id === b.id ? (
+                                                                <Input
+                                                                    value={editingBeneficiary.national_id || ''}
+                                                                    onChange={e => setEditingBeneficiary({ ...editingBeneficiary, national_id: e.target.value })}
+                                                                    className="h-8"
+                                                                />
+                                                            ) : (
+                                                                b.national_id || '-'
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {editingBeneficiary?.id === b.id ? (
+                                                                <div className="flex gap-1">
+                                                                    <Button size="sm" variant="ghost" onClick={updateBeneficiary}>
+                                                                        <Check className="w-4 h-4 text-green-600" />
+                                                                    </Button>
+                                                                    <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(null)}>
+                                                                        <X className="w-4 h-4 text-red-600" />
+                                                                    </Button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex gap-1">
+                                                                    <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(b)}>
+                                                                        <Pencil className="w-4 h-4" />
+                                                                    </Button>
+                                                                    <Button size="sm" variant="ghost" onClick={() => deleteBeneficiary(b.id)}>
+                                                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                                                    </Button>
+                                                                </div>
+                                                            )}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                                {beneficiaries.length === 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground whitespace-nowrap">
+                                                            {isRTL ? 'لا يوجد مستفيدين بعد' : 'No beneficiaries yet'}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
                                 </div>
                                 <div className="text-sm text-muted-foreground">
                                     {isRTL ? `إجمالي المستفيدين: ${beneficiaries.length}` : `Total beneficiaries: ${beneficiaries.length}`}
@@ -983,76 +985,78 @@ export default function MyCourses() {
 
                         {isOrganizer && (
                             <TabsContent value="sheet" className="py-4">
-                                <div className="border rounded-lg overflow-x-auto">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                <TableHead>{isRTL ? 'الرقم' : 'Phone'}</TableHead>
-                                                {lectures.map(l => (
-                                                    <TableHead key={l.id} className="text-center w-12">
-                                                        L{l.lecture_number}
-                                                    </TableHead>
-                                                ))}
-                                                <TableHead className="text-center">{isRTL ? 'حضر' : 'Attended'}</TableHead>
-                                                <TableHead className="text-center">{isRTL ? 'غاب' : 'Missed'}</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {beneficiaries.map(beneficiary => {
-                                                const studentAttendance = lectures.map(l =>
-                                                    attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
-                                                );
-                                                const attendedCount = studentAttendance.filter(a => a && a.status === 'present').length;
-                                                const completedLectures = lectures.filter(l => l.status === 'completed');
-                                                const missedCount = completedLectures.filter(l =>
-                                                    !attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
-                                                ).length;
-
-                                                return (
-                                                    <TableRow key={beneficiary.id}>
-                                                        <TableCell className="font-medium">{beneficiary.name}</TableCell>
-                                                        <TableCell>{beneficiary.phone}</TableCell>
-                                                        {lectures.map((lecture, idx) => {
-                                                            const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone);
-                                                            const isCancelled = lecture.status === 'cancelled';
-                                                            const isCompleted = lecture.status === 'completed';
-                                                            const isOpen = isLectureOpen(lecture.date);
-                                                            const canMarkAttendance = isCompleted || isOpen;
-                                                            return (
-                                                                <TableCell key={idx} className="text-center">
-                                                                    {isCancelled ? (
-                                                                        <span className="text-muted-foreground text-xs">-</span>
-                                                                    ) : canMarkAttendance ? (
-                                                                        <Checkbox
-                                                                            checked={isPresent}
-                                                                            onCheckedChange={() => toggleBeneficiaryAttendance(lecture.id, beneficiary)}
-                                                                            className="mx-auto"
-                                                                        />
-                                                                    ) : (
-                                                                        <Checkbox
-                                                                            checked={false}
-                                                                            disabled
-                                                                            className="mx-auto opacity-50 cursor-not-allowed"
-                                                                        />
-                                                                    )}
-                                                                </TableCell>
-                                                            );
-                                                        })}
-                                                        <TableCell className="text-center font-bold text-green-600">{attendedCount}</TableCell>
-                                                        <TableCell className="text-center font-bold text-red-600">{missedCount}</TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                            {beneficiaries.length === 0 && (
+                                <div className="border rounded-lg overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <Table>
+                                            <TableHeader>
                                                 <TableRow>
-                                                    <TableCell colSpan={lectures.length + 4} className="text-center py-8 text-muted-foreground">
-                                                        {isRTL ? 'لا يوجد مستفيدين - أضف مستفيدين من تبويب المستفيدين أولاً' : 'No beneficiaries - Add beneficiaries from the Beneficiaries tab first'}
-                                                    </TableCell>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                                    {lectures.map(l => (
+                                                        <TableHead key={l.id} className="text-center w-12 whitespace-nowrap">
+                                                            L{l.lecture_number}
+                                                        </TableHead>
+                                                    ))}
+                                                    <TableHead className="text-center whitespace-nowrap">{isRTL ? 'حضر' : 'Attended'}</TableHead>
+                                                    <TableHead className="text-center whitespace-nowrap">{isRTL ? 'غاب' : 'Missed'}</TableHead>
                                                 </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {beneficiaries.map(beneficiary => {
+                                                    const studentAttendance = lectures.map(l =>
+                                                        attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
+                                                    );
+                                                    const attendedCount = studentAttendance.filter(a => a && a.status === 'present').length;
+                                                    const completedLectures = lectures.filter(l => l.status === 'completed');
+                                                    const missedCount = completedLectures.filter(l =>
+                                                        !attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
+                                                    ).length;
+
+                                                    return (
+                                                        <TableRow key={beneficiary.id}>
+                                                            <TableCell className="font-medium whitespace-nowrap">{beneficiary.name}</TableCell>
+                                                            <TableCell className="whitespace-nowrap">{beneficiary.phone}</TableCell>
+                                                            {lectures.map((lecture, idx) => {
+                                                                const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone);
+                                                                const isCancelled = lecture.status === 'cancelled';
+                                                                const isCompleted = lecture.status === 'completed';
+                                                                const isOpen = isLectureOpen(lecture.date);
+                                                                const canMarkAttendance = isCompleted || isOpen;
+                                                                return (
+                                                                    <TableCell key={idx} className="text-center">
+                                                                        {isCancelled ? (
+                                                                            <span className="text-muted-foreground text-xs">-</span>
+                                                                        ) : canMarkAttendance ? (
+                                                                            <Checkbox
+                                                                                checked={isPresent}
+                                                                                onCheckedChange={() => toggleBeneficiaryAttendance(lecture.id, beneficiary)}
+                                                                                className="mx-auto"
+                                                                            />
+                                                                        ) : (
+                                                                            <Checkbox
+                                                                                checked={false}
+                                                                                disabled
+                                                                                className="mx-auto opacity-50 cursor-not-allowed"
+                                                                            />
+                                                                        )}
+                                                                    </TableCell>
+                                                                );
+                                                            })}
+                                                            <TableCell className="text-center font-bold text-green-600 whitespace-nowrap">{attendedCount}</TableCell>
+                                                            <TableCell className="text-center font-bold text-red-600 whitespace-nowrap">{missedCount}</TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                                {beneficiaries.length === 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={lectures.length + 4} className="text-center py-8 text-muted-foreground whitespace-nowrap">
+                                                            {isRTL ? 'لا يوجد مستفيدين - أضف مستفيدين من تبويب المستفيدين أولاً' : 'No beneficiaries - Add beneficiaries from the Beneficiaries tab first'}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
                                 </div>
                             </TabsContent>
                         )}

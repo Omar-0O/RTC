@@ -215,63 +215,65 @@ export default function FineManagement() {
                     <CardTitle>{isRTL ? 'قائمة الغرامات' : 'Fines List'}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                <TableHead>{isRTL ? 'القيمة' : 'Amount'}</TableHead>
-                                <TableHead className="w-[100px]"></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {loading ? (
+                    <div className="rounded-md border overflow-x-auto">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={3} className="text-center py-8">
-                                        <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
-                                    </TableCell>
+                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                    <TableHead className="whitespace-nowrap">{isRTL ? 'القيمة' : 'Amount'}</TableHead>
+                                    <TableHead className="w-[100px]"></TableHead>
                                 </TableRow>
-                            ) : fines.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
-                                        {isRTL ? 'لا توجد غرامات مضافة' : 'No fines added yet'}
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                fines.map((fine) => (
-                                    <TableRow key={fine.id}>
-                                        <TableCell className="font-medium">
-                                            {isRTL ? fine.name_ar : fine.name}
-                                            <span className="block text-xs text-muted-foreground">
-                                                {isRTL ? fine.name : fine.name_ar}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell>
-                                            {fine.amount} {isRTL ? 'ج.م' : 'EGP'}
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    onClick={() => openEdit(fine)}
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                    onClick={() => handleDelete(fine.id)}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
+                            </TableHeader>
+                            <TableBody>
+                                {loading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={3} className="text-center py-8">
+                                            <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
+                                ) : fines.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                                            {isRTL ? 'لا توجد غرامات مضافة' : 'No fines added yet'}
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    fines.map((fine) => (
+                                        <TableRow key={fine.id}>
+                                            <TableCell className="font-medium">
+                                                {isRTL ? fine.name_ar : fine.name}
+                                                <span className="block text-xs text-muted-foreground">
+                                                    {isRTL ? fine.name : fine.name_ar}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                {fine.amount} {isRTL ? 'ج.م' : 'EGP'}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        onClick={() => openEdit(fine)}
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                        onClick={() => handleDelete(fine.id)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
             </Card>
         </div>

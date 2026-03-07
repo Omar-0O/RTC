@@ -1113,28 +1113,30 @@ export default function EventManagement() {
                         </div>
                         {eventBeneficiaries.length > 0 ? (
                             <div className="border rounded-md overflow-hidden">
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                            <TableHead>{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
-                                            <TableHead className="w-12"></TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {eventBeneficiaries.map((b) => (
-                                            <TableRow key={b.id}>
-                                                <TableCell>{b.name}</TableCell>
-                                                <TableCell>{b.phone || '—'}</TableCell>
-                                                <TableCell>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveBeneficiary(b.id!)}>
-                                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                                    </Button>
-                                                </TableCell>
+                                <div className="overflow-x-auto">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
+                                                <TableHead className="w-12 whitespace-nowrap"></TableHead>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {eventBeneficiaries.map((b) => (
+                                                <TableRow key={b.id}>
+                                                    <TableCell className="whitespace-nowrap">{b.name}</TableCell>
+                                                    <TableCell className="whitespace-nowrap">{b.phone || '—'}</TableCell>
+                                                    <TableCell className="whitespace-nowrap">
+                                                        <Button variant="ghost" size="icon" onClick={() => handleRemoveBeneficiary(b.id!)}>
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             </div>
                         ) : (
                             <p className="text-center text-muted-foreground py-4">{isRTL ? 'لا يوجد مستفيدين' : 'No beneficiaries yet'}</p>

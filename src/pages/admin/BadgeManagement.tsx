@@ -682,110 +682,112 @@ export default function BadgeManagement() {
 
             {/* Desktop View (Table) */}
             <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-start">{isRTL ? 'الشارة' : 'Badge'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'الوصف' : 'Description'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'الأثر المطلوب' : 'Points Req.'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'المشاركات المطلوبة' : 'Activities Req.'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'المدة بالأشهر' : 'Months Req.'}</TableHead>
-                    <TableHead className="text-start">{isRTL ? 'القوافل المطلوبة' : 'Caravans Req.'}</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredBadges.length === 0 ? (
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                        {isRTL ? 'لا توجد شارات' : 'No badges found'}
-                      </TableCell>
+                      <TableHead className="text-start whitespace-nowrap">{isRTL ? 'الشارة' : 'Badge'}</TableHead>
+                      <TableHead className="text-start whitespace-nowrap">{isRTL ? 'الوصف' : 'Description'}</TableHead>
+                      <TableHead className="text-start whitespace-nowrap">{isRTL ? 'الأثر المطلوب' : 'Points Req.'}</TableHead>
+                      <TableHead className="text-start whitespace-nowrap">{isRTL ? 'المشاركات المطلوبة' : 'Activities Req.'}</TableHead>
+                      <TableHead className="text-start whitespace-nowrap">{isRTL ? 'المدة بالأشهر' : 'Months Req.'}</TableHead>
+                      <TableHead className="text-start whitespace-nowrap">{isRTL ? 'القوافل المطلوبة' : 'Caravans Req.'}</TableHead>
+                      <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
-                  ) : (
-                    filteredBadges.map((badge) => (
-                      <TableRow key={badge.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-10 h-10 rounded-full flex items-center justify-center"
-                              style={{ backgroundColor: badge.color + '20', color: badge.color }}
-                            >
-                              {getIconComponent(badge.icon)}
-                            </div>
-                            <span className="font-medium">{isRTL ? badge.name_ar : badge.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="max-w-[200px]">
-                          <span className="text-sm text-muted-foreground truncate block">
-                            {isRTL ? badge.description_ar : badge.description}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {badge.points_required ? (
-                            <span className="font-medium">{badge.points_required}</span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {badge.activities_required ? (
-                            <span className="font-medium">{badge.activities_required}</span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {badge.months_required ? (
-                            <span className="font-medium">{badge.months_required}</span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {badge.caravans_required ? (
-                            <span className="font-medium">{badge.caravans_required}</span>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => {
-                                setSelectedBadge(badge);
-                                fetchUsersWithBadge(badge.id);
-                                setIsAwardDialogOpen(true);
-                              }}>
-                                <UserPlus className="mr-2 h-4 w-4" />
-                                {isRTL ? 'منح لمتطوع' : 'Award to User'}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => openEditDialog(badge)}>
-                                <Pencil className="mr-2 h-4 w-4" />
-                                {isRTL ? 'تعديل' : 'Edit'}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => {
-                                  setSelectedBadge(badge);
-                                  setIsDeleteDialogOpen(true);
-                                }}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                {isRTL ? 'حذف' : 'Delete'}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredBadges.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                          {isRTL ? 'لا توجد شارات' : 'No badges found'}
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      filteredBadges.map((badge) => (
+                        <TableRow key={badge.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <div
+                                className="w-10 h-10 rounded-full flex items-center justify-center"
+                                style={{ backgroundColor: badge.color + '20', color: badge.color }}
+                              >
+                                {getIconComponent(badge.icon)}
+                              </div>
+                              <span className="font-medium">{isRTL ? badge.name_ar : badge.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="max-w-[200px]">
+                            <span className="text-sm text-muted-foreground truncate block">
+                              {isRTL ? badge.description_ar : badge.description}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {badge.points_required ? (
+                              <span className="font-medium">{badge.points_required}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {badge.activities_required ? (
+                              <span className="font-medium">{badge.activities_required}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {badge.months_required ? (
+                              <span className="font-medium">{badge.months_required}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {badge.caravans_required ? (
+                              <span className="font-medium">{badge.caravans_required}</span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => {
+                                  setSelectedBadge(badge);
+                                  fetchUsersWithBadge(badge.id);
+                                  setIsAwardDialogOpen(true);
+                                }}>
+                                  <UserPlus className="mr-2 h-4 w-4" />
+                                  {isRTL ? 'منح لمتطوع' : 'Award to User'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEditDialog(badge)}>
+                                  <Pencil className="mr-2 h-4 w-4" />
+                                  {isRTL ? 'تعديل' : 'Edit'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => {
+                                    setSelectedBadge(badge);
+                                    setIsDeleteDialogOpen(true);
+                                  }}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  {isRTL ? 'حذف' : 'Delete'}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
           </>
         </CardContent>
