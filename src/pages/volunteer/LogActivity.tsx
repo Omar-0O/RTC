@@ -1157,59 +1157,61 @@ export default function LogActivity() {
               </div>
 
               {/* Proof Upload */}
-              {/* Proof Upload - Excluded for volunteers and HR roles */}
-              {primaryRole !== 'volunteer' && primaryRole !== 'hr' && primaryRole !== 'head_hr' && (
-                <div className="space-y-3">
-                  <Label className="text-base font-medium">{isRTL ? 'صورة الإثبات (اختياري)' : 'Proof Image (Optional)'}</Label>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
+              {/* Proof Upload - Excluded for volunteers, conditionally for HR */}
+              {(primaryRole !== 'volunteer' &&
+                ((primaryRole !== 'hr' && primaryRole !== 'head_hr') || isGroupSubmission)
+              ) && (
+                  <div className="space-y-3">
+                    <Label className="text-base font-medium">{isRTL ? 'صورة الإثبات (اختياري)' : 'Proof Image (Optional)'}</Label>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
 
-                  {proofPreview ? (
-                    <div className="relative group rounded-xl overflow-hidden border-2 border-primary/20">
-                      <img
-                        src={proofPreview}
-                        alt="Proof preview"
-                        className="w-full h-64 object-cover transition-transform group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          className="w-12 h-12 rounded-full"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeFile();
-                          }}
-                        >
-                          <X className="h-6 w-6" />
-                        </Button>
+                    {proofPreview ? (
+                      <div className="relative group rounded-xl overflow-hidden border-2 border-primary/20">
+                        <img
+                          src={proofPreview}
+                          alt="Proof preview"
+                          className="w-full h-64 object-cover transition-transform group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="w-12 h-12 rounded-full"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeFile();
+                            }}
+                          >
+                            <X className="h-6 w-6" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-accent/5 hover:border-primary/50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                        <Upload className="h-8 w-8 text-primary" />
-                      </div>
-                      <span className="text-base font-medium text-foreground">
-                        {isRTL ? 'اضغط لرفع صورة' : 'Click to upload image'}
-                      </span>
-                      <span className="text-sm text-muted-foreground mt-1">
-                        {isRTL ? 'الحد الأقصى 5 ميجابايت' : 'Max size 5MB'}
-                      </span>
-                    </button>
-                  )}
-                </div>
-              )}
+                    ) : (
+                      <button
+                        type="button"
+                        className="w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-accent/5 hover:border-primary/50 transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                          <Upload className="h-8 w-8 text-primary" />
+                        </div>
+                        <span className="text-base font-medium text-foreground">
+                          {isRTL ? 'اضغط لرفع صورة' : 'Click to upload image'}
+                        </span>
+                        <span className="text-sm text-muted-foreground mt-1">
+                          {isRTL ? 'الحد الأقصى 5 ميجابايت' : 'Max size 5MB'}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
 
               {/* Group Summary Preview */}
               {isGroupSubmission && selectedActivity && (
