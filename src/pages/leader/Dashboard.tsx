@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Users, TrendingUp, FileSpreadsheet, Calendar, Award, Filter, Check, ChevronsUpDown } from 'lucide-react';
+import { Users, TrendingUp, FileSpreadsheet, Calendar, Award, Filter, Check, ChevronsUpDown, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,6 +64,8 @@ interface Submission {
   wore_vest?: boolean;
   description?: string;
   proof_url?: string;
+  guest_name?: string | null;
+  guest_phone?: string | null;
   profiles: Profile | null;
   activity_types: {
     name: string;
@@ -174,6 +176,8 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
           wore_vest,
           description,
           proof_url,
+          guest_name,
+          guest_phone,
           profiles:profiles!activity_submissions_volunteer_id_fkey (
             id, full_name, full_name_ar, email, total_points, level, avatar_url, committee_id, phone
           ),
@@ -279,7 +283,9 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
 
       return {
         [isRTL ? 'نوع المهمة' : 'Task Type']: activityType?.[isRTL ? 'name_ar' : 'name'] || '',
-        [isRTL ? 'اسم المتطوع' : 'Volunteer Name']: isRTL ? (volunteer?.full_name_ar || 'مشاركة جماعية') : (volunteer?.full_name || 'Group Submission'),
+        [isRTL ? 'اسم المتطوع' : 'Volunteer Name']: volunteer
+          ? (isRTL ? (volunteer.full_name_ar || volunteer.full_name || '') : (volunteer.full_name || ''))
+          : (s.guest_name || (isRTL ? 'ضيف' : 'Guest')),
         [isRTL ? 'رقم الهاتف' : 'Phone']: `'${volunteer?.phone || ''}'`,
         [isRTL ? 'نوع العضوية' : 'Membership']: memberStatus,
         [isRTL ? 'نوع المشاركة' : 'Participation Type']: locationStr,
@@ -315,6 +321,22 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
     URL.revokeObjectURL(link.href);
 
     toast.success(isRTL ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
+  };
+
+  const handleDeleteSubmission = async (submissionId: string) => {
+    if (!confirm(isRTL ? 'هل أنت متأكد من حذف هذه المشاركة؟' : 'Are you sure you want to delete this submission?')) return;
+    try {
+      const { error } = await supabase
+        .from('activity_submissions')
+        .delete()
+        .eq('id', submissionId);
+      if (error) throw error;
+      setSubmissions(prev => prev.filter(s => s.id !== submissionId));
+      toast.success(isRTL ? 'تم حذف المشاركة بنجاح' : 'Submission deleted successfully');
+    } catch (error: any) {
+      console.error('Error deleting submission:', error);
+      toast.error(isRTL ? 'فشل في حذف المشاركة' : 'Failed to delete submission');
+    }
   };
 
   if (isLoading) {
@@ -517,7 +539,8 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
           </Card>
         ) : (
           filteredSubmissions.map((submission) => {
-            const isMember = submission.profiles?.committee_id && effectiveCommitteeIds.includes(submission.profiles.committee_id);
+            const isGuest = !submission.profiles;
+            const isMember = !isGuest && submission.profiles?.committee_id && effectiveCommitteeIds.includes(submission.profiles.committee_id);
             return (
               <Card key={submission.id} className="overflow-hidden hover:shadow-md transition-shadow">
                 <CardContent className="p-4 sm:p-6">
@@ -536,18 +559,28 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
                         <div className="flex items-center gap-2 min-w-0">
                           <h3 className="font-semibold text-base sm:text-lg truncate">
                             {submission.profiles
-                              ? (isRTL ? submission.profiles.full_name_ar : submission.profiles.full_name)
-                              : (isRTL ? "مشاركة جماعية" : "Group Submission")
+                              ? (isRTL
+                                ? (submission.profiles.full_name_ar || submission.profiles.full_name)
+                                : submission.profiles.full_name)
+                              : (submission.guest_name || (isRTL ? 'ضيف' : 'Guest'))
                             }
                           </h3>
                           <Badge
                             variant={isMember ? "default" : "outline"}
                             className={cn(
                               "text-xs shrink-0",
-                              isMember ? "bg-green-100 text-green-700 border-green-200" : "bg-orange-100 text-orange-700 border-orange-200"
+                              isGuest
+                                ? "bg-purple-100 text-purple-700 border-purple-200"
+                                : isMember
+                                  ? "bg-green-100 text-green-700 border-green-200"
+                                  : "bg-orange-100 text-orange-700 border-orange-200"
                             )}
                           >
-                            {isMember ? (isRTL ? 'عضو' : 'Member') : (isRTL ? 'خارجي' : 'External')}
+                            {isGuest
+                              ? (isRTL ? 'محفظ' : 'Memorizer')
+                              : isMember
+                                ? (isRTL ? 'عضو' : 'Member')
+                                : (isRTL ? 'خارجي' : 'External')}
                           </Badge>
                           {submission.profiles && (
                             <Badge variant="outline" className="text-xs shrink-0">
@@ -555,8 +588,19 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
                             </Badge>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground whitespace-nowrap">
-                          {format(new Date(submission.submitted_at), 'PPP')}
+                        <div className="flex items-center gap-2">
+                          <div className="text-xs text-muted-foreground whitespace-nowrap">
+                            {format(new Date(submission.submitted_at), 'PPP')}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                            onClick={() => handleDeleteSubmission(submission.id)}
+                            title={isRTL ? 'حذف المشاركة' : 'Delete Submission'}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
 
