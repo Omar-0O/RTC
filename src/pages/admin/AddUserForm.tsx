@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { format } from 'date-fns';
-import { Eye, EyeOff, Calendar as CalendarIcon } from 'lucide-react';
+import { Eye, EyeOff, Calendar as CalendarIcon, Camera } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 
 import { Input } from '@/components/ui/input';
@@ -429,18 +429,34 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
         <div className="grid gap-2">
           <Label>{language === 'ar' ? 'الصورة الشخصية' : 'Profile Picture'}</Label>
           <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src={formAvatarPreview || undefined} />
-              <AvatarFallback>{formName ? formName.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
-            </Avatar>
+            <div
+              className="relative group cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Avatar className="h-16 w-16">
+                <AvatarImage src={formAvatarPreview || undefined} />
+                <AvatarFallback>{formName ? formName.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
+              </Avatar>
+              <div className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Camera className="h-6 w-6 text-white" />
+              </div>
+            </div>
             <div className="flex-1">
-              <Input
+              <input
                 type="file"
                 accept="image/*"
                 ref={fileInputRef}
                 onChange={handleAvatarSelect}
-                className="cursor-pointer"
+                className="hidden"
               />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full sm:w-auto"
+              >
+                {language === 'ar' ? 'اختر صورة' : 'Choose Image'}
+              </Button>
               <p className="text-xs text-muted-foreground mt-1">
                 {language === 'ar' ? 'الحد الأقصى 2 ميجابايت' : 'Max size 2MB'}
               </p>
