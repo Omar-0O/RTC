@@ -25,6 +25,7 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
+    AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
     DropdownMenu,
@@ -61,6 +62,7 @@ import {
 import { format } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import * as XLSX from 'xlsx';
 import {
@@ -116,6 +118,8 @@ interface Session {
     circle_id: string;
     session_date: string;
     notes: string | null;
+    organizer_id?: string | null;
+    organizer_name?: string | null;
     attendees_count?: number;
     status?: 'scheduled' | 'completed' | 'cancelled';
 }
@@ -190,14 +194,25 @@ export default function QuranCircles() {
         ad_date: string;
         poster_done: boolean;
         content_done: boolean;
+        updater?: {
+            full_name: string;
+            full_name_ar: string | null;
+        };
     }
     const [circleAds, setCircleAds] = useState<CircleAd[]>([]);
     const [adsLoading, setAdsLoading] = useState(false);
+
+    // Marketing Dialog State
+    const [isMarketingDialogOpen, setIsMarketingDialogOpen] = useState(false);
+    const [selectedMarketingCircle, setSelectedMarketingCircle] = useState<QuranCircle | null>(null);
+    const [detailsMarketers, setDetailsMarketers] = useState<{ id?: string, volunteer_id?: string, name?: string, phone?: string }[]>([]);
 
     // Session creation
     const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
     const [sessionDate, setSessionDate] = useState(new Date().toISOString().split('T')[0]);
     const [sessionNotes, setSessionNotes] = useState('');
+    const [sessionOrganizerId, setSessionOrganizerId] = useState<string>('none');
+    const [circleOrganizersForSession, setCircleOrganizersForSession] = useState<Organizer[]>([]);
 
     // Attendance dialog
     const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
@@ -797,19 +812,31 @@ export default function QuranCircles() {
             beneficiary_type: (circle.target_group === 'children' || circle.target_group === 'child') ? 'child' : 'adult'
         });
 
-        // Fetch sessions
+        // Fetch sessions with organizer info
         const { data: sessionsData } = await supabase
             .from('quran_circle_sessions')
-            .select('*, quran_circle_beneficiaries(count)')
+            .select('*, quran_circle_beneficiaries(count), quran_circle_organizers(name)')
             .eq('circle_id', circle.id)
             .order('session_date', { ascending: false })
             .limit(50);
 
         const formattedSessions = sessionsData?.map((s: any) => ({
             ...s,
-            attendees_count: s.quran_circle_beneficiaries?.[0]?.count || 0
+            attendees_count: s.quran_circle_beneficiaries?.[0]?.count || 0,
+            organizer_name: s.quran_circle_organizers?.name || null
         })) || [];
         setSessions(formattedSessions);
+
+        // Load organizers for the session creation dialog
+        const { data: orgData } = await supabase
+            .from('quran_circle_organizers')
+            .select('volunteer_id, name, phone')
+            .eq('circle_id', circle.id);
+        setCircleOrganizersForSession(orgData?.map((o: any) => ({
+            volunteer_id: o.volunteer_id,
+            name: o.name,
+            phone: o.phone || ''
+        })) || []);
 
         // Fetch enrolled beneficiaries for details view
         const { data: enrolledData, error } = await supabase
@@ -875,12 +902,26 @@ export default function QuranCircles() {
         }
 
         try {
+            // Resolve organizer_id from quran_circle_organizers table
+            let resolvedOrganizerId: string | null = null;
+            if (sessionOrganizerId && sessionOrganizerId !== 'none') {
+                // sessionOrganizerId is a volunteer_id → look up the organizer row id
+                const { data: orgRow } = await supabase
+                    .from('quran_circle_organizers')
+                    .select('id')
+                    .eq('circle_id', selectedCircle.id)
+                    .eq('volunteer_id', sessionOrganizerId)
+                    .single();
+                resolvedOrganizerId = orgRow?.id ?? null;
+            }
+
             const { data, error } = await supabase
                 .from('quran_circle_sessions')
                 .insert({
                     circle_id: selectedCircle.id,
                     session_date: sessionDate,
-                    notes: sessionNotes || null
+                    notes: sessionNotes || null,
+                    organizer_id: resolvedOrganizerId
                 })
                 .select()
                 .single();
@@ -889,20 +930,14 @@ export default function QuranCircles() {
 
             toast.success(isRTL ? 'تم إنشاء الجلسة' : 'Session created');
             setIsSessionDialogOpen(false);
-            setSessionDate(new Date().toISOString().split('T')[0]); // Reset to today (approx) or keep last used? Let's use local today.
             const localDate = new Date();
             const localDateString = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
             setSessionDate(localDateString);
             setSessionNotes('');
+            setSessionOrganizerId('none');
 
             // Refresh sessions
             await openCircleDetails(selectedCircle);
-
-            // Auto-open attendance dialog (Disabled per user request)
-            // setSelectedSession(data);
-            // setAttendance([]);
-            // setSessionBeneficiarySearch('');
-            // setIsAttendanceDialogOpen(true);
         } catch (error: any) {
             console.error('Error creating session:', error);
             toast.error(error.message || 'Error occurred');
@@ -1420,6 +1455,94 @@ export default function QuranCircles() {
         }
     };
 
+    const openMarketingDialog = async (circle: QuranCircle) => {
+        setSelectedMarketingCircle(circle);
+
+        // Fetch ads
+        setAdsLoading(true);
+        try {
+            const { data, error } = await (supabase as any)
+                .from('quran_circle_ads')
+                .select('*, updater:updated_by(full_name, full_name_ar)')
+                .eq('circle_id', circle.id)
+                .order('ad_number', { ascending: true });
+
+            if (error) throw error;
+            setCircleAds(data || []);
+        } catch (error) {
+            console.error('Error fetching ads:', error);
+            toast.error(isRTL ? 'فشل إحضار الإعلانات' : 'Failed to fetch ads');
+        } finally {
+            setAdsLoading(false);
+        }
+
+        // Fetch marketers
+        try {
+            const { data: mktData, error: mktError } = await (supabase as any)
+                .from('quran_circle_marketers')
+                .select('id, volunteer_id, profiles(full_name, full_name_ar, phone)')
+                .eq('circle_id', circle.id);
+
+            if (!mktError && mktData) {
+                const formatted = mktData.map((m: any) => ({
+                    id: m.id,
+                    volunteer_id: m.volunteer_id,
+                    name: isRTL && m.profiles?.full_name_ar ? m.profiles.full_name_ar : m.profiles?.full_name,
+                    phone: m.profiles?.phone || ''
+                }));
+                setDetailsMarketers(formatted);
+            }
+        } catch (error) {
+            console.error('Error fetching marketers:', error);
+        }
+
+        setIsMarketingDialogOpen(true);
+    };
+
+    const handleAddMarketerToDetails = async (volunteer: Volunteer) => {
+        if (!selectedMarketingCircle) return;
+        if (detailsMarketers.some(m => m.volunteer_id === volunteer.id)) return;
+
+        try {
+            const { data, error } = await (supabase as any)
+                .from('quran_circle_marketers')
+                .insert({
+                    circle_id: selectedMarketingCircle.id,
+                    volunteer_id: volunteer.id
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+            setDetailsMarketers([...detailsMarketers, {
+                id: data.id,
+                volunteer_id: volunteer.id,
+                name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
+                phone: volunteer.phone || ''
+            }]);
+            toast.success(isRTL ? 'تم إضافة المسوق' : 'Marketer added');
+        } catch (error) {
+            console.error('Error adding marketer:', error);
+            toast.error(isRTL ? 'فشل إضافة المسوق' : 'Failed to add marketer');
+        }
+    };
+
+    const handleRemoveMarketerFromDetails = async (marketerId: string) => {
+        try {
+            const { error } = await (supabase as any)
+                .from('quran_circle_marketers')
+                .delete()
+                .eq('id', marketerId);
+
+            if (error) throw error;
+            setDetailsMarketers(detailsMarketers.filter(m => m.id !== marketerId));
+            toast.success(isRTL ? 'تم حذف المسوق' : 'Marketer removed');
+        } catch (error) {
+            console.error('Error removing marketer:', error);
+            toast.error(isRTL ? 'فشل حذف المسوق' : 'Failed to remove marketer');
+        }
+    };
+
     const handleViewDetails = (circleId: string) => {
         // Find the circle
         const circle = circles.find(c => c.id === circleId);
@@ -1801,10 +1924,18 @@ export default function QuranCircles() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => handleViewDetails(c.id)}>
-                                                <ClipboardList className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
-                                            </DropdownMenuItem>
+                                            {canManageAds && (
+                                                <DropdownMenuItem onClick={() => openMarketingDialog(c)}>
+                                                    <Megaphone className="h-4 w-4 ltr:mr-2 rtl:ml-2 text-primary" />
+                                                    {isRTL ? 'إدارة التسويق' : 'Marketing Mgmt'}
+                                                </DropdownMenuItem>
+                                            )}
+                                            {!hasRole('head_marketing') && (
+                                                <DropdownMenuItem onClick={() => handleViewDetails(c.id)}>
+                                                    <ClipboardList className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                    {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
+                                                </DropdownMenuItem>
+                                            )}
                                             <DropdownMenuItem onClick={() => handleEdit(c)}>
                                                 <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'تعديل' : 'Edit'}
@@ -1945,9 +2076,6 @@ export default function QuranCircles() {
                             {canManageOrganizers && (
                                 <TabsTrigger value="organizers" className="flex-1 sm:flex-none">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
                             )}
-                            {canManageAds && (
-                                <TabsTrigger value="ads" className="flex-1 sm:flex-none">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
-                            )}
                         </TabsList>
 
                         {/* Sessions Tab */}
@@ -2016,6 +2144,12 @@ export default function QuranCircles() {
                                                         <p className="text-xs text-muted-foreground mt-1">
                                                             {isRTL ? 'الحضور:' : 'Attendance:'} <span className={hasAttendance ? 'font-bold text-green-600 dark:text-green-400' : ''}>{session.attendees_count || 0}</span> / {detailsBeneficiaries.length}
                                                         </p>
+                                                        {session.organizer_name && (
+                                                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                                                <User className="h-3 w-3" />
+                                                                {session.organizer_name}
+                                                            </p>
+                                                        )}
                                                         {session.notes && (
                                                             <div className="flex items-start gap-1 mt-2 text-xs text-muted-foreground bg-muted/50 p-1.5 rounded w-full">
                                                                 <span className="shrink-0 mt-0.5">📝</span>
@@ -2453,107 +2587,6 @@ export default function QuranCircles() {
                             </TabsContent>
                         )}
 
-                        {/* Ads Tab */}
-                        {canManageAds && (
-                            <TabsContent value="ads" className="space-y-4 py-4">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <h3 className="font-semibold">{isRTL ? 'إعلانات الحلقة' : 'Circle Ads'}</h3>
-                                        <p className="text-sm text-muted-foreground">
-                                            {circleAds.length} {isRTL ? 'إعلان' : 'ads'}
-                                        </p>
-                                    </div>
-                                    <Button size="sm" onClick={async () => {
-                                        if (!selectedCircle) return;
-                                        const nextAdNum = circleAds.length > 0 ? Math.max(...circleAds.map(a => a.ad_number)) + 1 : 1;
-                                        const { data, error } = await (supabase as any)
-                                            .from('quran_circle_ads')
-                                            .insert({
-                                                circle_id: selectedCircle.id,
-                                                ad_number: nextAdNum,
-                                                ad_date: new Date().toISOString().split('T')[0],
-                                                poster_done: false,
-                                                content_done: false,
-                                            })
-                                            .select()
-                                            .single();
-                                        if (!error && data) {
-                                            setCircleAds(prev => [...prev, data]);
-                                            toast.success(isRTL ? 'تم إضافة الإعلان' : 'Ad added');
-                                        } else {
-                                            toast.error(error?.message || 'Error');
-                                        }
-                                    }}>
-                                        <Plus className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
-                                        {isRTL ? 'إضافة إعلان' : 'Add Ad'}
-                                    </Button>
-                                </div>
-
-                                {adsLoading ? (
-                                    <div className="flex justify-center py-8">
-                                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                    </div>
-                                ) : circleAds.length === 0 ? (
-                                    <div className="text-center py-10 text-muted-foreground">
-                                        <Megaphone className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                                        <p>{isRTL ? 'لا توجد إعلانات بعد' : 'No ads yet'}</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        {circleAds.map(ad => (
-                                            <div key={ad.id} className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/30 transition-colors">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 rounded-full bg-purple-100 dark:bg-purple-900/30">
-                                                        <Megaphone className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                                                    </div>
-                                                    <div>
-                                                        <p className="font-medium">#{ad.ad_number}</p>
-                                                        <p className="text-xs text-muted-foreground">{ad.ad_date}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Checkbox
-                                                            id={`poster-${ad.id}`}
-                                                            checked={ad.poster_done}
-                                                            onCheckedChange={async (checked) => {
-                                                                await (supabase as any).from('quran_circle_ads').update({ poster_done: checked, updated_at: new Date().toISOString() }).eq('id', ad.id);
-                                                                setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, poster_done: !!checked } : a));
-                                                            }}
-                                                        />
-                                                        <label htmlFor={`poster-${ad.id}`} className="text-sm cursor-pointer">{isRTL ? 'بوستر' : 'Poster'}</label>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5">
-                                                        <Checkbox
-                                                            id={`content-${ad.id}`}
-                                                            checked={ad.content_done}
-                                                            onCheckedChange={async (checked) => {
-                                                                await (supabase as any).from('quran_circle_ads').update({ content_done: checked, updated_at: new Date().toISOString() }).eq('id', ad.id);
-                                                                setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, content_done: !!checked } : a));
-                                                            }}
-                                                        />
-                                                        <label htmlFor={`content-${ad.id}`} className="text-sm cursor-pointer">{isRTL ? 'محتوى' : 'Content'}</label>
-                                                    </div>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                                        onClick={async () => {
-                                                            if (!confirm(isRTL ? 'هل تريد حذف هذا الإعلان؟' : 'Delete this ad?')) return;
-                                                            await (supabase as any).from('quran_circle_ads').delete().eq('id', ad.id);
-                                                            setCircleAds(prev => prev.filter(a => a.id !== ad.id));
-                                                            toast.success(isRTL ? 'تم حذف الإعلان' : 'Ad deleted');
-                                                        }}
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </TabsContent>
-                        )}
                     </Tabs>
                 </DialogContent>
             </Dialog >
@@ -2567,6 +2600,12 @@ export default function QuranCircles() {
                     const localDateString = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
                     setSessionDate(localDateString);
                     setSessionNotes('');
+                    // Auto-select if only one organizer
+                    if (circleOrganizersForSession.length === 1 && circleOrganizersForSession[0].volunteer_id) {
+                        setSessionOrganizerId(circleOrganizersForSession[0].volunteer_id);
+                    } else {
+                        setSessionOrganizerId('none');
+                    }
                 }
             }}>
                 <DialogContent>
@@ -2586,6 +2625,28 @@ export default function QuranCircles() {
                                 onChange={e => setSessionDate(e.target.value)}
                             />
                         </div>
+                        {/* Organizer (Supervisor) Selection */}
+                        {circleOrganizersForSession.length > 0 && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium flex items-center gap-1">
+                                    <User className="h-4 w-4" />
+                                    {isRTL ? 'المحفظ القائم على الجلسة' : 'Session Supervisor'}
+                                </label>
+                                <Select value={sessionOrganizerId} onValueChange={setSessionOrganizerId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={isRTL ? 'اختر المحفظ...' : 'Select supervisor...'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">{isRTL ? 'غير محدد' : 'Not specified'}</SelectItem>
+                                        {circleOrganizersForSession.map((org, idx) => (
+                                            <SelectItem key={org.volunteer_id || idx} value={org.volunteer_id || `idx-${idx}`}>
+                                                {org.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
                         <div className="space-y-2">
                             <label className="text-sm font-medium">{isRTL ? 'ملاحظات' : 'Notes'}</label>
                             <Textarea
@@ -2841,6 +2902,257 @@ export default function QuranCircles() {
                     </div>
                 </DialogContent>
             </Dialog >
+
+            {/* Marketing Dialog */}
+            <Dialog open={isMarketingDialogOpen} onOpenChange={setIsMarketingDialogOpen}>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle>
+                            {isRTL ? 'إدارة التسويق - ' : 'Marketing Management - '}
+                            {selectedMarketingCircle && getCircleName(selectedMarketingCircle)}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {isRTL ? 'متابعة خطة النشر والإعلانات للحلقة' : 'Manage circle publication plan and ads'}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="py-4 space-y-6">
+                        {/* Marketing Team Section */}
+                        <div className="border rounded-lg p-4 space-y-3">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Megaphone className="w-4 h-4 text-primary" />
+                                <h3 className="text-base font-semibold">{isRTL ? 'فريق التسويق' : 'Marketing Team'}</h3>
+                            </div>
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-start text-sm h-10">
+                                        <Search className="w-4 h-4 ltr:mr-2 rtl:ml-2 shrink-0" />
+                                        <span className="truncate">{isRTL ? 'إضافة مسوق...' : 'Add marketer...'}</span>
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[calc(100vw-4rem)] sm:w-[400px] p-0" align="start">
+                                    <Command>
+                                        <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
+                                        <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
+                                            <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results found'}</CommandEmpty>
+                                            <CommandGroup>
+                                                {volunteers.slice(0, 50).map(volunteer => (
+                                                    <CommandItem
+                                                        key={volunteer.id}
+                                                        value={`${volunteer.full_name} ${volunteer.full_name_ar || ''}`}
+                                                        onSelect={() => handleAddMarketerToDetails(volunteer)}
+                                                    >
+                                                        <div className="flex items-center gap-2 w-full">
+                                                            <Avatar className="h-8 w-8">
+                                                                <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                <AvatarFallback>{(volunteer.full_name?.[0] || '?').toUpperCase()}</AvatarFallback>
+                                                            </Avatar>
+                                                            <div className="flex flex-col">
+                                                                <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
+                                                                <span className="text-xs text-muted-foreground">{volunteer.phone}</span>
+                                                            </div>
+                                                        </div>
+                                                        {detailsMarketers.some(m => m.volunteer_id === volunteer.id) && (
+                                                            <Check className="w-4 h-4 ml-auto" />
+                                                        )}
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
+
+                            <div className="border rounded-md overflow-hidden">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                            <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                            <TableHead className="w-16"></TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {detailsMarketers.map(m => (
+                                            <TableRow key={m.id}>
+                                                <TableCell className="whitespace-nowrap">{m.name}</TableCell>
+                                                <TableCell className="whitespace-nowrap">{m.phone || '-'}</TableCell>
+                                                <TableCell>
+                                                    <Button size="sm" variant="ghost" onClick={() => handleRemoveMarketerFromDetails(m.id!)}>
+                                                        <Trash2 className="w-4 h-4 text-destructive" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {detailsMarketers.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">
+                                                    {isRTL ? 'لا يوجد فريق تسويق' : 'No marketing team assigned'}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </div>
+
+                        {/* Ads Section */}
+                        <div>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-semibold">{isRTL ? 'الإعلانات المخططة' : 'Planned Ads'}</h3>
+                                <Button size="sm" className="gap-2" onClick={async () => {
+                                    if (!selectedMarketingCircle) return;
+                                    const nextAdNum = circleAds.length > 0 ? Math.max(...circleAds.map(a => a.ad_number)) + 1 : 1;
+                                    const { data, error } = await (supabase as any)
+                                        .from('quran_circle_ads')
+                                        .insert({
+                                            circle_id: selectedMarketingCircle.id,
+                                            ad_number: nextAdNum,
+                                            ad_date: new Date().toISOString().split('T')[0],
+                                            poster_done: false,
+                                            content_done: false,
+                                        })
+                                        .select()
+                                        .single();
+                                    if (!error && data) {
+                                        setCircleAds(prev => [...prev, data]);
+                                        toast.success(isRTL ? 'تم إضافة الإعلان' : 'Ad added');
+                                    } else {
+                                        toast.error(error?.message || 'Error');
+                                    }
+                                }}>
+                                    <Plus className="h-4 w-4" />
+                                    {isRTL ? 'إضافة إعلان' : 'Add Ad'}
+                                </Button>
+                            </div>
+
+                            {adsLoading ? (
+                                <div className="flex justify-center py-8">
+                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                </div>
+                            ) : circleAds.length === 0 ? (
+                                <div className="text-center py-8 border rounded-lg border-dashed text-muted-foreground">
+                                    {isRTL ? 'لا توجد إعلانات مخططة' : 'No planned ads'}
+                                </div>
+                            ) : (
+                                <div className="border rounded-md overflow-hidden">
+                                    <div className="overflow-x-auto">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="w-[60px] text-center whitespace-nowrap">#</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'تاريخ النشر' : 'Date'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'البوستر' : 'Poster'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'المحتوى' : 'Content'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'آخر تحديث' : 'Updated By'}</TableHead>
+                                                    <TableHead className="w-[80px] whitespace-nowrap"></TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {circleAds.map((ad) => {
+                                                    return (
+                                                        <TableRow key={ad.id}>
+                                                            <TableCell className="text-center font-bold whitespace-nowrap">{ad.ad_number}</TableCell>
+                                                            <TableCell className="whitespace-nowrap">
+                                                                <Input
+                                                                    type="date"
+                                                                    value={ad.ad_date || ''}
+                                                                    onChange={async (e) => {
+                                                                        const newDate = e.target.value;
+                                                                        await (supabase as any).from('quran_circle_ads').update({ ad_date: newDate, updated_at: new Date().toISOString() }).eq('id', ad.id);
+                                                                        setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, ad_date: newDate } : a));
+                                                                    }}
+                                                                    className="w-[150px]"
+                                                                />
+                                                            </TableCell>
+                                                            <TableCell className="whitespace-nowrap">
+                                                                <Button
+                                                                    variant={ad.poster_done ? "default" : "outline"}
+                                                                    size="sm"
+                                                                    className={ad.poster_done ? "bg-green-600 hover:bg-green-700" : ""}
+                                                                    onClick={async () => {
+                                                                        const newVal = !ad.poster_done;
+                                                                        await (supabase as any).from('quran_circle_ads').update({ poster_done: newVal, updated_at: new Date().toISOString() }).eq('id', ad.id);
+                                                                        setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, poster_done: newVal } : a));
+                                                                    }}
+                                                                >
+                                                                    {ad.poster_done ? (
+                                                                        <><Check className="h-4 w-4 rtl:ml-1 ltr:mr-1" /> {isRTL ? 'جاهز' : 'Done'}</>
+                                                                    ) : (
+                                                                        <>{isRTL ? 'غير جاهز' : 'Pending'}</>
+                                                                    )}
+                                                                </Button>
+                                                            </TableCell>
+                                                            <TableCell className="whitespace-nowrap">
+                                                                <Button
+                                                                    variant={ad.content_done ? "default" : "outline"}
+                                                                    size="sm"
+                                                                    className={ad.content_done ? "bg-green-600 hover:bg-green-700" : ""}
+                                                                    onClick={async () => {
+                                                                        const newVal = !ad.content_done;
+                                                                        await (supabase as any).from('quran_circle_ads').update({ content_done: newVal, updated_at: new Date().toISOString() }).eq('id', ad.id);
+                                                                        setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, content_done: newVal } : a));
+                                                                    }}
+                                                                >
+                                                                    {ad.content_done ? (
+                                                                        <><Check className="h-4 w-4 rtl:ml-1 ltr:mr-1" /> {isRTL ? 'جاهز' : 'Done'}</>
+                                                                    ) : (
+                                                                        <>{isRTL ? 'غير جاهز' : 'Pending'}</>
+                                                                    )}
+                                                                </Button>
+                                                            </TableCell>
+                                                            <TableCell className="whitespace-nowrap">
+                                                                {ad.updater && (
+                                                                    <span className="text-xs text-muted-foreground">
+                                                                        {isRTL && ad.updater.full_name_ar ? ad.updater.full_name_ar : ad.updater.full_name}
+                                                                    </span>
+                                                                )}
+                                                            </TableCell>
+                                                            <TableCell className="whitespace-nowrap">
+                                                                <AlertDialog>
+                                                                    <AlertDialogTrigger asChild>
+                                                                        <Button variant="ghost" size="sm">
+                                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                                        </Button>
+                                                                    </AlertDialogTrigger>
+                                                                    <AlertDialogContent>
+                                                                        <AlertDialogHeader>
+                                                                            <AlertDialogTitle>{isRTL ? 'حذف الإعلان' : 'Delete Ad'}</AlertDialogTitle>
+                                                                            <AlertDialogDescription>
+                                                                                {isRTL
+                                                                                    ? `هل أنت متأكد من حذف الإعلان رقم ${ad.ad_number}؟`
+                                                                                    : `Are you sure you want to delete ad #${ad.ad_number}?`}
+                                                                            </AlertDialogDescription>
+                                                                        </AlertDialogHeader>
+                                                                        <AlertDialogFooter>
+                                                                            <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
+                                                                            <AlertDialogAction
+                                                                                onClick={async () => {
+                                                                                    await (supabase as any).from('quran_circle_ads').delete().eq('id', ad.id);
+                                                                                    setCircleAds(prev => prev.filter(a => a.id !== ad.id));
+                                                                                    toast.success(isRTL ? 'تم حذف الإعلان' : 'Ad deleted');
+                                                                                }}
+                                                                                className="bg-destructive hover:bg-destructive/90"
+                                                                            >
+                                                                                {isRTL ? 'حذف' : 'Delete'}
+                                                                            </AlertDialogAction>
+                                                                        </AlertDialogFooter>
+                                                                    </AlertDialogContent>
+                                                                </AlertDialog>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
         </div >
     );
 }
