@@ -542,6 +542,79 @@ export default function Reports() {
           return;
         }
 
+        // Build "مشاركة اليوم الواحد" sheet:
+        // Same format as "مشاركات كلي" but deduplicated: each participant (volunteer/guest/trainer)
+        // appears at most once per day — only their earliest submission that day is kept.
+        const getParticipantKey = (s: ActivitySubmission) => {
+          if (s.participant_type === 'guest' || s.guest_name)
+            return `guest_${s.guest_name || s.guest_phone || s.id}`;
+          if (s.participant_type === 'trainer' || s.trainer_id)
+            return `trainer_${s.trainer_id || s.volunteer_id}`;
+          return `vol_${s.volunteer_id}`;
+        };
+        const seenParticipantDays = new Set<string>();
+        const oneDayReportData = [...filteredSubmissions]
+          .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
+          .filter(s => {
+            const dayKey = `${getParticipantKey(s)}_${format(new Date(s.submitted_at), 'yyyy-MM-dd')}`;
+            if (seenParticipantDays.has(dayKey)) return false;
+            seenParticipantDays.add(dayKey);
+            return true;
+          })
+          .map(s => {
+            const volunteer = profilesMap.get(s.volunteer_id);
+            const activityType = activityTypesMap.get(s.activity_type_id);
+            const committeeId = s.committee_id || volunteer?.committee_id;
+            const committee = committeeId ? committeesMap.get(committeeId) : undefined;
+            let locationStr = s.location || 'branch';
+            if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
+            else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
+            const vestStatus = (s.location === 'home' || s.location === 'remote')
+              ? (language === 'ar' ? 'من البيت' : 'From Home')
+              : (s.location === 'branch'
+                ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
+                : '');
+            let participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
+            let participantName = language === 'ar' ? 'غير معروف' : 'Unknown';
+            let participantPhone = '';
+            if (s.participant_type === 'guest' || s.guest_name) {
+              participantType = language === 'ar' ? 'ضيف' : 'Guest';
+              participantName = s.guest_name || participantName;
+              participantPhone = s.guest_phone || '';
+            } else if (s.participant_type === 'trainer' || s.trainer_id) {
+              participantType = language === 'ar' ? 'مدرب' : 'Trainer';
+              const linkedTrainer = s.trainer_id ? trainers.find(t => t.id === s.trainer_id) : null;
+              if (linkedTrainer) {
+                participantName = language === 'ar' ? linkedTrainer.name_ar : linkedTrainer.name_en;
+                participantPhone = linkedTrainer.phone || '';
+              } else if (volunteer) {
+                const trainerByUser = trainers.find(t => t.user_id === s.volunteer_id);
+                participantName = trainerByUser
+                  ? (language === 'ar' ? trainerByUser.name_ar : trainerByUser.name_en)
+                  : ((language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName));
+                participantPhone = (trainerByUser?.phone || volunteer.phone) ?? '';
+              }
+            } else if (volunteer) {
+              participantName = (language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName);
+              participantPhone = volunteer.phone || '';
+            } else {
+              participantType = language === 'ar' ? 'غير معروف' : 'Unknown';
+            }
+            return {
+              [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+              [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+              [language === 'ar' ? 'نوع المشارك' : 'Participant Type']: participantType,
+              [language === 'ar' ? 'اسم المشارك' : 'Participant Name']: participantName,
+              [language === 'ar' ? 'رقم الهاتف' : 'Phone']: participantPhone ? `'${participantPhone}'` : '',
+              [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
+              [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
+              [language === 'ar' ? 'الأثر' : 'Impact']: s.points_awarded || 0,
+              [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+              [language === 'ar' ? 'الملاحظات' : 'Notes']: s.description || '',
+              [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
+            };
+          });
+
         try {
           const wb = utils.book_new();
 
@@ -551,6 +624,11 @@ export default function Reports() {
           if (volReportData.length > 0) {
             const volWs = utils.json_to_sheet(volReportData);
             utils.book_append_sheet(wb, volWs, language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations');
+          }
+
+          if (oneDayReportData.length > 0) {
+            const oneDayWs = utils.json_to_sheet(oneDayReportData);
+            utils.book_append_sheet(wb, oneDayWs, 'مشاركة اليوم الواحد');
           }
 
           const { start: allStart, end: allEnd } = getDateRange();
@@ -1046,6 +1124,78 @@ export default function Reports() {
                               return;
                             }
 
+                            // Build "مشاركة اليوم الواحد" sheet for archive:
+                            // Same format as "مشاركات كلي", each participant appears once per day (earliest).
+                            const getArchiveParticipantKey = (s: ActivitySubmission) => {
+                              if (s.participant_type === 'guest' || s.guest_name)
+                                return `guest_${s.guest_name || s.guest_phone || s.id}`;
+                              if (s.participant_type === 'trainer' || s.trainer_id)
+                                return `trainer_${s.trainer_id || s.volunteer_id}`;
+                              return `vol_${s.volunteer_id}`;
+                            };
+                            const seenArchiveDays = new Set<string>();
+                            const archiveOneDayData = [...monthSubmissions]
+                              .sort((a, b) => new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
+                              .filter(s => {
+                                const dayKey = `${getArchiveParticipantKey(s)}_${format(new Date(s.submitted_at), 'yyyy-MM-dd')}`;
+                                if (seenArchiveDays.has(dayKey)) return false;
+                                seenArchiveDays.add(dayKey);
+                                return true;
+                              })
+                              .map(s => {
+                                const volunteer = profilesMap.get(s.volunteer_id);
+                                const activityType = activityTypesMap.get(s.activity_type_id);
+                                const committeeId = s.committee_id || volunteer?.committee_id;
+                                const committee = committeeId ? committeesMap.get(committeeId) : undefined;
+                                let locationStr = s.location || 'branch';
+                                if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
+                                else if (locationStr === 'branch') locationStr = language === 'ar' ? 'الفرع' : 'Branch';
+                                const vestStatus = (s.location === 'home' || s.location === 'remote')
+                                  ? (language === 'ar' ? 'من البيت' : 'From Home')
+                                  : (s.location === 'branch'
+                                    ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
+                                    : '');
+                                let participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
+                                let participantName = language === 'ar' ? 'غير معروف' : 'Unknown';
+                                let participantPhone = '';
+                                if (s.participant_type === 'guest' || s.guest_name) {
+                                  participantType = language === 'ar' ? 'ضيف' : 'Guest';
+                                  participantName = s.guest_name || participantName;
+                                  participantPhone = s.guest_phone || '';
+                                } else if (s.participant_type === 'trainer' || s.trainer_id) {
+                                  participantType = language === 'ar' ? 'مدرب' : 'Trainer';
+                                  const linkedTrainer = s.trainer_id ? trainers.find(t => t.id === s.trainer_id) : null;
+                                  if (linkedTrainer) {
+                                    participantName = language === 'ar' ? linkedTrainer.name_ar : linkedTrainer.name_en;
+                                    participantPhone = linkedTrainer.phone || '';
+                                  } else if (volunteer) {
+                                    const trainerByUser = trainers.find(t => t.user_id === s.volunteer_id);
+                                    participantName = trainerByUser
+                                      ? (language === 'ar' ? trainerByUser.name_ar : trainerByUser.name_en)
+                                      : ((language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName));
+                                    participantPhone = (trainerByUser?.phone || volunteer.phone) ?? '';
+                                  }
+                                } else if (volunteer) {
+                                  participantName = (language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName);
+                                  participantPhone = volunteer.phone || '';
+                                } else {
+                                  participantType = language === 'ar' ? 'غير معروف' : 'Unknown';
+                                }
+                                return {
+                                  [language === 'ar' ? 'نوع المهمة' : 'Task Type']: activityType?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+                                  [language === 'ar' ? 'اللجنة' : 'Committee']: committee?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+                                  [language === 'ar' ? 'نوع المشارك' : 'Participant Type']: participantType,
+                                  [language === 'ar' ? 'اسم المشارك' : 'Participant Name']: participantName,
+                                  [language === 'ar' ? 'رقم الهاتف' : 'Phone']: participantPhone ? `'${participantPhone}'` : '',
+                                  [language === 'ar' ? 'نوع المشاركة' : 'Participation Type']: locationStr,
+                                  [language === 'ar' ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
+                                  [language === 'ar' ? 'الأثر' : 'Impact']: s.points_awarded || 0,
+                                  [language === 'ar' ? 'تاريخ المشاركة' : 'Date']: format(new Date(s.submitted_at), 'yyyy-MM-dd'),
+                                  [language === 'ar' ? 'الملاحظات' : 'Notes']: s.description || '',
+                                  [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
+                                };
+                              });
+
                             try {
                               const wb = utils.book_new();
 
@@ -1060,6 +1210,13 @@ export default function Reports() {
 
                               utils.book_append_sheet(wb, wsAll, language === 'ar' ? 'مشاركات كلي' : 'All Participations');
                               utils.book_append_sheet(wb, wsVol, language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations');
+
+                              if (archiveOneDayData.length > 0) {
+                                const wsOneDay = utils.json_to_sheet(archiveOneDayData);
+                                const colWidthsOneDay = Object.keys(archiveOneDayData[0] || {}).map(() => ({ wch: 20 }));
+                                wsOneDay['!cols'] = colWidthsOneDay;
+                                utils.book_append_sheet(wb, wsOneDay, 'مشاركة اليوم الواحد');
+                              }
 
                               const fileName = `archive_report_${format(date, 'yyyy_MM')}.xlsx`;
                               writeFile(wb, fileName);
