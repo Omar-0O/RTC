@@ -101,6 +101,8 @@ export default function CaravanManagement() {
 
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [openCombobox, setOpenCombobox] = useState(false);
+    const [isVolunteerSelectorOpen, setIsVolunteerSelectorOpen] = useState(false);
+    const [volunteerSearch, setVolunteerSearch] = useState('');
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [caravanToDelete, setCaravanToDelete] = useState<Caravan | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -415,7 +417,7 @@ export default function CaravanManagement() {
             committee_id: volunteer.committee_id,
             wore_vest: woreVest
         }]);
-        setOpenCombobox(false);
+        // Keep selector open for multi-selection (user closes with "تمام!")
         setWoreVest(true); // Reset to default
     };
 
@@ -927,41 +929,20 @@ export default function CaravanManagement() {
                                         <div className="space-y-2 sm:space-y-3">
                                             <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.addVolunteer')}</Label>
                                             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end">
-                                                <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                                                    <PopoverTrigger asChild>
-                                                        <Button variant="outline" role="combobox" className="w-full sm:flex-1 justify-between h-11 sm:h-12">
-                                                            <span className="truncate text-sm">{t('caravans.addVolunteer')}</span>
-                                                            <ChevronsUpDown className="ltr:ml-2 rtl:mr-2 h-4 w-4 shrink-0 opacity-50" />
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="p-0 w-[calc(100vw-2rem)] sm:w-[400px]" side="bottom" align="start">
-                                                        <Command>
-                                                            <CommandInput placeholder={t('common.search')} />
-                                                            <CommandList className="max-h-[200px]">
-                                                                <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results'}</CommandEmpty>
-                                                                <CommandGroup>
-                                                                    {volunteers.map((volunteer) => (
-                                                                        <CommandItem
-                                                                            key={volunteer.id}
-                                                                            value={volunteer.full_name}
-                                                                            onSelect={() => handleAddVolunteer(volunteer.id)}
-                                                                        >
-                                                                            <Check className={cn("ltr:mr-2 rtl:ml-2 h-4 w-4", "opacity-0")} />
-                                                                            <div className="flex items-center gap-2">
-                                                                                <Avatar className="h-6 w-6">
-                                                                                    <AvatarImage src={volunteer.avatar_url || undefined} />
-                                                                                    <AvatarFallback className="text-[10px]">{volunteer.full_name?.charAt(0)}</AvatarFallback>
-                                                                                </Avatar>
-                                                                                <span className="truncate text-sm">{volunteer.full_name}</span>
-                                                                            </div>
-                                                                        </CommandItem>
-                                                                    ))}
-                                                                </CommandGroup>
-                                                            </CommandList>
-                                                        </Command>
-                                                    </PopoverContent>
-                                                </Popover>
+                                                {/* Full-screen volunteer selector button */}
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className="w-full sm:flex-1 justify-between h-11 sm:h-12"
+                                                    onClick={() => { setVolunteerSearch(''); setIsVolunteerSelectorOpen(true); }}
+                                                >
+                                                    <span className="truncate text-sm">
+                                                        {isRTL ? `إضافة متطوعين (${participants.filter(p => p.is_volunteer).length} مضاف)` : `Add Volunteers (${participants.filter(p => p.is_volunteer).length} added)`}
+                                                    </span>
+                                                    <Users className="ltr:ml-2 rtl:mr-2 h-4 w-4 shrink-0 opacity-60" />
+                                                </Button>
 
+                                                {/* Vest toggle */}
                                                 <div className="flex w-full sm:w-auto items-center space-x-2 rtl:space-x-reverse h-11 sm:h-12 border rounded-md px-3 bg-card/50">
                                                     <Switch
                                                         id="vest-toggle"
@@ -973,6 +954,80 @@ export default function CaravanManagement() {
                                                     </Label>
                                                 </div>
                                             </div>
+
+                                            {/* Full-screen Volunteer Selector Dialog */}
+                                            <Dialog open={isVolunteerSelectorOpen} onOpenChange={setIsVolunteerSelectorOpen}>
+                                                <DialogContent className="fixed inset-0 sm:relative sm:inset-auto sm:max-w-md w-full h-full sm:h-auto sm:max-h-[85vh] flex flex-col p-0 rounded-none sm:rounded-lg gap-0">
+                                                    {/* Header */}
+                                                    <div className="flex items-center justify-between px-4 py-3 border-b bg-background shrink-0">
+                                                        <DialogTitle className="text-base font-semibold">
+                                                            {isRTL ? 'اختر المتطوعين' : 'Select Volunteers'}
+                                                        </DialogTitle>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsVolunteerSelectorOpen(false)}>
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                    {/* Search */}
+                                                    <div className="px-4 py-2 border-b bg-background shrink-0">
+                                                        <div className="relative">
+                                                            <Search className="absolute ltr:left-2.5 rtl:right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                            <Input
+                                                                className="ltr:pl-8 rtl:pr-8 h-9"
+                                                                placeholder={isRTL ? 'بحث باسم المتطوع...' : 'Search volunteers...'}
+                                                                value={volunteerSearch}
+                                                                onChange={e => setVolunteerSearch(e.target.value)}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    {/* Volunteer List */}
+                                                    <div className="flex-1 overflow-y-auto">
+                                                        {volunteers
+                                                            .filter(v => v.full_name.toLowerCase().includes(volunteerSearch.toLowerCase()))
+                                                            .map(volunteer => {
+                                                                const isAdded = participants.some(p => p.volunteer_id === volunteer.id);
+                                                                return (
+                                                                    <button
+                                                                        key={volunteer.id}
+                                                                        type="button"
+                                                                        className={`w-full flex items-center gap-3 px-4 py-3 text-start border-b last:border-0 transition-colors ${isAdded ? 'bg-primary/10' : 'hover:bg-muted/60'
+                                                                            }`}
+                                                                        onClick={() => {
+                                                                            if (!isAdded) handleAddVolunteer(volunteer.id);
+                                                                            else {
+                                                                                const idx = participants.findIndex(p => p.volunteer_id === volunteer.id);
+                                                                                if (idx !== -1) removeParticipant(idx);
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        <Avatar className="h-8 w-8 shrink-0">
+                                                                            <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                            <AvatarFallback className="text-xs">{volunteer.full_name?.charAt(0)}</AvatarFallback>
+                                                                        </Avatar>
+                                                                        <span className="flex-1 text-sm font-medium truncate">{volunteer.full_name}</span>
+                                                                        {isAdded && <Check className="h-4 w-4 text-primary shrink-0" />}
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        {volunteers.filter(v => v.full_name.toLowerCase().includes(volunteerSearch.toLowerCase())).length === 0 && (
+                                                            <div className="text-center text-muted-foreground text-sm py-8">
+                                                                {isRTL ? 'لا يوجد نتائج' : 'No results'}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {/* Footer */}
+                                                    <div className="px-4 py-3 border-t bg-background shrink-0">
+                                                        <Button
+                                                            className="w-full h-11"
+                                                            onClick={() => setIsVolunteerSelectorOpen(false)}
+                                                        >
+                                                            <Check className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                            {isRTL
+                                                                ? `تمام! (${participants.filter(p => p.is_volunteer).length} مختار)`
+                                                                : `Done! (${participants.filter(p => p.is_volunteer).length} selected)`}
+                                                        </Button>
+                                                    </div>
+                                                </DialogContent>
+                                            </Dialog>
                                         </div>
                                         <div className="space-y-2 sm:space-y-3">
                                             <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.addGuest')}</Label>

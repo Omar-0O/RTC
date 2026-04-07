@@ -1865,7 +1865,7 @@ export default function CourseManagement() {
                                     {isRTL ? 'إضافة كورس' : 'Add Course'}
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                            <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
                                 <DialogHeader>
                                     <DialogTitle className="text-2xl font-bold">{isRTL ? 'إضافة كورس جديد' : 'Add New Course'}</DialogTitle>
                                     <DialogDescription>{isRTL ? 'أضف تفاصيل الكورس' : 'Add course details'}</DialogDescription>
@@ -2085,7 +2085,7 @@ export default function CourseManagement() {
                                         {createTab === 'pre' && (
                                             <div className="space-y-6 pt-4 border-t animate-in fade-in slide-in-from-top-4 duration-300">
                                                 {/* Interview */}
-                                                <div className="flex items-center gap-4 p-4 border rounded-lg bg-card">
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border rounded-lg bg-card">
                                                     <label className="flex items-center gap-3 cursor-pointer flex-1">
                                                         <Checkbox
                                                             checked={formData.has_interview}
@@ -2095,12 +2095,12 @@ export default function CourseManagement() {
                                                         <span className="text-base font-medium">{isRTL ? 'يوجد انترفيو لهذا الكورس' : 'This course has an interview'}</span>
                                                     </label>
                                                     {formData.has_interview && (
-                                                        <div className="w-1/3 min-w-[200px]">
+                                                        <div className="w-full sm:w-auto sm:min-w-[180px]">
                                                             <Input
                                                                 type="date"
                                                                 value={formData.interview_date}
                                                                 onChange={e => setFormData({ ...formData, interview_date: e.target.value })}
-                                                                className="h-10"
+                                                                className="h-10 w-full"
                                                             />
                                                         </div>
                                                     )}
@@ -2661,7 +2661,7 @@ export default function CourseManagement() {
                         </div>
 
                         {/* Interview */}
-                        <div className="flex items-center gap-4 p-4 border rounded-lg bg-card">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border rounded-lg bg-card">
                             <label className="flex items-center gap-3 cursor-pointer flex-1">
                                 <Checkbox
                                     checked={formData.has_interview}
@@ -2671,12 +2671,12 @@ export default function CourseManagement() {
                                 <span className="text-base font-medium">{isRTL ? 'يوجد انترفيو لهذا الكورس' : 'This course has an interview'}</span>
                             </label>
                             {formData.has_interview && (
-                                <div className="w-1/3 min-w-[200px]">
+                                <div className="w-full sm:w-auto sm:min-w-[180px]">
                                     <Input
                                         type="date"
                                         value={formData.interview_date}
                                         onChange={e => setFormData({ ...formData, interview_date: e.target.value })}
-                                        className="h-10"
+                                        className="h-10 w-full"
                                     />
                                 </div>
                             )}
