@@ -91,6 +91,31 @@ interface Trainer {
   phone: string | null;
 }
 
+/** Fetch all rows from a table, bypassing the default 1000-row limit via pagination. */
+async function fetchAllRows(table: 'activity_submissions', pageSize = 500) {
+  // Step 1: get the exact count
+  const { count, error: cntError } = await supabase
+    .from(table)
+    .select('*', { count: 'exact', head: true });
+  if (cntError || count === null) {
+    // Fallback: simple select
+    const { data, error } = await supabase.from(table).select('*');
+    return { data: data || [], error };
+  }
+  // Step 2: paginate using the known count
+  let allData: any[] = [];
+  for (let from = 0; from < count; from += pageSize) {
+    const to = Math.min(from + pageSize - 1, count - 1);
+    const { data, error } = await supabase
+      .from(table)
+      .select('*')
+      .range(from, to);
+    if (error) return { data: allData, error };
+    if (data) allData = allData.concat(data);
+  }
+  return { data: allData, error: null };
+}
+
 export default function Reports() {
   const { t, language, isRTL } = useLanguage();
   const [dateRange, setDateRange] = useState('month');
@@ -117,7 +142,7 @@ export default function Reports() {
       const [profilesRes, committeesRes, submissionsRes, activityTypesRes, userRolesRes] = await Promise.all([
         supabase.from('profiles').select('*').neq('full_name', 'RTC Admin'),
         supabase.from('committees').select('*'),
-        supabase.from('activity_submissions').select('*'),
+        fetchAllRows('activity_submissions'),
         supabase.from('activity_types').select('*'),
         supabase.from('user_roles').select('*'),
       ]);

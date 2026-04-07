@@ -957,7 +957,7 @@ export default function CaravanManagement() {
 
                                             {/* Full-screen Volunteer Selector Dialog */}
                                             <Dialog open={isVolunteerSelectorOpen} onOpenChange={setIsVolunteerSelectorOpen}>
-                                                <DialogContent className="fixed inset-0 sm:relative sm:inset-auto sm:max-w-md w-full h-full sm:h-auto sm:max-h-[85vh] flex flex-col p-0 rounded-none sm:rounded-lg gap-0">
+                                                <DialogContent className="w-full max-w-[95vw] sm:max-w-md max-h-[92vh] flex flex-col p-0 gap-0" aria-describedby={undefined}>
                                                     {/* Header */}
                                                     <div className="flex items-center justify-between px-4 py-3 border-b bg-background shrink-0">
                                                         <DialogTitle className="text-base font-semibold">
