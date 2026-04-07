@@ -1324,7 +1324,9 @@ export default function CourseManagement() {
                 points_awarded: activityType.points,
                 status: 'approved',
                 location: 'branch',
-                proof_url: null
+                proof_url: null,
+                participant_type: 'trainer',
+                trainer_id: course.trainer_id
             });
 
             if (submitError) {
