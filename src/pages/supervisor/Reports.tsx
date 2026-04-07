@@ -408,6 +408,9 @@ export default function Reports() {
             if (trainer) {
               participantName = language === 'ar' ? trainer.name_ar : trainer.name_en;
               participantPhone = trainer.phone || participantPhone;
+            } else if (s.guest_name) {
+              participantName = s.guest_name;
+              participantPhone = s.guest_phone || '';
             }
           } else if (s.participant_type === 'guest' || s.guest_name) {
             participantType = language === 'ar' ? 'ضيف' : 'Guest';

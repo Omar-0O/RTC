@@ -480,14 +480,8 @@ export default function Reports() {
           let participantName = language === 'ar' ? 'غير معروف' : 'Unknown';
           let participantPhone = '';
 
-          // Priority 1: Check if explicitly a guest (by participant_type or guest_name)
-          if (s.participant_type === 'guest' || s.guest_name) {
-            participantType = language === 'ar' ? 'ضيف' : 'Guest';
-            participantName = s.guest_name || participantName;
-            participantPhone = s.guest_phone || '';
-          }
-          // Priority 2: Check if explicitly a trainer
-          else if (s.participant_type === 'trainer' || s.trainer_id) {
+          // Priority 1: Check if explicitly a trainer
+          if (s.participant_type === 'trainer' || s.trainer_id) {
             participantType = language === 'ar' ? 'مدرب' : 'Trainer';
             // Try to find trainer by trainer_id first
             const linkedTrainer = s.trainer_id ? trainers.find(t => t.id === s.trainer_id) : null;
@@ -504,7 +498,17 @@ export default function Reports() {
                 participantName = (language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName);
                 participantPhone = volunteer.phone || '';
               }
+            } else if (s.guest_name) {
+              // Fallback to guest_name if it was used as a backup
+              participantName = s.guest_name;
+              participantPhone = s.guest_phone || '';
             }
+          }
+          // Priority 2: Check if explicitly a guest (by participant_type or guest_name)
+          else if (s.participant_type === 'guest' || s.guest_name) {
+            participantType = language === 'ar' ? 'ضيف' : 'Guest';
+            participantName = s.guest_name || participantName;
+            participantPhone = s.guest_phone || '';
           }
           // Priority 3: Check if volunteer profile exists
           else if (volunteer) {
@@ -602,11 +606,7 @@ export default function Reports() {
             let participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
             let participantName = language === 'ar' ? 'غير معروف' : 'Unknown';
             let participantPhone = '';
-            if (s.participant_type === 'guest' || s.guest_name) {
-              participantType = language === 'ar' ? 'ضيف' : 'Guest';
-              participantName = s.guest_name || participantName;
-              participantPhone = s.guest_phone || '';
-            } else if (s.participant_type === 'trainer' || s.trainer_id) {
+            if (s.participant_type === 'trainer' || s.trainer_id) {
               participantType = language === 'ar' ? 'مدرب' : 'Trainer';
               const linkedTrainer = s.trainer_id ? trainers.find(t => t.id === s.trainer_id) : null;
               if (linkedTrainer) {
@@ -618,7 +618,14 @@ export default function Reports() {
                   ? (language === 'ar' ? trainerByUser.name_ar : trainerByUser.name_en)
                   : ((language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName));
                 participantPhone = (trainerByUser?.phone || volunteer.phone) ?? '';
+              } else if (s.guest_name) {
+                participantName = s.guest_name;
+                participantPhone = s.guest_phone || '';
               }
+            } else if (s.participant_type === 'guest' || s.guest_name) {
+              participantType = language === 'ar' ? 'ضيف' : 'Guest';
+              participantName = s.guest_name || participantName;
+              participantPhone = s.guest_phone || '';
             } else if (volunteer) {
               participantName = (language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName);
               participantPhone = volunteer.phone || '';
