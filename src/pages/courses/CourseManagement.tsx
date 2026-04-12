@@ -183,6 +183,7 @@ export default function CourseManagement() {
     const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
     const [detailsOrganizers, setDetailsOrganizers] = useState<CourseOrganizer[]>([]);
     const [detailsMarketers, setDetailsMarketers] = useState<CourseMarketer[]>([]);
+    const [detailsOrganizerPopoverOpen, setDetailsOrganizerPopoverOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [trainers, setTrainers] = useState<Trainer[]>([]);
     const [selectedTrainerId, setSelectedTrainerId] = useState<string>('');
@@ -3074,7 +3075,7 @@ export default function CourseManagement() {
                                     </CardHeader>
                                     <CardContent>
                                         <div className="space-y-4">
-                                            <Popover>
+                                            <Popover open={detailsOrganizerPopoverOpen} onOpenChange={setDetailsOrganizerPopoverOpen}>
                                                 <PopoverTrigger asChild>
                                                     <Button variant="outline" className="w-full justify-start text-sm">
                                                         <Search className="w-4 h-4 ltr:mr-2 rtl:ml-2 shrink-0" />
@@ -3083,28 +3084,41 @@ export default function CourseManagement() {
                                                 </PopoverTrigger>
                                                 <PopoverContent className="w-[calc(100vw-4rem)] sm:w-[400px] p-0" align="start">
                                                     <Command>
-                                                        <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
+                                                        <CommandInput placeholder={isRTL ? 'بحث عن متطوع أو رقم الهاتف...' : 'Search volunteer or phone...'} />
                                                         <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
                                                             <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results found'}</CommandEmpty>
                                                             <CommandGroup>
-                                                                {volunteers.slice(0, 50).map(volunteer => (
-                                                                    <CommandItem
-                                                                        key={volunteer.id}
-                                                                        value={`${volunteer.full_name} ${volunteer.full_name_ar || ''}`}
-                                                                        onSelect={() => handleAddOrganizerToDetails(volunteer)}
-                                                                    >
-                                                                        <div className="flex items-center gap-2 w-full">
-                                                                            <Avatar className="h-8 w-8">
-                                                                                <AvatarImage src={volunteer.avatar_url || undefined} />
-                                                                                <AvatarFallback>{(volunteer.full_name?.[0] || '?').toUpperCase()}</AvatarFallback>
-                                                                            </Avatar>
-                                                                            <div className="flex flex-col">
-                                                                                <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
-                                                                                <span className="text-xs text-muted-foreground">{volunteer.phone}</span>
+                                                                {volunteers.map(volunteer => {
+                                                                    const isSelected = detailsOrganizers.some(o => o.volunteer_id === volunteer.id);
+                                                                    return (
+                                                                        <CommandItem
+                                                                            key={volunteer.id}
+                                                                            value={`${volunteer.full_name} ${volunteer.full_name_ar || ''} ${volunteer.phone || ''}`}
+                                                                            onSelect={() => {
+                                                                                if (!isSelected) {
+                                                                                    handleAddOrganizerToDetails(volunteer);
+                                                                                }
+                                                                                setDetailsOrganizerPopoverOpen(false);
+                                                                            }}
+                                                                        >
+                                                                            <div className="flex items-center gap-2 w-full">
+                                                                                <Avatar className="h-8 w-8">
+                                                                                    <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                                    <AvatarFallback>{(volunteer.full_name?.[0] || '?').toUpperCase()}</AvatarFallback>
+                                                                                </Avatar>
+                                                                                <div className="flex flex-col flex-1">
+                                                                                    <span className={isSelected ? 'text-muted-foreground' : ''}>
+                                                                                        {isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}
+                                                                                    </span>
+                                                                                    <span className="text-xs text-muted-foreground">{volunteer.phone}</span>
+                                                                                </div>
+                                                                                {isSelected && (
+                                                                                    <Check className="h-4 w-4 text-green-600 shrink-0" />
+                                                                                )}
                                                                             </div>
-                                                                        </div>
-                                                                    </CommandItem>
-                                                                ))}
+                                                                        </CommandItem>
+                                                                    );
+                                                                })}
                                                             </CommandGroup>
                                                         </CommandList>
                                                     </Command>
