@@ -3082,7 +3082,7 @@ export default function CourseManagement() {
                                                         <span className="truncate">{isRTL ? 'إضافة منظم...' : 'Add organizer...'}</span>
                                                     </Button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-[calc(100vw-4rem)] sm:w-[400px] p-0" align="start">
+                                                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                                                     <Command>
                                                         <CommandInput placeholder={isRTL ? 'بحث عن متطوع أو رقم الهاتف...' : 'Search volunteer or phone...'} />
                                                         <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
@@ -3226,7 +3226,7 @@ export default function CourseManagement() {
                                         <span className="truncate">{isRTL ? 'إضافة مسوق...' : 'Add marketer...'}</span>
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[calc(100vw-4rem)] sm:w-[400px] p-0" align="start">
+                                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
                                     <Command>
                                         <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
                                         <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
