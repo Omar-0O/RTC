@@ -1568,294 +1568,296 @@ export default function QuranCircles() {
                     </p>
                 </div>
 
-                <Dialog open={isCreateOpen} onOpenChange={(open) => {
-                    setIsCreateOpen(open);
-                    if (!open) resetForm();
-                }}>
-                    <DialogTrigger asChild>
-                        <Button className="gap-2">
-                            <Plus className="h-4 w-4" />
-                            {isRTL ? 'إضافة حلقة' : 'Add Circle'}
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>
-                                {isEditMode
-                                    ? (isRTL ? 'تعديل الحلقة' : 'Edit Circle')
-                                    : (isRTL ? 'إضافة حلقة جديدة' : 'Add New Circle')}
-                            </DialogTitle>
-                        </DialogHeader>
+                {canManageOrganizers && (
+                    <Dialog open={isCreateOpen} onOpenChange={(open) => {
+                        setIsCreateOpen(open);
+                        if (!open) resetForm();
+                    }}>
+                        <DialogTrigger asChild>
+                            <Button className="gap-2">
+                                <Plus className="h-4 w-4" />
+                                {isRTL ? 'إضافة حلقة' : 'Add Circle'}
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                            <DialogHeader>
+                                <DialogTitle>
+                                    {isEditMode
+                                        ? (isRTL ? 'تعديل الحلقة' : 'Edit Circle')
+                                        : (isRTL ? 'إضافة حلقة جديدة' : 'Add New Circle')}
+                                </DialogTitle>
+                            </DialogHeader>
 
-                        <div className="space-y-6 py-4">
-                            {/* Teacher Selection */}
-                            <div className="grid gap-2">
-                                <Label className="flex items-center gap-2">
-                                    <User className="h-4 w-4" />
-                                    {isRTL ? 'المحفظ' : 'Teacher'} <span className="text-destructive">*</span>
-                                </Label>
-                                <Select
-                                    value={formData.teacher_id}
-                                    onValueChange={val => setFormData({ ...formData, teacher_id: val })}
-                                >
-                                    <SelectTrigger className="h-12">
-                                        <SelectValue placeholder={isRTL ? 'اختر المحفظ...' : 'Select teacher...'} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {allTeachers.map(t => (
-                                            <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                    {isRTL ? 'اسم الحلقة سيكون "حلقة المحفظ [الاسم]" تلقائياً' : 'Circle name will be auto-generated from teacher name'}
-                                </p>
-                            </div>
-
-                            {/* Target Group */}
-                            <div className="grid gap-2">
-                                <Label>{isRTL ? 'الفئة المستهدفة' : 'Target Group'}</Label>
-                                <Select
-                                    value={formData.target_group}
-                                    onValueChange={val => setFormData({ ...formData, target_group: val })}
-                                >
-                                    <SelectTrigger className="h-12">
-                                        <SelectValue placeholder={isRTL ? 'اختر الفئة...' : 'Select Target Group...'} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="adults">{isRTL ? 'بالغين' : 'Adults'}</SelectItem>
-                                        <SelectItem value="children">{isRTL ? 'أطفال' : 'Children'}</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* Beneficiary Gender */}
-                            <div className="grid gap-2">
-                                <Label className="flex items-center gap-2">
-                                    <Users className="h-4 w-4" />
-                                    {isRTL ? 'نوع المستفيدين' : 'Beneficiary Gender'}
-                                </Label>
-                                <Select
-                                    value={formData.beneficiary_gender}
-                                    onValueChange={val => setFormData({ ...formData, beneficiary_gender: val as 'male' | 'female' })}
-                                >
-                                    <SelectTrigger className="h-12">
-                                        <SelectValue placeholder={isRTL ? 'اختر النوع...' : 'Select Gender...'} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="male">
-                                            <div className="flex items-center gap-2">
-                                                <User className="h-4 w-4" />
-                                                {isRTL ? 'رجال' : 'Men'}
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="female">
-                                            <div className="flex items-center gap-2">
-                                                <User className="h-4 w-4" />
-                                                {isRTL ? 'نساء' : 'Women'}
-                                            </div>
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            {/* Schedule Days */}
-                            <div className="grid gap-3">
-                                <Label className="flex items-center gap-2">
-                                    <Calendar className="h-4 w-4" />
-                                    {isRTL ? 'أيام الحلقة' : 'Circle Days'} <span className="text-destructive">*</span>
-                                </Label>
-                                <div className="flex flex-wrap gap-2">
-                                    {DAYS.map(day => (
-                                        <div
-                                            key={day.value}
-                                            onClick={() => toggleDay(day.value)}
-                                            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-all ${formData.schedule_days.includes(day.value)
-                                                ? 'bg-primary text-primary-foreground border-primary'
-                                                : 'bg-background hover:bg-muted border-input'
-                                                }`}
-                                        >
-                                            <Checkbox
-                                                checked={formData.schedule_days.includes(day.value)}
-                                                className="pointer-events-none"
-                                            />
-                                            <span className="font-medium">{day.label[language as 'en' | 'ar']}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Schedule Time */}
-                            <div className="grid gap-2">
-                                <Label className="flex items-center gap-2">
-                                    <Clock className="h-4 w-4" />
-                                    {isRTL ? 'وقت الحلقة' : 'Circle Time'}
-                                </Label>
-                                <Input
-                                    type="time"
-                                    value={formData.schedule_time}
-                                    onChange={e => setFormData({ ...formData, schedule_time: e.target.value })}
-                                    className="h-12 w-48"
-                                />
-                            </div>
-
-                            {/* Description */}
-                            <div className="grid gap-2">
-                                <Label className="flex items-center gap-2">
-                                    {isRTL ? 'وصف الحلقة' : 'Description'}
-                                </Label>
-                                <Textarea
-                                    value={formData.description}
-                                    onChange={e => setFormData({ ...formData, description: e.target.value })}
-                                    placeholder={isRTL ? 'اكتب وصفاً للحلقة...' : 'Enter circle description...'}
-                                    className="min-h-[80px]"
-                                />
-                            </div>
-
-                            {/* Organizers */}
-                            <div className="grid gap-3">
-                                <Label className="flex items-center gap-2">
-                                    <Users className="h-4 w-4" />
-                                    {isRTL ? 'المنظمين' : 'Organizers'}
-                                </Label>
-
-                                <Popover open={organizerPopoverOpen} onOpenChange={setOrganizerPopoverOpen}>
-                                    <PopoverTrigger asChild>
-                                        <Button variant="outline" className="h-12 justify-start gap-2">
-                                            <Plus className="h-4 w-4" />
-                                            {isRTL ? 'إضافة منظم' : 'Add Organizer'}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-80 p-0" align="start">
-                                        <Command>
-                                            <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
-                                            <CommandList>
-                                                <CommandEmpty>{isRTL ? 'لم يتم العثور على نتائج' : 'No results found'}</CommandEmpty>
-                                                <CommandGroup>
-                                                    {volunteers.map(v => (
-                                                        <CommandItem
-                                                            key={v.id}
-                                                            onSelect={() => handleAddOrganizer(v)}
-                                                            className="flex items-center gap-2 cursor-pointer"
-                                                        >
-                                                            <Avatar className="h-8 w-8">
-                                                                <AvatarImage src={v.avatar_url || undefined} />
-                                                                <AvatarFallback>{v.full_name?.slice(0, 2)}</AvatarFallback>
-                                                            </Avatar>
-                                                            <div className="flex-1">
-                                                                <p className="font-medium">{isRTL && v.full_name_ar ? v.full_name_ar : v.full_name}</p>
-                                                                <p className="text-xs text-muted-foreground">{v.phone}</p>
-                                                            </div>
-                                                            {organizers.some(o => o.volunteer_id === v.id) && (
-                                                                <Check className="h-4 w-4 text-primary" />
-                                                            )}
-                                                        </CommandItem>
-                                                    ))}
-                                                </CommandGroup>
-                                            </CommandList>
-                                        </Command>
-                                    </PopoverContent>
-                                </Popover>
-
-                                {organizers.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mt-2">
-                                        {organizers.map((org, idx) => (
-                                            <Badge key={idx} variant="secondary" className="px-3 py-2 gap-2">
-                                                <span>{org.name}</span>
-                                                <button onClick={() => removeOrganizer(idx)} className="hover:text-destructive">
-                                                    <X className="h-3 w-3" />
-                                                </button>
-                                            </Badge>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Marketing Team */}
-                            <div className="grid gap-3">
-                                <Label className="flex items-center gap-2">
-                                    <Megaphone className="h-4 w-4" />
-                                    {isRTL ? 'فريق التسويق' : 'Marketing Team'}
-                                </Label>
-
-                                <Popover open={marketerPopoverOpen} onOpenChange={setMarketerPopoverOpen}>
-                                    <PopoverTrigger asChild>
-                                        <Button variant="outline" className="h-12 justify-start gap-2">
-                                            <Plus className="h-4 w-4" />
-                                            {isRTL ? 'إضافة مسوق' : 'Add Marketer'}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-80 p-0" align="start">
-                                        <Command>
-                                            <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
-                                            <CommandList>
-                                                <CommandEmpty>{isRTL ? 'لم يتم العثور على نتائج' : 'No results found'}</CommandEmpty>
-                                                <CommandGroup>
-                                                    {volunteers.map(v => (
-                                                        <CommandItem
-                                                            key={v.id}
-                                                            onSelect={() => handleAddMarketer(v)}
-                                                            className="flex items-center gap-2 cursor-pointer"
-                                                        >
-                                                            <Avatar className="h-8 w-8">
-                                                                <AvatarImage src={v.avatar_url || undefined} />
-                                                                <AvatarFallback>{v.full_name?.slice(0, 2)}</AvatarFallback>
-                                                            </Avatar>
-                                                            <div className="flex-1">
-                                                                <p className="font-medium">{isRTL && v.full_name_ar ? v.full_name_ar : v.full_name}</p>
-                                                                <p className="text-xs text-muted-foreground">{v.phone}</p>
-                                                            </div>
-                                                            {marketers.some(m => m.volunteer_id === v.id) && (
-                                                                <Check className="h-4 w-4 text-primary" />
-                                                            )}
-                                                        </CommandItem>
-                                                    ))}
-                                                </CommandGroup>
-                                            </CommandList>
-                                        </Command>
-                                    </PopoverContent>
-                                </Popover>
-
-                                {marketers.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mt-2">
-                                        {marketers.map((mkt, idx) => (
-                                            <Badge key={idx} variant="secondary" className="px-3 py-2 gap-2">
-                                                <span>{mkt.name}</span>
-                                                <button onClick={() => removeMarketer(idx)} className="hover:text-destructive">
-                                                    <X className="h-3 w-3" />
-                                                </button>
-                                            </Badge>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-
-                            {/* Active Toggle */}
-                            <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
-                                <div>
-                                    <Label>{isRTL ? 'الحلقة نشطة' : 'Circle Active'}</Label>
+                            <div className="space-y-6 py-4">
+                                {/* Teacher Selection */}
+                                <div className="grid gap-2">
+                                    <Label className="flex items-center gap-2">
+                                        <User className="h-4 w-4" />
+                                        {isRTL ? 'المحفظ' : 'Teacher'} <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Select
+                                        value={formData.teacher_id}
+                                        onValueChange={val => setFormData({ ...formData, teacher_id: val })}
+                                    >
+                                        <SelectTrigger className="h-12">
+                                            <SelectValue placeholder={isRTL ? 'اختر المحفظ...' : 'Select teacher...'} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {allTeachers.map(t => (
+                                                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                     <p className="text-xs text-muted-foreground">
-                                        {isRTL ? 'إيقاف الحلقة مؤقتاً بدون حذفها' : 'Temporarily disable without deleting'}
+                                        {isRTL ? 'اسم الحلقة سيكون "حلقة المحفظ [الاسم]" تلقائياً' : 'Circle name will be auto-generated from teacher name'}
                                     </p>
                                 </div>
-                                <Switch
-                                    checked={formData.is_active}
-                                    onCheckedChange={checked => setFormData({ ...formData, is_active: checked })}
-                                />
-                            </div>
-                        </div>
 
-                        <div className="flex justify-end gap-2 border-t pt-4">
-                            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-                                {isRTL ? 'إلغاء' : 'Cancel'}
-                            </Button>
-                            <Button onClick={handleSave} className="px-6">
-                                {isRTL ? 'حفظ' : 'Save'}
-                            </Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                                {/* Target Group */}
+                                <div className="grid gap-2">
+                                    <Label>{isRTL ? 'الفئة المستهدفة' : 'Target Group'}</Label>
+                                    <Select
+                                        value={formData.target_group}
+                                        onValueChange={val => setFormData({ ...formData, target_group: val })}
+                                    >
+                                        <SelectTrigger className="h-12">
+                                            <SelectValue placeholder={isRTL ? 'اختر الفئة...' : 'Select Target Group...'} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="adults">{isRTL ? 'بالغين' : 'Adults'}</SelectItem>
+                                            <SelectItem value="children">{isRTL ? 'أطفال' : 'Children'}</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Beneficiary Gender */}
+                                <div className="grid gap-2">
+                                    <Label className="flex items-center gap-2">
+                                        <Users className="h-4 w-4" />
+                                        {isRTL ? 'نوع المستفيدين' : 'Beneficiary Gender'}
+                                    </Label>
+                                    <Select
+                                        value={formData.beneficiary_gender}
+                                        onValueChange={val => setFormData({ ...formData, beneficiary_gender: val as 'male' | 'female' })}
+                                    >
+                                        <SelectTrigger className="h-12">
+                                            <SelectValue placeholder={isRTL ? 'اختر النوع...' : 'Select Gender...'} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="male">
+                                                <div className="flex items-center gap-2">
+                                                    <User className="h-4 w-4" />
+                                                    {isRTL ? 'رجال' : 'Men'}
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="female">
+                                                <div className="flex items-center gap-2">
+                                                    <User className="h-4 w-4" />
+                                                    {isRTL ? 'نساء' : 'Women'}
+                                                </div>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Schedule Days */}
+                                <div className="grid gap-3">
+                                    <Label className="flex items-center gap-2">
+                                        <Calendar className="h-4 w-4" />
+                                        {isRTL ? 'أيام الحلقة' : 'Circle Days'} <span className="text-destructive">*</span>
+                                    </Label>
+                                    <div className="flex flex-wrap gap-2">
+                                        {DAYS.map(day => (
+                                            <div
+                                                key={day.value}
+                                                onClick={() => toggleDay(day.value)}
+                                                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-all ${formData.schedule_days.includes(day.value)
+                                                    ? 'bg-primary text-primary-foreground border-primary'
+                                                    : 'bg-background hover:bg-muted border-input'
+                                                    }`}
+                                            >
+                                                <Checkbox
+                                                    checked={formData.schedule_days.includes(day.value)}
+                                                    className="pointer-events-none"
+                                                />
+                                                <span className="font-medium">{day.label[language as 'en' | 'ar']}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Schedule Time */}
+                                <div className="grid gap-2">
+                                    <Label className="flex items-center gap-2">
+                                        <Clock className="h-4 w-4" />
+                                        {isRTL ? 'وقت الحلقة' : 'Circle Time'}
+                                    </Label>
+                                    <Input
+                                        type="time"
+                                        value={formData.schedule_time}
+                                        onChange={e => setFormData({ ...formData, schedule_time: e.target.value })}
+                                        className="h-12 w-48"
+                                    />
+                                </div>
+
+                                {/* Description */}
+                                <div className="grid gap-2">
+                                    <Label className="flex items-center gap-2">
+                                        {isRTL ? 'وصف الحلقة' : 'Description'}
+                                    </Label>
+                                    <Textarea
+                                        value={formData.description}
+                                        onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                        placeholder={isRTL ? 'اكتب وصفاً للحلقة...' : 'Enter circle description...'}
+                                        className="min-h-[80px]"
+                                    />
+                                </div>
+
+                                {/* Organizers */}
+                                <div className="grid gap-3">
+                                    <Label className="flex items-center gap-2">
+                                        <Users className="h-4 w-4" />
+                                        {isRTL ? 'المنظمين' : 'Organizers'}
+                                    </Label>
+
+                                    <Popover open={organizerPopoverOpen} onOpenChange={setOrganizerPopoverOpen}>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="h-12 justify-start gap-2">
+                                                <Plus className="h-4 w-4" />
+                                                {isRTL ? 'إضافة منظم' : 'Add Organizer'}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-80 p-0" align="start">
+                                            <Command>
+                                                <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
+                                                <CommandList>
+                                                    <CommandEmpty>{isRTL ? 'لم يتم العثور على نتائج' : 'No results found'}</CommandEmpty>
+                                                    <CommandGroup>
+                                                        {volunteers.map(v => (
+                                                            <CommandItem
+                                                                key={v.id}
+                                                                onSelect={() => handleAddOrganizer(v)}
+                                                                className="flex items-center gap-2 cursor-pointer"
+                                                            >
+                                                                <Avatar className="h-8 w-8">
+                                                                    <AvatarImage src={v.avatar_url || undefined} />
+                                                                    <AvatarFallback>{v.full_name?.slice(0, 2)}</AvatarFallback>
+                                                                </Avatar>
+                                                                <div className="flex-1">
+                                                                    <p className="font-medium">{isRTL && v.full_name_ar ? v.full_name_ar : v.full_name}</p>
+                                                                    <p className="text-xs text-muted-foreground">{v.phone}</p>
+                                                                </div>
+                                                                {organizers.some(o => o.volunteer_id === v.id) && (
+                                                                    <Check className="h-4 w-4 text-primary" />
+                                                                )}
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+
+                                    {organizers.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            {organizers.map((org, idx) => (
+                                                <Badge key={idx} variant="secondary" className="px-3 py-2 gap-2">
+                                                    <span>{org.name}</span>
+                                                    <button onClick={() => removeOrganizer(idx)} className="hover:text-destructive">
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Marketing Team */}
+                                <div className="grid gap-3">
+                                    <Label className="flex items-center gap-2">
+                                        <Megaphone className="h-4 w-4" />
+                                        {isRTL ? 'فريق التسويق' : 'Marketing Team'}
+                                    </Label>
+
+                                    <Popover open={marketerPopoverOpen} onOpenChange={setMarketerPopoverOpen}>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" className="h-12 justify-start gap-2">
+                                                <Plus className="h-4 w-4" />
+                                                {isRTL ? 'إضافة مسوق' : 'Add Marketer'}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-80 p-0" align="start">
+                                            <Command>
+                                                <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
+                                                <CommandList>
+                                                    <CommandEmpty>{isRTL ? 'لم يتم العثور على نتائج' : 'No results found'}</CommandEmpty>
+                                                    <CommandGroup>
+                                                        {volunteers.map(v => (
+                                                            <CommandItem
+                                                                key={v.id}
+                                                                onSelect={() => handleAddMarketer(v)}
+                                                                className="flex items-center gap-2 cursor-pointer"
+                                                            >
+                                                                <Avatar className="h-8 w-8">
+                                                                    <AvatarImage src={v.avatar_url || undefined} />
+                                                                    <AvatarFallback>{v.full_name?.slice(0, 2)}</AvatarFallback>
+                                                                </Avatar>
+                                                                <div className="flex-1">
+                                                                    <p className="font-medium">{isRTL && v.full_name_ar ? v.full_name_ar : v.full_name}</p>
+                                                                    <p className="text-xs text-muted-foreground">{v.phone}</p>
+                                                                </div>
+                                                                {marketers.some(m => m.volunteer_id === v.id) && (
+                                                                    <Check className="h-4 w-4 text-primary" />
+                                                                )}
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+
+                                    {marketers.length > 0 && (
+                                        <div className="flex flex-wrap gap-2 mt-2">
+                                            {marketers.map((mkt, idx) => (
+                                                <Badge key={idx} variant="secondary" className="px-3 py-2 gap-2">
+                                                    <span>{mkt.name}</span>
+                                                    <button onClick={() => removeMarketer(idx)} className="hover:text-destructive">
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </Badge>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+
+                                {/* Active Toggle */}
+                                <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/30">
+                                    <div>
+                                        <Label>{isRTL ? 'الحلقة نشطة' : 'Circle Active'}</Label>
+                                        <p className="text-xs text-muted-foreground">
+                                            {isRTL ? 'إيقاف الحلقة مؤقتاً بدون حذفها' : 'Temporarily disable without deleting'}
+                                        </p>
+                                    </div>
+                                    <Switch
+                                        checked={formData.is_active}
+                                        onCheckedChange={checked => setFormData({ ...formData, is_active: checked })}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 border-t pt-4">
+                                <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                                    {isRTL ? 'إلغاء' : 'Cancel'}
+                                </Button>
+                                <Button onClick={handleSave} className="px-6">
+                                    {isRTL ? 'حفظ' : 'Save'}
+                                </Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
+                )}
             </div>
 
             {/* Search */}
@@ -1936,14 +1938,18 @@ export default function QuranCircles() {
                                                     {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
                                                 </DropdownMenuItem>
                                             )}
-                                            <DropdownMenuItem onClick={() => handleEdit(c)}>
-                                                <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                {isRTL ? 'تعديل' : 'Edit'}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(c.id)}>
-                                                <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                {isRTL ? 'حذف' : 'Delete'}
-                                            </DropdownMenuItem>
+                                            {canManageOrganizers && (
+                                                <>
+                                                    <DropdownMenuItem onClick={() => handleEdit(c)}>
+                                                        <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'تعديل' : 'Edit'}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(c.id)}>
+                                                        <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'حذف' : 'Delete'}
+                                                    </DropdownMenuItem>
+                                                </>
+                                            )}
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>
