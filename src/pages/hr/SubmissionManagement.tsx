@@ -91,6 +91,7 @@ interface Submission {
     participant_type?: 'volunteer' | 'guest' | 'trainer';
     guest_name?: string | null;
     guest_phone?: string | null;
+    trainer_id?: string | null;
     profiles: Profile | null;
     activity_types: {
         name: string;
@@ -140,7 +141,7 @@ export default function SubmissionManagement() {
     const [submissionToDelete, setSubmissionToDelete] = useState<string | null>(null);
 
     // Trainers Map
-    const [trainersMap, setTrainersMap] = useState<Record<string, { ar: string, en: string, phone: string }>>({});
+    const [trainersMap, setTrainersMap] = useState<Record<string, { ar: string, en: string, phone: string, image_url: string | null }>>({});
 
     // Volunteer Search
     const [volunteers, setVolunteers] = useState<Profile[]>([]);
@@ -196,15 +197,15 @@ export default function SubmissionManagement() {
         try {
             const { data, error } = await supabase
                 .from('trainers')
-                .select('user_id, name_ar, name_en, phone');
+                .select('id, user_id, name_ar, name_en, phone, image_url');
 
             if (error) throw error;
             console.log('Fetched trainers map data:', data);
 
-            const map: Record<string, { ar: string, en: string, phone: string }> = {};
+            const map: Record<string, { ar: string, en: string, phone: string, image_url: string | null }> = {};
             data.forEach((t: any) => {
-                if (t.user_id) {
-                    map[t.user_id] = { ar: t.name_ar, en: t.name_en, phone: t.phone };
+                if (t.id) {
+                    map[t.id] = { ar: t.name_ar, en: t.name_en, phone: t.phone, image_url: t.image_url };
                 }
             });
             setTrainersMap(map);
@@ -238,6 +239,7 @@ export default function SubmissionManagement() {
                     participant_type,
                     guest_name,
                     guest_phone,
+                    trainer_id,
                     profiles:profiles!activity_submissions_volunteer_id_fkey (id, full_name, full_name_ar, level, avatar_url, phone),
                     activity_types (name, name_ar),
                     committees (name, name_ar)
@@ -782,7 +784,7 @@ export default function SubmissionManagement() {
                         </Popover>
                     </div>
 
-                    <div className="space-y-2 flex flex-col">
+                    <div className="flex flex-col gap-2 justify-end">
                         <Label>{isRTL ? 'المشاركات المنخفضة' : 'Low Participation'}</Label>
                         <Dialog open={showLowParticipationDialog} onOpenChange={setShowLowParticipationDialog}>
                             <DialogTrigger asChild>
@@ -874,12 +876,15 @@ export default function SubmissionManagement() {
                             ? submission.guest_name
                             : (isRTL ? submission.profiles?.full_name_ar : submission.profiles?.full_name);
 
+                        let trainerAvatarUrl = null;
+
                         // If it's a trainer, try to get the trainer name
                         if (isTrainer) {
-                            if (submission.volunteer_id && trainersMap[submission.volunteer_id]) {
+                            if (submission.trainer_id && trainersMap[submission.trainer_id]) {
                                 displayName = isRTL
-                                    ? trainersMap[submission.volunteer_id].ar
-                                    : trainersMap[submission.volunteer_id].en;
+                                    ? trainersMap[submission.trainer_id].ar
+                                    : trainersMap[submission.trainer_id].en;
+                                trainerAvatarUrl = trainersMap[submission.trainer_id].image_url;
                             } else if (!displayName && submission.profiles) {
                                 // If map lookup failed but we have a profile, use profile name
                                 displayName = isRTL ? submission.profiles.full_name_ar : submission.profiles.full_name;
@@ -890,8 +895,8 @@ export default function SubmissionManagement() {
                         }
 
                         let displayPhone = isGuest ? submission.guest_phone : submission.profiles?.phone;
-                        if (isTrainer && submission.volunteer_id && trainersMap[submission.volunteer_id]?.phone) {
-                            displayPhone = trainersMap[submission.volunteer_id].phone;
+                        if (isTrainer && submission.trainer_id && trainersMap[submission.trainer_id]?.phone) {
+                            displayPhone = trainersMap[submission.trainer_id].phone;
                         }
 
                         return (
@@ -900,11 +905,16 @@ export default function SubmissionManagement() {
                                     <div className="flex items-start gap-4">
                                         {/* Avatar */}
                                         <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border-2 border-primary/10">
-                                            {!isGuest && submission.profiles?.avatar_url ? (
+                                            {isTrainer && trainerAvatarUrl ? (
+                                                <AvatarImage src={trainerAvatarUrl} />
+                                            ) : isTrainer && submission.profiles?.avatar_url ? (
+                                                // Trainer linked as volunteer — use their profile pic
+                                                <AvatarImage src={submission.profiles.avatar_url} />
+                                            ) : !isGuest && submission.profiles?.avatar_url ? (
                                                 <AvatarImage src={submission.profiles.avatar_url} />
                                             ) : null}
                                             <AvatarFallback className="text-lg">
-                                                {isGuest ? '👤' : (submission.profiles?.full_name?.substring(0, 2) || "U")}
+                                                {isGuest && !isTrainer ? '👤' : (displayName?.substring(0, 2) || "U")}
                                             </AvatarFallback>
                                         </Avatar>
 

@@ -442,6 +442,21 @@ export default function TrainerManagement(): JSX.Element {
                     .eq('id', editingTrainer.id);
 
                 if (error) throw error;
+
+                // Sync the volunteer_id in activity_submissions if it changed
+                const newUserId = formData.user_id === 'none' ? null : formData.user_id;
+                if (newUserId !== editingTrainer.user_id) {
+                    const { error: syncError } = await (supabase as any)
+                        .from('activity_submissions')
+                        .update({ volunteer_id: newUserId })
+                        .eq('trainer_id', editingTrainer.id)
+                        .eq('participant_type', 'trainer');
+                        
+                    if (syncError) {
+                        console.error('Error syncing trainer participations:', syncError);
+                    }
+                }
+
                 toast.success(isRTL ? 'تم تحديث المدرب بنجاح' : 'Trainer updated successfully');
             } else {
                 // Create - try with committee_id first, fallback without it
