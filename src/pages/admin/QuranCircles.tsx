@@ -1579,7 +1579,7 @@ export default function QuranCircles() {
                                 {isRTL ? 'إضافة حلقة' : 'Add Circle'}
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
                                 <DialogTitle>
                                     {isEditMode
@@ -1727,7 +1727,7 @@ export default function QuranCircles() {
                                                 {isRTL ? 'إضافة منظم' : 'Add Organizer'}
                                             </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-80 p-0" align="start">
+                                        <PopoverContent className="w-[calc(100vw-2.5rem)] sm:w-80 p-0" align="start">
                                             <Command>
                                                 <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
                                                 <CommandList>
@@ -1786,7 +1786,7 @@ export default function QuranCircles() {
                                                 {isRTL ? 'إضافة مسوق' : 'Add Marketer'}
                                             </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-80 p-0" align="start">
+                                        <PopoverContent className="w-[calc(100vw-2.5rem)] sm:w-80 p-0" align="start">
                                             <Command>
                                                 <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
                                                 <CommandList>
@@ -2267,7 +2267,8 @@ export default function QuranCircles() {
                             {/* Beneficiaries Table */}
                             <div className="border rounded-lg overflow-hidden">
                                 <div className="overflow-x-auto">
-                                    <Table>
+                                    <div className="overflow-x-auto w-full">
+<Table>
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
@@ -2413,6 +2414,7 @@ export default function QuranCircles() {
                                             )}
                                         </TableBody>
                                     </Table>
+</div>
                                 </div>
                             </div>
                             <div className="text-sm text-muted-foreground">
@@ -2423,7 +2425,8 @@ export default function QuranCircles() {
                         {/* Attendance Sheet Tab */}
                         <TabsContent value="sheet" className="py-4">
                             <div className="border rounded-lg overflow-x-auto max-h-[600px]">
-                                <Table>
+                                <div className="overflow-x-auto w-full">
+<Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead className="min-w-[200px] whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
@@ -2504,6 +2507,7 @@ export default function QuranCircles() {
                                         )}
                                     </TableBody>
                                 </Table>
+</div>
                             </div>
                         </TabsContent>
 
@@ -2819,7 +2823,7 @@ export default function QuranCircles() {
 
             {/* Enrollment Management Dialog */}
             < Dialog open={isEnrollmentOpen} onOpenChange={setIsEnrollmentOpen} >
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <UserPlus className="h-5 w-5" />
@@ -2911,7 +2915,7 @@ export default function QuranCircles() {
 
             {/* Marketing Dialog */}
             <Dialog open={isMarketingDialogOpen} onOpenChange={setIsMarketingDialogOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>
                             {isRTL ? 'إدارة التسويق - ' : 'Marketing Management - '}
@@ -2936,7 +2940,7 @@ export default function QuranCircles() {
                                         <span className="truncate">{isRTL ? 'إضافة مسوق...' : 'Add marketer...'}</span>
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[calc(100vw-4rem)] sm:w-[400px] p-0" align="start">
+                                <PopoverContent className="w-[calc(100vw-4rem)] sm:w-[calc(100vw-2.5rem)] sm:w-[400px] p-0" align="start">
                                     <Command>
                                         <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
                                         <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
@@ -2970,7 +2974,8 @@ export default function QuranCircles() {
                             </Popover>
 
                             <div className="border rounded-md overflow-hidden">
-                                <Table>
+                                <div className="overflow-x-auto w-full">
+<Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
@@ -2999,6 +3004,7 @@ export default function QuranCircles() {
                                         )}
                                     </TableBody>
                                 </Table>
+</div>
                             </div>
                         </div>
 
@@ -3043,7 +3049,8 @@ export default function QuranCircles() {
                             ) : (
                                 <div className="border rounded-md overflow-hidden">
                                     <div className="overflow-x-auto">
-                                        <Table>
+                                        <div className="overflow-x-auto w-full">
+<Table>
                                             <TableHeader>
                                                 <TableRow>
                                                     <TableHead className="w-[60px] text-center whitespace-nowrap">#</TableHead>
@@ -3151,6 +3158,7 @@ export default function QuranCircles() {
                                                 })}
                                             </TableBody>
                                         </Table>
+</div>
                                     </div>
                                 </div>
                             )}

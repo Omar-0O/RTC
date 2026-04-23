@@ -566,36 +566,96 @@ export default function CourseManagement() {
         endDate: string | null,
         excludeCourseId?: string
     ): Promise<boolean> => {
-        const { data, error } = await (supabase.rpc as any)('check_room_conflict', {
-            p_room: room,
-            p_schedule_days: scheduleDays,
-            p_schedule_time: scheduleTime,
-            p_schedule_end_time: scheduleEndTime || null,
-            p_start_date: startDate,
-            p_end_date: endDate || null,
-            p_exclude_course_id: excludeCourseId || null,
-        });
+        try {
+            // First try the RPC
+            const { data, error } = await (supabase.rpc as any)('check_room_conflict', {
+                p_room: room,
+                p_schedule_days: scheduleDays,
+                p_schedule_time: scheduleTime,
+                p_schedule_end_time: scheduleEndTime || null,
+                p_start_date: startDate,
+                p_end_date: endDate || null,
+                p_exclude_course_id: excludeCourseId || null,
+            });
 
-        if (error) {
-            console.error('Error checking room conflict:', error);
-            return false; // Allow proceed on RPC error to avoid blocking
+            if (!error && data && data.length > 0) {
+                const conflict = data[0];
+                const committeeName = isRTL
+                    ? (conflict.conflicting_committee_name_ar || conflict.conflicting_committee_name || '')
+                    : (conflict.conflicting_committee_name || conflict.conflicting_committee_name_ar || '');
+
+                const message = isRTL
+                    ? `اللاب محجوز بالفعل لكورس "${conflict.conflicting_course_name}"${committeeName ? ` - لجنة ${committeeName}` : ''}`
+                    : `Lab is already booked for "${conflict.conflicting_course_name}"${committeeName ? ` — ${committeeName} Committee` : ''}`;
+
+                toast.error(message, { duration: 5000 });
+                return true; // conflict found
+            }
+            
+            if (!error) return false; // RPC worked and found no conflict
+            
+            console.warn('RPC failed or missing, falling back to JS check:', error);
+            
+            // JS Fallback: Fetch potential conflicting courses in the same room
+            let query = supabase
+                .from('courses')
+                .select('id, name, room, start_date, end_date, schedule_days, schedule_time, schedule_end_time, committee_id')
+                .eq('room', room);
+                
+            if (excludeCourseId) {
+                query = query.neq('id', excludeCourseId);
+            }
+            
+            const { data: coursesInRoom, error: fetchError } = await query;
+            
+            if (fetchError || !coursesInRoom) return false;
+            
+            const addOneHour = (timeStr: string) => {
+                if (!timeStr) return '23:59';
+                const parts = timeStr.split(':');
+                if (parts.length < 2) return timeStr;
+                let h = parseInt(parts[0], 10) + 1;
+                return `${h.toString().padStart(2, '0')}:${parts[1]}`;
+            };
+            
+            const conflict = coursesInRoom.find(c => {
+               const cStart = c.start_date;
+               const cEnd = c.end_date || '9999-12-31';
+               const pStart = startDate;
+               const pEnd = endDate || '9999-12-31';
+               
+               if (cStart > pEnd || cEnd < pStart) return false;
+               
+               const hasCommonDay = c.schedule_days && c.schedule_days.some((d: string) => scheduleDays.includes(d));
+               if (!hasCommonDay) return false;
+               
+               const cTime = c.schedule_time;
+               const cEndTime = c.schedule_end_time || addOneHour(cTime);
+               const pTime = scheduleTime;
+               const pEndTime = scheduleEndTime || addOneHour(pTime);
+               
+               if (cTime >= pEndTime || cEndTime <= pTime) return false;
+               
+               return true;
+            });
+            
+            if (conflict) {
+               const committee = committees.find(cm => cm.id === conflict.committee_id);
+               const committeeName = committee ? (isRTL ? committee.name_ar : committee.name) : '';
+               
+               const message = isRTL
+                   ? `اللاب محجوز بالفعل لكورس "${conflict.name}"${committeeName ? ` - لجنة ${committeeName}` : ''}`
+                   : `Lab is already booked for "${conflict.name}"${committeeName ? ` — ${committeeName} Committee` : ''}`;
+
+               toast.error(message, { duration: 5000 });
+               return true;
+            }
+            
+            return false;
+        } catch (e) {
+            console.error('Exception checking room conflict:', e);
+            return false;
         }
-
-        if (data && data.length > 0) {
-            const conflict = data[0];
-            const committeeName = isRTL
-                ? (conflict.conflicting_committee_name_ar || conflict.conflicting_committee_name || '')
-                : (conflict.conflicting_committee_name || conflict.conflicting_committee_name_ar || '');
-
-            const message = isRTL
-                ? `اللاب محجوز بالفعل لكورس "${conflict.conflicting_course_name}"${committeeName ? ` - لجنة ${committeeName}` : ''}`
-                : `Lab is already booked for "${conflict.conflicting_course_name}"${committeeName ? ` — ${committeeName} Committee` : ''}`;
-
-            toast.error(message, { duration: 5000 });
-            return true; // conflict found
-        }
-
-        return false; // no conflict
     };
 
     const handleCreateCourse = async () => {
@@ -2147,7 +2207,7 @@ export default function CourseManagement() {
                                                     </div>
 
                                                     {plannedAds.length > 0 ? (
-                                                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                                             {plannedAds.map((date, index) => (
                                                                 <div key={`${date}-${index}`} className="flex items-center justify-between p-2 bg-muted rounded-md border text-sm">
                                                                     <div className="flex items-center gap-2">
@@ -2417,7 +2477,7 @@ export default function CourseManagement() {
                                             />
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-2">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                             <Button
                                                 variant={ad.poster_done ? "default" : "outline"}
                                                 size="sm"
@@ -2461,7 +2521,7 @@ export default function CourseManagement() {
 
             {/* Edit Course Dialog */}
             <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-                <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+                <DialogContent className="w-[95vw] sm:max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto p-4 sm:p-6">
                     <DialogHeader>
                         <DialogTitle className="text-2xl font-bold">{isRTL ? 'تعديل الكورس' : 'Edit Course'}</DialogTitle>
                         <DialogDescription>{isRTL ? 'تعديل بيانات الكورس' : 'Edit course details'}</DialogDescription>
@@ -2825,7 +2885,8 @@ export default function CourseManagement() {
                             {/* Beneficiaries List */}
                             <div className="border rounded-lg overflow-hidden">
                                 <div className="overflow-x-auto">
-                                    <Table>
+                                    <div className="overflow-x-auto w-full">
+<Table>
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
@@ -2907,6 +2968,7 @@ export default function CourseManagement() {
                                             )}
                                         </TableBody>
                                     </Table>
+</div>
                                 </div>
                             </div>
                             <div className="text-sm text-muted-foreground">
@@ -2967,7 +3029,7 @@ export default function CourseManagement() {
                                         {isLectureOpen(lecture.date) && lecture.status !== 'cancelled' && beneficiaries.length > 0 && (
                                             <div className="border rounded-lg p-3 bg-muted/20">
                                                 <p className="text-sm font-medium mb-2">{isRTL ? 'تسجيل الحضور:' : 'Mark Attendance:'}</p>
-                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 sm:grid-cols-3 gap-2">
                                                     {beneficiaries.map(b => {
                                                         const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === b.phone);
                                                         return (
@@ -2999,7 +3061,8 @@ export default function CourseManagement() {
                         <TabsContent value="sheet" className="py-4">
                             <div className="border rounded-lg overflow-hidden">
                                 <div className="overflow-x-auto">
-                                    <Table>
+                                    <div className="overflow-x-auto w-full">
+<Table>
                                         <TableHeader>
                                             <TableRow>
                                                 <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
@@ -3064,6 +3127,7 @@ export default function CourseManagement() {
                                             )}
                                         </TableBody>
                                     </Table>
+</div>
                                 </div>
                             </div>
                         </TabsContent>
@@ -3082,7 +3146,7 @@ export default function CourseManagement() {
                                                         <span className="truncate">{isRTL ? 'إضافة منظم...' : 'Add organizer...'}</span>
                                                     </Button>
                                                 </PopoverTrigger>
-                                                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                                                <PopoverContent className="w-[calc(100vw-2.5rem)] sm:w-[var(--radix-popover-trigger-width)] p-0" align="start">
                                                     <Command>
                                                         <CommandInput placeholder={isRTL ? 'بحث عن متطوع أو رقم الهاتف...' : 'Search volunteer or phone...'} />
                                                         <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
@@ -3127,7 +3191,8 @@ export default function CourseManagement() {
 
                                             <div className="border rounded-lg overflow-hidden">
                                                 <div className="overflow-x-auto">
-                                                    <Table>
+                                                    <div className="overflow-x-auto w-full">
+<Table>
                                                         <TableHeader>
                                                             <TableRow>
                                                                 <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
@@ -3156,6 +3221,7 @@ export default function CourseManagement() {
                                                             )}
                                                         </TableBody>
                                                     </Table>
+</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -3191,7 +3257,7 @@ export default function CourseManagement() {
                 </AlertDialogContent>
             </AlertDialog >
             <Dialog open={isMarketingDialogOpen} onOpenChange={setIsMarketingDialogOpen}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>
                             {isRTL ? 'إدارة التسويق - ' : 'Marketing Management - '}
@@ -3226,7 +3292,7 @@ export default function CourseManagement() {
                                         <span className="truncate">{isRTL ? 'إضافة مسوق...' : 'Add marketer...'}</span>
                                     </Button>
                                 </PopoverTrigger>
-                                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                                <PopoverContent className="w-[calc(100vw-2.5rem)] sm:w-[var(--radix-popover-trigger-width)] p-0" align="start">
                                     <Command>
                                         <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
                                         <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
@@ -3260,7 +3326,8 @@ export default function CourseManagement() {
                             </Popover>
 
                             <div className="border rounded-md overflow-hidden">
-                                <Table>
+                                <div className="overflow-x-auto w-full">
+<Table>
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
@@ -3289,6 +3356,7 @@ export default function CourseManagement() {
                                         )}
                                     </TableBody>
                                 </Table>
+</div>
                             </div>
                         </div>
 
@@ -3309,7 +3377,8 @@ export default function CourseManagement() {
                             ) : (
                                 <div className="border rounded-md overflow-hidden">
                                     <div className="overflow-x-auto">
-                                        <Table>
+                                        <div className="overflow-x-auto w-full">
+<Table>
                                             <TableHeader>
                                                 <TableRow>
                                                     <TableHead className="w-[60px] text-center whitespace-nowrap">#</TableHead>
@@ -3407,6 +3476,7 @@ export default function CourseManagement() {
                                                 })}
                                             </TableBody>
                                         </Table>
+</div>
                                     </div>
                                 </div>
                             )}
@@ -3448,7 +3518,7 @@ function AttendanceRegisterDialog({ lectureId, onRegister, isRTL, attendees }: {
                     {isRTL ? 'تسجيل حضور' : 'Register'}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-80" align="end">
+            <PopoverContent className="w-[calc(100vw-2.5rem)] sm:w-80" align="end">
                 <div className="space-y-4">
                     <h4 className="font-medium leading-none">{isRTL ? 'تسجيل حضور جديد' : 'Register New Attendance'}</h4>
                     <div className="space-y-2">

@@ -29,7 +29,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { utils, writeFile } from 'xlsx';
-import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
+import ExcelJS from 'exceljs';
+import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear, getDaysInMonth } from 'date-fns';
 
 interface Profile {
   id: string;
@@ -82,6 +83,163 @@ interface ActivityType {
   name_ar: string;
   points: number;
 }
+
+/** Arabic month names for the attendance matrix sheet */
+const ARABIC_MONTHS = [
+  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+];
+const ENGLISH_MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+/**
+ * Download the yearly attendance matrix as a fully styled Excel file (ExcelJS).
+ * - RTL sheet direction
+ * - Dark-blue header with white bold text for month names
+ * - Light-blue day-number row with bold text
+ * - Thick black borders separating each month
+ * - Thin borders on all cells
+ */
+async function downloadAttendanceMatrix(
+  year: number,
+  volunteers: { id: string; name: string; phone: string }[],
+  submissions: ActivitySubmission[],
+  lang: string,
+) {
+  // ── Pre-compute participation days per volunteer ───────────────────────────
+  const volunteerDays = new Map<string, Set<string>>();
+  submissions.forEach(s => {
+    if (!s.volunteer_id) return;
+    const d = new Date(s.submitted_at);
+    if (d.getFullYear() !== year) return;
+    const dateKey = format(d, 'yyyy-MM-dd');
+    if (!volunteerDays.has(s.volunteer_id)) volunteerDays.set(s.volunteer_id, new Set());
+    volunteerDays.get(s.volunteer_id)!.add(dateKey);
+  });
+
+  const monthDaysCounts: number[] = [];
+  for (let m = 0; m < 12; m++) monthDaysCounts.push(getDaysInMonth(new Date(year, m, 1)));
+  const monthNames = lang === 'ar' ? ARABIC_MONTHS : ENGLISH_MONTHS;
+  const fixedCols = 3; // م, الاسم, التليفون (1-indexed in ExcelJS: cols 1, 2, 3)
+
+  // ── Pre-compute month boundary columns (1-indexed) ────────────────────────
+  const monthFirstCols = new Set<number>(); // first col of each month except Jan
+  const monthLastCols  = new Set<number>(); // last  col of each month except Dec
+  let cOff = fixedCols + 1;
+  for (let m = 0; m < 12; m++) {
+    if (m > 0)  monthFirstCols.add(cOff);
+    if (m < 11) monthLastCols.add(cOff + monthDaysCounts[m] - 1);
+    cOff += monthDaysCounts[m];
+  }
+
+  // ── Create workbook & RTL worksheet ───────────────────────────────────────
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'RTC';
+  const ws = wb.addWorksheet(
+    lang === 'ar' ? 'شيت المتابعة السنوي' : 'Yearly Attendance',
+    { views: [{ rightToLeft: true, state: 'frozen', xSplit: fixedCols, ySplit: 2 }] },
+  );
+
+  // ── Column widths ─────────────────────────────────────────────────────────
+  ws.getColumn(1).width = 5;
+  ws.getColumn(2).width = 28;
+  ws.getColumn(3).width = 16;
+  let dayColIdx = 4;
+  for (let m = 0; m < 12; m++) {
+    for (let d = 0; d < monthDaysCounts[m]; d++) ws.getColumn(dayColIdx++).width = 4;
+  }
+
+  // ── Border helper ─────────────────────────────────────────────────────────
+  const thin:  ExcelJS.Border = { style: 'thin',  color: { argb: 'FF000000' } };
+  const thick: ExcelJS.Border = { style: 'thick', color: { argb: 'FF000000' } };
+  const getBorder = (col: number): Partial<ExcelJS.Borders> => ({
+    top:    thin,
+    bottom: thin,
+    left:   monthFirstCols.has(col) ? thick : thin,
+    right:  monthLastCols.has(col)  ? thick : thin,
+  });
+
+  // ── Row 1: Month name headers ─────────────────────────────────────────────
+  const r1Vals: (string | number | null)[] = [
+    lang === 'ar' ? 'م' : '#',
+    lang === 'ar' ? 'الاسم' : 'Name',
+    lang === 'ar' ? 'التليفون' : 'Phone',
+  ];
+  for (let m = 0; m < 12; m++) {
+    r1Vals.push(monthNames[m]);
+    for (let d = 1; d < monthDaysCounts[m]; d++) r1Vals.push(null);
+  }
+  const row1 = ws.addRow(r1Vals);
+  row1.height = 35;
+
+  // ── Row 2: Day numbers ────────────────────────────────────────────────────
+  const r2Vals: (string | number | null)[] = [null, null, null];
+  for (let m = 0; m < 12; m++) {
+    for (let d = 1; d <= monthDaysCounts[m]; d++) r2Vals.push(d);
+  }
+  const row2 = ws.addRow(r2Vals);
+  row2.height = 22;
+
+  // ── Merge cells ───────────────────────────────────────────────────────────
+  // Fixed cols (م / الاسم / التليفون): merge rows 1-2 vertically
+  for (let c = 1; c <= fixedCols; c++) ws.mergeCells(1, c, 2, c);
+  // Month name cells: merge horizontally across all day columns
+  let mStart = fixedCols + 1;
+  for (let m = 0; m < 12; m++) {
+    if (monthDaysCounts[m] > 1) ws.mergeCells(1, mStart, 1, mStart + monthDaysCounts[m] - 1);
+    mStart += monthDaysCounts[m];
+  }
+
+  // ── Style row 1 (dark-blue background, white bold text, centered) ─────────
+  row1.eachCell({ includeEmpty: true }, (cell, cn) => {
+    cell.font      = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E4A8C' } };
+    cell.border    = getBorder(cn);
+  });
+
+  // ── Style row 2 (light-blue background, bold, centered) ──────────────────
+  row2.eachCell({ includeEmpty: true }, (cell, cn) => {
+    cell.font      = { bold: true, size: 11 };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB8CCE4' } };
+    cell.border    = getBorder(cn);
+  });
+
+  // ── Data rows ─────────────────────────────────────────────────────────────
+  volunteers.forEach((vol, idx) => {
+    const rowVals: (string | number)[] = [idx + 1, vol.name, vol.phone || ''];
+    const days = volunteerDays.get(vol.id);
+    for (let m = 0; m < 12; m++) {
+      for (let d = 1; d <= monthDaysCounts[m]; d++) {
+        const ds = `${year}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        rowVals.push(days?.has(ds) ? 1 : '');
+      }
+    }
+    const dr = ws.addRow(rowVals);
+    dr.eachCell({ includeEmpty: true }, (cell, cn) => {
+      cell.alignment = { horizontal: cn === 2 ? 'right' : 'center', vertical: 'middle' };
+      cell.border    = getBorder(cn);
+    });
+  });
+
+  // ── Download ──────────────────────────────────────────────────────────────
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `attendance_matrix_${year}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 
 interface Trainer {
   id: string;
@@ -663,6 +821,8 @@ export default function Reports() {
             utils.book_append_sheet(wb, oneDayWs, 'مشاركة اليوم الواحد');
           }
 
+
+
           const { start: allStart, end: allEnd } = getDateRange();
           const allDateStr = `${format(allStart, 'yyyy-MM-dd')}_to_${format(allEnd, 'yyyy-MM-dd')}`;
 
@@ -995,6 +1155,28 @@ export default function Reports() {
                     </span>
                   </span>
                 </Button>
+                <Button variant="outline" className="w-full justify-start h-auto py-3 px-4 flex-wrap" onClick={async () => {
+                  toast.info(language === 'ar' ? 'جاري تحضير شيت المتابعة...' : 'Preparing attendance sheet...');
+                  try {
+                    const matrixYear = new Date().getFullYear();
+                    const volList = profiles.map(p => ({
+                      id: p.id,
+                      name: (language === 'ar' && p.full_name_ar) ? p.full_name_ar : (p.full_name || ''),
+                      phone: p.phone || '',
+                    }));
+                    await downloadAttendanceMatrix(matrixYear, volList, submissions, language);
+                    toast.success(language === 'ar' ? 'تم تصدير شيت المتابعة بنجاح' : 'Attendance sheet exported successfully');
+                  } catch (err) {
+                    console.error('Matrix export error:', err);
+                    toast.error(language === 'ar' ? 'حدث خطأ أثناء التصدير' : 'An error occurred during export');
+                  }
+                }}>
+                  <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
+                  <span className="flex flex-col items-start text-start sm:flex-row sm:items-center gap-1">
+                    <span>{language === 'ar' ? 'شيت المتابعة السنوي' : 'Yearly Attendance Matrix'}</span>
+                    <span className="text-xs opacity-70">({new Date().getFullYear()})</span>
+                  </span>
+                </Button>
 
               </div>
             </CardContent>
@@ -1249,6 +1431,8 @@ export default function Reports() {
                                 wsOneDay['!cols'] = colWidthsOneDay;
                                 utils.book_append_sheet(wb, wsOneDay, 'مشاركة اليوم الواحد');
                               }
+
+
 
                               const fileName = `archive_report_${format(date, 'yyyy_MM')}.xlsx`;
                               writeFile(wb, fileName);

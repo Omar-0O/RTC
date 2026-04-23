@@ -58,6 +58,9 @@ const MyQuranCircles = lazy(() => import("./pages/quran/MyQuranCircles"));
 const AshbalManagement = lazy(() => import("./pages/ashbal/AshbalManagement"));
 const FineManagement = lazy(() => import("./pages/admin/FineManagement"));
 const InterestedBeneficiaries = lazy(() => import("./pages/admin/InterestedBeneficiaries"));
+const UnderFollowUp = lazy(() => import("./pages/supervisor/UnderFollowUp"));
+const LogForVolunteer = lazy(() => import("./pages/supervisor/LogForVolunteer"));
+const VolunteerPortal = lazy(() => import("./pages/VolunteerPortal"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -171,6 +174,8 @@ function AppRoutes() {
         <Route path="/supervisor/reports" element={<Reports />} />
         <Route path="/supervisor/activity" element={<LogActivity />} />
         <Route path="/supervisor/profile" element={<Profile />} />
+        <Route path="/supervisor/under-follow-up" element={<UnderFollowUp />} />
+        <Route path="/supervisor/log-for/:volunteerId" element={<LogForVolunteer />} />
 
         {/* Committee Leader Routes */}
         <Route path="/leader" element={<VolunteerDashboard />} />
@@ -230,6 +235,9 @@ function AppRoutes() {
         {/* Ashbal Routes */}
         <Route path="/ashbal/management" element={<AshbalManagement />} />
       </Route>
+
+      {/* Public Volunteer Portal — no auth required */}
+      <Route path="/volunteer-portal/:volunteerId" element={<VolunteerPortal />} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

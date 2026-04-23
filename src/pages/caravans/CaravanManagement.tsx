@@ -1057,7 +1057,8 @@ export default function CaravanManagement() {
                                     </div>
 
                                     <div className="border rounded-md overflow-x-auto">
-                                        <Table className="min-w-[400px]">
+                                        <div className="overflow-x-auto w-full">
+<Table className="min-w-[calc(100vw-2.5rem)] sm:w-[400px]">
                                             <TableHeader>
                                                 <TableRow>
                                                     <TableHead className="text-xs sm:text-sm">{t('leaderboard.name')}</TableHead>
@@ -1095,6 +1096,7 @@ export default function CaravanManagement() {
                                                 )}
                                             </TableBody>
                                         </Table>
+</div>
                                     </div>
                                 </div>
 
