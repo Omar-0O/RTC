@@ -29,6 +29,7 @@ import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import logo from '@/assets/logo.png';
 import {
   Sidebar,
@@ -59,6 +60,7 @@ import { useState, useEffect } from 'react';
 export function AppSidebar() {
   const { user, profile, signOut, primaryRole } = useAuth();
   const { t, language, setLanguage, isRTL } = useLanguage();
+  const { activeBranch, branches, setActiveBranch } = useBranch();
   const { setTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -208,6 +210,7 @@ export function AppSidebar() {
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
     { title: t('nav.committees'), url: '/admin/committees', icon: Settings },
     { title: isRTL ? 'إدارة القاعات' : 'Manage Rooms', url: '/admin/rooms', icon: Building2 },
+    { title: isRTL ? 'إدارة الفروع' : 'Branch Management', url: '/admin/branches', icon: Building2 },
     { title: t('nav.activities'), url: '/admin/activities', icon: Activity },
     { title: t('nav.badges'), url: '/admin/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
@@ -220,6 +223,7 @@ export function AppSidebar() {
     { title: isRTL ? 'إدارة المحفظين' : 'Quran Teachers', url: '/admin/quran-teachers', icon: Users },
     { title: isRTL ? 'إدارة الغرامات' : 'Fines Management', url: '/admin/fines', icon: FileCheck },
     { title: isRTL ? 'المهتمين' : 'Interested', url: '/admin/interested', icon: Heart },
+    { title: isRTL ? 'شيت المتابعة' : 'Follow-Up Sheet', url: '/admin/followup', icon: UserCheck },
   ];
 
   const hrNavItems = [
@@ -247,6 +251,7 @@ export function AppSidebar() {
         return [
           { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
           { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
+          { title: isRTL ? 'شيت المتابعة' : 'Follow-Up Sheet', url: '/admin/followup', icon: UserCheck },
           { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
           { title: isRTL ? 'أعياد الميلاد' : 'Birthdays', url: '/birthdays', icon: Cake },
@@ -369,7 +374,7 @@ export function AppSidebar() {
           />
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="font-semibold text-sidebar-foreground">RTC Mohandseen</span>
+              <span className="font-semibold text-sidebar-foreground">RTC {activeBranch ? (language === 'ar' ? activeBranch.name_ar : activeBranch.name) : 'Mohandseen'}</span>
               <span className="text-xs text-muted-foreground">{t('app.tagline')}</span>
             </div>
           )}
@@ -398,6 +403,35 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {primaryRole === 'admin' && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <SidebarMenuButton tooltip={language === 'ar' ? 'اختر الفرع' : 'Select Branch'}>
+                        <Building2 className="h-4 w-4" />
+                        <span>{activeBranch ? (language === 'ar' ? activeBranch.name_ar : activeBranch.name) : (language === 'ar' ? 'الفرع' : 'Branch')}</span>
+                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground ml-auto rtl:mr-auto rtl:ml-0" />
+                      </SidebarMenuButton>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      {branches.map(branch => (
+                        <DropdownMenuItem key={branch.id} onClick={() => setActiveBranch(branch)}>
+                          <span className={activeBranch?.id === branch.id ? 'font-bold' : ''}>
+                            {language === 'ar' ? branch.name_ar : branch.name}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         {/* Language Toggle & Theme Toggle */}
         <SidebarGroup>

@@ -40,7 +40,7 @@ interface Committee {
     name_ar: string;
 }
 
-type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr' | 'head_production' | 'head_fourth_year' | 'head_caravans' | 'head_events' | 'head_ethics' | 'head_quran';
+type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr' | 'head_production' | 'head_fourth_year' | 'head_caravans' | 'head_events' | 'head_ethics' | 'head_quran' | 'head_marketing' | 'head_ashbal' | 'marketing_member';
 
 interface UserWithDetails {
     id: string;
@@ -220,6 +220,9 @@ export default function SupervisorUserManagement() {
             case 'head_caravans':
             case 'head_ethics':
             case 'head_quran':
+            case 'head_marketing':
+            case 'head_ashbal':
+            case 'marketing_member':
                 return 'bg-blue-100 text-blue-700';
             default:
                 return 'bg-muted text-muted-foreground';
@@ -237,6 +240,9 @@ export default function SupervisorUserManagement() {
             case 'head_caravans': return t('common.head_caravans');
             case 'head_ethics': return t('common.head_ethics');
             case 'head_quran': return t('common.head_quran');
+            case 'head_marketing': return t('common.head_marketing');
+            case 'head_ashbal': return t('common.head_ashbal');
+            case 'marketing_member': return t('common.marketing_member');
             default: return t('common.volunteer');
         }
     };

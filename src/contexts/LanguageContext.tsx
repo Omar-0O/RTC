@@ -77,6 +77,7 @@ const translations: Record<Language, Record<string, string>> = {
     'common.head_quran': 'Head of Quran Committee',
     'common.head_marketing': 'Head of Marketing Committee',
     'common.head_ashbal': 'Head of Ashbal Committee',
+    'common.marketing_member': 'Marketing Team Member',
 
 
     // Ethics
@@ -348,6 +349,7 @@ const translations: Record<Language, Record<string, string>> = {
     'common.head_quran': 'هيد لجنة القرآن',
     'common.head_marketing': 'هيد لجنة التسويق',
     'common.head_ashbal': 'هيد لجنة الأشبال',
+    'common.marketing_member': 'عضو لجنة تسويق',
 
 
     // Ethics

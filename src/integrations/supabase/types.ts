@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -1010,13 +1010,17 @@ export type Database = {
           attended_camp: boolean | null
           attended_mini_camp: boolean | null
           avatar_url: string | null
+          birth_date: string | null
+          branch_id: string | null
           committee_id: string | null
           created_at: string
           email: string
           full_name: string | null
           full_name_ar: string | null
           id: string
+          is_ashbal: boolean | null
           join_date: string
+          last_seen_at: string | null
           level: Database["public"]["Enums"]["volunteer_level"]
           phone: string | null
           total_points: number
@@ -1028,13 +1032,17 @@ export type Database = {
           attended_camp?: boolean | null
           attended_mini_camp?: boolean | null
           avatar_url?: string | null
+          birth_date?: string | null
+          branch_id?: string | null
           committee_id?: string | null
           created_at?: string
           email: string
           full_name?: string | null
           full_name_ar?: string | null
           id: string
+          is_ashbal?: boolean | null
           join_date?: string
+          last_seen_at?: string | null
           level?: Database["public"]["Enums"]["volunteer_level"]
           phone?: string | null
           total_points?: number
@@ -1046,13 +1054,17 @@ export type Database = {
           attended_camp?: boolean | null
           attended_mini_camp?: boolean | null
           avatar_url?: string | null
+          birth_date?: string | null
+          branch_id?: string | null
           committee_id?: string | null
           created_at?: string
           email?: string
           full_name?: string | null
           full_name_ar?: string | null
           id?: string
+          is_ashbal?: boolean | null
           join_date?: string
+          last_seen_at?: string | null
           level?: Database["public"]["Enums"]["volunteer_level"]
           phone?: string | null
           total_points?: number
@@ -1535,6 +1547,47 @@ export type Database = {
         }
         Relationships: []
       }
+      users_followup: {
+        Row: {
+          branch: string | null
+          branch_id: string | null
+          created_at: string
+          full_name: string
+          id: number
+          phone_1: string
+          phone_2: string | null
+          status: string
+        }
+        Insert: {
+          branch?: string | null
+          branch_id?: string | null
+          created_at?: string
+          full_name: string
+          id?: number
+          phone_1: string
+          phone_2?: string | null
+          status?: string
+        }
+        Update: {
+          branch?: string | null
+          branch_id?: string | null
+          created_at?: string
+          full_name?: string
+          id?: number
+          phone_1?: string
+          phone_2?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "users_followup_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -1594,6 +1647,10 @@ export type Database = {
       | "head_fourth_year"
       | "head_events"
       | "head_ethics"
+      | "head_quran"
+      | "head_marketing"
+      | "head_ashbal"
+      | "marketing_member"
       submission_status: "pending" | "approved" | "rejected"
       volunteer_level:
       | "bronze"
@@ -1744,6 +1801,10 @@ export const Constants = {
         "head_fourth_year",
         "head_events",
         "head_ethics",
+        "head_quran",
+        "head_marketing",
+        "head_ashbal",
+        "marketing_member",
       ],
       submission_status: ["pending", "approved", "rejected"],
       volunteer_level: [

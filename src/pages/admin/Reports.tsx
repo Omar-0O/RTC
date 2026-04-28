@@ -104,19 +104,55 @@ const ENGLISH_MONTHS = [
  */
 async function downloadAttendanceMatrix(
   year: number,
-  volunteers: { id: string; name: string; phone: string }[],
+  volunteers: { id: string | number; name: string; phone: string; phone2?: string | null }[],
   submissions: ActivitySubmission[],
   lang: string,
+  profilesMap: Map<string, Profile>,
+  trainers: { id: string; user_id: string | null; phone: string | null }[]
 ) {
   // ── Pre-compute participation days per volunteer ───────────────────────────
+  const phoneToUserId = new Map<string, string>();
+  volunteers.forEach(v => {
+    const p1 = (v.phone || '').replace(/\D/g, '');
+    if (p1) phoneToUserId.set(p1, v.id.toString());
+    const p2 = (v.phone2 || '').replace(/\D/g, '');
+    if (p2) phoneToUserId.set(p2, v.id.toString());
+  });
+
   const volunteerDays = new Map<string, Set<string>>();
   submissions.forEach(s => {
-    if (!s.volunteer_id) return;
     const d = new Date(s.submitted_at);
     if (d.getFullYear() !== year) return;
     const dateKey = format(d, 'yyyy-MM-dd');
-    if (!volunteerDays.has(s.volunteer_id)) volunteerDays.set(s.volunteer_id, new Set());
-    volunteerDays.get(s.volunteer_id)!.add(dateKey);
+    
+    // Extract phones for this submission
+    const phones: string[] = [];
+    if (s.guest_phone) phones.push(s.guest_phone);
+    if (s.volunteer_id) {
+       const p = profilesMap.get(s.volunteer_id);
+       if (p && p.phone) phones.push(p.phone);
+    }
+    if (s.trainer_id) {
+       const tr = trainers.find(t => t.id === s.trainer_id);
+       if (tr && tr.phone) phones.push(tr.phone);
+    } else if (s.volunteer_id) {
+       const tr = trainers.find(t => t.user_id === s.volunteer_id);
+       if (tr && tr.phone) phones.push(tr.phone);
+    }
+
+    let matchedId: string | null = null;
+    for (const p of phones) {
+       const cleaned = p.replace(/\D/g, '');
+       if (cleaned && phoneToUserId.has(cleaned)) {
+          matchedId = phoneToUserId.get(cleaned)!;
+          break;
+       }
+    }
+
+    if (matchedId) {
+      if (!volunteerDays.has(matchedId)) volunteerDays.set(matchedId, new Set());
+      volunteerDays.get(matchedId)!.add(dateKey);
+    }
   });
 
   const monthDaysCounts: number[] = [];
@@ -211,7 +247,7 @@ async function downloadAttendanceMatrix(
   // ── Data rows ─────────────────────────────────────────────────────────────
   volunteers.forEach((vol, idx) => {
     const rowVals: (string | number)[] = [idx + 1, vol.name, vol.phone || ''];
-    const days = volunteerDays.get(vol.id);
+    const days = volunteerDays.get(vol.id.toString());
     for (let m = 0; m < 12; m++) {
       for (let d = 1; d <= monthDaysCounts[m]; d++) {
         const ds = `${year}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
@@ -1159,12 +1195,140 @@ export default function Reports() {
                   toast.info(language === 'ar' ? 'جاري تحضير شيت المتابعة...' : 'Preparing attendance sheet...');
                   try {
                     const matrixYear = new Date().getFullYear();
-                    const volList = profiles.map(p => ({
-                      id: p.id,
-                      name: (language === 'ar' && p.full_name_ar) ? p.full_name_ar : (p.full_name || ''),
-                      phone: p.phone || '',
-                    }));
-                    await downloadAttendanceMatrix(matrixYear, volList, submissions, language);
+                    
+                    // Fetch ALL users_followup rows (paginated to bypass 1000-row limit)
+                    const { count: fuCount } = await (supabase as any)
+                      .from('users_followup')
+                      .select('*', { count: 'exact', head: true });
+                    
+                    let followupUsers: any[] = [];
+                    const fuTotal = fuCount ?? 0;
+                    const fuPageSize = 1000;
+                    const promises = [];
+                    for (let from = 0; from < fuTotal; from += fuPageSize) {
+                      const to = Math.min(from + fuPageSize - 1, fuTotal - 1);
+                      promises.push(
+                        (supabase as any)
+                          .from('users_followup')
+                          .select('*')
+                          .order('id', { ascending: true })
+                          .range(from, to)
+                      );
+                    }
+
+                    const results = await Promise.all(promises);
+                    for (const res of results) {
+                      if (res.error) throw res.error;
+                      if (res.data) followupUsers = followupUsers.concat(res.data);
+                    }
+                    if (!followupUsers) throw new Error('fetch error');
+                    
+                    const currentUsers = followupUsers || [];
+                    const newUsersToInsert: any[] = [];
+                    // Map phone → existing user name (to preserve original names)
+                    const phoneToExistingUser = new Map<string, string>();
+                    
+                    currentUsers.forEach(u => {
+                       if (u.phone_1) phoneToExistingUser.set(u.phone_1.replace(/\D/g, ''), u.full_name);
+                       if (u.phone_2) phoneToExistingUser.set(u.phone_2.replace(/\D/g, ''), u.full_name);
+                    });
+
+                    submissions.forEach(s => {
+                        let participantName = '';
+                        const phones: string[] = [];
+                        
+                        // guest
+                        if (s.guest_name || s.guest_phone) {
+                           participantName = s.guest_name || '';
+                           if (s.guest_phone) phones.push(s.guest_phone);
+                        }
+                        
+                        // volunteer
+                        if (s.volunteer_id) {
+                           const p = profilesMap.get(s.volunteer_id);
+                           if (p) {
+                             if (!participantName) participantName = p.full_name_ar || p.full_name || '';
+                             if (p.phone) phones.push(p.phone);
+                           }
+                        }
+                        
+                        // trainer
+                        if (s.trainer_id) {
+                           const tr = trainers.find(t => t.id === s.trainer_id);
+                           if (tr) {
+                             if (!participantName) participantName = tr.name_ar || tr.name_en;
+                             if (tr.phone) phones.push(tr.phone);
+                           }
+                        } else if (s.volunteer_id) {
+                           const tr = trainers.find(t => t.user_id === s.volunteer_id);
+                           if (tr) {
+                             if (!participantName) participantName = tr.name_ar || tr.name_en;
+                             if (tr.phone) phones.push(tr.phone);
+                           }
+                        }
+
+                        if (!participantName) participantName = 'غير معروف';
+
+                        // Extract valid phones
+                        const cleanPhones = phones.map(p => p.replace(/\D/g, '')).filter(p => p.length > 0);
+                        
+                        // Check if we already have this user (by phone)
+                        let found = false;
+                        for (const p of cleanPhones) {
+                           if (phoneToExistingUser.has(p)) {
+                              found = true;
+                              // Phone exists → keep the OLD name from users_followup, don't update
+                              break;
+                           }
+                        }
+
+                        if (!found && cleanPhones.length > 0) {
+                           const primaryPhone = cleanPhones[0];
+                           // Mark as seen so we don't insert duplicates within the same batch
+                           phoneToExistingUser.set(primaryPhone, participantName);
+                           
+                           let branchName = s.location || 'الفرع';
+                           if (branchName === 'home') branchName = 'من البيت';
+                           else if (branchName === 'remote') branchName = 'عن بعد';
+                           else if (branchName === 'branch') branchName = 'الفرع';
+                           
+                           newUsersToInsert.push({
+                              full_name: participantName,
+                              phone_1: primaryPhone,
+                              phone_2: cleanPhones[1] || null,
+                              branch: branchName
+                           });
+                        }
+                    });
+
+                    if (newUsersToInsert.length > 0) {
+                       const { data: insertedUsers, error: insertError } = await supabase
+                          .from('users_followup')
+                          .insert(newUsersToInsert)
+                          .select();
+                          
+                       if (insertError) {
+                          console.error('Error inserting missing users:', insertError);
+                       } else if (insertedUsers) {
+                          currentUsers.push(...insertedUsers);
+                       }
+                    }
+
+                    if (currentUsers.length === 0) {
+                        toast.error(language === 'ar' ? 'جدول المتابعة فارغ!' : 'Follow-up table is empty!');
+                        return;
+                    }
+
+                    const volList = currentUsers
+                      .filter(u => !u.status || u.status === 'approved')
+                      .map(u => ({
+                        id: u.id,
+                        name: u.full_name,
+                        phone: u.phone_1,
+                        phone2: u.phone_2
+                      }));
+
+                    await downloadAttendanceMatrix(matrixYear, volList, submissions, language, profilesMap, trainers);
                     toast.success(language === 'ar' ? 'تم تصدير شيت المتابعة بنجاح' : 'Attendance sheet exported successfully');
                   } catch (err) {
                     console.error('Matrix export error:', err);

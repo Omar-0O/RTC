@@ -61,6 +61,7 @@ import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { toast } from 'sonner';
 
 interface Committee {
@@ -82,6 +83,8 @@ interface UserWithDetails {
   role: AppRole;
   committee_id: string | null;
   committee_name?: string;
+  branch_id?: string | null;
+  branch_name?: string;
   total_points: number;
   participation_count: number;
   level: string;
@@ -251,6 +254,7 @@ async function getCroppedImg(
 
 export default function UserManagement() {
   const { t, language, isRTL } = useLanguage();
+  const { activeBranch, branches, canViewAllBranches } = useBranch();
   const { primaryRole } = useAuth();
   const [users, setUsers] = useState<UserWithDetails[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
@@ -276,6 +280,7 @@ export default function UserManagement() {
   const [formRole, setFormRole] = useState<UserRole>('volunteer');
   const [formLevel, setFormLevel] = useState<string>('under_follow_up');
   const [formCommitteeId, setFormCommitteeId] = useState<string>('');
+  const [formBranchId, setFormBranchId] = useState<string>('');
   const [formAvatarFile, setFormAvatarFile] = useState<File | null>(null);
   const [formAvatarPreview, setFormAvatarPreview] = useState<string | null>(null);
   const [formAttendedMiniCamp, setFormAttendedMiniCamp] = useState(false);
@@ -305,11 +310,15 @@ export default function UserManagement() {
 
       setCommittees(committeesData || []);
 
-      // Fetch users, roles, and activity submissions in parallel to avoid join issues
-      const usersQuery = supabase
+      // Fetch users — filter by branch if user is branch_admin
+      let usersQuery = supabase
         .from('profiles')
         .select('*')
         .order('full_name');
+
+      if (!canViewAllBranches && activeBranch?.id) {
+        usersQuery = usersQuery.eq('branch_id', activeBranch.id) as any;
+      }
 
       const rolesQuery = supabase
         .from('user_roles')
@@ -372,6 +381,7 @@ export default function UserManagement() {
       };
 
       const committeesMap = new Map(committeesData?.map(c => [c.id, language === 'ar' ? c.name_ar : c.name]) || []);
+      const branchesMap = new Map(branches?.map(b => [b.id, language === 'ar' ? b.name_ar : b.name]) || []);
 
       const usersWithDetails: UserWithDetails[] = (profilesData || []).map((profile: any) => {
         // Get roles from map and fallback to profile.role
@@ -401,6 +411,8 @@ export default function UserManagement() {
           role: getPrimaryRole(uniqueRoles as AppRole[]),
           committee_id: profile.committee_id,
           committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
+          branch_id: profile.branch_id,
+          branch_name: profile.branch_id ? branchesMap.get(profile.branch_id) : undefined,
           total_points: profile.total_points || 0,
           participation_count: participationCount,
           level: profile.level || 'under_follow_up',
@@ -446,6 +458,7 @@ export default function UserManagement() {
     setFormRole('volunteer');
     setFormLevel('under_follow_up');
     setFormCommitteeId('');
+    setFormBranchId(activeBranch?.id || '');
     setFormAvatarFile(null);
     setFormAvatarPreview(null);
     setFormAttendedMiniCamp(false);
@@ -620,6 +633,10 @@ export default function UserManagement() {
           updates.birth_date = formBirthDate;
         }
 
+        if (formBranchId) {
+          updates.branch_id = formBranchId;
+        }
+
         if (Object.keys(updates).length > 0) {
           updates.level = formLevel;
 
@@ -659,6 +676,7 @@ export default function UserManagement() {
     setFormRole(user.role);
     setFormLevel(user.level || 'under_follow_up');
     setFormCommitteeId(user.committee_id || '');
+    setFormBranchId(user.branch_id || activeBranch?.id || '');
     setFormAttendedMiniCamp(user.attended_mini_camp || false);
     setFormAttendedCamp(user.attended_camp || false);
     setFormIsAshbal(user.is_ashbal || false);
@@ -691,6 +709,7 @@ export default function UserManagement() {
           email: formEmail.trim(),
           phone: formPhone.trim() || null,
           committee_id: formCommitteeId || null,
+          branch_id: formBranchId || null,
 
           level: formLevel as any,
           attended_mini_camp: formLevel === 'under_follow_up' ? formAttendedMiniCamp : null,
@@ -738,9 +757,9 @@ export default function UserManagement() {
 
         // Then, insert the new role ONLY if it's not 'volunteer'
         if (formRole !== 'volunteer') {
-          const { error: roleError } = await supabase
+          const { error: roleError } = await (supabase as any)
             .from('user_roles')
-            .insert({ user_id: selectedUser.id, role: formRole as AppRole });
+            .insert({ user_id: selectedUser.id, role: formRole });
 
           if (roleError) throw roleError;
         }
@@ -822,9 +841,9 @@ export default function UserManagement() {
       // Then, insert the new role ONLY if it's not 'volunteer'
       // 'volunteer' is the default state (no explicit role record)
       if (newRole !== 'volunteer') {
-        const { error: insertError } = await supabase
+        const { error: insertError } = await (supabase as any)
           .from('user_roles')
-          .insert({ user_id: userId, role: newRole as AppRole });
+          .insert({ user_id: userId, role: newRole });
 
         if (insertError) throw insertError;
       }
@@ -856,6 +875,11 @@ export default function UserManagement() {
       case 'head_events':
       case 'head_ethics':
       case 'head_quran':
+      case 'head_marketing':
+      case 'head_ashbal':
+      case 'head_production':
+      case 'head_fourth_year':
+      case 'marketing_member':
         return 'bg-blue-100 text-blue-700';
 
       default:
@@ -874,6 +898,11 @@ export default function UserManagement() {
       case 'head_events': return t('common.head_events');
       case 'head_ethics': return t('common.head_ethics');
       case 'head_quran': return t('common.head_quran');
+      case 'head_marketing': return t('common.head_marketing');
+      case 'head_ashbal': return t('common.head_ashbal');
+      case 'head_production': return t('common.head_production');
+      case 'head_fourth_year': return t('common.head_fourth_year');
+      case 'marketing_member': return t('common.marketing_member');
       default: return t('common.volunteer');
     }
   };
@@ -1120,6 +1149,9 @@ export default function UserManagement() {
                         <SelectItem value="head_quran">{t('common.head_quran')}</SelectItem>
                         <SelectItem value="head_marketing">{t('common.head_marketing')}</SelectItem>
                         <SelectItem value="head_ashbal">{t('common.head_ashbal')}</SelectItem>
+                        <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
+                        <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
+                        <SelectItem value="marketing_member">{t('common.marketing_member')}</SelectItem>
 
                       </SelectContent>
                     </Select>
@@ -1153,6 +1185,21 @@ export default function UserManagement() {
                       {committees.map(committee => (
                         <SelectItem key={committee.id} value={committee.id}>
                           {language === 'ar' ? committee.name_ar : committee.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label>{language === 'ar' ? 'الفرع' : 'Branch'} *</Label>
+                  <Select value={formBranchId || 'none'} onValueChange={(val) => setFormBranchId(val === 'none' ? '' : val)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={language === 'ar' ? 'اختر الفرع' : 'Select Branch'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map(branch => (
+                        <SelectItem key={branch.id} value={branch.id}>
+                          {language === 'ar' ? branch.name_ar : branch.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1512,6 +1559,9 @@ export default function UserManagement() {
                       <SelectItem value="head_quran">{t('common.head_quran')}</SelectItem>
                       <SelectItem value="head_marketing">{t('common.head_marketing')}</SelectItem>
                       <SelectItem value="head_ashbal">{t('common.head_ashbal')}</SelectItem>
+                      <SelectItem value="head_production">{t('common.head_production')}</SelectItem>
+                      <SelectItem value="head_fourth_year">{t('common.head_fourth_year')}</SelectItem>
+                      <SelectItem value="marketing_member">{t('common.marketing_member')}</SelectItem>
 
                     </SelectContent>
                   </Select>
@@ -1541,6 +1591,21 @@ export default function UserManagement() {
                     {committees.map(committee => (
                       <SelectItem key={committee.id} value={committee.id}>
                         {language === 'ar' ? committee.name_ar : committee.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>{language === 'ar' ? 'الفرع' : 'Branch'}</Label>
+                <Select value={formBranchId || 'none'} onValueChange={(val) => setFormBranchId(val === 'none' ? '' : val)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={language === 'ar' ? 'اختر الفرع' : 'Select Branch'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map(branch => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {language === 'ar' ? branch.name_ar : branch.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1728,6 +1793,7 @@ export default function UserManagement() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-start whitespace-nowrap">{t('users.fullName')}</TableHead>
+                        <TableHead className="text-start whitespace-nowrap">{language === 'ar' ? 'الفرع' : 'Branch'}</TableHead>
                         <TableHead className="text-start whitespace-nowrap">{t('users.role')}</TableHead>
                         <TableHead className="text-start whitespace-nowrap">{t('users.committee')}</TableHead>
                         <TableHead className="text-start whitespace-nowrap">{t('users.level')}</TableHead>
@@ -1752,6 +1818,9 @@ export default function UserManagement() {
                                 <p className="text-sm text-muted-foreground">{user.email}</p>
                               </div>
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm">{user.branch_name || '—'}</span>
                           </TableCell>
                           <TableCell>
                             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>

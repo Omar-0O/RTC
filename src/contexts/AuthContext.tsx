@@ -185,6 +185,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Determine primary role (highest privilege) - memoized
   const primaryRole = useMemo((): AppRole => {
     if (roles.includes('admin')) return 'admin';
+    if (roles.includes('executive')) return 'executive';
+    if (roles.includes('branch_admin')) return 'branch_admin';
     if (roles.includes('head_hr')) return 'head_hr';
     if (roles.includes('hr')) return 'hr';
     if (roles.includes('supervisor')) return 'supervisor';

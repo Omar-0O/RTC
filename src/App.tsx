@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { BranchProvider } from "./contexts/BranchContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ThemeProvider } from "./components/theme-provider";
 import { AppLayout } from "./components/layout/AppLayout";
@@ -58,10 +59,13 @@ const MyQuranCircles = lazy(() => import("./pages/quran/MyQuranCircles"));
 const AshbalManagement = lazy(() => import("./pages/ashbal/AshbalManagement"));
 const FineManagement = lazy(() => import("./pages/admin/FineManagement"));
 const InterestedBeneficiaries = lazy(() => import("./pages/admin/InterestedBeneficiaries"));
+const BranchManagement = lazy(() => import("./pages/admin/BranchManagement"));
+const FollowUpManagement = lazy(() => import("./pages/admin/FollowUpManagement"));
 const UnderFollowUp = lazy(() => import("./pages/supervisor/UnderFollowUp"));
 const LogForVolunteer = lazy(() => import("./pages/supervisor/LogForVolunteer"));
 const VolunteerPortal = lazy(() => import("./pages/VolunteerPortal"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const ExecutiveDashboard = lazy(() => import("./pages/executive/Dashboard"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -105,6 +109,10 @@ function AppRoutes() {
   const getDefaultRoute = () => {
     switch (primaryRole) {
       case 'admin':
+        return '/admin';
+      case 'executive':
+        return '/executive';
+      case 'branch_admin':
         return '/admin';
       case 'supervisor':
         return '/supervisor';
@@ -231,6 +239,12 @@ function AppRoutes() {
         <Route path="/my-quran-circles" element={<MyQuranCircles />} />
         <Route path="/admin/fines" element={<FineManagement />} />
         <Route path="/admin/interested" element={<InterestedBeneficiaries />} />
+        <Route path="/admin/branches" element={<BranchManagement />} />
+        <Route path="/admin/followup" element={<FollowUpManagement />} />
+
+        {/* Executive Routes */}
+        <Route path="/executive" element={<ExecutiveDashboard />} />
+        <Route path="/executive/reports" element={<Reports />} />
 
         {/* Ashbal Routes */}
         <Route path="/ashbal/management" element={<AshbalManagement />} />
@@ -249,18 +263,20 @@ const App = () => (
     <LanguageProvider>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-              <ScrollToTop />
-              <ErrorBoundary>
-                <Suspense fallback={<PageLoader />}>
-                  <AppRoutes />
-                </Suspense>
-              </ErrorBoundary>
-            </BrowserRouter>
-          </TooltipProvider>
+          <BranchProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <ScrollToTop />
+                <ErrorBoundary>
+                  <Suspense fallback={<PageLoader />}>
+                    <AppRoutes />
+                  </Suspense>
+                </ErrorBoundary>
+              </BrowserRouter>
+            </TooltipProvider>
+          </BranchProvider>
         </AuthProvider>
       </ThemeProvider>
     </LanguageProvider>
