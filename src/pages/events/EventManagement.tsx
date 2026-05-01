@@ -455,6 +455,33 @@ export default function EventManagement() {
                         social_media_link: s.social_media_link || null
                     }))
                 );
+
+                // Award points to speakers who match existing volunteers
+                const matchedVolunteers = speakers.map(s => 
+                    volunteers.find(v => 
+                        (s.phone && v.phone === s.phone) || 
+                        v.full_name === s.name
+                    )
+                ).filter(Boolean);
+                
+                const uniqueSpeakerIds = Array.from(new Set(matchedVolunteers.map(v => v!.id)));
+                
+                const activityTypeId = await ensureEventActivityType();
+                const targetCommitteeId = formData.committee_id || eventsCommitteeId;
+
+                if (activityTypeId && targetCommitteeId && uniqueSpeakerIds.length > 0) {
+                    await supabase.from('activity_submissions').insert(
+                        uniqueSpeakerIds.map(volunteerId => ({
+                            volunteer_id: volunteerId,
+                            activity_type_id: activityTypeId,
+                            committee_id: targetCommitteeId,
+                            status: 'approved' as const,
+                            points_awarded: 5,
+                            submitted_at: new Date().toISOString(),
+                            description: `Event Speaker: ${formData.name}`,
+                        }))
+                    );
+                }
             }
 
             // 4. Save organizers & award participation
@@ -777,7 +804,7 @@ export default function EventManagement() {
                                 />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {/* Date */}
                                 <div className="grid gap-2">
                                     <Label>{isRTL ? 'التاريخ' : 'Date'} *</Label>
@@ -852,7 +879,7 @@ export default function EventManagement() {
                                     {isRTL ? 'المتحدثون' : 'Speakers'}
                                 </h4>
                                 <div className="space-y-3">
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-col sm:flex-row gap-2">
                                         <Input
                                             placeholder={isRTL ? 'اسم المتحدث' : 'Speaker name'}
                                             value={newSpeaker.name}
@@ -863,16 +890,17 @@ export default function EventManagement() {
                                             placeholder={isRTL ? 'الهاتف' : 'Phone'}
                                             value={newSpeaker.phone}
                                             onChange={(e) => setNewSpeaker({ ...newSpeaker, phone: e.target.value })}
-                                            className="w-28"
+                                            className="w-full sm:w-28"
                                         />
                                         <Input
                                             placeholder={isRTL ? 'رابط التواصل' : 'Social link'}
                                             value={newSpeaker.social_media_link}
                                             onChange={(e) => setNewSpeaker({ ...newSpeaker, social_media_link: e.target.value })}
-                                            className="w-36"
+                                            className="w-full sm:w-36"
                                         />
-                                        <Button type="button" variant="secondary" onClick={handleAddSpeaker}>
-                                            <Plus className="h-4 w-4" />
+                                        <Button type="button" variant="secondary" onClick={handleAddSpeaker} className="w-full sm:w-auto">
+                                            <Plus className="h-4 w-4 sm:mr-0 rtl:ml-2 sm:rtl:ml-0" />
+                                            <span className="sm:hidden">{isRTL ? 'إضافة' : 'Add'}</span>
                                         </Button>
                                     </div>
                                     {speakers.length > 0 && (
@@ -1094,7 +1122,7 @@ export default function EventManagement() {
                         <DialogDescription>{isRTL ? 'إضافة وإزالة المستفيدين من الإيفينت' : 'Add and remove event beneficiaries'}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                             <Input
                                 placeholder={isRTL ? 'اسم المستفيد' : 'Beneficiary name'}
                                 value={newBeneficiary.name}
@@ -1105,10 +1133,11 @@ export default function EventManagement() {
                                 placeholder={isRTL ? 'الهاتف' : 'Phone'}
                                 value={newBeneficiary.phone}
                                 onChange={(e) => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
-                                className="w-32"
+                                className="w-full sm:w-32"
                             />
-                            <Button onClick={handleAddBeneficiary}>
-                                <Plus className="h-4 w-4" />
+                            <Button onClick={handleAddBeneficiary} className="w-full sm:w-auto">
+                                <Plus className="h-4 w-4 sm:mr-0 rtl:ml-2 sm:rtl:ml-0" />
+                                <span className="sm:hidden">{isRTL ? 'إضافة' : 'Add'}</span>
                             </Button>
                         </div>
                         {eventBeneficiaries.length > 0 ? (

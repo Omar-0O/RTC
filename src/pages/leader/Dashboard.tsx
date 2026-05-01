@@ -64,10 +64,16 @@ interface Submission {
   wore_vest?: boolean;
   description?: string;
   proof_url?: string;
+  participant_type?: 'volunteer' | 'guest' | 'trainer';
+  trainer_id?: string | null;
   guest_name?: string | null;
   guest_phone?: string | null;
   profiles: Profile | null;
   activity_types: {
+    name: string;
+    name_ar: string;
+  };
+  committees?: {
     name: string;
     name_ar: string;
   };
@@ -87,6 +93,7 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [committeeMembers, setCommitteeMembers] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [trainersMap, setTrainersMap] = useState<Record<string, { ar: string, en: string, phone: string, image_url: string | null }>>({});
 
   // Filters
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -162,6 +169,19 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
 
       if (membersData) setCommitteeMembers(membersData);
 
+      // Fetch trainers
+      const { data: trainersData } = await supabase
+        .from('trainers')
+        .select('id, user_id, name_ar, name_en, phone, image_url');
+      
+      const tMap: Record<string, { ar: string, en: string, phone: string, image_url: string | null }> = {};
+      trainersData?.forEach((t: any) => {
+          if (t.id) {
+              tMap[t.id] = { ar: t.name_ar, en: t.name_en, phone: t.phone, image_url: t.image_url };
+          }
+      });
+      setTrainersMap(tMap);
+
       // Fetch submissions for this committee (ALL IDs)
       let query = supabase
         .from('activity_submissions')
@@ -178,10 +198,13 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
           proof_url,
           guest_name,
           guest_phone,
+          participant_type,
+          trainer_id,
           profiles:profiles!activity_submissions_volunteer_id_fkey (
             id, full_name, full_name_ar, email, total_points, level, avatar_url, committee_id, phone
           ),
-          activity_types (name, name_ar)
+          activity_types (name, name_ar),
+          committees (name, name_ar)
         `)
         .in('committee_id', effectiveCommitteeIds)
         .order('submitted_at', { ascending: false });
@@ -277,16 +300,37 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
         ? (s.wore_vest ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No'))
         : '';
 
-      const memberStatus = volunteer && volunteer.committee_id && effectiveCommitteeIds.includes(volunteer.committee_id)
-        ? (isRTL ? 'عضو' : 'Member')
-        : (isRTL ? 'خارجي' : 'External');
+      const isGuest = !s.profiles || s.participant_type === 'guest';
+      const isTrainer = s.participant_type === 'trainer' || s.committees?.name === 'Trainer';
+
+      let memberStatus = isRTL ? 'عضو' : 'Member';
+      if (isTrainer) memberStatus = isRTL ? 'مدرب' : 'Trainer';
+      else if (isGuest) memberStatus = isRTL ? 'ضيف' : 'Guest';
+      else if (!volunteer || !volunteer.committee_id || !effectiveCommitteeIds.includes(volunteer.committee_id)) memberStatus = isRTL ? 'خارجي' : 'External';
+
+      let displayName = isGuest
+          ? s.guest_name
+          : (isRTL ? volunteer?.full_name_ar : volunteer?.full_name);
+
+      if (isTrainer) {
+          if (s.trainer_id && trainersMap[s.trainer_id]) {
+              displayName = isRTL ? trainersMap[s.trainer_id].ar : trainersMap[s.trainer_id].en;
+          } else if (!displayName && volunteer) {
+              displayName = isRTL ? volunteer.full_name_ar : volunteer.full_name;
+          } else if (!displayName) {
+              displayName = isRTL ? 'مدرب' : 'Trainer';
+          }
+      }
+
+      let displayPhone = isGuest ? s.guest_phone : volunteer?.phone;
+      if (isTrainer && s.trainer_id && trainersMap[s.trainer_id]?.phone) {
+          displayPhone = trainersMap[s.trainer_id].phone;
+      }
 
       return {
         [isRTL ? 'نوع المهمة' : 'Task Type']: activityType?.[isRTL ? 'name_ar' : 'name'] || '',
-        [isRTL ? 'اسم المتطوع' : 'Volunteer Name']: volunteer
-          ? (isRTL ? (volunteer.full_name_ar || volunteer.full_name || '') : (volunteer.full_name || ''))
-          : (s.guest_name || (isRTL ? 'ضيف' : 'Guest')),
-        [isRTL ? 'رقم الهاتف' : 'Phone']: `'${volunteer?.phone || ''}'`,
+        [isRTL ? 'اسم المتطوع' : 'Volunteer Name']: displayName || (isRTL ? 'غير معروف' : 'Unknown'),
+        [isRTL ? 'رقم الهاتف' : 'Phone']: `'${displayPhone || ''}'`,
         [isRTL ? 'نوع العضوية' : 'Membership']: memberStatus,
         [isRTL ? 'نوع المشاركة' : 'Participation Type']: locationStr,
         [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: vestStatus,
@@ -539,17 +583,44 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
           </Card>
         ) : (
           filteredSubmissions.map((submission) => {
-            const isGuest = !submission.profiles;
-            const isMember = !isGuest && submission.profiles?.committee_id && effectiveCommitteeIds.includes(submission.profiles.committee_id);
+            const isGuest = !submission.profiles || submission.participant_type === 'guest';
+            const isTrainer = submission.participant_type === 'trainer' || submission.committees?.name === 'Trainer';
+            const isMember = !isGuest && !isTrainer && submission.profiles?.committee_id && effectiveCommitteeIds.includes(submission.profiles.committee_id);
+
+            let displayName = isGuest
+                ? submission.guest_name
+                : (isRTL ? submission.profiles?.full_name_ar : submission.profiles?.full_name);
+
+            let trainerAvatarUrl = null;
+
+            if (isTrainer) {
+                if (submission.trainer_id && trainersMap[submission.trainer_id]) {
+                    displayName = isRTL
+                        ? trainersMap[submission.trainer_id].ar
+                        : trainersMap[submission.trainer_id].en;
+                    trainerAvatarUrl = trainersMap[submission.trainer_id].image_url;
+                } else if (!displayName && submission.profiles) {
+                    displayName = isRTL ? submission.profiles.full_name_ar : submission.profiles.full_name;
+                } else if (!displayName) {
+                    displayName = isRTL ? 'مدرب' : 'Trainer';
+                }
+            }
+
             return (
               <Card key={submission.id} className="overflow-hidden hover:shadow-md transition-shadow">
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex items-start gap-4">
                     {/* Volunteer Avatar */}
                     <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border-2 border-primary/10">
-                      <AvatarImage src={submission.profiles?.avatar_url || undefined} />
+                      {isTrainer && trainerAvatarUrl ? (
+                          <AvatarImage src={trainerAvatarUrl} />
+                      ) : isTrainer && submission.profiles?.avatar_url ? (
+                          <AvatarImage src={submission.profiles.avatar_url} />
+                      ) : !isGuest && submission.profiles?.avatar_url ? (
+                          <AvatarImage src={submission.profiles.avatar_url} />
+                      ) : null}
                       <AvatarFallback className="text-lg">
-                        {(submission.profiles?.full_name?.substring(0, 2) || "GS")}
+                        {isGuest && !isTrainer ? '👤' : (displayName?.substring(0, 2) || "U")}
                       </AvatarFallback>
                     </Avatar>
 
@@ -558,29 +629,28 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <h3 className="font-semibold text-base sm:text-lg truncate">
-                            {submission.profiles
-                              ? (isRTL
-                                ? (submission.profiles.full_name_ar || submission.profiles.full_name)
-                                : submission.profiles.full_name)
-                              : (submission.guest_name || (isRTL ? 'ضيف' : 'Guest'))
-                            }
+                            {displayName || (isRTL ? 'ضيف' : 'Guest')}
                           </h3>
                           <Badge
                             variant={isMember ? "default" : "outline"}
                             className={cn(
                               "text-xs shrink-0",
-                              isGuest
-                                ? "bg-purple-100 text-purple-700 border-purple-200"
-                                : isMember
-                                  ? "bg-green-100 text-green-700 border-green-200"
-                                  : "bg-orange-100 text-orange-700 border-orange-200"
+                              isTrainer
+                                ? "bg-indigo-100 text-indigo-700 border-indigo-200"
+                                : isGuest
+                                  ? "bg-purple-100 text-purple-700 border-purple-200"
+                                  : isMember
+                                    ? "bg-green-100 text-green-700 border-green-200"
+                                    : "bg-orange-100 text-orange-700 border-orange-200"
                             )}
                           >
-                            {isGuest
-                              ? (isRTL ? 'محفظ' : 'Memorizer')
-                              : isMember
-                                ? (isRTL ? 'عضو' : 'Member')
-                                : (isRTL ? 'خارجي' : 'External')}
+                            {isTrainer
+                              ? (isRTL ? 'مدرب' : 'Trainer')
+                              : isGuest
+                                ? (isRTL ? 'ضيف' : 'Guest')
+                                : isMember
+                                  ? (isRTL ? 'عضو' : 'Member')
+                                  : (isRTL ? 'خارجي' : 'External')}
                           </Badge>
                           {submission.profiles && (
                             <Badge variant="outline" className="text-xs shrink-0">

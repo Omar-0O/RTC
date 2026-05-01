@@ -232,7 +232,7 @@ export default function CourseManagement() {
     const [marketers, setMarketers] = useState<CourseMarketer[]>([]);
     const [plannedAds, setPlannedAds] = useState<string[]>([]);
     const [marketerPopoverOpen, setMarketerPopoverOpen] = useState(false);
-    const [createTab, setCreateTab] = useState<'pre' | 'post'>('pre');
+
     const [allAds, setAllAds] = useState<CourseAd[]>([]);
     const [hasAdsPermission, setHasAdsPermission] = useState(false);
 
@@ -965,14 +965,78 @@ export default function CourseManagement() {
                     })));
             }
 
-            // We assume lecture dates might need regeneration ONLY if schedule changed significantly,
-            // but for now let's keep it simple: we update the course metadata.
-            // Regenerating lectures is complex if attendance exists.
-            // For this task, we'll assume the user might manually manage lectures if needed,
-            // or we could implement a logic to checks if lectures should be regenerated.
-            // Given complexity, let's just update course details for now.
-            // If the user changed dates/days, we should probably warn them or handle it.
-            // For now, let's stick to updating the basic info.
+            // Fetch existing lectures
+            const { data: existingLectures } = await supabase
+                .from('course_lectures')
+                .select('id, lecture_number, date')
+                .eq('course_id', editingCourseId)
+                .order('lecture_number', { ascending: true });
+
+            const currentLecturesCount = existingLectures?.length || 0;
+            
+            // Append new lectures if the total increased
+            if (currentLecturesCount > 0 && currentLecturesCount < formData.total_lectures) {
+                const lecturesToAdd = formData.total_lectures - currentLecturesCount;
+                const lastLecture = existingLectures[existingLectures.length - 1];
+                let current = addDays(new Date(lastLecture.date), 1);
+                let newDates: Date[] = [];
+                
+                let appendSafetyCounter = 0;
+                while (newDates.length < lecturesToAdd && appendSafetyCounter < 365) {
+                    const dayIndex = getDay(current);
+                    if (selectedDaysIndices.includes(dayIndex)) {
+                        newDates.push(current);
+                    }
+                    current = addDays(current, 1);
+                    appendSafetyCounter++;
+                }
+
+                if (newDates.length > 0) {
+                    const newLectures = newDates.map((date, index) => ({
+                        course_id: editingCourseId,
+                        lecture_number: lastLecture.lecture_number + index + 1,
+                        date: format(date, 'yyyy-MM-dd'),
+                        status: 'scheduled'
+                    }));
+
+                    const { error: lectError } = await supabase
+                        .from('course_lectures')
+                        .insert(newLectures);
+
+                    if (lectError) {
+                        console.error('Error creating new lectures:', lectError);
+                        toast.error(isRTL ? 'حدث خطأ أثناء إضافة المحاضرات الجديدة' : 'Error adding new lectures');
+                    }
+                }
+            } else if (currentLecturesCount === 0 && lectureDates.length > 0) {
+                // Edge case: no existing lectures at all, insert them all
+                const newLectures = lectureDates.map((date, index) => ({
+                    course_id: editingCourseId,
+                    lecture_number: index + 1,
+                    date: format(date, 'yyyy-MM-dd'),
+                    status: 'scheduled'
+                }));
+                const { error: lectError } = await supabase.from('course_lectures').insert(newLectures);
+                if (lectError) {
+                    console.error('Error creating new lectures:', lectError);
+                    toast.error(isRTL ? 'حدث خطأ أثناء إضافة المحاضرات الجديدة' : 'Error adding new lectures');
+                }
+            } else if (formData.total_lectures < currentLecturesCount) {
+                // Delete excess lectures from the end
+                const countToDelete = currentLecturesCount - formData.total_lectures;
+                const lecturesToDelete = existingLectures.slice(-countToDelete);
+                const idsToDelete = lecturesToDelete.map((l: any) => l.id);
+
+                const { error: delError } = await supabase
+                    .from('course_lectures')
+                    .delete()
+                    .in('id', idsToDelete);
+
+                if (delError) {
+                    console.error('Error deleting excess lectures:', delError);
+                    toast.error(isRTL ? 'حدث خطأ أثناء حذف المحاضرات الزائدة' : 'Error deleting excess lectures');
+                }
+            }
 
             toast.success(isRTL ? 'تم تحديث الكورس بنجاح' : 'Course updated successfully');
             setIsEditOpen(false);
@@ -1935,24 +1999,6 @@ export default function CourseManagement() {
                                 </DialogHeader>
 
                                 <div className="py-4">
-                                    {/* View Toggle */}
-                                    <div className="flex justify-center mb-6">
-                                        <div className="bg-muted p-1 rounded-lg inline-flex">
-                                            <button
-                                                onClick={() => setCreateTab('pre')}
-                                                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${createTab === 'pre' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                                            >
-                                                {isRTL ? 'ما قبل الكورس' : 'Pre-Course'}
-                                            </button>
-                                            <button
-                                                onClick={() => setCreateTab('post')}
-                                                className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${createTab === 'post' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-                                            >
-                                                {isRTL ? 'ما بعد الكورس' : 'Post-Course'}
-                                            </button>
-                                        </div>
-                                    </div>
-
                                     <div className="grid gap-6">
                                         {/* Common Fields: Name & Room */}
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2144,9 +2190,8 @@ export default function CourseManagement() {
                                             </div>
                                         </div>
 
-                                        {/* Pre-Course Only Fields */}
-                                        {createTab === 'pre' && (
-                                            <div className="space-y-6 pt-4 border-t animate-in fade-in slide-in-from-top-4 duration-300">
+                                        {/* Additional Details */}
+                                        <div className="space-y-6 pt-4 border-t animate-in fade-in slide-in-from-top-4 duration-300">
                                                 {/* Interview */}
                                                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border rounded-lg bg-card">
                                                     <label className="flex items-center gap-3 cursor-pointer flex-1">
@@ -2233,46 +2278,7 @@ export default function CourseManagement() {
                                                         </div>
                                                     )}
                                                 </div>
-
-
-
                                             </div>
-                                        )}
-
-
-
-                                        {/* Post-Course Only Fields */}
-                                        {createTab === 'post' && (
-                                            <div className="space-y-6 pt-4 border-t animate-in fade-in slide-in-from-top-4 duration-300">
-
-                                                {/* End Date (Read Only - but emphasized for post-course) */}
-                                                <div className="space-y-3 bg-muted/30 p-4 rounded-lg border border-dashed">
-                                                    <div className="flex items-center justify-between">
-                                                        <Label className="text-base text-muted-foreground">{isRTL ? 'تاريخ النهاية المتوقع' : 'Expected End Date'}</Label>
-                                                        <Badge variant="outline" className="text-base px-3 py-1">
-                                                            {formData.end_date || '-'}
-                                                        </Badge>
-                                                    </div>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        {isRTL
-                                                            ? 'يتم حساب تاريخ النهاية تلقائياً بناءً على تاريخ البداية وعدد المحاضرات والأيام المختارة.'
-                                                            : 'End date is calculated automatically based on start date, lectures count, and selected days.'}
-                                                    </p>
-                                                </div>
-
-                                                {/* Certificates */}
-                                                <div className="flex items-center gap-4 p-4 border rounded-lg bg-card mb-6">
-                                                    <label className="flex items-center gap-3 cursor-pointer flex-1">
-                                                        <Checkbox
-                                                            checked={formData.has_certificates}
-                                                            onCheckedChange={(checked) => setFormData({ ...formData, has_certificates: !!checked })}
-                                                            className="h-5 w-5"
-                                                        />
-                                                        <span className="text-base font-medium">{isRTL ? 'يوجد شهادات لهذا الكورس؟' : 'Does this course have certificates?'}</span>
-                                                    </label>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
 
