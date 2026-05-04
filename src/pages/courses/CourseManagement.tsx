@@ -620,7 +620,7 @@ export default function CourseManagement() {
                 if (!timeStr) return '23:59';
                 const parts = timeStr.split(':');
                 if (parts.length < 2) return timeStr;
-                let h = parseInt(parts[0], 10) + 1;
+                const h = parseInt(parts[0], 10) + 1;
                 return `${h.toString().padStart(2, '0')}:${parts[1]}`;
             };
             
@@ -674,7 +674,7 @@ export default function CourseManagement() {
             // Smart Date Calculation
             const start = new Date(formData.start_date);
             let current = start;
-            let lectureDates: Date[] = [];
+            const lectureDates: Date[] = [];
             const targetLectures = formData.total_lectures;
 
             // Map day names to 0-6 (Sunday=0)
@@ -888,7 +888,7 @@ export default function CourseManagement() {
             // Smart Date Calculation (Same as create)
             const start = new Date(formData.start_date);
             let current = start;
-            let lectureDates: Date[] = [];
+            const lectureDates: Date[] = [];
             const targetLectures = formData.total_lectures;
 
             const dayMap: { [key: string]: number } = {
@@ -985,7 +985,7 @@ export default function CourseManagement() {
                 const lecturesToAdd = formData.total_lectures - currentLecturesCount;
                 const lastLecture = existingLectures[existingLectures.length - 1];
                 let current = addDays(new Date(lastLecture.date), 1);
-                let newDates: Date[] = [];
+                const newDates: Date[] = [];
                 
                 let appendSafetyCounter = 0;
                 while (newDates.length < lecturesToAdd && appendSafetyCounter < 365) {

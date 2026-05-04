@@ -553,37 +553,45 @@ export default function EventManagement() {
             const toRemove = existingParts.filter(p => !currentParticipantIds.includes(p.id));
             const toAdd = participants.filter(p => !p.id);
 
+            const syncPromises = [];
+
             if (toRemove.length > 0) {
-                await supabase.from('event_participants').delete().in('id', toRemove.map(p => p.id));
+                syncPromises.push(supabase.from('event_participants').delete().in('id', toRemove.map(p => p.id)));
             }
 
             if (toAdd.length > 0) {
-                await supabase.from('event_participants').insert(toAdd.map(p => ({
+                syncPromises.push(supabase.from('event_participants').insert(toAdd.map(p => ({
                     event_id: selectedEventId,
                     volunteer_id: p.volunteer_id || null,
                     name: p.name, phone: p.phone, is_volunteer: p.is_volunteer
-                })));
+                }))));
             }
 
             // 3. Sync speakers (delete all + reinsert)
-            await (supabase as any).from('event_speakers').delete().eq('event_id', selectedEventId);
-            if (speakers.length > 0) {
-                await (supabase as any).from('event_speakers').insert(
-                    speakers.map(s => ({
-                        event_id: selectedEventId,
-                        name: s.name, phone: s.phone || null,
-                        social_media_link: s.social_media_link || null
-                    }))
-                );
-            }
+            syncPromises.push((async () => {
+                await (supabase as any).from('event_speakers').delete().eq('event_id', selectedEventId);
+                if (speakers.length > 0) {
+                    await (supabase as any).from('event_speakers').insert(
+                        speakers.map(s => ({
+                            event_id: selectedEventId,
+                            name: s.name, phone: s.phone || null,
+                            social_media_link: s.social_media_link || null
+                        }))
+                    );
+                }
+            })());
 
             // 4. Sync organizers (delete all + reinsert)
-            await (supabase as any).from('event_organizers').delete().eq('event_id', selectedEventId);
-            if (organizers.length > 0) {
-                await (supabase as any).from('event_organizers').insert(
-                    organizers.map(o => ({ event_id: selectedEventId, volunteer_id: o.volunteer_id }))
-                );
-            }
+            syncPromises.push((async () => {
+                await (supabase as any).from('event_organizers').delete().eq('event_id', selectedEventId);
+                if (organizers.length > 0) {
+                    await (supabase as any).from('event_organizers').insert(
+                        organizers.map(o => ({ event_id: selectedEventId, volunteer_id: o.volunteer_id }))
+                    );
+                }
+            })());
+
+            await Promise.all(syncPromises);
 
             toast.success(isRTL ? 'تم تحديث الإيفينت بنجاح' : 'Event updated successfully');
             setIsCreateOpen(false);

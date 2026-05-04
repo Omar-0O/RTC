@@ -145,7 +145,7 @@ export default function FollowUpManagement() {
           : Promise.resolve({ data: [] }),
       ]);
 
-      let items: any[] = submissionsRes.data || [];
+      const items: any[] = submissionsRes.data || [];
 
       // If we found a volunteer profile, also get their submissions by volunteer_id
       if (profileRes.data && profileRes.data.length > 0) {

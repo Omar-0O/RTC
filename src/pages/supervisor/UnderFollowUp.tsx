@@ -91,7 +91,7 @@ export default function UnderFollowUp() {
         );
       }
 
-      let submissionCounts = new Map<string, number>();
+      const submissionCounts = new Map<string, number>();
       if (profileIds.length > 0) {
         const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
         const { data: monthSubmissions } = await supabase
