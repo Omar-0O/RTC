@@ -276,12 +276,22 @@ export default function IndividualCompetition() {
                 .is('month_year', null);
 
             if (participantsToFix && participantsToFix.length > 0) {
-                await Promise.all(participantsToFix.map(async (p) => {
+                const participantsByMonth = new Map<string, string[]>();
+                participantsToFix.forEach((p) => {
                     const month = format(new Date(p.created_at), 'yyyy-MM');
-                    await supabase
-                        .from('competition_participants')
-                        .update({ month_year: month })
-                        .eq('id', p.id);
+                    if (!participantsByMonth.has(month)) {
+                        participantsByMonth.set(month, []);
+                    }
+                    participantsByMonth.get(month)!.push(p.id);
+                });
+
+                await Promise.all(Array.from(participantsByMonth.entries()).map(async ([month, ids]) => {
+                    if (ids.length > 0) {
+                        await supabase
+                            .from('competition_participants')
+                            .update({ month_year: month })
+                            .in('id', ids);
+                    }
                 }));
             }
 
@@ -292,12 +302,22 @@ export default function IndividualCompetition() {
                 .is('month_year', null);
 
             if (entriesToFix && entriesToFix.length > 0) {
-                await Promise.all(entriesToFix.map(async (e) => {
+                const entriesByMonth = new Map<string, string[]>();
+                entriesToFix.forEach((e) => {
                     const month = format(new Date(e.created_at), 'yyyy-MM');
-                    await supabase
-                        .from('competition_entries')
-                        .update({ month_year: month })
-                        .eq('id', e.id);
+                    if (!entriesByMonth.has(month)) {
+                        entriesByMonth.set(month, []);
+                    }
+                    entriesByMonth.get(month)!.push(e.id);
+                });
+
+                await Promise.all(Array.from(entriesByMonth.entries()).map(async ([month, ids]) => {
+                    if (ids.length > 0) {
+                        await supabase
+                            .from('competition_entries')
+                            .update({ month_year: month })
+                            .in('id', ids);
+                    }
                 }));
             }
 
