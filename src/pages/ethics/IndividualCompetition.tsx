@@ -283,13 +283,23 @@ export default function IndividualCompetition() {
                 .is('month_year', null);
 
             if (participantsToFix && participantsToFix.length > 0) {
-                await Promise.all(participantsToFix.map(async (p) => {
+                const groupedParticipants = new Map<string, string[]>();
+                for (const p of participantsToFix) {
                     const month = format(new Date(p.created_at), 'yyyy-MM');
-                    await supabase
-                        .from('competition_participants')
-                        .update({ month_year: month })
-                        .eq('id', p.id);
-                }));
+                    if (!groupedParticipants.has(month)) {
+                        groupedParticipants.set(month, []);
+                    }
+                    groupedParticipants.get(month)!.push(p.id);
+                }
+
+                await Promise.all(
+                    Array.from(groupedParticipants.entries()).map(async ([month, ids]) => {
+                        await supabase
+                            .from('competition_participants')
+                            .update({ month_year: month })
+                            .in('id', ids);
+                    })
+                );
             }
 
             // Fix Entries
@@ -299,13 +309,23 @@ export default function IndividualCompetition() {
                 .is('month_year', null);
 
             if (entriesToFix && entriesToFix.length > 0) {
-                await Promise.all(entriesToFix.map(async (e) => {
+                const groupedEntries = new Map<string, string[]>();
+                for (const e of entriesToFix) {
                     const month = format(new Date(e.created_at), 'yyyy-MM');
-                    await supabase
-                        .from('competition_entries')
-                        .update({ month_year: month })
-                        .eq('id', e.id);
-                }));
+                    if (!groupedEntries.has(month)) {
+                        groupedEntries.set(month, []);
+                    }
+                    groupedEntries.get(month)!.push(e.id);
+                }
+
+                await Promise.all(
+                    Array.from(groupedEntries.entries()).map(async ([month, ids]) => {
+                        await supabase
+                            .from('competition_entries')
+                            .update({ month_year: month })
+                            .in('id', ids);
+                    })
+                );
             }
 
             toast.success(isRTL ? 'تم إصلاح البيانات بنجاح' : 'Data repaired successfully');
