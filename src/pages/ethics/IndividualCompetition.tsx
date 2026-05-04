@@ -145,29 +145,36 @@ export default function IndividualCompetition() {
     const fetchParticipants = async (month: string = getCurrentMonthYear()) => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            // Step 1: Fetch all participants for the selected month (Query 1)
+            const { data: participantsData, error: participantsError } = await supabase
                 .from('competition_participants')
                 .select('*')
                 .eq('month_year', month)
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (participantsError) throw participantsError;
 
-            // Get entries count for each participant in selected month
-            const participantsWithCount = await Promise.all(
-                (data || []).map(async (p: any) => {
-                    const { count } = await supabase
-                        .from('competition_entries')
-                        .select('id', { count: 'exact', head: true })
-                        .eq('participant_id', p.id)
-                        .eq('month_year', month);
+            // Step 2: Fetch ALL entries for the selected month in a single query (Query 2)
+            // This avoids the N+1 problem by replacing O(N) queries with just 1.
+            const { data: entriesData, error: entriesError } = await supabase
+                .from('competition_entries')
+                .select('participant_id')
+                .eq('month_year', month);
 
-                    return {
-                        ...p,
-                        entries_count: count || 0
-                    };
-                })
-            );
+            if (entriesError) throw entriesError;
+
+            // Step 3: Count entries per participant in memory using a Map for O(N) performance
+            const entriesCountMap = new Map<string, number>();
+            (entriesData || []).forEach(entry => {
+                const currentCount = entriesCountMap.get(entry.participant_id) || 0;
+                entriesCountMap.set(entry.participant_id, currentCount + 1);
+            });
+
+            // Step 4: Map participants with their corresponding counts from the Map
+            const participantsWithCount = (participantsData || []).map((p: any) => ({
+                ...p,
+                entries_count: entriesCountMap.get(p.id) || 0
+            }));
 
             // Sort by entries count descending
             participantsWithCount.sort((a, b) => (b.entries_count || 0) - (a.entries_count || 0));
