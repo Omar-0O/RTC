@@ -167,20 +167,23 @@ export default function SubmissionManagement() {
 
     const fetchVolunteers = async () => {
         try {
-            // Fetch admin IDs
-            const { data: adminRoles } = await supabase
-                .from('user_roles')
-                .select('user_id')
-                .eq('role', 'admin');
-
-            const adminIds = adminRoles?.map(r => r.user_id) || [];
-
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('id, full_name, full_name_ar, level, avatar_url, phone')
-                .order('full_name', { ascending: true });
+            const [
+                { data: adminRoles },
+                { data, error }
+            ] = await Promise.all([
+                supabase
+                    .from('user_roles')
+                    .select('user_id')
+                    .eq('role', 'admin'),
+                supabase
+                    .from('profiles')
+                    .select('id, full_name, full_name_ar, level, avatar_url, phone')
+                    .order('full_name', { ascending: true })
+            ]);
 
             if (error) throw error;
+
+            const adminIds = adminRoles?.map(r => r.user_id) || [];
 
             // Filter out admins
             const filteredVolunteers = data.filter(v =>
@@ -254,15 +257,18 @@ export default function SubmissionManagement() {
                 query = query.eq('volunteer_id', selectedVolunteer);
             }
 
-            const { data, error } = await query;
+            const [
+                { data, error },
+                { data: adminRoles }
+            ] = await Promise.all([
+                query,
+                supabase
+                    .from('user_roles')
+                    .select('user_id')
+                    .eq('role', 'admin')
+            ]);
 
             if (error) throw error;
-
-            // Fetch admin IDs to filter them out
-            const { data: adminRoles } = await supabase
-                .from('user_roles')
-                .select('user_id')
-                .eq('role', 'admin');
 
             const adminIds = adminRoles?.map(r => r.user_id) || [];
 
@@ -326,22 +332,53 @@ export default function SubmissionManagement() {
             const monthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
             const startDate = startOfMonth(monthDate);
             const endDate = endOfMonth(monthDate);
+            const startDateStr = startDate.toISOString().split('T')[0];
+            const endDateStr = endDate.toISOString().split('T')[0];
+
+            const [
+                { data: eventParticipants },
+                { data: caravanParticipants },
+                { data: callParticipants }
+            ] = await Promise.all([
+                supabase
+                    .from('event_participants')
+                    .select(`
+                        id,
+                        name,
+                        phone,
+                        is_volunteer,
+                        events (name, date)
+                    `)
+                    .eq('is_volunteer', false)
+                    .gte('events.date', startDateStr)
+                    .lte('events.date', endDateStr),
+                supabase
+                    .from('caravan_participants')
+                    .select(`
+                        id,
+                        name,
+                        phone,
+                        is_volunteer,
+                        caravans (name, date)
+                    `)
+                    .eq('is_volunteer', false)
+                    .gte('caravans.date', startDateStr)
+                    .lte('caravans.date', endDateStr),
+                supabase
+                    .from('call_participants' as any)
+                    .select(`
+                        id,
+                        name,
+                        phone,
+                        is_volunteer,
+                        calls (name, date)
+                    `)
+                    .eq('is_volunteer', false)
+                    .gte('calls.date', startDateStr)
+                    .lte('calls.date', endDateStr)
+            ]);
 
             const guestData: GuestParticipation[] = [];
-
-            // Fetch event participants (guests)
-            const { data: eventParticipants } = await supabase
-                .from('event_participants')
-                .select(`
-                    id,
-                    name,
-                    phone,
-                    is_volunteer,
-                    events (name, date)
-                `)
-                .eq('is_volunteer', false)
-                .gte('events.date', startDate.toISOString().split('T')[0])
-                .lte('events.date', endDate.toISOString().split('T')[0]);
 
             if (eventParticipants) {
                 eventParticipants.forEach((p: any) => {
@@ -359,20 +396,6 @@ export default function SubmissionManagement() {
                 });
             }
 
-            // Fetch caravan participants (guests)
-            const { data: caravanParticipants } = await supabase
-                .from('caravan_participants')
-                .select(`
-                    id,
-                    name,
-                    phone,
-                    is_volunteer,
-                    caravans (name, date)
-                `)
-                .eq('is_volunteer', false)
-                .gte('caravans.date', startDate.toISOString().split('T')[0])
-                .lte('caravans.date', endDate.toISOString().split('T')[0]);
-
             if (caravanParticipants) {
                 caravanParticipants.forEach((p: any) => {
                     if (p.caravans) {
@@ -388,20 +411,6 @@ export default function SubmissionManagement() {
                     }
                 });
             }
-
-            // Fetch call participants (guests)
-            const { data: callParticipants } = await supabase
-                .from('call_participants' as any)
-                .select(`
-                    id,
-                    name,
-                    phone,
-                    is_volunteer,
-                    calls (name, date)
-                `)
-                .eq('is_volunteer', false)
-                .gte('calls.date', startDate.toISOString().split('T')[0])
-                .lte('calls.date', endDate.toISOString().split('T')[0]);
 
             if (callParticipants) {
                 callParticipants.forEach((p: any) => {
