@@ -435,79 +435,98 @@ export default function EventManagement() {
             if (eventError) throw eventError;
             const eventData = event as any;
 
-            // 2. Add Participants & Award Points
+            const promises = [];
+
+            // Fetch activityTypeId once if needed
+            let activityTypeId: string | undefined = undefined;
+            if (speakers.length > 0 || organizers.length > 0) {
+                activityTypeId = await ensureEventActivityType();
+            }
+
+            // 2. Add Participants
             if (participants.length > 0) {
-                const { error: partsError } = await supabase
-                    .from('event_participants' as any)
-                    .insert(participants.map(p => ({
-                        event_id: eventData.id,
-                        volunteer_id: p.volunteer_id || null,
-                        name: p.name, phone: p.phone, is_volunteer: p.is_volunteer
-                    })));
-                if (partsError) throw partsError;
+                promises.push(
+                    supabase
+                        .from('event_participants' as any)
+                        .insert(participants.map(p => ({
+                            event_id: eventData.id,
+                            volunteer_id: p.volunteer_id || null,
+                            name: p.name, phone: p.phone, is_volunteer: p.is_volunteer
+                        })))
+                        .then(({ error: partsError }) => {
+                            if (partsError) throw partsError;
+                        })
+                );
             }
 
             // 3. Save speakers
             if (speakers.length > 0) {
-                await (supabase as any).from('event_speakers').insert(
-                    speakers.map(s => ({
-                        event_id: eventData.id,
-                        name: s.name, phone: s.phone || null,
-                        social_media_link: s.social_media_link || null
-                    }))
+                promises.push(
+                    (async () => {
+                        await (supabase as any).from('event_speakers').insert(
+                            speakers.map(s => ({
+                                event_id: eventData.id,
+                                name: s.name, phone: s.phone || null,
+                                social_media_link: s.social_media_link || null
+                            }))
+                        );
+
+                        // Award points to speakers who match existing volunteers
+                        const matchedVolunteers = speakers.map(s =>
+                            volunteers.find(v =>
+                                (s.phone && v.phone === s.phone) ||
+                                v.full_name === s.name
+                            )
+                        ).filter(Boolean);
+
+                        const uniqueSpeakerIds = Array.from(new Set(matchedVolunteers.map(v => v!.id)));
+                        const targetCommitteeId = formData.committee_id || eventsCommitteeId;
+
+                        if (activityTypeId && targetCommitteeId && uniqueSpeakerIds.length > 0) {
+                            await supabase.from('activity_submissions').insert(
+                                uniqueSpeakerIds.map(volunteerId => ({
+                                    volunteer_id: volunteerId,
+                                    activity_type_id: activityTypeId,
+                                    committee_id: targetCommitteeId,
+                                    status: 'approved' as const,
+                                    points_awarded: 5,
+                                    submitted_at: new Date().toISOString(),
+                                    description: `Event Speaker: ${formData.name}`,
+                                }))
+                            );
+                        }
+                    })()
                 );
-
-                // Award points to speakers who match existing volunteers
-                const matchedVolunteers = speakers.map(s => 
-                    volunteers.find(v => 
-                        (s.phone && v.phone === s.phone) || 
-                        v.full_name === s.name
-                    )
-                ).filter(Boolean);
-                
-                const uniqueSpeakerIds = Array.from(new Set(matchedVolunteers.map(v => v!.id)));
-                
-                const activityTypeId = await ensureEventActivityType();
-                const targetCommitteeId = formData.committee_id || eventsCommitteeId;
-
-                if (activityTypeId && targetCommitteeId && uniqueSpeakerIds.length > 0) {
-                    await supabase.from('activity_submissions').insert(
-                        uniqueSpeakerIds.map(volunteerId => ({
-                            volunteer_id: volunteerId,
-                            activity_type_id: activityTypeId,
-                            committee_id: targetCommitteeId,
-                            status: 'approved' as const,
-                            points_awarded: 5,
-                            submitted_at: new Date().toISOString(),
-                            description: `Event Speaker: ${formData.name}`,
-                        }))
-                    );
-                }
             }
 
             // 4. Save organizers & award participation
             if (organizers.length > 0) {
-                await (supabase as any).from('event_organizers').insert(
-                    organizers.map(o => ({ event_id: eventData.id, volunteer_id: o.volunteer_id }))
-                );
+                promises.push(
+                    (async () => {
+                        await (supabase as any).from('event_organizers').insert(
+                            organizers.map(o => ({ event_id: eventData.id, volunteer_id: o.volunteer_id }))
+                        );
 
-                // Award points to organizers
-                const activityTypeId = await ensureEventActivityType();
-                const targetCommitteeId = formData.committee_id || eventsCommitteeId;
-                if (activityTypeId && targetCommitteeId) {
-                    await supabase.from('activity_submissions').insert(
-                        organizers.map(o => ({
-                            volunteer_id: o.volunteer_id,
-                            activity_type_id: activityTypeId,
-                            committee_id: targetCommitteeId,
-                            status: 'approved' as const,
-                            points_awarded: 5,
-                            submitted_at: new Date().toISOString(),
-                            description: `Event: ${formData.name}`,
-                        }))
-                    );
-                }
+                        // Award points to organizers
+                        const targetCommitteeId = formData.committee_id || eventsCommitteeId;
+                        if (activityTypeId && targetCommitteeId) {
+                            await supabase.from('activity_submissions').insert(
+                                organizers.map(o => ({
+                                    volunteer_id: o.volunteer_id,
+                                    activity_type_id: activityTypeId,
+                                    committee_id: targetCommitteeId,
+                                    status: 'approved' as const,
+                                    points_awarded: 5,
+                                    submitted_at: new Date().toISOString(),
+                                    description: `Event: ${formData.name}`,
+                                }))
+                            );
+                        }
+                    })()
+                );
             }
+
+            await Promise.all(promises);
 
             toast.success(isRTL ? 'تم إنشاء الإيفينت بنجاح' : 'Event created successfully');
             setIsCreateOpen(false);
@@ -553,37 +572,47 @@ export default function EventManagement() {
             const toRemove = existingParts.filter(p => !currentParticipantIds.includes(p.id));
             const toAdd = participants.filter(p => !p.id);
 
-            if (toRemove.length > 0) {
-                await supabase.from('event_participants').delete().in('id', toRemove.map(p => p.id));
-            }
+            const updatePromises = [];
 
-            if (toAdd.length > 0) {
-                await supabase.from('event_participants').insert(toAdd.map(p => ({
-                    event_id: selectedEventId,
-                    volunteer_id: p.volunteer_id || null,
-                    name: p.name, phone: p.phone, is_volunteer: p.is_volunteer
-                })));
-            }
-
-            // 3. Sync speakers (delete all + reinsert)
-            await (supabase as any).from('event_speakers').delete().eq('event_id', selectedEventId);
-            if (speakers.length > 0) {
-                await (supabase as any).from('event_speakers').insert(
-                    speakers.map(s => ({
+            // Participants update closure
+            updatePromises.push((async () => {
+                if (toRemove.length > 0) {
+                    await supabase.from('event_participants').delete().in('id', toRemove.map(p => p.id));
+                }
+                if (toAdd.length > 0) {
+                    await supabase.from('event_participants').insert(toAdd.map(p => ({
                         event_id: selectedEventId,
-                        name: s.name, phone: s.phone || null,
-                        social_media_link: s.social_media_link || null
-                    }))
-                );
-            }
+                        volunteer_id: p.volunteer_id || null,
+                        name: p.name, phone: p.phone, is_volunteer: p.is_volunteer
+                    })));
+                }
+            })());
 
-            // 4. Sync organizers (delete all + reinsert)
-            await (supabase as any).from('event_organizers').delete().eq('event_id', selectedEventId);
-            if (organizers.length > 0) {
-                await (supabase as any).from('event_organizers').insert(
-                    organizers.map(o => ({ event_id: selectedEventId, volunteer_id: o.volunteer_id }))
-                );
-            }
+            // Speakers update closure
+            updatePromises.push((async () => {
+                await (supabase as any).from('event_speakers').delete().eq('event_id', selectedEventId);
+                if (speakers.length > 0) {
+                    await (supabase as any).from('event_speakers').insert(
+                        speakers.map(s => ({
+                            event_id: selectedEventId,
+                            name: s.name, phone: s.phone || null,
+                            social_media_link: s.social_media_link || null
+                        }))
+                    );
+                }
+            })());
+
+            // Organizers update closure
+            updatePromises.push((async () => {
+                await (supabase as any).from('event_organizers').delete().eq('event_id', selectedEventId);
+                if (organizers.length > 0) {
+                    await (supabase as any).from('event_organizers').insert(
+                        organizers.map(o => ({ event_id: selectedEventId, volunteer_id: o.volunteer_id }))
+                    );
+                }
+            })());
+
+            await Promise.all(updatePromises);
 
             toast.success(isRTL ? 'تم تحديث الإيفينت بنجاح' : 'Event updated successfully');
             setIsCreateOpen(false);
