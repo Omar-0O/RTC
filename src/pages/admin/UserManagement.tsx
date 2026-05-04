@@ -95,6 +95,7 @@ interface UserWithDetails {
   is_ashbal?: boolean;
   birth_date?: string | null;
   last_seen_at?: string | null;
+  is_active: boolean;
 }
 
 import Profile from '@/pages/volunteer/Profile';
@@ -423,6 +424,7 @@ export default function UserManagement() {
           is_ashbal: profile.is_ashbal,
           birth_date: profile.birth_date,
           last_seen_at: profile.last_seen_at || null,
+          is_active: profile.is_active !== false, // default true if column not yet set
         };
       });
 
@@ -438,6 +440,25 @@ export default function UserManagement() {
   useEffect(() => {
     fetchData();
   }, [language]);
+
+  const handleToggleActive = async (user: UserWithDetails) => {
+    const newStatus = !user.is_active;
+    try {
+      const { error } = await (supabase as any)
+        .from('profiles')
+        .update({ is_active: newStatus })
+        .eq('id', user.id);
+      if (error) throw error;
+      toast.success(
+        newStatus
+          ? (isRTL ? `✅ تم تفعيل ${user.full_name}` : `✅ ${user.full_name} activated`)
+          : (isRTL ? `🚫 تم تعطيل ${user.full_name}` : `🚫 ${user.full_name} deactivated`)
+      );
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || (isRTL ? 'فشل في تغيير الحالة' : 'Failed to change status'));
+    }
+  };
 
   const filteredUsers = users.filter(user => {
     const matchesSearch =
@@ -1804,7 +1825,7 @@ export default function UserManagement() {
                     </TableHeader>
                     <TableBody>
                       {filteredUsers.map((user) => (
-                        <TableRow key={user.id}>
+                        <TableRow key={user.id} className={!user.is_active ? 'opacity-60' : ''}>
                           <TableCell>
                             <div className="flex items-center gap-3">
                               <Avatar className="h-8 w-8">
@@ -1814,7 +1835,14 @@ export default function UserManagement() {
                                 </AvatarFallback>
                               </Avatar>
                               <div>
-                                <p className="font-medium">{user.full_name || 'No name'}</p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className="font-medium">{user.full_name || 'No name'}</p>
+                                  {!user.is_active && (
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 border border-red-200">
+                                      {isRTL ? 'معطّل' : 'Inactive'}
+                                    </span>
+                                  )}
+                                </div>
                                 <p className="text-sm text-muted-foreground">{user.email}</p>
                               </div>
                             </div>
@@ -1880,6 +1908,24 @@ export default function UserManagement() {
                                   <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                   {t('users.sendWhatsapp')}
                                 </DropdownMenuItem>
+                                {['admin', 'head_hr'].includes(primaryRole) && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleToggleActive(user)}
+                                      className={user.is_active ? 'text-orange-600 focus:text-orange-600' : 'text-emerald-600 focus:text-emerald-600'}
+                                    >
+                                      {user.is_active
+                                        ? <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ltr:mr-2 rtl:ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                                        : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ltr:mr-2 rtl:ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                      }
+                                      {user.is_active
+                                        ? (isRTL ? 'تعطيل المتطوع' : 'Deactivate')
+                                        : (isRTL ? 'تفعيل المتطوع' : 'Activate')
+                                      }
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                                 {primaryRole === 'admin' && (
                                   <>
                                     <DropdownMenuSeparator />

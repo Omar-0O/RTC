@@ -38,7 +38,18 @@ interface FollowUpUser {
   branch_id: string | null;
   created_at: string;
   status: string;
+  linked_to: number | null;
 }
+
+// Converts Arabic/Eastern Arabic numerals to Western Arabic numerals and strips non-digit chars
+const normalizePhone = (raw: string | null | undefined): string => {
+  if (!raw) return '';
+  return String(raw)
+    .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660)) // Eastern Arabic
+    .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0)) // Persian
+    .replace(/[^\d+]/g, '')  // keep only digits and leading +
+    .replace(/^\+/, '');     // strip leading + for storage consistency
+};
 
 export default function FollowUpManagement() {
   const { language, isRTL } = useLanguage();
@@ -73,6 +84,15 @@ export default function FollowUpManagement() {
   const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
   const [pendingImportRecords, setPendingImportRecords] = useState<any[]>([]);
 
+  // Conflict Resolution State
+  // conflictGroups: array of groups, each group = array of records sharing the same phone
+  const [isConflictOpen, setIsConflictOpen] = useState(false);
+  const [conflictGroups, setConflictGroups] = useState<any[][]>([]);
+  // selectedConflictChoice: for each group index, which record index is selected
+  const [selectedConflictChoice, setSelectedConflictChoice] = useState<Record<number, number>>({});
+  // cleanRecords: the non-conflicting records from the import that are ready to go
+  const [cleanImportRecords, setCleanImportRecords] = useState<any[]>([]);
+
   // Template State
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
 
@@ -88,19 +108,34 @@ export default function FollowUpManagement() {
     setIsParticipationsOpen(true);
     setIsLoadingParticipations(true);
     try {
-      // Search by phone number in activity_submissions
-      const phones = [user.phone_1, user.phone_2].filter(Boolean).map(p => p!.replace(/\D/g, ''));
+      // Collect own phones
+      const ownPhones = [user.phone_1, user.phone_2].filter(Boolean).map(p => normalizePhone(p!));
 
-      // Also try to find volunteer_id from profiles
-      const phoneConditions = phones.map(p => `guest_phone.ilike.%${p}%`).join(',');
+      // Also collect phones from any alias entries (users whose linked_to = this user's id)
+      const { data: aliasEntries } = await (supabase as any)
+        .from('users_followup')
+        .select('phone_1, phone_2, full_name')
+        .eq('linked_to', user.id);
+
+      const aliasPhones: string[] = [];
+      if (aliasEntries) {
+        aliasEntries.forEach((a: any) => {
+          if (a.phone_1) aliasPhones.push(normalizePhone(a.phone_1));
+          if (a.phone_2) aliasPhones.push(normalizePhone(a.phone_2));
+        });
+      }
+
+      const phones = [...new Set([...ownPhones, ...aliasPhones])].filter(Boolean);
 
       const [submissionsRes, profileRes] = await Promise.all([
-        (supabase as any)
-          .from('activity_submissions')
-          .select('*, activity_types(name, name_ar)')
-          .or(phones.map(p => `guest_phone.ilike.%${p}%`).join(','))
-          .order('created_at', { ascending: false })
-          .limit(50),
+        phones.length > 0
+          ? (supabase as any)
+              .from('activity_submissions')
+              .select('*, activity_types(name, name_ar)')
+              .or(phones.map(p => `guest_phone.ilike.%${p}%`).join(','))
+              .order('created_at', { ascending: false })
+              .limit(100)
+          : Promise.resolve({ data: [] }),
         phones.length > 0
           ? (supabase as any)
               .from('profiles')
@@ -120,9 +155,8 @@ export default function FollowUpManagement() {
           .select('*, activity_types(name, name_ar)')
           .eq('volunteer_id', volunteerId)
           .order('created_at', { ascending: false })
-          .limit(50);
+          .limit(100);
         if (volunteerSubmissions) {
-          // Merge and deduplicate by id
           const existingIds = new Set(items.map((i: any) => i.id));
           volunteerSubmissions.forEach((s: any) => {
             if (!existingIds.has(s.id)) items.push(s);
@@ -130,7 +164,6 @@ export default function FollowUpManagement() {
         }
       }
 
-      // Sort by date
       items.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setParticipationsList(items);
     } catch (err) {
@@ -219,8 +252,8 @@ export default function FollowUpManagement() {
 
       const phoneToExistingUser = new Map<string, string>();
       users.forEach(u => {
-        if (u.phone_1) phoneToExistingUser.set(u.phone_1.replace(/\D/g, ''), u.full_name);
-        if (u.phone_2) phoneToExistingUser.set(u.phone_2.replace(/\D/g, ''), u.full_name);
+        if (u.phone_1) phoneToExistingUser.set(normalizePhone(u.phone_1), u.full_name);
+        if (u.phone_2) phoneToExistingUser.set(normalizePhone(u.phone_2), u.full_name);
       });
 
       const newUsersToInsert: any[] = [];
@@ -258,7 +291,7 @@ export default function FollowUpManagement() {
 
         if (!participantName) participantName = ar('غير معروف', 'Unknown');
 
-        const cleanPhones = phones.map(p => p.replace(/\D/g, '')).filter(p => p.length > 0);
+        const cleanPhones = phones.map(p => normalizePhone(p)).filter(p => p.length > 0);
 
         let found = false;
         for (const p of cleanPhones) {
@@ -311,6 +344,13 @@ export default function FollowUpManagement() {
 
   const pendingUsers = useMemo(() => users.filter(u => u.status === 'pending'), [users]);
   const approvedUsers = useMemo(() => users.filter(u => u.status === 'approved'), [users]);
+
+  // Map id → user for quick lookup (linked_to display)
+  const userById = useMemo(() => {
+    const m = new Map<number, FollowUpUser>();
+    users.forEach(u => m.set(u.id, u));
+    return m;
+  }, [users]);
 
   const filtered = useMemo(() => {
     const dataSource = activeTab === 'approved' ? approvedUsers : pendingUsers;
@@ -372,8 +412,8 @@ export default function FollowUpManagement() {
         .from('users_followup')
         .insert({
           full_name: formName.trim(),
-          phone_1: formPhone1.trim(),
-          phone_2: formPhone2.trim() || null,
+          phone_1: normalizePhone(formPhone1),
+          phone_2: formPhone2.trim() ? normalizePhone(formPhone2) : null,
           branch_id: formBranch || null,
           status: 'approved'
         });
@@ -402,8 +442,8 @@ export default function FollowUpManagement() {
         .from('users_followup')
         .update({
           full_name: formName.trim(),
-          phone_1: formPhone1.trim(),
-          phone_2: formPhone2.trim() || null,
+          phone_1: normalizePhone(formPhone1),
+          phone_2: formPhone2.trim() ? normalizePhone(formPhone2) : null,
           branch_id: formBranch || null,
         })
         .eq('id', selected.id);
@@ -462,17 +502,29 @@ export default function FollowUpManagement() {
       toast.error(ar('لا توجد بيانات للتصدير', 'No data to export'));
       return;
     }
-    const headers = [ar('م', '#'), ar('الاسم', 'Name'), ar('الهاتف الأول', 'Phone 1'), ar('الهاتف الثاني', 'Phone 2'), ar('الفرع', 'Branch')];
+    // Build a map from DB id → row number (1-based) in the exported list
+    const exportIdToRow = new Map<number, number>();
+    filtered.forEach((u, i) => exportIdToRow.set(u.id, i + 1));
+
+    const headers = [
+      ar('م', '#'),
+      ar('الاسم', 'Name'),
+      ar('الهاتف الأول', 'Phone 1'),
+      ar('الهاتف الثاني', 'Phone 2'),
+      ar('الفرع', 'Branch'),
+      ar('مرتبط بـ (م)', 'linked_to'),
+    ];
     const rows = filtered.map((u, i) => [
       i + 1,
       u.full_name,
       u.phone_1,
       u.phone_2 || '',
       getBranchName(u.branch_id, u.branch),
+      u.linked_to ? (exportIdToRow.get(u.linked_to) ?? '') : '',
     ]);
     
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    ws['!rtl'] = isRTL; // Set RTL direction according to language
+    ws['!rtl'] = isRTL;
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, ar('شيت المتابعة', 'Follow-up'));
@@ -482,12 +534,13 @@ export default function FollowUpManagement() {
   };
 
   const downloadCSVTemplate = () => {
-    const headers = ['id', 'full_name', 'phone_1', 'phone_2', 'branch_id'];
-    const example1 = ['', 'أحمد محمد', '01012345678', '01123456789', 'ma'];
-    const example2 = ['', 'محمود خليل', '01234567890', '', 'hq'];
+    const headers = ['id', 'full_name', 'phone_1', 'phone_2', 'branch_id', 'linked_to'];
+    const example1 = ['', 'أحمد محمد', '01012345678', '01123456789', 'ma', ''];
+    const example2 = ['', 'محمود خليل', '01234567890', '', 'hq', ''];
+    const example3 = ['', 'أحمد م. القديم', '01099999999', '', 'ma', '1'];
     
     // Create CSV string with UTF-8 BOM so Excel opens Arabic correctly
-    const csvContent = '\uFEFF' + [headers, example1, example2].map(row => row.join(',')).join('\n');
+    const csvContent = '\uFEFF' + [headers, example1, example2, example3].map(row => row.join(',')).join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -519,7 +572,7 @@ export default function FollowUpManagement() {
 
           // Smart parsing: scan the first 10 rows to find the headers and normalize arabic letters
           let headerRowIdx = -1;
-          let nameIdx = -1, phone1Idx = -1, phone2Idx = -1, branchIdx = -1;
+          let nameIdx = -1, phone1Idx = -1, phone2Idx = -1, branchIdx = -1, linkedToIdx = -1;
 
           for (let r = 0; r < Math.min(data.length, 10); r++) {
             const row = data[r] || [];
@@ -547,6 +600,11 @@ export default function FollowUpManagement() {
               branchIdx = row.findIndex(h => {
                 const s = normalize(h);
                 return s.includes('فرع') || s.includes('branch') || s.includes('location') || s === 'branch_id';
+              });
+              // linked_to: optional column referencing another row's م (1-based index)
+              linkedToIdx = row.findIndex(h => {
+                const s = normalize(h);
+                return s === 'linked_to' || s.includes('مرتبط') || s.includes('مدمج') || s === 'م مرتبط';
               });
               break;
             }
@@ -577,12 +635,26 @@ export default function FollowUpManagement() {
               if (bMatch) branchIdToUse = bMatch.id;
             }
 
+            // Normalize phone numbers (Arabic/Eastern digits → Western digits)
+            const p1 = normalizePhone(String(row[phone1Idx]));
+            const p2 = phone2Idx !== -1 && row[phone2Idx] ? normalizePhone(String(row[phone2Idx])) : null;
+
+            if (!p1) continue; // skip rows with no valid phone after normalization
+
+            // Parse linked_to as a 1-based row index within this same sheet (resolved after insert)
+            let linkedToRow: number | null = null;
+            if (linkedToIdx !== -1 && row[linkedToIdx] !== undefined && row[linkedToIdx] !== null && row[linkedToIdx] !== '') {
+              const parsed = parseInt(String(row[linkedToIdx]).trim(), 10);
+              if (!isNaN(parsed) && parsed > 0) linkedToRow = parsed;
+            }
+
             newRecords.push({
               full_name: String(row[nameIdx]).trim(),
-              phone_1: String(row[phone1Idx]).trim(),
-              phone_2: phone2Idx !== -1 && row[phone2Idx] ? String(row[phone2Idx]).trim() : null,
+              phone_1: p1,
+              phone_2: p2 || null,
               branch_id: branchIdToUse,
-              status: 'approved'
+              status: 'approved',
+              _linkedToRow: linkedToRow, // temporary — resolved after DB insert
             });
           }
 
@@ -593,9 +665,40 @@ export default function FollowUpManagement() {
             return;
           }
 
-          // Trigger confirmation dialog instead of inserting immediately
-          setPendingImportRecords(newRecords);
-          setIsImportConfirmOpen(true);
+          // ── Detect duplicates within the uploaded file ────────────────────────
+          // Group records by their primary phone
+          const phoneGroupMap = new Map<string, any[]>();
+          for (const rec of newRecords) {
+            const key = rec.phone_1;
+            if (!phoneGroupMap.has(key)) phoneGroupMap.set(key, []);
+            phoneGroupMap.get(key)!.push(rec);
+          }
+
+          const conflicts: any[][] = [];
+          const clean: any[] = [];
+
+          for (const [, group] of phoneGroupMap.entries()) {
+            if (group.length > 1) {
+              conflicts.push(group);
+            } else {
+              clean.push(group[0]);
+            }
+          }
+
+          if (conflicts.length > 0) {
+            // Show conflict resolution dialog — user picks which record to keep per group
+            setCleanImportRecords(clean);
+            setConflictGroups(conflicts);
+            // Default selection: first entry in each group
+            const defaults: Record<number, number> = {};
+            conflicts.forEach((_, gi) => { defaults[gi] = 0; });
+            setSelectedConflictChoice(defaults);
+            setIsConflictOpen(true);
+          } else {
+            // No conflicts — go straight to confirmation
+            setPendingImportRecords(clean);
+            setIsImportConfirmOpen(true);
+          }
         } catch (err: any) {
           console.error('Parse error:', err);
           toast.error(ar('حدث خطأ أثناء قراءة الملف.', 'Error parsing file.'));
@@ -624,16 +727,50 @@ export default function FollowUpManagement() {
         
       if (deleteError) throw deleteError;
 
-      // 2. Insert new records in batches
-      for (let i = 0; i < pendingImportRecords.length; i += 100) {
-        const batch = pendingImportRecords.slice(i, i + 100);
-        const { error: insertError } = await (supabase as any)
+      // 2. Extract linked_to row references (temporary field, not sent to DB)
+      const linkedToRows: (number | null)[] = pendingImportRecords.map(r => r._linkedToRow ?? null);
+      const cleanRecords = pendingImportRecords.map(({ _linkedToRow, ...rest }) => rest);
+
+      // 3. Insert records in batches and capture the returned IDs in insertion order
+      const insertedIds: number[] = [];
+      const BATCH = 100;
+      for (let i = 0; i < cleanRecords.length; i += BATCH) {
+        const batch = cleanRecords.slice(i, i + BATCH);
+        const { data: inserted, error: insertError } = await (supabase as any)
           .from('users_followup')
-          .insert(batch);
+          .insert(batch)
+          .select('id');
         if (insertError) throw insertError;
+        (inserted as { id: number }[])?.forEach(r => insertedIds.push(r.id));
       }
 
-      toast.success(ar(`تم استبدال الشيت بنجاح بـ ${pendingImportRecords.length} سجل جديد.`, `Sheet successfully replaced with ${pendingImportRecords.length} new records.`));
+      // 4. Build 1-based row index → DB id map and apply linked_to updates
+      const rowToDbId: Record<number, number> = {};
+      insertedIds.forEach((dbId, idx) => { rowToDbId[idx + 1] = dbId; });
+
+      const linkUpdates = linkedToRows
+        .map((rowRef, idx) =>
+          rowRef && rowToDbId[rowRef] && insertedIds[idx]
+            ? { id: insertedIds[idx], linked_to: rowToDbId[rowRef] }
+            : null
+        )
+        .filter((x): x is { id: number; linked_to: number } => x !== null);
+
+      if (linkUpdates.length > 0) {
+        await Promise.all(
+          linkUpdates.map(upd =>
+            (supabase as any)
+              .from('users_followup')
+              .update({ linked_to: upd.linked_to })
+              .eq('id', upd.id)
+          )
+        );
+      }
+
+      toast.success(ar(
+        `تم استبدال الشيت بنجاح بـ ${pendingImportRecords.length} سجل${linkUpdates.length > 0 ? ` (${linkUpdates.length} مرتبط)` : ''}.`,
+        `Sheet successfully replaced with ${pendingImportRecords.length} records${linkUpdates.length > 0 ? ` (${linkUpdates.length} linked)` : ''}.`
+      ));
       setPendingImportRecords([]);
       await fetchUsers();
     } catch (err: any) {
@@ -843,7 +980,16 @@ export default function FollowUpManagement() {
                     return (
                     <TableRow key={user.id}>
                       <TableCell className="text-center text-muted-foreground text-sm">{actualIdx}</TableCell>
-                      <TableCell className="text-center font-medium whitespace-nowrap">{user.full_name}</TableCell>
+                      <TableCell className="text-center font-medium whitespace-nowrap">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span>{user.full_name}</span>
+                          {user.linked_to && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded-full">
+                              🔗 {ar('مرتبط بـ', 'Linked →')} {userById.get(user.linked_to)?.full_name ?? `#${user.linked_to}`}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-center font-mono text-sm ltr:tracking-wide whitespace-nowrap">
                         {user.phone_1}
                       </TableCell>
@@ -1036,6 +1182,89 @@ export default function FollowUpManagement() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* ── Conflict Resolution Dialog ─────────────────────────────────────── */}
+      <Dialog open={isConflictOpen} onOpenChange={open => {
+        if (!open) setIsConflictOpen(false);
+      }}>
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="text-start rtl:text-right ltr:text-left">
+            <DialogTitle className="text-amber-600 dark:text-amber-400 flex items-center gap-2">
+              ⚠ {ar('تعارض في الأرقام — اختر الأولوية', 'Duplicate Phone Numbers — Choose Priority')}
+            </DialogTitle>
+            <DialogDescription>
+              {ar(
+                `الشيت يحتوي على ${conflictGroups.length} رقم هاتف متكرر. اختر لكل رقم الاسم الذي سيُحفظ في الشيت.`,
+                `The sheet contains ${conflictGroups.length} duplicated phone number(s). Choose which name to keep for each.`
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto space-y-4 py-2">
+            {conflictGroups.map((group, gi) => (
+              <div key={gi} className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3">
+                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2">
+                  {ar('الرقم المتكرر:', 'Duplicated phone:')} <span className="font-mono">{group[0].phone_1}</span>
+                </p>
+                <div className="space-y-2">
+                  {group.map((rec: any, ri: number) => (
+                    <label
+                      key={ri}
+                      className={`flex items-center gap-3 rounded-md border p-2.5 cursor-pointer transition-colors ${
+                        selectedConflictChoice[gi] === ri
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:bg-muted/50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name={`conflict-group-${gi}`}
+                        checked={selectedConflictChoice[gi] === ri}
+                        onChange={() => setSelectedConflictChoice(prev => ({ ...prev, [gi]: ri }))}
+                        className="accent-primary"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{rec.full_name}</p>
+                        <p className="text-xs text-muted-foreground font-mono">{rec.phone_1}{rec.phone_2 ? ` / ${rec.phone_2}` : ''}</p>
+                      </div>
+                      {selectedConflictChoice[gi] === ri && (
+                        <span className="text-xs font-semibold text-primary shrink-0">{ar('✓ مختار', '✓ Selected')}</span>
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsConflictOpen(false);
+                setConflictGroups([]);
+                setCleanImportRecords([]);
+              }}
+            >
+              {ar('إلغاء الاستيراد', 'Cancel Import')}
+            </Button>
+            <Button
+              onClick={() => {
+                // Merge: clean + one chosen record per conflict group
+                const chosen = conflictGroups.map((group, gi) => group[selectedConflictChoice[gi] ?? 0]);
+                const finalRecords = [...cleanImportRecords, ...chosen];
+                setIsConflictOpen(false);
+                setConflictGroups([]);
+                setCleanImportRecords([]);
+                setPendingImportRecords(finalRecords);
+                setIsImportConfirmOpen(true);
+              }}
+            >
+              {ar('تأكيد الاختيار والمتابعة', 'Confirm & Continue')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Template Instructions Dialog */}
       <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
         <DialogContent className="sm:max-w-2xl">
@@ -1055,6 +1284,7 @@ export default function FollowUpManagement() {
                     <TableHead className="font-bold text-foreground">phone_1</TableHead>
                     <TableHead className="font-bold text-foreground">phone_2</TableHead>
                     <TableHead className="font-bold text-foreground">branch_id</TableHead>
+                    <TableHead className="font-bold text-foreground text-blue-600">linked_to</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody className="text-left ltr:text-left rtl:text-left">
@@ -1064,6 +1294,7 @@ export default function FollowUpManagement() {
                     <TableCell className="font-mono">01012345678</TableCell>
                     <TableCell className="font-mono text-muted-foreground">01123456789</TableCell>
                     <TableCell className="font-mono text-primary font-bold">ma</TableCell>
+                    <TableCell className="font-mono text-muted-foreground"></TableCell>
                   </TableRow>
                   <TableRow>
                     <TableCell className="font-mono text-muted-foreground"></TableCell>
@@ -1071,6 +1302,15 @@ export default function FollowUpManagement() {
                     <TableCell className="font-mono">01234567890</TableCell>
                     <TableCell className="font-mono text-muted-foreground"></TableCell>
                     <TableCell className="font-mono text-primary font-bold">hq</TableCell>
+                    <TableCell className="font-mono text-muted-foreground"></TableCell>
+                  </TableRow>
+                  <TableRow className="bg-blue-50/50 dark:bg-blue-950/20">
+                    <TableCell className="font-mono text-muted-foreground"></TableCell>
+                    <TableCell>أحمد م. القديم</TableCell>
+                    <TableCell className="font-mono">01099999999</TableCell>
+                    <TableCell className="font-mono text-muted-foreground"></TableCell>
+                    <TableCell className="font-mono text-primary font-bold">ma</TableCell>
+                    <TableCell className="font-mono text-blue-600 font-bold">1</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
@@ -1079,7 +1319,12 @@ export default function FollowUpManagement() {
               - يُمكنك استخدام شيت Excel (.xlsx) أو شيت ملف نصي (.csv).<br/>
               - الهاتف الثاني والفرع حقول اختيارية يُمكن تركها فارغة.<br/>
               - النظام يتعرف بذكاء على العناوين بالإنجليزية (مثال: full_name, phone_1, phone_2, branch_id) وأيضاً يتجاهل عمود الـ ID تلقائياً.<br/>
-              - في عمود (الفرع)، تأكد من وضع <b>الكود (Code)</b> الخاص بالفرع الموجود في صفحة إدارة الفروع بحروف إنجليزية (مثل ma, 6o).
+              - في عمود (الفرع)، تأكد من وضع <b>الكود (Code)</b> الخاص بالفرع بحروف إنجليزية (مثل ma, 6o).
+            </div>
+            <div className="text-sm text-blue-700 bg-blue-50 dark:bg-blue-950/30 p-3 rounded border border-blue-200 dark:border-blue-900 leading-relaxed font-medium">
+              🔗 <b>عمود linked_to (اختياري — للربط بشخص آخر):</b><br/>
+              لو شخصان مختلفان في الاسم والرقم لكنهم في الواقع نفس الشخص، اكتب في هذا العمود <b>رقم الصف (م)</b> للشخص الأساسي.<br/>
+              مثال: في الصف الأخير أعلاه، «أحمد م. القديم» مرتبط بـ «أحمد محمد» (الصف رقم 1)، فتُضاف مشاركاته تلقائياً لحساب «أحمد محمد» ويظهر عليه أيقونة 🔗.
             </div>
           </div>
           <DialogFooter>

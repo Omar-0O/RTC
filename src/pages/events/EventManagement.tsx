@@ -203,7 +203,7 @@ export default function EventManagement() {
                 const currentCommittees = committeesList || committees;
                 const committeeMatch = currentCommittees.find(c => c.name === userCommitteeName);
                 if (committeeMatch) {
-                    query = query.eq('committee_id', committeeMatch.id);
+                    query = (query as any).eq('committee_id', committeeMatch.id);
                 }
             }
 
@@ -226,9 +226,10 @@ export default function EventManagement() {
     };
 
     const fetchVolunteers = async () => {
-        const { data } = await supabase
+        const { data } = await (supabase as any)
             .from('profiles')
             .select('id, full_name, phone, avatar_url')
+            .eq('is_active', true)
             .order('full_name');
 
         if (data) {
@@ -282,7 +283,7 @@ export default function EventManagement() {
     const openBeneficiaries = async (event: Event) => {
         setSelectedEventForBeneficiaries(event);
         setBeneficiariesDialogOpen(true);
-        const { data } = await supabase
+        const { data } = await (supabase as any)
             .from('event_beneficiaries')
             .select('*')
             .eq('event_id', event.id)
@@ -293,7 +294,7 @@ export default function EventManagement() {
     const handleAddBeneficiary = async () => {
         if (!selectedEventForBeneficiaries || !newBeneficiary.name) return;
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('event_beneficiaries')
                 .insert({
                     event_id: selectedEventForBeneficiaries.id,
@@ -314,7 +315,7 @@ export default function EventManagement() {
 
     const handleRemoveBeneficiary = async (id: string) => {
         try {
-            const { error } = await supabase.from('event_beneficiaries').delete().eq('id', id);
+            const { error } = await (supabase as any).from('event_beneficiaries').delete().eq('id', id);
             if (error) throw error;
             setEventBeneficiaries(eventBeneficiaries.filter(b => b.id !== id));
             toast.success(isRTL ? 'تم حذف المستفيد' : 'Beneficiary removed');
@@ -368,8 +369,8 @@ export default function EventManagement() {
             // Fetch participants, speakers, organizers in parallel
             const [partsRes, speakersRes, orgsRes] = await Promise.all([
                 supabase.from('event_participants').select('*').eq('event_id', event.id),
-                supabase.from('event_speakers').select('*').eq('event_id', event.id),
-                supabase.from('event_organizers').select('*, profiles:volunteer_id(full_name)').eq('event_id', event.id)
+                (supabase as any).from('event_speakers').select('*').eq('event_id', event.id),
+                (supabase as any).from('event_organizers').select('*, profiles:volunteer_id(full_name)').eq('event_id', event.id)
             ]);
 
             setFormData({
@@ -448,7 +449,7 @@ export default function EventManagement() {
 
             // 3. Save speakers
             if (speakers.length > 0) {
-                await supabase.from('event_speakers').insert(
+                await (supabase as any).from('event_speakers').insert(
                     speakers.map(s => ({
                         event_id: eventData.id,
                         name: s.name, phone: s.phone || null,
@@ -486,7 +487,7 @@ export default function EventManagement() {
 
             // 4. Save organizers & award participation
             if (organizers.length > 0) {
-                await supabase.from('event_organizers').insert(
+                await (supabase as any).from('event_organizers').insert(
                     organizers.map(o => ({ event_id: eventData.id, volunteer_id: o.volunteer_id }))
                 );
 
@@ -565,9 +566,9 @@ export default function EventManagement() {
             }
 
             // 3. Sync speakers (delete all + reinsert)
-            await supabase.from('event_speakers').delete().eq('event_id', selectedEventId);
+            await (supabase as any).from('event_speakers').delete().eq('event_id', selectedEventId);
             if (speakers.length > 0) {
-                await supabase.from('event_speakers').insert(
+                await (supabase as any).from('event_speakers').insert(
                     speakers.map(s => ({
                         event_id: selectedEventId,
                         name: s.name, phone: s.phone || null,
@@ -577,9 +578,9 @@ export default function EventManagement() {
             }
 
             // 4. Sync organizers (delete all + reinsert)
-            await supabase.from('event_organizers').delete().eq('event_id', selectedEventId);
+            await (supabase as any).from('event_organizers').delete().eq('event_id', selectedEventId);
             if (organizers.length > 0) {
-                await supabase.from('event_organizers').insert(
+                await (supabase as any).from('event_organizers').insert(
                     organizers.map(o => ({ event_id: selectedEventId, volunteer_id: o.volunteer_id }))
                 );
             }

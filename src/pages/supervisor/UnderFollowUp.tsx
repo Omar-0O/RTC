@@ -66,10 +66,11 @@ export default function UnderFollowUp() {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const { data: profiles, error } = await supabase
+      const { data: profiles, error } = await (supabase as any)
         .from('profiles')
         .select('id, full_name, full_name_ar, avatar_url, phone, committee_id')
         .eq('level', 'under_follow_up')
+        .eq('is_active', true)
         .neq('full_name', 'RTC Admin')
         .order('full_name');
 

@@ -176,15 +176,16 @@ export default function SubmissionManagement() {
 
             const adminIds = adminRoles?.map(r => r.user_id) || [];
 
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('profiles')
                 .select('id, full_name, full_name_ar, level, avatar_url, phone')
+                .eq('is_active', true)
                 .order('full_name', { ascending: true });
 
             if (error) throw error;
 
             // Filter out admins
-            const filteredVolunteers = data.filter(v =>
+            const filteredVolunteers = data.filter((v: any) =>
                 !adminIds.includes(v.id)
             );
             setVolunteers(filteredVolunteers as unknown as Profile[]);

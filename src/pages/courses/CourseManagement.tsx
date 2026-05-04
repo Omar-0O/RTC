@@ -215,7 +215,7 @@ export default function CourseManagement() {
         name: '',
         trainer_name: '',
         trainer_phone: '',
-        room: 'lab_1',
+        room: '',
         schedule_days: [] as string[],
         schedule_time: '10:00',
         schedule_end_time: '12:00',
@@ -291,15 +291,20 @@ export default function CourseManagement() {
 
             if (error) {
                 console.error('Error fetching rooms:', error);
-                // Fallback to empty or toast error
                 return;
             }
 
-            if (data) {
-                setRooms(data.map(r => ({
+            if (data && data.length > 0) {
+                const mapped = data.map(r => ({
                     value: r.id,
                     label: { en: r.name, ar: r.name_ar }
-                })));
+                }));
+                setRooms(mapped);
+                // Auto-set the default room to the first valid room UUID if not already set to a valid one
+                setFormData(prev => {
+                    const isValidRoom = mapped.some(r => r.value === prev.room);
+                    return isValidRoom ? prev : { ...prev, room: mapped[0].value };
+                });
             }
         } catch (error) {
             console.error('Error fetching rooms:', error);
@@ -496,7 +501,7 @@ export default function CourseManagement() {
             name: '',
             trainer_name: '',
             trainer_phone: '',
-            room: 'lab_1',
+            room: rooms.length > 0 ? rooms[0].value : '',
             schedule_days: [],
             schedule_time: '10:00',
             schedule_end_time: '12:00',
@@ -510,6 +515,7 @@ export default function CourseManagement() {
         });
         setOrganizers([]);
         setMarketers([]);
+        setPlannedAds([]);
         setSelectedTrainerId('');
         setIsExternalTrainer(false);
     };
@@ -2191,7 +2197,7 @@ export default function CourseManagement() {
                                         </div>
 
                                         {/* Additional Details */}
-                                        <div className="space-y-6 pt-4 border-t animate-in fade-in slide-in-from-top-4 duration-300">
+                                        <div className="space-y-4 pt-4 border-t">
                                                 {/* Interview */}
                                                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border rounded-lg bg-card">
                                                     <label className="flex items-center gap-3 cursor-pointer flex-1">
@@ -2214,11 +2220,135 @@ export default function CourseManagement() {
                                                     )}
                                                 </div>
 
-                                                {/* Ads Planning Section */}
+                                                {/* Certificates */}
+                                                <div className="flex items-center gap-4 p-4 border rounded-lg bg-card">
+                                                    <label className="flex items-center gap-3 cursor-pointer flex-1">
+                                                        <Checkbox
+                                                            checked={formData.has_certificates}
+                                                            onCheckedChange={(checked) => setFormData({ ...formData, has_certificates: !!checked })}
+                                                            className="h-5 w-5"
+                                                        />
+                                                        <span className="text-base font-medium">{isRTL ? 'يوجد شهادات لهذا الكورس؟' : 'Does this course have certificates?'}</span>
+                                                    </label>
+                                                </div>
+
+                                                {/* Organizers */}
+                                                <div className="space-y-3 pt-2 border-t">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label className="text-base font-semibold flex items-center gap-2">
+                                                            <Users className="w-4 h-4" />
+                                                            {isRTL ? 'المنظمون' : 'Organizers'}
+                                                        </Label>
+                                                        <Popover open={organizerPopoverOpen} onOpenChange={setOrganizerPopoverOpen}>
+                                                            <PopoverTrigger asChild>
+                                                                <Button variant="outline" size="sm" className="h-8">
+                                                                    <Plus className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
+                                                                    {isRTL ? 'إضافة منظم' : 'Add Organizer'}
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-72 p-0" align="end">
+                                                                <Command>
+                                                                    <CommandInput placeholder={isRTL ? 'ابحث عن متطوع...' : 'Search volunteer...'} />
+                                                                    <CommandList>
+                                                                        <CommandEmpty>{isRTL ? 'لا توجد نتائج' : 'No results'}</CommandEmpty>
+                                                                        <CommandGroup>
+                                                                            {volunteers.map(v => (
+                                                                                <CommandItem
+                                                                                    key={v.id}
+                                                                                    value={isRTL && v.full_name_ar ? v.full_name_ar : v.full_name}
+                                                                                    onSelect={() => handleAddOrganizer(v)}
+                                                                                    className="flex items-center gap-2 py-2"
+                                                                                >
+                                                                                    <Avatar className="h-7 w-7">
+                                                                                        <AvatarImage src={v.avatar_url || undefined} />
+                                                                                        <AvatarFallback className="text-xs">{v.full_name.charAt(0)}</AvatarFallback>
+                                                                                    </Avatar>
+                                                                                    <span>{isRTL && v.full_name_ar ? v.full_name_ar : v.full_name}</span>
+                                                                                </CommandItem>
+                                                                            ))}
+                                                                        </CommandGroup>
+                                                                    </CommandList>
+                                                                </Command>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    </div>
+                                                    {organizers.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {organizers.map((org, i) => (
+                                                                <div key={i} className="flex items-center gap-2 bg-muted border rounded-full px-3 py-1 text-sm">
+                                                                    <span>{org.name}</span>
+                                                                    <button onClick={() => removeOrganizer(i)} className="text-muted-foreground hover:text-destructive transition-colors">
+                                                                        <X className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-sm text-muted-foreground">{isRTL ? 'لم يتم إضافة منظمين' : 'No organizers added'}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* Marketers */}
                                                 <div className="space-y-3 pt-2 border-t">
                                                     <div className="flex items-center justify-between">
                                                         <Label className="text-base font-semibold flex items-center gap-2">
                                                             <Megaphone className="w-4 h-4" />
+                                                            {isRTL ? 'المسوقون' : 'Marketers'}
+                                                        </Label>
+                                                        <Popover open={marketerPopoverOpen} onOpenChange={setMarketerPopoverOpen}>
+                                                            <PopoverTrigger asChild>
+                                                                <Button variant="outline" size="sm" className="h-8">
+                                                                    <Plus className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
+                                                                    {isRTL ? 'إضافة مسوق' : 'Add Marketer'}
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-72 p-0" align="end">
+                                                                <Command>
+                                                                    <CommandInput placeholder={isRTL ? 'ابحث عن متطوع...' : 'Search volunteer...'} />
+                                                                    <CommandList>
+                                                                        <CommandEmpty>{isRTL ? 'لا توجد نتائج' : 'No results'}</CommandEmpty>
+                                                                        <CommandGroup>
+                                                                            {volunteers.map(v => (
+                                                                                <CommandItem
+                                                                                    key={v.id}
+                                                                                    value={isRTL && v.full_name_ar ? v.full_name_ar : v.full_name}
+                                                                                    onSelect={() => handleAddMarketer(v)}
+                                                                                    className="flex items-center gap-2 py-2"
+                                                                                >
+                                                                                    <Avatar className="h-7 w-7">
+                                                                                        <AvatarImage src={v.avatar_url || undefined} />
+                                                                                        <AvatarFallback className="text-xs">{v.full_name.charAt(0)}</AvatarFallback>
+                                                                                    </Avatar>
+                                                                                    <span>{isRTL && v.full_name_ar ? v.full_name_ar : v.full_name}</span>
+                                                                                </CommandItem>
+                                                                            ))}
+                                                                        </CommandGroup>
+                                                                    </CommandList>
+                                                                </Command>
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    </div>
+                                                    {marketers.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {marketers.map((mkt, i) => (
+                                                                <div key={i} className="flex items-center gap-2 bg-muted border rounded-full px-3 py-1 text-sm">
+                                                                    <span>{mkt.name}</span>
+                                                                    <button onClick={() => removeMarketer(i)} className="text-muted-foreground hover:text-destructive transition-colors">
+                                                                        <X className="w-3 h-3" />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-sm text-muted-foreground">{isRTL ? 'لم يتم إضافة مسوقين' : 'No marketers added'}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* Ads Planning Section */}
+                                                <div className="space-y-3 pt-2 border-t">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label className="text-base font-semibold flex items-center gap-2">
+                                                            <Calendar className="w-4 h-4" />
                                                             {isRTL ? 'خطة الدعايا' : 'Ads Planning'}
                                                         </Label>
                                                         <Popover>
@@ -2282,8 +2412,8 @@ export default function CourseManagement() {
                                     </div>
                                 </div>
 
-                                <DialogFooter className="flex-col sm:flex-row gap-2">
-                                    <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
+                                <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
+                                    <Button variant="outline" onClick={() => { setIsCreateOpen(false); resetForm(); }} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
                                     <Button onClick={handleCreateCourse} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'إنشاء الكورس' : 'Create Course'}</Button>
                                 </DialogFooter>
                             </DialogContent>
