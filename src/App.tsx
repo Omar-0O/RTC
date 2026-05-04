@@ -164,6 +164,7 @@ function AppRoutes() {
       />
       <Route path="/login" element={<Navigate to="/auth" replace />} />
       <Route path="/" element={<Navigate to={isAuthenticated ? getDefaultRoute() : "/auth"} replace />} />
+      <Route path="/test-activity" element={<LogActivity />} />
 
       <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
         {/* Volunteer Routes */}

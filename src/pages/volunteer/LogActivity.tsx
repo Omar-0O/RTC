@@ -115,7 +115,7 @@ export default function LogActivity() {
     if (isGroupSubmission) {
       fetchVolunteers();
     }
-  }, [isGroupSubmission]);
+  }, [isGroupSubmission, user?.id]);
 
   const fetchVolunteers = async () => {
     try {
@@ -137,7 +137,7 @@ export default function LogActivity() {
 
       // Filter out admins
       const adminIds = new Set((adminRoles || []).map(r => r.user_id));
-      const filteredProfiles = (profilesData || []).filter(v => !adminIds.has(v.id));
+      const filteredProfiles = (profilesData || []).filter(v => !adminIds.has(v.id) && v.id !== user?.id);
 
       // Sanitize data to prevent crashes if full_name is null
       const sanitizedData = filteredProfiles.map(v => ({
@@ -1227,15 +1227,15 @@ export default function LogActivity() {
                       <div className="h-10 w-10 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-2">
                         <Users className="h-5 w-5 text-muted-foreground" />
                       </div>
-                      <p className="text-xs text-muted-foreground mb-1">{isRTL ? 'المتطوعين' : 'Volunteers'}</p>
-                      <p className="font-bold text-2xl">{selectedVolunteers.length + (includeMe ? 1 : 0)}</p>
+                      <p className="text-xs text-muted-foreground mb-1">{isRTL ? 'المشاركين' : 'Participants'}</p>
+                      <p className="font-bold text-2xl">{selectedVolunteers.length + (includeMe ? 1 : 0) + guests.length}</p>
                     </div>
                     <div className="p-4 text-center bg-gradient-to-br from-primary/5 to-transparent">
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-2">
                         <Sparkles className="h-5 w-5 text-primary" />
                       </div>
                       <p className="text-xs text-primary mb-1">{isRTL ? 'إجمالي الأثر' : 'Total Points'}</p>
-                      <p className="font-bold text-2xl text-primary">{selectedActivity.points * (selectedVolunteers.length + (includeMe ? 1 : 0))}</p>
+                      <p className="font-bold text-2xl text-primary">{selectedActivity.points * (selectedVolunteers.length + (includeMe ? 1 : 0) + guests.length)}</p>
                     </div>
                   </div>
                 </div>
