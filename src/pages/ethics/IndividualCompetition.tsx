@@ -154,20 +154,44 @@ export default function IndividualCompetition() {
             if (error) throw error;
 
             // Get entries count for each participant in selected month
-            const participantsWithCount = await Promise.all(
-                (data || []).map(async (p: any) => {
-                    const { count } = await supabase
-                        .from('competition_entries')
-                        .select('id', { count: 'exact', head: true })
-                        .eq('participant_id', p.id)
-                        .eq('month_year', month);
+            const participantIds = (data || []).map(p => p.id);
+            let entriesCountMap = new Map<string, number>();
 
-                    return {
-                        ...p,
-                        entries_count: count || 0
-                    };
-                })
-            );
+            if (participantIds.length > 0) {
+                let allEntries: { participant_id: string }[] = [];
+                let hasMore = true;
+                let offset = 0;
+                const limit = 1000;
+
+                while (hasMore) {
+                    const { data: entriesData, error: entriesError } = await supabase
+                        .from('competition_entries')
+                        .select('participant_id')
+                        .eq('month_year', month)
+                        .in('participant_id', participantIds)
+                        .range(offset, offset + limit - 1);
+
+                    if (entriesError || !entriesData || entriesData.length === 0) {
+                        hasMore = false;
+                    } else {
+                        allEntries = [...allEntries, ...entriesData];
+                        offset += limit;
+                        if (entriesData.length < limit) {
+                            hasMore = false;
+                        }
+                    }
+                }
+
+                allEntries.forEach((e: any) => {
+                    const count = entriesCountMap.get(e.participant_id) || 0;
+                    entriesCountMap.set(e.participant_id, count + 1);
+                });
+            }
+
+            const participantsWithCount = (data || []).map((p: any) => ({
+                ...p,
+                entries_count: entriesCountMap.get(p.id) || 0
+            }));
 
             // Sort by entries count descending
             participantsWithCount.sort((a, b) => (b.entries_count || 0) - (a.entries_count || 0));
@@ -276,13 +300,23 @@ export default function IndividualCompetition() {
                 .is('month_year', null);
 
             if (participantsToFix && participantsToFix.length > 0) {
-                await Promise.all(participantsToFix.map(async (p) => {
+                const participantsByMonth: Record<string, string[]> = {};
+                participantsToFix.forEach((p) => {
                     const month = format(new Date(p.created_at), 'yyyy-MM');
-                    await supabase
-                        .from('competition_participants')
-                        .update({ month_year: month })
-                        .eq('id', p.id);
-                }));
+                    if (!participantsByMonth[month]) {
+                        participantsByMonth[month] = [];
+                    }
+                    participantsByMonth[month].push(p.id);
+                });
+
+                await Promise.all(
+                    Object.entries(participantsByMonth).map(([month, ids]) =>
+                        supabase
+                            .from('competition_participants')
+                            .update({ month_year: month })
+                            .in('id', ids)
+                    )
+                );
             }
 
             // Fix Entries
@@ -292,13 +326,23 @@ export default function IndividualCompetition() {
                 .is('month_year', null);
 
             if (entriesToFix && entriesToFix.length > 0) {
-                await Promise.all(entriesToFix.map(async (e) => {
+                const entriesByMonth: Record<string, string[]> = {};
+                entriesToFix.forEach((e) => {
                     const month = format(new Date(e.created_at), 'yyyy-MM');
-                    await supabase
-                        .from('competition_entries')
-                        .update({ month_year: month })
-                        .eq('id', e.id);
-                }));
+                    if (!entriesByMonth[month]) {
+                        entriesByMonth[month] = [];
+                    }
+                    entriesByMonth[month].push(e.id);
+                });
+
+                await Promise.all(
+                    Object.entries(entriesByMonth).map(([month, ids]) =>
+                        supabase
+                            .from('competition_entries')
+                            .update({ month_year: month })
+                            .in('id', ids)
+                    )
+                );
             }
 
             toast.success(isRTL ? 'تم إصلاح البيانات بنجاح' : 'Data repaired successfully');
