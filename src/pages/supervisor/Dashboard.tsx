@@ -286,7 +286,7 @@ export default function SupervisorDashboard() {
                             ) : (
                                 topVolunteers.map((volunteer, index) => {
                                     let rankStyles = "bg-muted text-muted-foreground";
-                                    let rankIcon = null; // Could add icons if needed
+                                    const rankIcon = null; // Could add icons if needed
 
                                     if (index === 0) rankStyles = "bg-yellow-100 text-yellow-700 ring-1 ring-yellow-200";
                                     if (index === 1) rankStyles = "bg-slate-100 text-slate-700 ring-1 ring-slate-200";

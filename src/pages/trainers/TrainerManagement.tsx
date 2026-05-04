@@ -209,7 +209,7 @@ export default function TrainerManagement(): JSX.Element {
             } catch {
                 // If join fails (e.g. migration not applied yet), try with just committee
                 try {
-                    let query: any = supabase
+                    const query: any = supabase
                         .from('trainers')
                         .select('*, committee:committees(id, name, name_ar)')
                         .order('name_ar');
@@ -219,7 +219,7 @@ export default function TrainerManagement(): JSX.Element {
                     fetchError = result.error;
                 } catch {
                     // If even that fails, raw select
-                    let query: any = supabase
+                    const query: any = supabase
                         .from('trainers')
                         .select('*')
                         .order('name_ar');
@@ -420,7 +420,7 @@ export default function TrainerManagement(): JSX.Element {
 
             if (editingTrainer) {
                 // Update - try with committee_id first, fallback without it
-                let updateData: any = {
+                const updateData: any = {
                     name_en: formData.name_en,
                     name_ar: formData.name_ar,
                     phone: formData.phone || null,
@@ -460,7 +460,7 @@ export default function TrainerManagement(): JSX.Element {
                 toast.success(isRTL ? 'تم تحديث المدرب بنجاح' : 'Trainer updated successfully');
             } else {
                 // Create - try with committee_id first, fallback without it
-                let insertData: any = {
+                const insertData: any = {
                     name_en: formData.name_en,
                     name_ar: formData.name_ar,
                     phone: formData.phone || null,

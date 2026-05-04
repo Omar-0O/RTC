@@ -36,7 +36,7 @@ export const compressImage = async (file: File): Promise<File> => {
                 ctx?.drawImage(img, 0, 0, width, height);
 
                 // Start with 0.7 quality
-                let quality = 0.7;
+                const quality = 0.7;
 
                 const compress = (q: number) => {
                     canvas.toBlob((blob) => {
