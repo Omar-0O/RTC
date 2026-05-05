@@ -128,6 +128,7 @@ export default function SubmissionManagement() {
     const isRTL = language === 'ar';
     const isHeadHR = primaryRole === 'head_hr';
 
+    const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [guestParticipations, setGuestParticipations] = useState<GuestParticipation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -249,14 +250,7 @@ export default function SubmissionManagement() {
                 .lte('submitted_at', endDate.toISOString())
                 .order('created_at', { ascending: false });
 
-            // Apply Level Filter - Note: filtering on joined table fields in Supabase 
-            // doesn't work with .eq(), so we filter client-side below
-
-            // Apply Volunteer Filter
-            if (selectedVolunteer) {
-                query = query.eq('volunteer_id', selectedVolunteer);
-            }
-
+            // Fetch all submissions for the month
             const { data, error } = await query;
 
             if (error) throw error;
@@ -275,11 +269,22 @@ export default function SubmissionManagement() {
 
             console.log('Fetched submissions (raw - before filter):', data?.length);
 
-            const filteredSubmissions = submissionsData.filter(s => {
-                // Skip admin check for guests (volunteer_id is null)
+            // Base valid submissions (exclude admins)
+            const baseSubmissions = submissionsData.filter(s => {
                 if (s.volunteer_id) {
                     const isAdmin = adminIds.includes(s.volunteer_id);
                     if (isAdmin) return false;
+                }
+                return true;
+            });
+            
+            setAllSubmissions(baseSubmissions);
+
+            // Filter for the list view
+            const filteredSubmissions = baseSubmissions.filter(s => {
+                // Apply Volunteer Filter
+                if (selectedVolunteer && s.volunteer_id !== selectedVolunteer) {
+                    return false;
                 }
 
                 // Apply level filter client-side (skip for guests)
@@ -605,18 +610,10 @@ export default function SubmissionManagement() {
         });
 
         // Add submission data
-        submissions.forEach(submission => {
+        allSubmissions.forEach(submission => {
             const volunteerId = submission.volunteer_id;
 
-            // If volunteer not found (e.g. might be filtered out?), skip or add?
-            // Since we fetch submissions based on filters, and volunteers based on filters, 
-            // there shouldn't be a mismatch unless race condition or complex filter overlap.
-            // But 'volunteers' state might not have the user if 'fetchVolunteers' filtered them out?
-            // fetchVolunteers filters out admins.
-            // fetchSubmissions also filters out admins.
-            // So they should be consistent.
-
-            if (summaryMap.has(volunteerId)) {
+            if (volunteerId && summaryMap.has(volunteerId)) {
                 const summary = summaryMap.get(volunteerId)!;
                 summary.submission_count += 1;
                 summary.total_points += (submission.points_awarded || 0);
@@ -630,12 +627,32 @@ export default function SubmissionManagement() {
 
         return Array.from(summaryMap.values())
             .sort((a, b) => b.submission_count - a.submission_count);
-    }, [submissions, volunteers]);
+    }, [allSubmissions, volunteers]);
 
     // Volunteers with low participation (< 4 submissions)
     const lowParticipationVolunteers = useMemo(() => {
-        return volunteerSummaries.filter(summary => summary.submission_count < 4);
-    }, [volunteerSummaries]);
+        return volunteerSummaries.filter(summary => {
+            // Respect active filters
+            if (selectedLevel !== 'all') {
+                const volunteerLevel = summary.volunteer.level;
+                if (selectedLevel === 'under_follow_up') {
+                    if (!['under_follow_up', 'bronze', 'silver', 'newbie', 'active'].includes(volunteerLevel)) return false;
+                } else if (selectedLevel === 'project_responsible') {
+                    if (!['project_responsible', 'gold'].includes(volunteerLevel)) return false;
+                } else if (selectedLevel === 'responsible') {
+                    if (!['responsible', 'platinum', 'diamond'].includes(volunteerLevel)) return false;
+                } else {
+                    if (volunteerLevel !== selectedLevel) return false;
+                }
+            }
+            
+            if (selectedVolunteer && summary.volunteer.id !== selectedVolunteer) {
+                return false;
+            }
+
+            return summary.submission_count < 4;
+        });
+    }, [volunteerSummaries, selectedLevel, selectedVolunteer]);
 
     if (isLoading) {
         return (

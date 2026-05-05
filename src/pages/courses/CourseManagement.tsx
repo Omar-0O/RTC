@@ -2246,7 +2246,7 @@ export default function CourseManagement() {
                                                                     {isRTL ? 'إضافة منظم' : 'Add Organizer'}
                                                                 </Button>
                                                             </PopoverTrigger>
-                                                            <PopoverContent className="w-72 p-0" align="end">
+                                                            <PopoverContent className="w-[calc(100vw-2.5rem)] sm:w-80 p-0" align="end">
                                                                 <Command>
                                                                     <CommandInput placeholder={isRTL ? 'ابحث عن متطوع...' : 'Search volunteer...'} />
                                                                     <CommandList>
@@ -2302,7 +2302,7 @@ export default function CourseManagement() {
                                                                     {isRTL ? 'إضافة مسوق' : 'Add Marketer'}
                                                                 </Button>
                                                             </PopoverTrigger>
-                                                            <PopoverContent className="w-72 p-0" align="end">
+                                                            <PopoverContent className="w-[calc(100vw-2.5rem)] sm:w-80 p-0" align="end">
                                                                 <Command>
                                                                     <CommandInput placeholder={isRTL ? 'ابحث عن متطوع...' : 'Search volunteer...'} />
                                                                     <CommandList>

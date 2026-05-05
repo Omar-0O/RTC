@@ -20,6 +20,7 @@ export type Database = {
           committee_id: string
           created_at: string
           description: string | null
+          fine_type_id: string | null
           group_submission_id: string | null
           id: string
           location: string | null
@@ -39,6 +40,7 @@ export type Database = {
           committee_id: string
           created_at?: string
           description?: string | null
+          fine_type_id?: string | null
           group_submission_id?: string | null
           id?: string
           location?: string | null
@@ -58,6 +60,7 @@ export type Database = {
           committee_id?: string
           created_at?: string
           description?: string | null
+          fine_type_id?: string | null
           group_submission_id?: string | null
           id?: string
           location?: string | null
@@ -450,6 +453,42 @@ export type Database = {
         }
         Relationships: []
       }
+      course_ads: {
+        Row: {
+          id: string
+          course_id: string
+          volunteer_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          course_id: string
+          volunteer_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          course_id?: string
+          volunteer_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_ads_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_ads_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       course_attendance: {
         Row: {
           created_at: string | null
@@ -577,19 +616,25 @@ export type Database = {
           course_id: string
           created_at: string
           id: string
-          volunteer_id: string
+          name: string
+          phone: string | null
+          volunteer_id: string | null
         }
         Insert: {
           course_id: string
           created_at?: string
           id?: string
-          volunteer_id: string
+          name: string
+          phone?: string | null
+          volunteer_id?: string | null
         }
         Update: {
           course_id?: string
           created_at?: string
           id?: string
-          volunteer_id?: string
+          name?: string
+          phone?: string | null
+          volunteer_id?: string | null
         }
         Relationships: [
           {
@@ -783,6 +828,7 @@ export type Database = {
           name: string
           phone: string | null
           volunteer_id: string | null
+          wore_vest: boolean | null
         }
         Insert: {
           call_id: string
@@ -792,6 +838,7 @@ export type Database = {
           name: string
           phone?: string | null
           volunteer_id?: string | null
+          wore_vest?: boolean | null
         }
         Update: {
           call_id?: string
@@ -801,6 +848,7 @@ export type Database = {
           name?: string
           phone?: string | null
           volunteer_id?: string | null
+          wore_vest?: boolean | null
         }
         Relationships: [
           {
@@ -1013,6 +1061,7 @@ export type Database = {
           birth_date: string | null
           branch_id: string | null
           committee_id: string | null
+          cover_url: string | null
           created_at: string
           email: string
           full_name: string | null
@@ -1035,6 +1084,7 @@ export type Database = {
           birth_date?: string | null
           branch_id?: string | null
           committee_id?: string | null
+          cover_url?: string | null
           created_at?: string
           email: string
           full_name?: string | null
@@ -1057,6 +1107,7 @@ export type Database = {
           birth_date?: string | null
           branch_id?: string | null
           committee_id?: string | null
+          cover_url?: string | null
           created_at?: string
           email?: string
           full_name?: string | null
@@ -1588,9 +1639,30 @@ export type Database = {
           }
         ]
       }
+      volunteer_feedbacks: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      volunteer_fines: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
+      fine_types: {
+        Row: any
+        Insert: any
+        Update: any
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      volunteer_fines_view: {
+        Row: any
+        Relationships: []
+      }
     }
     Functions: {
       calculate_level: {
