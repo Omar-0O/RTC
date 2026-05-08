@@ -23,6 +23,8 @@ import {
   RefreshCw,
   ChevronRight,
 } from 'lucide-react';
+import { waPhoneLink } from '@/utils/phoneUtils';
+
 
 interface Volunteer {
   id: string;
@@ -377,10 +379,8 @@ export default function UnderFollowUp() {
                         size="icon"
                         className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-500 hover:text-green-600 transition-colors"
                         onClick={() => {
-                           let ph = volunteer.phone!.trim();
-                           if (ph.startsWith('0')) ph = '+2' + ph;
-                           if (!ph.startsWith('+')) ph = '+' + ph;
-                           window.open(`https://wa.me/${ph.replace('+', '')}`, '_blank');
+                           const url = waPhoneLink(volunteer.phone);
+                           if (url) window.open(url, '_blank');
                         }}
                         title={isRTL ? 'واتساب' : 'WhatsApp'}
                       >

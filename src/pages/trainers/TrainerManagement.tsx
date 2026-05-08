@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { waPhoneLink } from '@/utils/phoneUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -119,6 +121,7 @@ interface UserProfile {
 export default function TrainerManagement(): JSX.Element {
     const { user, roles, profile, isLoading } = useAuth(); // Add isLoading
     const { isRTL } = useLanguage();
+    const { activeBranch, canViewAllBranches } = useBranch();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const isRestricted = roles.includes('committee_leader') &&
@@ -167,7 +170,7 @@ export default function TrainerManagement(): JSX.Element {
         fetchTrainers();
         fetchCommittees();
         fetchUsers();
-    }, [isLoading, isRestricted, profile?.committee_id]); // Depend on auth loading and restricted user props
+    }, [isLoading, isRestricted, profile?.committee_id, activeBranch?.id]); // Re-fetch on branch change
 
     const fetchUsers = async () => {
         try {
@@ -201,6 +204,10 @@ export default function TrainerManagement(): JSX.Element {
 
                 if (isRestricted && profile?.committee_id) {
                     query = query.eq('committee_id', profile.committee_id);
+                }
+                // Branch scope: admin sees activeBranch; non-admin relies on RLS
+                if (canViewAllBranches && activeBranch?.id) {
+                    query = query.eq('branch_id', activeBranch.id);
                 }
 
                 const result = await query;
@@ -771,8 +778,8 @@ export default function TrainerManagement(): JSX.Element {
 
     const handleWhatsApp = (phone: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        const cleanPhone = phone.replace(/\D/g, '');
-        window.open(`https://wa.me/${cleanPhone}`, '_blank');
+        const url = waPhoneLink(phone);
+        if (url) window.open(url, '_blank');
     };
 
     return (

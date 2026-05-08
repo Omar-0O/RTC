@@ -48,6 +48,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 
 import { MultiSelect } from '@/components/ui/multi-select';
 
@@ -73,6 +74,7 @@ type Committee = {
 
 export default function ActivityManagement() {
   const { t, isRTL } = useLanguage();
+  const { activeBranch, canViewAllBranches } = useBranch();
   const [searchQuery, setSearchQuery] = useState('');
   const [committeeFilter, setCommitteeFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -100,7 +102,7 @@ export default function ActivityManagement() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [activeBranch?.id]);
 
   const fetchData = async () => {
     setLoading(true);

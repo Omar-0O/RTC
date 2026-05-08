@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -87,6 +88,7 @@ interface Volunteer {
 export default function EventManagement() {
     const { user, hasRole, primaryRole } = useAuth();
     const { t, language, isRTL } = useLanguage();
+    const { activeBranch, canViewAllBranches } = useBranch();
 
     const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
@@ -153,7 +155,7 @@ export default function EventManagement() {
             fetchEvents(committeesData);
         };
         loadData();
-    }, []);
+    }, [activeBranch?.id]);
 
     const filteredEvents = events.filter(event => {
         const matchesSearch = event.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -198,6 +200,11 @@ export default function EventManagement() {
                 `)
                 .order('date', { ascending: false });
 
+            // Branch scope: admin sees activeBranch; non-admin relies on RLS
+            if (canViewAllBranches && activeBranch?.id) {
+                query = (query as any).eq('branch_id', activeBranch.id);
+            }
+
             // Non-admin heads only see events for their committee
             if (!isAdmin && userCommitteeName) {
                 const currentCommittees = committeesList || committees;
@@ -226,11 +233,17 @@ export default function EventManagement() {
     };
 
     const fetchVolunteers = async () => {
-        const { data } = await (supabase as any)
+        let q = (supabase as any)
             .from('profiles')
             .select('id, full_name, phone, avatar_url')
             .eq('is_active', true)
             .order('full_name');
+
+        if (canViewAllBranches && activeBranch?.id) {
+            q = q.eq('branch_id', activeBranch.id);
+        }
+
+        const { data } = await q;
 
         if (data) {
             setVolunteers(data.map((p: any) => ({

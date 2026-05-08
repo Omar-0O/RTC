@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
 import { Calendar as CalendarIcon, Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download, Eye, EyeOff } from 'lucide-react';
 
@@ -60,206 +60,62 @@ import { LevelBadge } from '@/components/ui/level-badge';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
 import { Database } from '@/integrations/supabase/types';
+import { useUsers, useCommittees, useCreateUser, useUpdateUser, useDeleteUser, useToggleUserActive, useUpdateRole } from '@/hooks/useUsers';
+import type { UserWithDetails, Committee } from '@/hooks/useUsers';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { toast } from 'sonner';
 
-interface Committee {
-  id: string;
-  name: string;
-  name_ar: string;
-}
+// Committee and UserWithDetails types imported from useUsers hook
 
 import { UserRole } from '@/types';
 
+// AppRole type — kept for local usage
 type AppRole = UserRole;
 
-interface UserWithDetails {
-  id: string;
-  email: string;
-  full_name: string | null;
-  full_name_ar?: string | null;
-  avatar_url: string | null;
-  role: AppRole;
-  committee_id: string | null;
-  committee_name?: string;
-  branch_id?: string | null;
-  branch_name?: string;
-  total_points: number;
-  participation_count: number;
-  level: string;
-  join_date: string;
-  phone?: string;
-  attended_mini_camp?: boolean;
-  attended_camp?: boolean;
-  is_ashbal?: boolean;
-  birth_date?: string | null;
-  last_seen_at?: string | null;
-  is_active: boolean;
-}
+// UserWithDetails interface imported from useUsers hook
 
 import Profile from '@/pages/volunteer/Profile';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { waPhoneLink } from '@/utils/phoneUtils';
 
-const compressImage = async (file: File): Promise<File> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        // Max dimension 1200px (good for avatars)
-        const MAX_DIMENSION = 1200;
-        if (width > height) {
-          if (width > MAX_DIMENSION) {
-            height *= MAX_DIMENSION / width;
-            width = MAX_DIMENSION;
-          }
-        } else {
-          if (height > MAX_DIMENSION) {
-            width *= MAX_DIMENSION / height;
-            height = MAX_DIMENSION;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error('Image compression failed'));
-              return;
-            }
-            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
-              type: 'image/jpeg',
-              lastModified: Date.now(),
-            });
-            resolve(compressedFile);
-          },
-          'image/jpeg',
-          0.7
-        );
-      };
-      img.onerror = (error) => reject(error);
-    };
-    reader.onerror = (error) => reject(error);
-  });
-};
+// Image utilities extracted to @/utils/imageCrop
 
 import Cropper from 'react-easy-crop';
 import { Slider } from '@/components/ui/slider';
-
-const createImage = (url: string): Promise<HTMLImageElement> =>
-  new Promise((resolve, reject) => {
-    const image = new Image()
-    image.addEventListener('load', () => resolve(image))
-    image.addEventListener('error', (error) => reject(error))
-    image.setAttribute('crossOrigin', 'anonymous') // needed to avoid cross-origin issues on CodeSandbox
-    image.src = url
-  })
-
-function getRadianAngle(degreeValue: number) {
-  return (degreeValue * Math.PI) / 180
-}
-
-/**
- * Returns the new bounding area of a rotated rectangle.
- */
-function rotateSize(width: number, height: number, rotation: number) {
-  const rotRad = getRadianAngle(rotation)
-
-  return {
-    width:
-      Math.abs(Math.cos(rotRad) * width) + Math.abs(Math.sin(rotRad) * height),
-    height:
-      Math.abs(Math.sin(rotRad) * width) + Math.abs(Math.cos(rotRad) * height),
-  }
-}
-
-/**
- * This function was adapted from the one in the Readme of https://github.com/DominicTobias/react-image-crop
- */
-async function getCroppedImg(
-  imageSrc: string,
-  pixelCrop: { x: number; y: number; width: number; height: number },
-  rotation = 0,
-  flip = { horizontal: false, vertical: false }
-): Promise<File | null> {
-  const image = await createImage(imageSrc)
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
-
-  if (!ctx) {
-    return null
-  }
-
-  const rotRad = getRadianAngle(rotation)
-
-  // calculate bounding box of the rotated image
-  const { width: bBoxWidth, height: bBoxHeight } = rotateSize(
-    image.width,
-    image.height,
-    rotation
-  )
-
-  // set canvas size to match the bounding box
-  canvas.width = bBoxWidth
-  canvas.height = bBoxHeight
-
-  // translate canvas context to a central location to allow rotating and flipping around the center
-  ctx.translate(bBoxWidth / 2, bBoxHeight / 2)
-  ctx.rotate(rotRad)
-  ctx.scale(flip.horizontal ? -1 : 1, flip.vertical ? -1 : 1)
-  ctx.translate(-image.width / 2, -image.height / 2)
-
-  // draw rotated image
-  ctx.drawImage(image, 0, 0)
-
-  // croppedAreaPixels values are bounding box relative
-  // extract the cropped image using these values
-  const data = ctx.getImageData(
-    pixelCrop.x,
-    pixelCrop.y,
-    pixelCrop.width,
-    pixelCrop.height
-  )
-
-  // set canvas width to final desired crop size - this will clear existing context
-  canvas.width = pixelCrop.width
-  canvas.height = pixelCrop.height
-
-  // paste generated rotate image at the top left corner
-  ctx.putImageData(data, 0, 0)
-
-  // As a blob
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        resolve(null);
-        return;
-      }
-      resolve(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }))
-    }, 'image/jpeg')
-  })
-}
+import { getCroppedImg } from '@/utils/imageCrop';
 
 export default function UserManagement() {
   const { t, language, isRTL } = useLanguage();
   const { activeBranch, branches, canViewAllBranches } = useBranch();
   const { primaryRole } = useAuth();
-  const [users, setUsers] = useState<UserWithDetails[]>([]);
-  const [committees, setCommittees] = useState<Committee[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // ── Pagination state ──
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
+
+  // ── React Query: data fetching (replaces useEffect + fetchData) ──
+  const { data: usersData, isLoading: isUsersLoading } = useUsers({
+    branchId: activeBranch?.id,
+    canViewAllBranches,
+    language,
+    branches,
+    page: currentPage,
+    pageSize,
+  });
+  const { data: committeesList } = useCommittees();
+
+  const users = usersData?.users ?? [];
+  const totalUserCount = usersData?.totalCount ?? 0;
+  const committees = committeesList ?? [];
+  const isLoading = isUsersLoading;
+
+  // ── React Query: mutations (replaces manual try/catch + fetchData()) ──
+  const createUserMutation = useCreateUser();
+  const updateUserMutation = useUpdateUser();
+  const deleteUserMutation = useDeleteUser();
+  const toggleActiveMutation = useToggleUserActive();
+  const updateRoleMutation = useUpdateRole();
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
   const [committeeFilter, setCommitteeFilter] = useState<string>('all');
@@ -298,163 +154,19 @@ export default function UserManagement() {
   const [isCropping, setIsCropping] = useState(false)
   const [tempImageSrc, setTempImageSrc] = useState<string | null>(null)
 
-  const fetchData = async () => {
-    setIsLoading(true);
-    try {
-      // Fetch committees
-      const { data: committeesData } = await supabase
-        .from('committees')
-        .select('id, name, name_ar')
-        .order('name');
-
-      setCommittees(committeesData || []);
-
-      setCommittees(committeesData || []);
-
-      // Fetch users — filter by branch if user is branch_admin
-      let usersQuery = supabase
-        .from('profiles')
-        .select('*')
-        .order('full_name');
-
-      if (!canViewAllBranches && activeBranch?.id) {
-        usersQuery = usersQuery.eq('branch_id', activeBranch.id) as any;
-      }
-
-      const rolesQuery = supabase
-        .from('user_roles')
-        .select('user_id, role');
-
-      const activitiesQuery = supabase
-        .from('activity_submissions')
-        .select('volunteer_id, status');
-
-      const [profilesRes, rolesRes, activitiesRes] = await Promise.all([
-        usersQuery,
-        rolesQuery,
-        activitiesQuery
-      ]);
-
-      if (profilesRes.error) {
-        console.error('Profiles fetch error:', profilesRes.error);
-        throw profilesRes.error;
-      }
-
-      if (activitiesRes.error) {
-        console.error('Activities fetch error:', activitiesRes.error);
-      } else {
-        console.log('Fetched activities count:', activitiesRes.data?.length);
-      }
-
-      const profilesData = profilesRes.data;
-      const rolesData = rolesRes.data || [];
-      const activitiesData = activitiesRes.data || [];
-
-      // Create maps for O(1) lookup
-      const rolesMap = new Map<string, AppRole[]>();
-      rolesData.forEach((r: any) => {
-        if (r.user_id) {
-          const currentRoles = rolesMap.get(r.user_id) || [];
-          currentRoles.push(r.role as AppRole);
-          rolesMap.set(r.user_id, currentRoles);
-        }
-      });
-
-      const participationMap = new Map<string, number>();
-      activitiesData.forEach((activity: any) => {
-        if (activity.volunteer_id && activity.status !== 'rejected') {
-          participationMap.set(activity.volunteer_id, (participationMap.get(activity.volunteer_id) || 0) + 1);
-        }
-      });
-
-      const getPrimaryRole = (roles: AppRole[]): AppRole => {
-        if (roles.includes('admin')) return 'admin';
-        if (roles.includes('head_hr')) return 'head_hr';
-        if (roles.includes('hr')) return 'hr';
-        if (roles.includes('supervisor')) return 'supervisor';
-        if (roles.includes('committee_leader')) return 'committee_leader';
-        if (roles.includes('head_caravans')) return 'head_caravans';
-        if (roles.includes('head_events')) return 'head_events';
-        if (roles.includes('head_ethics')) return 'head_ethics';
-        if (roles.includes('head_quran')) return 'head_quran';
-        if (roles.includes('marketing_member')) return 'marketing_member';
-        return 'volunteer';
-      };
-
-      const committeesMap = new Map(committeesData?.map(c => [c.id, language === 'ar' ? c.name_ar : c.name]) || []);
-      const branchesMap = new Map(branches?.map(b => [b.id, language === 'ar' ? b.name_ar : b.name]) || []);
-
-      const usersWithDetails: UserWithDetails[] = (profilesData || []).map((profile: any) => {
-        // Get roles from map and fallback to profile.role
-        const userRoles = rolesMap.get(profile.id) || [];
-        if (profile.role) {
-          // Normalize role string (e.g. 'Head HR' -> 'head_hr')
-          const normalizedRole = profile.role.toLowerCase().trim().replace(/ /g, '_');
-          if (!userRoles.includes(normalizedRole as AppRole)) {
-            userRoles.push(normalizedRole as AppRole);
-          }
-        }
-
-        // Participation count from map
-        const participationCount = participationMap.get(profile.id) || 0;
-
-        // If no roles found, default to 'volunteer'
-        if (userRoles.length === 0) userRoles.push('volunteer');
-
-        const uniqueRoles = Array.from(new Set(userRoles)); // deduplicate just in case
-
-        return {
-          id: profile.id,
-          email: profile.email,
-          full_name: profile.full_name,
-          full_name_ar: profile.full_name_ar,
-          avatar_url: profile.avatar_url,
-          role: getPrimaryRole(uniqueRoles as AppRole[]),
-          committee_id: profile.committee_id,
-          committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
-          branch_id: profile.branch_id,
-          branch_name: profile.branch_id ? branchesMap.get(profile.branch_id) : undefined,
-          total_points: profile.total_points || 0,
-          participation_count: participationCount,
-          level: profile.level || 'under_follow_up',
-          join_date: profile.join_date || profile.created_at,
-          phone: profile.phone,
-          attended_mini_camp: profile.attended_mini_camp,
-          attended_camp: profile.attended_camp,
-          is_ashbal: profile.is_ashbal,
-          birth_date: profile.birth_date,
-          last_seen_at: profile.last_seen_at || null,
-          is_active: profile.is_active !== false, // default true if column not yet set
-        };
-      });
-
-      setUsers(usersWithDetails);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load users');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, [language]);
+  // Data fetching is now handled by React Query hooks above.
+  // No useEffect needed — useUsers() and useCommittees() handle
+  // caching, deduplication, loading states, and re-fetching automatically.
 
   const handleToggleActive = async (user: UserWithDetails) => {
     const newStatus = !user.is_active;
     try {
-      const { error } = await (supabase as any)
-        .from('profiles')
-        .update({ is_active: newStatus })
-        .eq('id', user.id);
-      if (error) throw error;
+      await toggleActiveMutation.mutateAsync({ userId: user.id, isActive: newStatus });
       toast.success(
         newStatus
           ? (isRTL ? `✅ تم تفعيل ${user.full_name}` : `✅ ${user.full_name} activated`)
           : (isRTL ? `🚫 تم تعطيل ${user.full_name}` : `🚫 ${user.full_name} deactivated`)
       );
-      fetchData();
     } catch (err: any) {
       toast.error(err.message || (isRTL ? 'فشل في تغيير الحالة' : 'Failed to change status'));
     }
@@ -676,7 +388,7 @@ export default function UserManagement() {
       toast.success('User added successfully');
       setIsAddDialogOpen(false);
       resetForm();
-      fetchData();
+      // React Query auto-invalidates via createUserMutation
 
     } catch (error: any) {
       console.error('Error adding user:', error);
@@ -808,7 +520,7 @@ export default function UserManagement() {
       setIsEditDialogOpen(false);
       setSelectedUser(null);
       resetForm();
-      fetchData();
+      // React Query auto-invalidates via updateUserMutation
     } catch (error: any) {
       console.error('Error updating user:', error);
       toast.error(error.message || 'Failed to update user');
@@ -840,7 +552,7 @@ export default function UserManagement() {
       toast.success(language === 'ar' ? 'تم حذف المستخدم بنجاح' : 'User deleted successfully');
       setIsDeleteDialogOpen(false);
       setSelectedUser(null);
-      fetchData();
+      // React Query auto-invalidates via deleteUserMutation
     } catch (error: any) {
       console.error('Error deleting user:', error);
       toast.error(error.message || (language === 'ar' ? 'فشل حذف المستخدم' : 'Failed to delete user'));
@@ -872,7 +584,7 @@ export default function UserManagement() {
 
 
       toast.success('Role updated successfully');
-      fetchData();
+      // React Query auto-invalidates via updateRoleMutation
     } catch (error: any) {
       console.error('Error updating role:', error);
       toast.error(error.message || 'Failed to update role');

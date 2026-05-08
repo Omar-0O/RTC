@@ -32,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Profile from '@/pages/volunteer/Profile';
 import { EditAshbalDialog } from "./EditAshbalDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { waPhoneLink } from '@/utils/phoneUtils';
 
 export default function AshbalManagement() {
     const { isRTL, t } = useLanguage();
@@ -213,11 +214,9 @@ export default function AshbalManagement() {
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
                                                         onClick={() => {
-                                                            if (user.phone) {
-                                                                window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
-                                                            } else {
-                                                                toast.error(isRTL ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
-                                                            }
+                                                            const url = waPhoneLink(user.phone);
+                                                            if (url) window.open(url, '_blank');
+                                                            else toast.error(isRTL ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
                                                         }}
                                                     >
                                                         <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />

@@ -40,6 +40,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { toast } from 'sonner';
 import { utils, writeFile } from 'xlsx';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, format } from 'date-fns';
@@ -64,6 +65,7 @@ interface CommitteeWithStats extends Committee {
 
 export default function CommitteeManagement() {
   const { t, language } = useLanguage();
+  const { activeBranch } = useBranch();
   // ... rest of the component
 
   const [committees, setCommittees] = useState<CommitteeWithStats[]>([]);
@@ -216,7 +218,7 @@ export default function CommitteeManagement() {
 
   useEffect(() => {
     fetchCommittees();
-  }, [timeFilter]);
+  }, [timeFilter, activeBranch?.id]);
 
   const resetForm = () => {
     setFormName('');

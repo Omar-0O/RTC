@@ -31,6 +31,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { utils, writeFile } from 'xlsx';
 import ExcelJS from 'exceljs';
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear, getDaysInMonth } from 'date-fns';
+import { normalizePhoneE164 } from '@/utils/phoneUtils';
 
 interface Profile {
   id: string;
@@ -113,9 +114,9 @@ async function downloadAttendanceMatrix(
   // ── Pre-compute participation days per volunteer ───────────────────────────
   const phoneToUserId = new Map<string, string>();
   volunteers.forEach(v => {
-    const p1 = (v.phone || '').replace(/\D/g, '');
+    const p1 = normalizePhoneE164(v.phone || '');
     if (p1) phoneToUserId.set(p1, v.id.toString());
-    const p2 = (v.phone2 || '').replace(/\D/g, '');
+    const p2 = normalizePhoneE164(v.phone2 || '');
     if (p2) phoneToUserId.set(p2, v.id.toString());
   });
 
@@ -142,9 +143,9 @@ async function downloadAttendanceMatrix(
 
     let matchedId: string | null = null;
     for (const p of phones) {
-       const cleaned = p.replace(/\D/g, '');
-       if (cleaned && phoneToUserId.has(cleaned)) {
-          matchedId = phoneToUserId.get(cleaned)!;
+       const normalized = normalizePhoneE164(p);
+       if (normalized && phoneToUserId.has(normalized)) {
+          matchedId = phoneToUserId.get(normalized)!;
           break;
        }
     }
@@ -1229,8 +1230,8 @@ export default function Reports() {
                     const phoneToExistingUser = new Map<string, string>();
                     
                     currentUsers.forEach(u => {
-                       if (u.phone_1) phoneToExistingUser.set(u.phone_1.replace(/\D/g, ''), u.full_name);
-                       if (u.phone_2) phoneToExistingUser.set(u.phone_2.replace(/\D/g, ''), u.full_name);
+                       if (u.phone_1) phoneToExistingUser.set(normalizePhoneE164(u.phone_1) || u.phone_1, u.full_name);
+                       if (u.phone_2) phoneToExistingUser.set(normalizePhoneE164(u.phone_2) || u.phone_2, u.full_name);
                     });
 
                     submissions.forEach(s => {
@@ -1269,8 +1270,8 @@ export default function Reports() {
 
                         if (!participantName) participantName = 'غير معروف';
 
-                        // Extract valid phones
-                        const cleanPhones = phones.map(p => p.replace(/\D/g, '')).filter(p => p.length > 0);
+                        // Normalize phone numbers to E.164 using the centralized utility
+                        const cleanPhones = phones.map(p => normalizePhoneE164(p)).filter(p => p.length > 0);
                         
                         // Check if we already have this user (by phone)
                         let found = false;

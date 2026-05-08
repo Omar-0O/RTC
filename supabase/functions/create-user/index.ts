@@ -17,6 +17,8 @@ interface CreateUserBody {
     level?: string;
     joinDate?: string;
     isAshbal?: boolean;
+    /** Only admin can set this; otherwise inherited from requester */
+    branchId?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -39,7 +41,7 @@ Deno.serve(async (req: Request) => {
             throw new Error('Invalid JSON body')
         }
 
-        const { email, password, fullName, fullNameAr, role, committeeId, phone, level, joinDate, isAshbal } = body;
+        const { email, password, fullName, fullNameAr, role, committeeId, phone, level, joinDate, isAshbal, branchId } = body;
 
         const supabaseUrl = Deno.env.get('SUPABASE_URL')
         const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -86,11 +88,35 @@ Deno.serve(async (req: Request) => {
 
         const roles = requesterRoles?.map(r => r.role) || []
         const isAuthorized = roles.includes('admin') || roles.includes('head_hr') || roles.includes('supervisor') || roles.includes('head_ashbal')
+        const isAdmin = roles.includes('admin') || roles.includes('executive')
 
         if (!isAuthorized) {
             console.log(`User ${requester.id} attempted to create user but has roles: ${roles.join(', ')}`)
             throw new Error(`Unauthorized: Admin access required.`)
         }
+
+        // ─── BRANCH ISOLATION ────────────────────────────────────────────
+        // Get the requester's branch_id from their profile
+        const { data: requesterProfile, error: profileFetchError } = await supabaseAdmin
+            .from('profiles')
+            .select('branch_id')
+            .eq('id', requester.id)
+            .single()
+
+        if (profileFetchError) {
+            console.error('Error fetching requester profile:', profileFetchError)
+        }
+
+        // Determine the branch_id for the new user:
+        // - Admin can explicitly set branchId
+        // - Non-admin ALWAYS inherits from their own profile (cannot be overridden)
+        let effectiveBranchId: string | null = null
+        if (isAdmin && branchId) {
+            effectiveBranchId = branchId
+        } else {
+            effectiveBranchId = requesterProfile?.branch_id || null
+        }
+        // ─────────────────────────────────────────────────────────────────
 
         // Create the user with email confirmed
         const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -118,7 +144,7 @@ Deno.serve(async (req: Request) => {
             console.error('Role upsert exception:', roleErr)
         }
 
-        // Update profile
+        // Update profile — INJECT branch_id
         try {
             const { error: profileError } = await supabaseAdmin
                 .from('profiles')
@@ -129,7 +155,8 @@ Deno.serve(async (req: Request) => {
                     phone: phone || null,
                     level: level || 'under_follow_up',
                     join_date: joinDate || undefined,
-                    is_ashbal: isAshbal || false
+                    is_ashbal: isAshbal || false,
+                    branch_id: effectiveBranchId,
                 })
                 .eq('id', userData.user.id)
 

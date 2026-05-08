@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -38,6 +39,7 @@ const LEVELS = [
 export default function Leaderboard() {
   const { user, primaryRole } = useAuth();
   const { isRTL } = useLanguage();
+  const { activeBranch, canViewAllBranches } = useBranch();
   const [selectedCommittee, setSelectedCommittee] = useState<string>('all');
   const [selectedLevel, setSelectedLevel] = useState<string>('all');
   const [timeFilter, setTimeFilter] = useState<string>('month');
@@ -47,7 +49,7 @@ export default function Leaderboard() {
 
   useEffect(() => {
     fetchData();
-  }, [timeFilter, selectedCommittee]);
+  }, [timeFilter, selectedCommittee, activeBranch?.id]);
 
   const fetchData = async () => {
     setLoading(true);

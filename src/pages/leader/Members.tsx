@@ -60,6 +60,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { waPhoneLink } from '@/utils/phoneUtils';
 
 interface Profile {
     id: string;
@@ -448,9 +449,8 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
                                                         {member.phone && (
                                                             <DropdownMenuItem
                                                                 onClick={() => {
-                                                                    const phone = member.phone?.replace(/[^0-9]/g, '');
-                                                                    const formattedPhone = phone?.startsWith('0') ? `2${phone}` : phone;
-                                                                    window.open(`https://wa.me/${formattedPhone}`, '_blank');
+                                                                    const url = waPhoneLink(member.phone);
+                                                                    if (url) window.open(url, '_blank');
                                                                 }}
                                                             >
                                                                 <MessageCircle className="h-4 w-4 ltr:mr-2 rtl:ml-2 text-green-600" />

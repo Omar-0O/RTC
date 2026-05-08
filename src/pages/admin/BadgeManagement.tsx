@@ -62,6 +62,7 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 
 type Badge = {
   id: string;
@@ -107,6 +108,7 @@ const BADGE_COLORS = [
 
 export default function BadgeManagement() {
   const { isRTL } = useLanguage();
+  const { activeBranch } = useBranch();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -136,7 +138,7 @@ export default function BadgeManagement() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [activeBranch?.id]);
 
   const fetchData = async () => {
     setLoading(true);

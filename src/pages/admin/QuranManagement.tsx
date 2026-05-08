@@ -51,6 +51,7 @@ import { QuranProgress } from '@/components/quran/QuranProgress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { compressImage } from '@/utils/imageCompression';
+import { waPhoneLink } from '@/utils/phoneUtils';
 
 interface Beneficiary {
     id: string;
@@ -276,11 +277,8 @@ export default function QuranManagement() {
     };
 
     const handleWhatsApp = (phone: string) => {
-        let cleanPhone = phone.replace(/\D/g, '');
-        // Assuming Egyptian numbers for now, remove leading 0 and add 20
-        if (cleanPhone.startsWith('0')) cleanPhone = cleanPhone.substring(1);
-        if (!cleanPhone.startsWith('20')) cleanPhone = '20' + cleanPhone;
-        window.open(`https://wa.me/${cleanPhone}`, '_blank');
+        const url = waPhoneLink(phone);
+        if (url) window.open(url, '_blank');
     };
 
     const filteredBeneficiaries = beneficiaries.filter(b =>

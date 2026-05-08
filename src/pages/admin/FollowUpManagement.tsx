@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Search, Plus, Pencil, Trash2, Loader2, Download, Upload, RefreshCw, Check, History
+  Search, Plus, Pencil, Trash2, Loader2, Download, Upload, RefreshCw, Check, History, Link2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,11 +28,14 @@ import { useBranch } from '@/contexts/BranchContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import * as XLSX from 'xlsx';
+import { normalizePhoneE164, phonesAreEqual } from '@/utils/phoneUtils';
 
 interface FollowUpUser {
   id: number;
   full_name: string;
+  /** Normalized E.164 value stored in DB */
   phone_1: string;
+  /** Normalized E.164 value stored in DB */
   phone_2: string | null;
   branch: string | null;
   branch_id: string | null;
@@ -41,15 +44,12 @@ interface FollowUpUser {
   linked_to: number | null;
 }
 
-// Converts Arabic/Eastern Arabic numerals to Western Arabic numerals and strips non-digit chars
-const normalizePhone = (raw: string | null | undefined): string => {
-  if (!raw) return '';
-  return String(raw)
-    .replace(/[\u0660-\u0669]/g, d => String(d.charCodeAt(0) - 0x0660)) // Eastern Arabic
-    .replace(/[\u06F0-\u06F9]/g, d => String(d.charCodeAt(0) - 0x06F0)) // Persian
-    .replace(/[^\d+]/g, '')  // keep only digits and leading +
-    .replace(/^\+/, '');     // strip leading + for storage consistency
-};
+// ---------------------------------------------------------------------------
+// Phone normalization — delegate entirely to the centralized utility.
+// Do NOT use this alias for anything else; import from phoneUtils directly.
+// ---------------------------------------------------------------------------
+const normalizePhone = (raw: string | null | undefined): string =>
+  normalizePhoneE164(raw);
 
 export default function FollowUpManagement() {
   const { language, isRTL } = useLanguage();
@@ -70,7 +70,12 @@ export default function FollowUpManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [branchFilter, setBranchFilter] = useState('all');
+  // Link-to-another dialog state
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [linkSourceUser, setLinkSourceUser] = useState<FollowUpUser | null>(null);
+  const [linkTargetPhone, setLinkTargetPhone] = useState('');
+  const [linkSearchResults, setLinkSearchResults] = useState<FollowUpUser[]>([]);
+  const [selectedLinkTarget, setSelectedLinkTarget] = useState<FollowUpUser | null>(null);
   const [activeTab, setActiveTab] = useState('approved');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,14 +89,7 @@ export default function FollowUpManagement() {
   const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
   const [pendingImportRecords, setPendingImportRecords] = useState<any[]>([]);
 
-  // Conflict Resolution State
-  // conflictGroups: array of groups, each group = array of records sharing the same phone
-  const [isConflictOpen, setIsConflictOpen] = useState(false);
-  const [conflictGroups, setConflictGroups] = useState<any[][]>([]);
-  // selectedConflictChoice: for each group index, which record index is selected
-  const [selectedConflictChoice, setSelectedConflictChoice] = useState<Record<number, number>>({});
-  // cleanRecords: the non-conflicting records from the import that are ready to go
-  const [cleanImportRecords, setCleanImportRecords] = useState<any[]>([]);
+
 
   // Template State
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
@@ -129,19 +127,40 @@ export default function FollowUpManagement() {
 
       const [submissionsRes, profileRes] = await Promise.all([
         phones.length > 0
-          ? (supabase as any)
-              .from('activity_submissions')
-              .select('*, activity_types(name, name_ar)')
-              .or(phones.map(p => `guest_phone.ilike.%${p}%`).join(','))
-              .order('created_at', { ascending: false })
-              .limit(100)
+          ? (() => {
+              // Generate search variants for each phone to catch all storage formats.
+              // e.g. +201005784855 → also search 201005784855 and 01005784855
+              const variants = new Set<string>();
+              phones.forEach(p => {
+                variants.add(p); // full normalized: +201...
+                if (p.startsWith('+')) variants.add(p.slice(1));         // 201...
+                if (p.startsWith('+20')) variants.add('0' + p.slice(3)); // 01...
+                if (p.startsWith('201')) variants.add('0' + p.slice(2)); // 01...
+              });
+              const orFilter = [...variants].map(v => `guest_phone.ilike.%${v}%`).join(',');
+              return (supabase as any)
+                .from('activity_submissions')
+                .select('id, date, submitted_at, created_at, activity_types(name, name_ar)')
+                .or(orFilter)
+                .order('date', { ascending: false, nullsLast: true })
+                .limit(200);
+            })()
           : Promise.resolve({ data: [] }),
         phones.length > 0
-          ? (supabase as any)
-              .from('profiles')
-              .select('id, full_name, phone')
-              .in('phone', phones)
-              .limit(1)
+          ? (() => {
+              // Generate search variants for profiles too
+              const profileVariants = new Set<string>();
+              phones.forEach(p => {
+                profileVariants.add(p);
+                if (p.startsWith('+')) profileVariants.add(p.slice(1));
+                if (p.startsWith('+20')) profileVariants.add('0' + p.slice(3));
+              });
+              return (supabase as any)
+                .from('profiles')
+                .select('id, full_name, phone')
+                .in('phone', [...profileVariants])
+                .limit(1);
+            })()
           : Promise.resolve({ data: [] }),
       ]);
 
@@ -152,9 +171,9 @@ export default function FollowUpManagement() {
         const volunteerId = profileRes.data[0].id;
         const { data: volunteerSubmissions } = await (supabase as any)
           .from('activity_submissions')
-          .select('*, activity_types(name, name_ar)')
+          .select('id, date, submitted_at, created_at, activity_types(name, name_ar)')
           .eq('volunteer_id', volunteerId)
-          .order('created_at', { ascending: false })
+          .order('date', { ascending: false, nullsLast: true })
           .limit(100);
         if (volunteerSubmissions) {
           const existingIds = new Set(items.map((i: any) => i.id));
@@ -164,7 +183,12 @@ export default function FollowUpManagement() {
         }
       }
 
-      items.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      // Sort by actual session date (most recent first)
+      items.sort((a: any, b: any) => {
+        const dateA = new Date(a.date || a.submitted_at || a.created_at).getTime();
+        const dateB = new Date(b.date || b.submitted_at || b.created_at).getTime();
+        return dateB - dateA;
+      });
       setParticipationsList(items);
     } catch (err) {
       console.error(err);
@@ -186,9 +210,13 @@ export default function FollowUpManagement() {
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
+      // Only fetch approved + pending — rejected records are invisible to the UI
+      const statusFilter = ['approved', 'pending'];
+
       // Build base query — branch_admin sees only their branch
       const baseQuery = () => {
-        let q = (supabase as any).from('users_followup').select('*', { count: 'exact', head: true });
+        let q = (supabase as any).from('users_followup').select('*', { count: 'exact', head: true })
+          .in('status', statusFilter);
         if (!canViewAllBranches && activeBranch?.id) {
           q = q.eq('branch_id', activeBranch.id);
         }
@@ -208,6 +236,7 @@ export default function FollowUpManagement() {
         let q = (supabase as any)
           .from('users_followup')
           .select('*')
+          .in('status', statusFilter)
           .order('id', { ascending: true })
           .range(from, to);
         if (!canViewAllBranches && activeBranch?.id) {
@@ -232,7 +261,8 @@ export default function FollowUpManagement() {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranch?.id, canViewAllBranches]);
 
   const handleSyncAndRefresh = async () => {
     setIsLoading(true);
@@ -240,21 +270,134 @@ export default function FollowUpManagement() {
       // 1. Fetch Follow-up Users normal refresh
       await fetchUsers();
 
-      // 2. Fetch all submissions, trainers, profiles to sync missing
-      const { data: submissions } = await (supabase as any).from('activity_submissions').select('*');
+      // 2. Fetch submissions with only the columns needed for sync
+      // Sync only needs phone/name/branch info — not full records
+      // NOTE: This query intentionally fetches ALL statuses/branches because we need
+      //       to detect new participants across the entire system.
+      let submissions: any[] = [];
+      const subBatchSize = 1000;
+      let hasMoreSubmissions = true;
+      let subOffset = 0;
+
+      while (hasMoreSubmissions) {
+        let subQuery = (supabase as any)
+          .from('activity_submissions')
+          .select('id, guest_name, guest_phone, volunteer_id, trainer_id, branch_id, location')
+          .range(subOffset, subOffset + subBatchSize - 1);
+
+        // Branch admin only syncs their own branch submissions
+        if (!canViewAllBranches && activeBranch?.id) {
+          subQuery = subQuery.eq('branch_id', activeBranch.id);
+        }
+
+        const { data: batch, error: subError } = await subQuery;
+
+        if (subError) throw subError;
+        if (!batch || batch.length === 0) {
+          hasMoreSubmissions = false;
+        } else {
+          submissions = [...submissions, ...batch];
+          subOffset += subBatchSize;
+          if (batch.length < subBatchSize) hasMoreSubmissions = false;
+        }
+      }
+
       const { data: trainers } = await (supabase as any).from('trainers').select('id, user_id, name_en, name_ar, phone');
       const { data: profiles } = await (supabase as any).from('profiles').select('id, full_name, full_name_ar, phone');
 
-      if (!submissions) return;
+      if (submissions.length === 0) return;
 
       const profilesMap = new Map();
       profiles?.forEach((p: any) => profilesMap.set(p.id, p));
 
+      // Fetch all existing phones directly from the database to avoid branch filtering and closure issues
+      // Use pagination to ensure we get all records beyond the 1000 limit
+      let allExistingUsers: any[] = [];
+      const userBatchSize = 1000;
+      let hasMoreUsers = true;
+      let userOffset = 0;
+
+      while (hasMoreUsers) {
+        const { data: batch, error: existError } = await (supabase as any)
+          .from('users_followup')
+          .select('id, phone_1, phone_2, full_name, status')
+          .range(userOffset, userOffset + userBatchSize - 1);
+
+        if (existError) throw existError;
+        if (!batch || batch.length === 0) {
+          hasMoreUsers = false;
+        } else {
+          allExistingUsers = [...allExistingUsers, ...batch];
+          userOffset += userBatchSize;
+          if (batch.length < userBatchSize) hasMoreUsers = false;
+        }
+      }
+
+      // Build a set of ALL phones that already exist in any status (approved, pending, duplicate, rejected).
+      // This is the critical fix: we must NOT re-insert a person who already exists in ANY form.
       const phoneToExistingUser = new Map<string, string>();
-      users.forEach(u => {
-        if (u.phone_1) phoneToExistingUser.set(normalizePhone(u.phone_1), u.full_name);
-        if (u.phone_2) phoneToExistingUser.set(normalizePhone(u.phone_2), u.full_name);
+      const approvedPhones = new Set<string>();
+      const pendingOrDuplicateToClean: any[] = [];
+
+      allExistingUsers?.forEach((u: any) => {
+        const p1 = normalizePhone(u.phone_1);
+        const p2 = normalizePhone(u.phone_2);
+
+        // Track ALL phones regardless of status so we never re-insert them
+        if (p1) phoneToExistingUser.set(p1, u.full_name);
+        if (p2) phoneToExistingUser.set(p2, u.full_name);
+
+        if (u.status === 'approved') {
+          if (p1) approvedPhones.add(p1);
+          if (p2) approvedPhones.add(p2);
+        } else if (u.status === 'pending' || u.status === 'duplicate') {
+          // Collect pending & duplicate records so we can clean them up if they match an approved phone
+          pendingOrDuplicateToClean.push(u);
+        }
       });
+
+      // Build map: normalized phone → approved user ID (for linked_to assignment)
+      const approvedPhoneToId = new Map<string, number>();
+      allExistingUsers?.forEach((u: any) => {
+        if (u.status === 'approved') {
+          const p1 = normalizePhone(u.phone_1);
+          const p2 = normalizePhone(u.phone_2);
+          if (p1) approvedPhoneToId.set(p1, u.id);
+          if (p2) approvedPhoneToId.set(p2, u.id);
+        }
+      });
+
+      // Cleanup: auto-reject pending/duplicate rows whose phone already exists as approved
+      // Also set linked_to → approved record so their participations show under the right person
+      const duplicatesToClear = pendingOrDuplicateToClean.filter(p => {
+        const p1 = normalizePhone(p.phone_1);
+        const p2 = normalizePhone(p.phone_2);
+        return (p1 && approvedPhones.has(p1)) || (p2 && approvedPhones.has(p2));
+      });
+
+      if (duplicatesToClear.length > 0) {
+        // Update each record individually to set its specific linked_to value
+        await Promise.all(
+          duplicatesToClear.map(d => {
+            const p1 = normalizePhone(d.phone_1);
+            const p2 = normalizePhone(d.phone_2);
+            const linkedToId = (p1 && approvedPhoneToId.get(p1)) || (p2 && approvedPhoneToId.get(p2)) || null;
+            return (supabase as any)
+              .from('users_followup')
+              .update({
+                status: 'rejected',
+                ...(linkedToId && !d.linked_to ? { linked_to: linkedToId } : {}),
+              })
+              .eq('id', d.id)
+              .in('status', ['pending', 'duplicate']); // SAFETY: never touch approved
+          })
+        );
+        console.log(`[Sync] Automatically cleaned up ${duplicatesToClear.length} duplicates/pending, linked them to approved records.`);
+        toast.info(ar(`تم تنظيف ${duplicatesToClear.length} طلبات مكررة تلقائياً!`, `Automatically cleaned up ${duplicatesToClear.length} duplicate requests!`));
+      }
+
+      console.log(`[Sync] Fetched ${allExistingUsers.length} existing users. Map size: ${phoneToExistingUser.size}`);
+      console.log(`[Sync] Fetched ${submissions.length} submissions.`);
 
       const newUsersToInsert: any[] = [];
 
@@ -294,13 +437,19 @@ export default function FollowUpManagement() {
         const cleanPhones = phones.map(p => normalizePhone(p)).filter(p => p.length > 0);
 
         let found = false;
+        let foundBy: string | null = null;
         for (const p of cleanPhones) {
-          if (phoneToExistingUser.has(p)) { found = true; break; }
+          if (phoneToExistingUser.has(p)) {
+            found = true;
+            foundBy = p;
+            break;
+          }
         }
 
         if (!found && cleanPhones.length > 0) {
           const primaryPhone = cleanPhones[0];
           phoneToExistingUser.set(primaryPhone, participantName);
+          console.log(`[Sync] Found NEW participant: ${participantName} (${primaryPhone})`);
 
           // Try to resolve branch_id from the submission
           let resolvedBranchId: string | null = s.branch_id || null;
@@ -316,6 +465,11 @@ export default function FollowUpManagement() {
             if (bMatch) resolvedBranchId = bMatch.id;
           }
 
+          // If still null and user is branch admin, force their branch
+          if (!resolvedBranchId && !canViewAllBranches && activeBranch?.id) {
+            resolvedBranchId = activeBranch.id;
+          }
+
           newUsersToInsert.push({
             full_name: participantName,
             phone_1: primaryPhone,
@@ -326,11 +480,57 @@ export default function FollowUpManagement() {
         }
       });
 
+      // Always refresh after cleanup (even if 0 new inserts) so rejected duplicates disappear
+      const needsRefresh = duplicatesToClear.length > 0;
+
       if (newUsersToInsert.length > 0) {
-        const { error } = await (supabase as any).from('users_followup').insert(newUsersToInsert);
-        if (error) throw error;
-        toast.success(ar(`تم العثور على ${newUsersToInsert.length} مشارك جديد وإضافتهم لطلبات الإضافة!`, `Found and added ${newUsersToInsert.length} new participants to pending!`));
-        await fetchUsers(); // Refresh the list with the newly inserted pending users
+        // -----------------------------------------------------------------------
+        // CRITICAL: Do a final DB-level check right before inserting.
+        // The in-memory map can miss cases where branch_id is NULL because
+        // PostgreSQL unique constraints treat NULL as distinct (NULL ≠ NULL),
+        // so the upsert onConflict clause silently fails for null-branch rows.
+        // Querying the DB directly is the only 100% reliable dedup mechanism.
+        // -----------------------------------------------------------------------
+        const phonesToCheck = [...new Set(
+          newUsersToInsert.map(u => u.phone_1).filter(Boolean) as string[]
+        )];
+
+        // Chunk into groups of 100 to stay within Supabase's query limits
+        const CHUNK = 100;
+        const alreadyExistingPhones = new Set<string>();
+        for (let i = 0; i < phonesToCheck.length; i += CHUNK) {
+          const chunk = phonesToCheck.slice(i, i + CHUNK);
+          const { data: existingRows } = await (supabase as any)
+            .from('users_followup')
+            .select('phone_1')
+            .in('phone_1', chunk);
+          (existingRows || []).forEach((r: any) => {
+            if (r.phone_1) alreadyExistingPhones.add(r.phone_1);
+          });
+        }
+
+        // Filter to only phones that truly don't exist in the DB at all
+        const trulyNew = newUsersToInsert.filter(u => u.phone_1 && !alreadyExistingPhones.has(u.phone_1));
+
+        console.log(`[Sync] Pre-check: ${newUsersToInsert.length} candidates → ${trulyNew.length} truly new (${newUsersToInsert.length - trulyNew.length} already in DB)`);
+
+        if (trulyNew.length > 0) {
+          const { error } = await (supabase as any).from('users_followup').insert(trulyNew);
+          if (error) throw error;
+          toast.success(ar(
+            `تم العثور على ${trulyNew.length} مشارك جديد وإضافتهم لطلبات الإضافة!`,
+            `Found and added ${trulyNew.length} new participants to pending!`
+          ));
+          await fetchUsers();
+        } else if (needsRefresh) {
+          await fetchUsers();
+          toast.success(ar('تم تنظيف السجلات المكررة بنجاح!', 'Duplicate records cleaned up successfully!'));
+        } else {
+          toast.info(ar('البيانات محدثة بالفعل، لا يوجد مشاركين جدد.', 'Data is up to date, no new participants.'));
+        }
+      } else if (needsRefresh) {
+        await fetchUsers();
+        toast.success(ar('تم تنظيف السجلات المكررة بنجاح!', 'Duplicate records cleaned up successfully!'));
       } else {
         toast.info(ar('البيانات محدثة بالفعل، لا يوجد مشاركين جدد.', 'Data is up to date, no new participants.'));
       }
@@ -345,6 +545,21 @@ export default function FollowUpManagement() {
   const pendingUsers = useMemo(() => users.filter(u => u.status === 'pending'), [users]);
   const approvedUsers = useMemo(() => users.filter(u => u.status === 'approved'), [users]);
 
+  // Sequential row number (1-based) for each user in the approved sheet.
+  // Stable even when searching — based on position in the full sorted list.
+  const approvedRowNumber = useMemo(() => {
+    const m = new Map<number, number>();
+    approvedUsers.forEach((u, i) => m.set(u.id, i + 1));
+    return m;
+  }, [approvedUsers]);
+
+  // Pre-computed pending row numbers to avoid O(n²) findIndex in render loop
+  const pendingRowNumber = useMemo(() => {
+    const m = new Map<number, number>();
+    pendingUsers.forEach((u, i) => m.set(u.id, i + 1));
+    return m;
+  }, [pendingUsers]);
+
   // Map id → user for quick lookup (linked_to display)
   const userById = useMemo(() => {
     const m = new Map<number, FollowUpUser>();
@@ -354,21 +569,25 @@ export default function FollowUpManagement() {
 
   const filtered = useMemo(() => {
     const dataSource = activeTab === 'approved' ? approvedUsers : pendingUsers;
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
+    // Also normalize the search query so that entering any phone format works
+    const qNorm = normalizePhoneE164(q);
     return dataSource.filter(u => {
       const matchSearch =
         u.full_name.toLowerCase().includes(q) ||
+        // Compare normalized stored value against normalized query
+        (qNorm ? u.phone_1 === qNorm || u.phone_2 === qNorm : false) ||
+        // Also allow raw substring search for partial numbers
         u.phone_1.includes(q) ||
         (u.phone_2 || '').includes(q);
-      const matchBranch = branchFilter === 'all' || u.branch_id === branchFilter;
-      return matchSearch && matchBranch;
+      return matchSearch;
     });
-  }, [approvedUsers, pendingUsers, activeTab, searchQuery, branchFilter]);
+  }, [approvedUsers, pendingUsers, activeTab, searchQuery]);
 
   // Reset pagination when searching/filtering
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, activeTab, branchFilter]);
+  }, [searchQuery, activeTab]);
 
   const paginatedData = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -406,14 +625,46 @@ export default function FollowUpManagement() {
       toast.error(ar('الاسم والهاتف الأول مطلوبان', 'Name and Phone 1 are required'));
       return;
     }
+
+    const normPhone1 = normalizePhoneE164(formPhone1);
+    const normPhone2 = formPhone2.trim() ? normalizePhoneE164(formPhone2) : null;
+
+    // Guard: phone_1 and phone_2 must not be the same number
+    if (normPhone2 && phonesAreEqual(normPhone1, normPhone2)) {
+      toast.error(ar(
+        'الهاتف الأول والثاني هما نفس الرقم بعد التطبيع — يرجى إدخال رقمين مختلفين',
+        'Phone 1 and Phone 2 are the same number after normalization — please enter two different numbers'
+      ));
+      return;
+    }
+
+    // Guard: no existing record in the SAME BRANCH should have the same phone_1 or phone_2
+    // (same phone is allowed in different branches)
+    if (normPhone1 && formBranch) {
+      const { data: existing } = await (supabase as any)
+        .from('users_followup')
+        .select('id, full_name, phone_1, phone_2')
+        .eq('branch_id', formBranch)
+        .or(`phone_1.eq.${normPhone1},phone_2.eq.${normPhone1}${normPhone2 ? `,phone_1.eq.${normPhone2},phone_2.eq.${normPhone2}` : ''}`);
+
+      if (existing && existing.length > 0) {
+        const clash = existing[0];
+        toast.error(ar(
+          `رقم الهاتف موجود مسبقاً في نفس الفرع: "${clash.full_name}" (${clash.phone_1})`,
+          `Phone number already exists in this branch: "${clash.full_name}" (${clash.phone_1})`
+        ));
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const { error } = await (supabase as any)
         .from('users_followup')
         .insert({
           full_name: formName.trim(),
-          phone_1: normalizePhone(formPhone1),
-          phone_2: formPhone2.trim() ? normalizePhone(formPhone2) : null,
+          phone_1: normPhone1 || formPhone1.trim(),
+          phone_2: normPhone2,
           branch_id: formBranch || null,
           status: 'approved'
         });
@@ -436,14 +687,48 @@ export default function FollowUpManagement() {
       toast.error(ar('الاسم والهاتف الأول مطلوبان', 'Name and Phone 1 are required'));
       return;
     }
+
+    const normPhone1 = normalizePhoneE164(formPhone1);
+    const normPhone2 = formPhone2.trim() ? normalizePhoneE164(formPhone2) : null;
+
+    // Guard: phone_1 and phone_2 must not be the same number
+    if (normPhone2 && phonesAreEqual(normPhone1, normPhone2)) {
+      toast.error(ar(
+        'الهاتف الأول والثاني هما نفس الرقم بعد التطبيع — يرجى إدخال رقمين مختلفين',
+        'Phone 1 and Phone 2 are the same number after normalization — please enter two different numbers'
+      ));
+      return;
+    }
+
+    // Guard: no OTHER record in the SAME BRANCH should have the same phone_1 or phone_2
+    // (same phone is allowed in different branches)
+    const targetBranch = formBranch || selected.branch_id;
+    if (normPhone1 && targetBranch) {
+      const { data: existing } = await (supabase as any)
+        .from('users_followup')
+        .select('id, full_name, phone_1, phone_2')
+        .eq('branch_id', targetBranch)
+        .or(`phone_1.eq.${normPhone1},phone_2.eq.${normPhone1}${normPhone2 ? `,phone_1.eq.${normPhone2},phone_2.eq.${normPhone2}` : ''}`);
+
+      const conflicts = (existing || []).filter((r: any) => r.id !== selected.id);
+      if (conflicts.length > 0) {
+        const clash = conflicts[0];
+        toast.error(ar(
+          `رقم الهاتف موجود مسبقاً في نفس الفرع: "${clash.full_name}" (${clash.phone_1})`,
+          `Phone number already exists in this branch: "${clash.full_name}" (${clash.phone_1})`
+        ));
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const { error } = await (supabase as any)
         .from('users_followup')
         .update({
           full_name: formName.trim(),
-          phone_1: normalizePhone(formPhone1),
-          phone_2: formPhone2.trim() ? normalizePhone(formPhone2) : null,
+          phone_1: normPhone1 || formPhone1.trim(),
+          phone_2: normPhone2,
           branch_id: formBranch || null,
         })
         .eq('id', selected.id);
@@ -463,6 +748,39 @@ export default function FollowUpManagement() {
   const handleApprove = async (id: number) => {
     setIsSubmitting(true);
     try {
+      // Fetch the pending record to get its phone
+      const { data: pendingRec, error: fetchErr } = await (supabase as any)
+        .from('users_followup')
+        .select('phone_1, branch_id')
+        .eq('id', id)
+        .single();
+      if (fetchErr) throw fetchErr;
+
+      // Guard: check if an approved record with the same phone already exists
+      if (pendingRec?.phone_1) {
+        let dupQuery = (supabase as any)
+          .from('users_followup')
+          .select('id, full_name')
+          .eq('status', 'approved')
+          .eq('phone_1', pendingRec.phone_1)
+          .neq('id', id)
+          .limit(1);
+        // Scope to same branch if present
+        if (pendingRec.branch_id) {
+          dupQuery = dupQuery.eq('branch_id', pendingRec.branch_id);
+        }
+        const { data: duplicates } = await dupQuery;
+        if (duplicates && duplicates.length > 0) {
+          const dup = duplicates[0];
+          toast.error(ar(
+            `لا يمكن القبول: الرقم ${pendingRec.phone_1} موجود بالفعل كمعتمد لـ "${dup.full_name}"`,
+            `Cannot approve: phone ${pendingRec.phone_1} already approved for "${dup.full_name}"`
+          ));
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       const { error } = await (supabase as any)
         .from('users_followup')
         .update({ status: 'approved' })
@@ -477,13 +795,114 @@ export default function FollowUpManagement() {
     }
   };
 
+  // ─── Link-to-Another Flow ──────────────────────────────────────
+
+  const openLinkDialog = (user: FollowUpUser) => {
+    setLinkSourceUser(user);
+    setLinkTargetPhone('');
+    setLinkSearchResults([]);
+    setSelectedLinkTarget(null);
+    setIsLinkDialogOpen(true);
+  };
+
+  const searchLinkTarget = async (query: string) => {
+    setLinkTargetPhone(query);
+    setSelectedLinkTarget(null);
+    if (query.trim().length < 3) {
+      setLinkSearchResults([]);
+      return;
+    }
+
+    const q = query.trim().toLowerCase();
+    const qNorm = normalizePhoneE164(q);
+
+    // Search in approved users
+    const results = approvedUsers.filter(u => {
+      if (u.id === linkSourceUser?.id) return false;
+      return (
+        u.full_name.toLowerCase().includes(q) ||
+        u.phone_1.includes(q) ||
+        (u.phone_2 || '').includes(q) ||
+        (qNorm && (u.phone_1 === qNorm || u.phone_2 === qNorm))
+      );
+    }).slice(0, 10);
+    setLinkSearchResults(results);
+  };
+
+  const handleLinkToAnother = async () => {
+    if (!linkSourceUser || !selectedLinkTarget) return;
+    setIsSubmitting(true);
+    try {
+      // 1. Mark the source record as rejected + linked_to target
+      const { error: updateErr } = await (supabase as any)
+        .from('users_followup')
+        .update({
+          status: 'rejected',
+          linked_to: selectedLinkTarget.id,
+        })
+        .eq('id', linkSourceUser.id);
+      if (updateErr) throw updateErr;
+
+      // 2. Transfer participations: update activity_submissions where guest_phone matches
+      //    source phone → change to target phone
+      const sourcePhones = [linkSourceUser.phone_1, linkSourceUser.phone_2].filter(Boolean);
+      const sourceVariants = new Set<string>();
+      sourcePhones.forEach(p => {
+        if (!p) return;
+        const norm = normalizePhone(p);
+        sourceVariants.add(norm);
+        if (norm.startsWith('+')) sourceVariants.add(norm.slice(1));
+        if (norm.startsWith('+20')) sourceVariants.add('0' + norm.slice(3));
+      });
+
+      if (sourceVariants.size > 0) {
+        const targetPhone = selectedLinkTarget.phone_1;
+        // Find submissions with source phone
+        const orFilter = [...sourceVariants].map(v => `guest_phone.eq.${v}`).join(',');
+        const { data: submissions } = await (supabase as any)
+          .from('activity_submissions')
+          .select('id')
+          .or(orFilter);
+
+        if (submissions && submissions.length > 0) {
+          const ids = submissions.map((s: any) => s.id);
+          // Update in batches
+          const BATCH = 100;
+          for (let i = 0; i < ids.length; i += BATCH) {
+            const chunk = ids.slice(i, i + BATCH);
+            await (supabase as any)
+              .from('activity_submissions')
+              .update({ guest_phone: targetPhone })
+              .in('id', chunk);
+          }
+          toast.info(ar(
+            `تم نقل ${submissions.length} مشاركة إلى "${selectedLinkTarget.full_name}"`,
+            `Transferred ${submissions.length} participations to "${selectedLinkTarget.full_name}"`
+          ));
+        }
+      }
+
+      toast.success(ar(
+        `تم ربط "${linkSourceUser.full_name}" بـ "${selectedLinkTarget.full_name}" بنجاح`,
+        `Linked "${linkSourceUser.full_name}" to "${selectedLinkTarget.full_name}" successfully`
+      ));
+      setIsLinkDialogOpen(false);
+      setLinkSourceUser(null);
+      await fetchUsers();
+    } catch (err: any) {
+      toast.error(err.message || ar('فشل في الربط', 'Failed to link'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!selected) return;
     setIsSubmitting(true);
     try {
       const { error } = await (supabase as any)
         .from('users_followup')
-        .delete()
+        .update({ status: 'rejected' })
         .eq('id', selected.id);
       if (error) throw error;
       toast.success(ar('تم الحذف بنجاح', 'Deleted successfully'));
@@ -522,13 +941,13 @@ export default function FollowUpManagement() {
       getBranchName(u.branch_id, u.branch),
       u.linked_to ? (exportIdToRow.get(u.linked_to) ?? '') : '',
     ]);
-    
+
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     ws['!rtl'] = isRTL;
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, ar('شيت المتابعة', 'Follow-up'));
-    
+
     XLSX.writeFile(wb, `followup_users_${new Date().toISOString().slice(0, 10)}.xlsx`);
     toast.success(ar('تم التصدير بنجاح', 'Exported successfully'));
   };
@@ -538,10 +957,10 @@ export default function FollowUpManagement() {
     const example1 = ['', 'أحمد محمد', '01012345678', '01123456789', 'ma', ''];
     const example2 = ['', 'محمود خليل', '01234567890', '', 'hq', ''];
     const example3 = ['', 'أحمد م. القديم', '01099999999', '', 'ma', '1'];
-    
+
     // Create CSV string with UTF-8 BOM so Excel opens Arabic correctly
     const csvContent = '\uFEFF' + [headers, example1, example2, example3].map(row => row.join(',')).join('\n');
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -623,23 +1042,28 @@ export default function FollowUpManagement() {
             const row = data[i];
             if (!row || row.length === 0 || !row[nameIdx] || !row[phone1Idx]) continue;
             const rawBranch = branchIdx !== -1 && row[branchIdx] ? String(row[branchIdx]).trim() : null;
-            let branchIdToUse = null;
+            let branchIdToUse = (!canViewAllBranches && activeBranch?.id) ? activeBranch.id : null;
             if (rawBranch) {
               const rbLower = rawBranch.toLowerCase();
-              const bMatch = branches.find(b => 
+              const bMatch = branches.find(b =>
                 (b.id === rawBranch) ||
-                (b.code && b.code.toLowerCase() === rbLower) || 
-                b.name === rawBranch || 
+                (b.code && b.code.toLowerCase() === rbLower) ||
+                b.name === rawBranch ||
                 b.name_ar === rawBranch
               );
               if (bMatch) branchIdToUse = bMatch.id;
             }
 
-            // Normalize phone numbers (Arabic/Eastern digits → Western digits)
-            const p1 = normalizePhone(String(row[phone1Idx]));
-            const p2 = phone2Idx !== -1 && row[phone2Idx] ? normalizePhone(String(row[phone2Idx])) : null;
+            // Normalize phone numbers to E.164 using the centralized utility
+            const p1 = normalizePhoneE164(String(row[phone1Idx]));
+            const p2 = phone2Idx !== -1 && row[phone2Idx] ? normalizePhoneE164(String(row[phone2Idx])) : null;
 
             if (!p1) continue; // skip rows with no valid phone after normalization
+
+            // Guard: phone_1 and phone_2 in the same row must not be the same number
+            if (p2 && phonesAreEqual(p1, p2)) {
+              console.warn(`[Import] Row ${i}: phone_1 and phone_2 are the same number (${p1}) — phone_2 cleared.`);
+            }
 
             // Parse linked_to as a 1-based row index within this same sheet (resolved after insert)
             let linkedToRow: number | null = null;
@@ -651,7 +1075,8 @@ export default function FollowUpManagement() {
             newRecords.push({
               full_name: String(row[nameIdx]).trim(),
               phone_1: p1,
-              phone_2: p2 || null,
+              // Clear phone_2 if it is the same number as phone_1 after normalization
+              phone_2: (p2 && !phonesAreEqual(p1, p2)) ? p2 : null,
               branch_id: branchIdToUse,
               status: 'approved',
               _linkedToRow: linkedToRow, // temporary — resolved after DB insert
@@ -665,40 +1090,27 @@ export default function FollowUpManagement() {
             return;
           }
 
-          // ── Detect duplicates within the uploaded file ────────────────────────
-          // Group records by their primary phone
-          const phoneGroupMap = new Map<string, any[]>();
-          for (const rec of newRecords) {
-            const key = rec.phone_1;
-            if (!phoneGroupMap.has(key)) phoneGroupMap.set(key, []);
-            phoneGroupMap.get(key)!.push(rec);
-          }
-
-          const conflicts: any[][] = [];
-          const clean: any[] = [];
-
-          for (const [, group] of phoneGroupMap.entries()) {
-            if (group.length > 1) {
-              conflicts.push(group);
+          // ── Handle duplicate phones within the uploaded file ──────────────────
+          // Keep ALL records — do NOT drop duplicates.
+          // For records sharing the same phone_1, auto-set _linkedToRow so that
+          // the 2nd, 3rd, etc. occurrences point to the first via linked_to.
+          const phoneToFirstIdx = new Map<string, number>(); // phone → 0-based index of first occurrence
+          for (let i = 0; i < newRecords.length; i++) {
+            const rec = newRecords[i];
+            const phone = rec.phone_1;
+            if (phoneToFirstIdx.has(phone)) {
+              // Duplicate — link to first occurrence (1-based row index)
+              if (!rec._linkedToRow) {
+                rec._linkedToRow = phoneToFirstIdx.get(phone)! + 1;
+              }
             } else {
-              clean.push(group[0]);
+              phoneToFirstIdx.set(phone, i);
             }
           }
 
-          if (conflicts.length > 0) {
-            // Show conflict resolution dialog — user picks which record to keep per group
-            setCleanImportRecords(clean);
-            setConflictGroups(conflicts);
-            // Default selection: first entry in each group
-            const defaults: Record<number, number> = {};
-            conflicts.forEach((_, gi) => { defaults[gi] = 0; });
-            setSelectedConflictChoice(defaults);
-            setIsConflictOpen(true);
-          } else {
-            // No conflicts — go straight to confirmation
-            setPendingImportRecords(clean);
-            setIsImportConfirmOpen(true);
-          }
+          // All records go straight to confirmation (no conflict dialog needed)
+          setPendingImportRecords(newRecords);
+          setIsImportConfirmOpen(true);
         } catch (err: any) {
           console.error('Parse error:', err);
           toast.error(ar('حدث خطأ أثناء قراءة الملف.', 'Error parsing file.'));
@@ -719,12 +1131,24 @@ export default function FollowUpManagement() {
     setIsSubmitting(true);
     setIsImportConfirmOpen(false);
     try {
-      // 1. Delete all existing approved users (replacing the sheet)
+      const targetBranchId = activeBranch?.id || null;
+
+      if (!targetBranchId) {
+        toast.error(ar(
+          'يجب اختيار فرع محدد قبل استبدال الشيت. اختر فرع من فلتر الفروع أولاً.',
+          'You must select a specific branch before replacing the sheet. Choose a branch from the filter first.'
+        ));
+        setIsSubmitting(false);
+        return;
+      }
+
+      // 1. Soft-delete existing approved users FOR THIS BRANCH ONLY
       const { error: deleteError } = await (supabase as any)
         .from('users_followup')
-        .delete()
-        .eq('status', 'approved');
-        
+        .update({ status: 'rejected' })
+        .eq('status', 'approved')
+        .eq('branch_id', targetBranchId);
+
       if (deleteError) throw deleteError;
 
       // 2. Extract linked_to row references (temporary field, not sent to DB)
@@ -880,20 +1304,20 @@ export default function FollowUpManagement() {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-4 pb-4">
-            <p className="text-2xl font-bold text-primary">{users.length}</p>
-            <p className="text-xs text-muted-foreground">{ar('إجمالي السجلات', 'Total Records')}</p>
+            <p className="text-2xl font-bold text-primary">{approvedUsers.length}</p>
+            <p className="text-xs text-muted-foreground">{ar('في الشيت (معتمد)', 'In Sheet (Approved)')}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <p className="text-2xl font-bold text-amber-600">{pendingUsers.length}</p>
+            <p className="text-xs text-muted-foreground">{ar('طلبات إضافة', 'Pending Requests')}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4">
             <p className="text-2xl font-bold text-blue-600">{filtered.length}</p>
-            <p className="text-xs text-muted-foreground">{ar('نتائج البحث', 'Search Results')}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-4">
-            <p className="text-2xl font-bold text-green-600">{branches.length}</p>
-            <p className="text-xs text-muted-foreground">{ar('عدد الفروع', 'Branches')}</p>
+            <p className="text-xs text-muted-foreground">{ar('النتائج الحالية', 'Current Results')}</p>
           </CardContent>
         </Card>
       </div>
@@ -911,16 +1335,6 @@ export default function FollowUpManagement() {
                 className="ltr:pl-9 rtl:pr-9"
               />
             </div>
-            <select
-              value={branchFilter}
-              onChange={e => setBranchFilter(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-w-[150px]"
-            >
-              <option value="all">{ar('كل الفروع', 'All Branches')}</option>
-              {branches.map(b => (
-                <option key={b.id} value={b.id}>{language === 'ar' ? b.name_ar : b.name}</option>
-              ))}
-            </select>
           </div>
         </CardContent>
       </Card>
@@ -958,7 +1372,7 @@ export default function FollowUpManagement() {
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
-              {searchQuery || branchFilter !== 'all'
+              {searchQuery
                 ? ar('لا توجد نتائج مطابقة', 'No matching results')
                 : ar('لا توجد سجلات بعد. أضف أول شخص!', 'No records yet. Add your first person!')}
             </div>
@@ -975,11 +1389,13 @@ export default function FollowUpManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedData.map((user, idx) => {
-                    const actualIdx = (currentPage - 1) * itemsPerPage + idx + 1;
-                    return (
+                  {paginatedData.map((user) => (
                     <TableRow key={user.id}>
-                      <TableCell className="text-center text-muted-foreground text-sm">{actualIdx}</TableCell>
+                      <TableCell className="text-center text-muted-foreground text-sm">
+                        {activeTab === 'approved'
+                          ? (approvedRowNumber.get(user.id) ?? '—')
+                          : (pendingRowNumber.get(user.id) ?? '—')}
+                      </TableCell>
                       <TableCell className="text-center font-medium whitespace-nowrap">
                         <div className="flex flex-col items-center gap-0.5">
                           <span>{user.full_name}</span>
@@ -1005,17 +1421,21 @@ export default function FollowUpManagement() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             {activeTab === 'pending' && (
-                              <DropdownMenuItem onClick={() => handleApprove(user.id)}>
-                                <Check className={cn('h-4 w-4 text-success', isRTL ? 'ml-2' : 'mr-2')} />
-                                {ar('قبول', 'Approve')}
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem onClick={() => handleApprove(user.id)}>
+                                  <Check className={cn('h-4 w-4 text-success', isRTL ? 'ml-2' : 'mr-2')} />
+                                  {ar('قبول', 'Approve')}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openLinkDialog(user)}>
+                                  <Link2 className={cn('h-4 w-4 text-orange-500', isRTL ? 'ml-2' : 'mr-2')} />
+                                  {ar('ربط بشخص آخر', 'Link to Another')}
+                                </DropdownMenuItem>
+                              </>
                             )}
-                            {activeTab === 'pending' && (
-                              <DropdownMenuItem onClick={() => openParticipations(user)}>
+                            <DropdownMenuItem onClick={() => openParticipations(user)}>
                                 <History className={cn('h-4 w-4 text-blue-500', isRTL ? 'ml-2' : 'mr-2')} />
                                 {ar('مشاركاته', 'Participations')}
-                              </DropdownMenuItem>
-                            )}
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEdit(user)}>
                               <Pencil className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                               {ar('تعديل', 'Edit')}
@@ -1031,7 +1451,7 @@ export default function FollowUpManagement() {
                         </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  )})}
+                  ))}
                 </TableBody>
               </Table>
             </div>
@@ -1044,9 +1464,9 @@ export default function FollowUpManagement() {
                 {ar(`عرض ${(currentPage - 1) * itemsPerPage + 1} إلى ${Math.min(currentPage * itemsPerPage, filtered.length)} من ${filtered.length}`, `Showing ${(currentPage - 1) * itemsPerPage + 1} to ${Math.min(currentPage * itemsPerPage, filtered.length)} of ${filtered.length}`)}
               </span>
               <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
                 >
@@ -1055,9 +1475,9 @@ export default function FollowUpManagement() {
                 <span className="text-sm font-medium px-2">
                   {currentPage} / {totalPages}
                 </span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
                 >
@@ -1152,19 +1572,19 @@ export default function FollowUpManagement() {
                 `أنت على وشك إضافة ملف يحتوي على ${pendingImportRecords.length} شخص.`,
                 `You are about to upload a file containing ${pendingImportRecords.length} participants.`
               )}
-              <br/><br/>
+              <br /><br />
               <span className="font-bold text-destructive">
                 {ar(
-                  'تنبيه: سيتم مسح "قائمة المتابعة" الحالية بالكامل ووضع هؤلاء الأسماء مكانهم.',
-                  'Note: The current "Follow-Up List" will be COMPLETELY wiped and replaced by these names.'
+                  'تنبيه: سيتم مسح "قائمة المتابعة" الحالية للفرع المحدد ووضع هؤلاء الأسماء مكانهم.',
+                  'Note: The current "Follow-Up List" for the selected branch will be wiped and replaced by these names.'
                 )}
               </span>
-              <br/>
+              <br />
               {ar(
                 'ملاحظة: طلبات الإضافة (الأسماء برا الشيت) لن يتم مسحها ولن تتأثر.',
                 'Note: Pending approvals (names out of sheet) will not be deleted.'
               )}
-              <br/><br/>
+              <br /><br />
               {ar('هل أنت متأكد أنك تريد الاستمرار واستبدال الشيت؟', 'Are you sure you want to proceed and replace the sheet?')}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1182,88 +1602,6 @@ export default function FollowUpManagement() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* ── Conflict Resolution Dialog ─────────────────────────────────────── */}
-      <Dialog open={isConflictOpen} onOpenChange={open => {
-        if (!open) setIsConflictOpen(false);
-      }}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
-          <DialogHeader className="text-start rtl:text-right ltr:text-left">
-            <DialogTitle className="text-amber-600 dark:text-amber-400 flex items-center gap-2">
-              ⚠ {ar('تعارض في الأرقام — اختر الأولوية', 'Duplicate Phone Numbers — Choose Priority')}
-            </DialogTitle>
-            <DialogDescription>
-              {ar(
-                `الشيت يحتوي على ${conflictGroups.length} رقم هاتف متكرر. اختر لكل رقم الاسم الذي سيُحفظ في الشيت.`,
-                `The sheet contains ${conflictGroups.length} duplicated phone number(s). Choose which name to keep for each.`
-              )}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex-1 overflow-y-auto space-y-4 py-2">
-            {conflictGroups.map((group, gi) => (
-              <div key={gi} className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3">
-                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2">
-                  {ar('الرقم المتكرر:', 'Duplicated phone:')} <span className="font-mono">{group[0].phone_1}</span>
-                </p>
-                <div className="space-y-2">
-                  {group.map((rec: any, ri: number) => (
-                    <label
-                      key={ri}
-                      className={`flex items-center gap-3 rounded-md border p-2.5 cursor-pointer transition-colors ${
-                        selectedConflictChoice[gi] === ri
-                          ? 'border-primary bg-primary/5'
-                          : 'border-border hover:bg-muted/50'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name={`conflict-group-${gi}`}
-                        checked={selectedConflictChoice[gi] === ri}
-                        onChange={() => setSelectedConflictChoice(prev => ({ ...prev, [gi]: ri }))}
-                        className="accent-primary"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{rec.full_name}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{rec.phone_1}{rec.phone_2 ? ` / ${rec.phone_2}` : ''}</p>
-                      </div>
-                      {selectedConflictChoice[gi] === ri && (
-                        <span className="text-xs font-semibold text-primary shrink-0">{ar('✓ مختار', '✓ Selected')}</span>
-                      )}
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsConflictOpen(false);
-                setConflictGroups([]);
-                setCleanImportRecords([]);
-              }}
-            >
-              {ar('إلغاء الاستيراد', 'Cancel Import')}
-            </Button>
-            <Button
-              onClick={() => {
-                // Merge: clean + one chosen record per conflict group
-                const chosen = conflictGroups.map((group, gi) => group[selectedConflictChoice[gi] ?? 0]);
-                const finalRecords = [...cleanImportRecords, ...chosen];
-                setIsConflictOpen(false);
-                setConflictGroups([]);
-                setCleanImportRecords([]);
-                setPendingImportRecords(finalRecords);
-                setIsImportConfirmOpen(true);
-              }}
-            >
-              {ar('تأكيد الاختيار والمتابعة', 'Confirm & Continue')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Template Instructions Dialog */}
       <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
@@ -1316,14 +1654,14 @@ export default function FollowUpManagement() {
               </Table>
             </div>
             <div className="text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-3 rounded border border-amber-200 dark:border-amber-900 leading-relaxed font-medium">
-              - يُمكنك استخدام شيت Excel (.xlsx) أو شيت ملف نصي (.csv).<br/>
-              - الهاتف الثاني والفرع حقول اختيارية يُمكن تركها فارغة.<br/>
-              - النظام يتعرف بذكاء على العناوين بالإنجليزية (مثال: full_name, phone_1, phone_2, branch_id) وأيضاً يتجاهل عمود الـ ID تلقائياً.<br/>
+              - يُمكنك استخدام شيت Excel (.xlsx) أو شيت ملف نصي (.csv).<br />
+              - الهاتف الثاني والفرع حقول اختيارية يُمكن تركها فارغة.<br />
+              - النظام يتعرف بذكاء على العناوين بالإنجليزية (مثال: full_name, phone_1, phone_2, branch_id) وأيضاً يتجاهل عمود الـ ID تلقائياً.<br />
               - في عمود (الفرع)، تأكد من وضع <b>الكود (Code)</b> الخاص بالفرع بحروف إنجليزية (مثل ma, 6o).
             </div>
             <div className="text-sm text-blue-700 bg-blue-50 dark:bg-blue-950/30 p-3 rounded border border-blue-200 dark:border-blue-900 leading-relaxed font-medium">
-              🔗 <b>عمود linked_to (اختياري — للربط بشخص آخر):</b><br/>
-              لو شخصان مختلفان في الاسم والرقم لكنهم في الواقع نفس الشخص، اكتب في هذا العمود <b>رقم الصف (م)</b> للشخص الأساسي.<br/>
+              🔗 <b>عمود linked_to (اختياري — للربط بشخص آخر):</b><br />
+              لو شخصان مختلفان في الاسم والرقم لكنهم في الواقع نفس الشخص، اكتب في هذا العمود <b>رقم الصف (م)</b> للشخص الأساسي.<br />
               مثال: في الصف الأخير أعلاه، «أحمد م. القديم» مرتبط بـ «أحمد محمد» (الصف رقم 1)، فتُضاف مشاركاته تلقائياً لحساب «أحمد محمد» ويظهر عليه أيقونة 🔗.
             </div>
           </div>
@@ -1337,7 +1675,7 @@ export default function FollowUpManagement() {
             </Button>
           </DialogFooter>
         </DialogContent>
-        </Dialog>
+      </Dialog>
 
       {/* Participations Viewer Dialog */}
       <Dialog open={isParticipationsOpen} onOpenChange={setIsParticipationsOpen}>
@@ -1368,7 +1706,6 @@ export default function FollowUpManagement() {
                       <TableHead className="text-center">{ar('م', '#')}</TableHead>
                       <TableHead>{ar('نوع النشاط', 'Activity Type')}</TableHead>
                       <TableHead className="text-center">{ar('التاريخ', 'Date')}</TableHead>
-                      <TableHead className="text-center">{ar('الحالة', 'Status')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1380,19 +1717,11 @@ export default function FollowUpManagement() {
                             ? p.activity_types?.name_ar || p.activity_types?.name || ar('نشاط', 'Activity')
                             : p.activity_types?.name || p.activity_types?.name_ar || 'Activity'}
                         </TableCell>
-                        <TableCell className="text-center text-sm font-mono">
-                          {p.created_at ? new Date(p.created_at).toLocaleDateString('ar-EG') : '—'}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                            p.status === 'approved' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' :
-                            p.status === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' :
-                            'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
-                          }`}>
-                            {p.status === 'approved' ? ar('مقبول', 'Approved') :
-                             p.status === 'rejected' ? ar('مرفوض', 'Rejected') :
-                             ar('قيد المراجعة', 'Pending')}
-                          </span>
+                        <TableCell className="text-center text-sm font-mono" dir="ltr">
+                          {(() => {
+                            const d = p.date || p.submitted_at || p.created_at;
+                            return d ? new Date(d).toLocaleDateString('en-GB') : '—';
+                          })()}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1404,6 +1733,87 @@ export default function FollowUpManagement() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsParticipationsOpen(false)}>
               {ar('إغلاق', 'Close')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Link-to-Another Dialog ─────────────────────────────────── */}
+      <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{ar('ربط بشخص آخر', 'Link to Another Person')}</DialogTitle>
+            <DialogDescription>
+              {linkSourceUser && ar(
+                `"${linkSourceUser.full_name}" (${linkSourceUser.phone_1}) — هيتحذف من الشيت ومشاركاته هتتنقل للشخص اللي تختاره.`,
+                `"${linkSourceUser.full_name}" (${linkSourceUser.phone_1}) — will be removed from the sheet and participations transferred to the person you select.`
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>{ar('ابحث عن الشخص المعتمد', 'Search approved person')}</Label>
+              <Input
+                placeholder={ar('اسم أو رقم...', 'Name or phone...')}
+                value={linkTargetPhone}
+                onChange={e => searchLinkTarget(e.target.value)}
+                className="mt-1"
+              />
+            </div>
+
+            {linkSearchResults.length > 0 && (
+              <div className="border rounded-md max-h-48 overflow-y-auto">
+                {linkSearchResults.map(u => (
+                  <button
+                    key={u.id}
+                    onClick={() => setSelectedLinkTarget(u)}
+                    className={cn(
+                      'w-full text-start px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between',
+                      selectedLinkTarget?.id === u.id && 'bg-accent ring-1 ring-primary'
+                    )}
+                  >
+                    <div>
+                      <span className="font-medium">{u.full_name}</span>
+                      <span className="text-muted-foreground text-xs mx-2">{u.phone_1}</span>
+                    </div>
+                    {selectedLinkTarget?.id === u.id && <Check className="h-4 w-4 text-primary" />}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {selectedLinkTarget && (
+              <div className="bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-md p-3 text-sm">
+                <p className="font-medium text-orange-700 dark:text-orange-400">
+                  {ar('سيتم:', 'Will:')}
+                </p>
+                <ul className={cn('mt-1 space-y-1 text-orange-600 dark:text-orange-300', isRTL ? 'pr-4' : 'pl-4')} style={{ listStyleType: 'disc' }}>
+                  <li>{ar(
+                    `حذف "${linkSourceUser?.full_name}" من طلبات الإضافة`,
+                    `Remove "${linkSourceUser?.full_name}" from pending requests`
+                  )}</li>
+                  <li>{ar(
+                    `نقل كل مشاركاته بالرقم ${linkSourceUser?.phone_1} إلى "${selectedLinkTarget.full_name}"`,
+                    `Transfer all participations with phone ${linkSourceUser?.phone_1} to "${selectedLinkTarget.full_name}"`
+                  )}</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsLinkDialogOpen(false)}>
+              {ar('إلغاء', 'Cancel')}
+            </Button>
+            <Button
+              onClick={handleLinkToAnother}
+              disabled={!selectedLinkTarget || isSubmitting}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {isSubmitting && <Loader2 className="h-4 w-4 animate-spin ltr:mr-2 rtl:ml-2" />}
+              <Link2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+              {ar('ربط ونقل المشاركات', 'Link & Transfer')}
             </Button>
           </DialogFooter>
         </DialogContent>

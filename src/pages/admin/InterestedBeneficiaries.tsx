@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,6 +64,7 @@ const QURAN_GROUPS_SELECTABLE = QURAN_GROUPS.filter(g => g.value !== 'all' && g.
 export default function InterestedBeneficiaries() {
     const { user } = useAuth();
     const { isRTL } = useLanguage();
+    const { activeBranch } = useBranch();
 
     const [beneficiaries, setBeneficiaries] = useState<InterestedBeneficiary[]>([]);
     const [committees, setCommittees] = useState<Committee[]>([]);
@@ -130,7 +132,7 @@ export default function InterestedBeneficiaries() {
         fetchBeneficiaries();
         fetchCommittees();
         fetchCourses();
-    }, [fetchBeneficiaries, fetchCommittees, fetchCourses]);
+    }, [fetchBeneficiaries, fetchCommittees, fetchCourses, activeBranch?.id]);
 
     // ── Derived ───────────────────────────────────────────────────────────────
 

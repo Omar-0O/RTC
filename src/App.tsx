@@ -11,6 +11,8 @@ import { ThemeProvider } from "./components/theme-provider";
 import { AppLayout } from "./components/layout/AppLayout";
 import ScrollToTop from "./components/ScrollToTop";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { NetworkStatus } from "./components/NetworkStatus";
+import { useRealtimeSync } from "./hooks/useRealtimeSync";
 
 // Lazy load pages
 const Auth = lazy(() => import("./pages/Auth"));
@@ -67,13 +69,29 @@ const VolunteerPortal = lazy(() => import("./pages/VolunteerPortal"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ExecutiveDashboard = lazy(() => import("./pages/executive/Dashboard"));
 
+// Production-hardened QueryClient configuration
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 2, // 2 minutes - data stays fresh, no refetch needed
-      gcTime: 1000 * 60 * 10, // 10 minutes - keep in cache
-      refetchOnWindowFocus: false, // Don't refetch when tab becomes active
-      retry: 1, // Only retry once on failure
+      staleTime: 2 * 60 * 1000,       // 2 min — data stays fresh
+      gcTime: 10 * 60 * 1000,          // 10 min — keep in GC cache
+      refetchOnWindowFocus: false,      // Don't refetch on tab switch (causes jank)
+      refetchOnReconnect: 'always',     // Always refetch when coming back online
+      retry: (failureCount, error) => {
+        // Never retry 4xx errors (auth, validation, not-found)
+        if (error instanceof Error) {
+          const msg = error.message.toLowerCase();
+          if (msg.includes('permission') || msg.includes('not found') || msg.includes('duplicate')) {
+            return false;
+          }
+        }
+        // Retry network errors up to 2 times with exponential backoff
+        return failureCount < 2;
+      },
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    },
+    mutations: {
+      retry: false,  // Never auto-retry mutations (could cause duplicates)
     },
   },
 });
@@ -105,6 +123,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   // Hook order fixed: Unconditional useAuth call
   const { isAuthenticated, isLoading, primaryRole, roles } = useAuth();
+
+  // Subscribe to realtime changes on critical tables when authenticated
+  useRealtimeSync({ enabled: isAuthenticated && !isLoading });
 
   const getDefaultRoute = () => {
     switch (primaryRole) {
@@ -274,6 +295,7 @@ const App = () => (
                   <Suspense fallback={<PageLoader />}>
                     <AppRoutes />
                   </Suspense>
+                  <NetworkStatus />
                 </ErrorBoundary>
               </BrowserRouter>
             </TooltipProvider>

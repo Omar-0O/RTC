@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
+import { invalidateBranchCache } from '@/services/branchGuard';
 
 export interface Branch {
   id: string;
@@ -12,7 +13,12 @@ export interface Branch {
 
 interface BranchContextType {
   branches: Branch[];
+  /** The authenticated user's ACTUAL branch (from DB — authoritative) */
+  userBranchId: string | null;
+  /** The branch currently being viewed. For non-admin, always === userBranchId.
+   *  For admin, can be switched for UI filtering (does NOT affect security). */
   activeBranch: Branch | null;
+  /** Only admin/executive may call this */
   setActiveBranch: (branch: Branch | null) => void;
   isLoading: boolean;
   refreshBranches: () => Promise<void>;
@@ -30,6 +36,9 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [branches, setBranches] = useState<Branch[]>([]);
   const [activeBranch, setActiveBranchState] = useState<Branch | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  /** The user's authoritative branch from their profile — NEVER overridable */
+  const userBranchId = useMemo(() => (profile as any)?.branch_id || null, [profile]);
 
   const canViewAllBranches = useMemo(
     () => ALL_BRANCH_ROLES.includes(primaryRole as any),
@@ -65,38 +74,51 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const savedBranch = savedBranchId ? branches.find(b => b.id === savedBranchId) : null;
       setActiveBranchState(savedBranch || branches[0]);
     } else {
-      // branch_admin / supervisor / others: locked to their profile's branch_id
-      const userBranchId = (profile as any)?.branch_id;
+      // ALL other roles: locked to their profile's branch_id — NO override possible
       let branchToUse = branches[0];
       if (userBranchId) {
         const userBranch = branches.find(b => b.id === userBranchId);
         if (userBranch) branchToUse = userBranch;
       }
       setActiveBranchState(branchToUse);
+      // Clear any stale localStorage for non-admin users
+      localStorage.removeItem('active_branch_id');
     }
-  }, [branches, profile, canViewAllBranches]);
+  }, [branches, userBranchId, canViewAllBranches]);
+
+  // Invalidate branch guard cache on auth changes
+  useEffect(() => {
+    invalidateBranchCache();
+  }, [user?.id]);
 
   useEffect(() => {
     fetchBranches();
   }, [fetchBranches]);
 
   const setActiveBranch = useCallback((branch: Branch | null) => {
-    // Only admin / executive should be able to switch branches manually
-    if (branch && canViewAllBranches) {
+    // SECURITY: Only admin / executive can switch branches manually
+    // This ONLY affects UI filtering — RLS is the real guard
+    if (!canViewAllBranches) {
+      console.warn('[BranchGuard] Non-admin attempted branch switch — blocked.');
+      return;
+    }
+    if (branch) {
       localStorage.setItem('active_branch_id', branch.id);
       setActiveBranchState(branch);
+      invalidateBranchCache();
       window.dispatchEvent(new Event('branch-changed'));
     }
   }, [canViewAllBranches]);
 
   const contextValue = useMemo(() => ({
     branches,
+    userBranchId,
     activeBranch,
     setActiveBranch,
     isLoading,
     refreshBranches: fetchBranches,
     canViewAllBranches,
-  }), [branches, activeBranch, setActiveBranch, isLoading, fetchBranches, canViewAllBranches]);
+  }), [branches, userBranchId, activeBranch, setActiveBranch, isLoading, fetchBranches, canViewAllBranches]);
 
   return (
     <BranchContext.Provider value={contextValue}>

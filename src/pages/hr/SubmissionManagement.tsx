@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -125,6 +126,7 @@ interface GuestParticipation {
 export default function SubmissionManagement() {
     const { user, primaryRole } = useAuth();
     const { t, language } = useLanguage();
+    const { activeBranch } = useBranch();
     const isRTL = language === 'ar';
     const isHeadHR = primaryRole === 'head_hr';
 
@@ -158,7 +160,7 @@ export default function SubmissionManagement() {
     useEffect(() => {
         fetchVolunteers();
         fetchTrainers();
-    }, []);
+    }, [activeBranch?.id]);
 
     useEffect(() => {
         fetchSubmissions();

@@ -432,6 +432,14 @@ export default function CaravanManagement() {
             return;
         }
 
+        // Validate guest phone if provided
+        if (guestPhone) {
+            if (guestPhone.length !== 11 || !guestPhone.startsWith('01')) {
+                toast.error(isRTL ? 'يجب أن يكون رقم الهاتف مكوناً من 11 رقماً ويبدأ بـ 01' : 'Phone number must be exactly 11 digits and start with 01');
+                return;
+            }
+        }
+
         // Check for duplicate name
         if (participants.some(p => p.name.trim().toLowerCase() === guestName.trim().toLowerCase())) {
             toast.error(isRTL ? 'هذا الاسم مضاف بالفعل' : 'This name is already added');
@@ -1048,6 +1056,7 @@ export default function CaravanManagement() {
                                                     placeholder={isRTL ? '01xxxxxxxxx' : '01xxxxxxxxx'}
                                                     className="h-11 sm:h-12 text-sm"
                                                     dir="ltr"
+                                                    maxLength={11}
                                                 />
                                                 <Button onClick={handleAddGuest} variant="secondary" disabled={!guestName} className="h-11 sm:h-12 w-full text-sm">
                                                     <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />

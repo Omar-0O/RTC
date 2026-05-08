@@ -75,15 +75,12 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </React.StrictMode>
 );
+// ─── Service Worker + Offline Sync ──────────────────────────────────
+import { registerServiceWorker } from '@/lib/serviceWorkerRegistration';
+import { initSyncManager } from '@/lib/syncManager';
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then((registration) => {
-        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-      })
-      .catch((err) => {
-        console.log('ServiceWorker registration failed: ', err);
-      });
-  });
-}
+// Register SW with update detection
+registerServiceWorker();
+
+// Start offline sync engine (flushes queue on connectivity change)
+initSyncManager();

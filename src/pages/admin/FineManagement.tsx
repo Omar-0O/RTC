@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import {
     Table,
@@ -33,6 +34,7 @@ type FineType = {
 
 export default function FineManagement() {
     const { t, isRTL } = useLanguage();
+    const { activeBranch, canViewAllBranches } = useBranch();
     const [fines, setFines] = useState<FineType[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -47,15 +49,20 @@ export default function FineManagement() {
 
     useEffect(() => {
         fetchFines();
-    }, []);
+    }, [activeBranch?.id]);
 
     const fetchFines = async () => {
         try {
             setLoading(true);
-            const { data, error } = await supabase
+            let q = supabase
                 .from('fine_types')
                 .select('*')
                 .order('created_at', { ascending: false });
+            // Branch scope
+            if (canViewAllBranches && activeBranch?.id) {
+                q = q.eq('branch_id', activeBranch.id);
+            }
+            const { data, error } = await q;
 
             if (error) throw error;
             setFines(data || []);
