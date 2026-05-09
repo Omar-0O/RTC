@@ -330,8 +330,8 @@ export default function LogActivity() {
     }
 
     if (isGroupSubmission) {
-      if (selectedVolunteers.length === 0) {
-        toast.error(isRTL ? 'يرجى اختيار مشاركين' : 'Please select participants');
+      if (selectedVolunteers.length === 0 && guests.length === 0) {
+        toast.error(isRTL ? 'يرجى اختيار مشاركين أو إضافة ضيوف' : 'Please select participants or add guests');
         return;
       }
     }
@@ -566,6 +566,10 @@ export default function LogActivity() {
       toast.error(isRTL ? 'يرجى إدخال اسم الضيف' : 'Please enter guest name');
       return;
     }
+    if (!guestPhone.trim()) {
+      toast.error(isRTL ? 'يرجى إدخال رقم هاتف الضيف' : 'Please enter guest phone number');
+      return;
+    }
     setGuests([...guests, { name: guestName, phone: guestPhone }]);
     setGuestName('');
     setGuestPhone('');
@@ -790,7 +794,7 @@ export default function LogActivity() {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium flex items-center gap-2">
                       <Users className="h-4 w-4 text-muted-foreground" />
-                      {isRTL ? 'اختر المتطوعين' : 'Select Volunteers'} <span className="text-destructive">*</span>
+                      {isRTL ? 'اختر المتطوعين' : 'Select Volunteers'}
                     </Label>
                     <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
                       <PopoverTrigger asChild>
@@ -977,7 +981,7 @@ export default function LogActivity() {
                         className="flex-1"
                       />
                       <Input
-                        placeholder={isRTL ? 'رقم الهاتف (اختياري)' : 'Phone (Optional)'}
+                        placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
                         value={guestPhone}
                         onChange={(e) => setGuestPhone(e.target.value)}
                         className="w-1/3"
@@ -1420,26 +1424,26 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
   return (
     <div className="divide-y divide-border/50">
       {submissions.map((sub) => (
-        <div key={sub.id} className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors">
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center border border-accent/20">
+        <div key={sub.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-4 hover:bg-muted/30 transition-colors">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
+            <div className="h-10 w-10 rounded-lg bg-accent/10 flex shrink-0 items-center justify-center border border-accent/20">
               <ClipboardList className="h-5 w-5 text-accent" />
             </div>
-            <div className="space-y-1">
-              <p className="font-semibold text-sm text-foreground">
+            <div className="space-y-1 flex-1 min-w-0">
+              <p className="font-semibold text-sm text-foreground truncate">
                 {isRTL ? sub.activity?.name_ar : sub.activity?.name}
               </p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{new Date(sub.submitted_at).toLocaleDateString()}</span>
-                <span>•</span>
-                <span className="flex items-center gap-1">
-                  <Building2 className="h-3 w-3" />
-                  {isRTL ? sub.committee?.name_ar : sub.committee?.name}
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span className="shrink-0">{new Date(sub.submitted_at).toLocaleDateString()}</span>
+                <span className="shrink-0">•</span>
+                <span className="flex items-center gap-1 truncate max-w-[120px]">
+                  <Building2 className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{isRTL ? sub.committee?.name_ar : sub.committee?.name}</span>
                 </span>
                 {Array.isArray(sub.guest_participants) && sub.guest_participants.length > 0 && (
                   <>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
+                    <span className="shrink-0">•</span>
+                    <span className="flex items-center gap-1 shrink-0">
                       <Users className="h-3 w-3" />
                       {sub.guest_participants.length} {isRTL ? 'ضيوف' : 'Guests'}
                     </span>
@@ -1450,8 +1454,8 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
           </div>
 
           {sub.excel_sheet_url && (
-            <Button variant="outline" size="sm" asChild className="ml-4 hover:bg-primary hover:text-white transition-colors">
-              <a href={sub.excel_sheet_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+            <Button variant="outline" size="sm" asChild className="w-full sm:w-auto shrink-0 hover:bg-primary hover:text-white transition-colors">
+              <a href={sub.excel_sheet_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2">
                 <Upload className="h-4 w-4 rotate-180" />
                 {isRTL ? 'تحميل التقرير' : 'Download Report'}
               </a>
