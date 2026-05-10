@@ -1106,20 +1106,19 @@ export default function FollowUpManagement() {
           }
 
           // ── Handle duplicate phones within the uploaded file ──────────────────
-          // Keep ALL records — do NOT drop duplicates.
-          // For records sharing the same phone_1, auto-set _linkedToRow so that
-          // the 2nd, 3rd, etc. occurrences point to the first via linked_to.
-          const phoneToFirstIdx = new Map<string, number>(); // phone → 0-based index of first occurrence
-          for (let i = 0; i < newRecords.length; i++) {
-            const rec = newRecords[i];
+          // For records sharing the same phone_1:
+          //   - 1st occurrence → approved (goes into the main sheet)
+          //   - 2nd, 3rd, etc. → pending (goes into "برا الشيت" tab for manual review)
+          // This lets the admin see duplicates and decide who the participation goes to.
+          const phoneSeenInFile = new Set<string>();
+          for (const rec of newRecords) {
             const phone = rec.phone_1;
-            if (phoneToFirstIdx.has(phone)) {
-              // Duplicate — link to first occurrence (1-based row index)
-              if (!rec._linkedToRow) {
-                rec._linkedToRow = phoneToFirstIdx.get(phone)! + 1;
-              }
+            if (phoneSeenInFile.has(phone)) {
+              // Duplicate within the file — send to pending for manual review
+              rec.status = 'pending';
             } else {
-              phoneToFirstIdx.set(phone, i);
+              phoneSeenInFile.add(phone);
+              // Keep as approved (first occurrence)
             }
           }
 
@@ -1181,6 +1180,7 @@ export default function FollowUpManagement() {
 
       // 3. Insert records in batches and capture the returned IDs in insertion order
       const insertedIds: number[] = [];
+      const insertedPhones: string[] = []; // track phone per inserted record
       const BATCH = 100;
       for (let i = 0; i < cleanRecords.length; i += BATCH) {
         const batch = cleanRecords.slice(i, i + BATCH);
@@ -1190,34 +1190,61 @@ export default function FollowUpManagement() {
           .select('id');
         if (insertError) throw insertError;
         (inserted as { id: number }[])?.forEach(r => insertedIds.push(r.id));
+        batch.forEach((r: any) => insertedPhones.push(r.phone_1));
       }
 
-      // 4. Build 1-based row index → DB id map and apply linked_to updates
-      const rowToDbId: Record<number, number> = {};
-      insertedIds.forEach((dbId, idx) => { rowToDbId[idx + 1] = dbId; });
+      // 4. Cross-branch duplicate check:
+      //    For every newly-inserted 'approved' record, check if the same phone exists
+      //    as 'approved' in ANOTHER branch. If so, flip this record to 'pending'
+      //    so the admin can see the conflict and manually decide.
+      const approvedNewIds = cleanRecords
+        .map((r: any, idx: number) => r.status === 'approved' ? insertedIds[idx] : null)
+        .filter((id: number | null): id is number => id !== null);
 
-      const linkUpdates = linkedToRows
-        .map((rowRef, idx) =>
-          rowRef && rowToDbId[rowRef] && insertedIds[idx]
-            ? { id: insertedIds[idx], linked_to: rowToDbId[rowRef] }
-            : null
-        )
-        .filter((x): x is { id: number; linked_to: number } => x !== null);
+      const approvedNewPhones = cleanRecords
+        .map((r: any) => r.status === 'approved' ? r.phone_1 : null)
+        .filter(Boolean) as string[];
 
-      if (linkUpdates.length > 0) {
-        await Promise.all(
-          linkUpdates.map(upd =>
-            (supabase as any)
-              .from('users_followup')
-              .update({ linked_to: upd.linked_to })
-              .eq('id', upd.id)
-          )
-        );
+      if (approvedNewPhones.length > 0) {
+        const CHUNK = 100;
+        const crossBranchDuplicateIds = new Set<number>();
+        for (let i = 0; i < approvedNewPhones.length; i += CHUNK) {
+          const chunk = approvedNewPhones.slice(i, i + CHUNK);
+          const { data: crossMatches } = await (supabase as any)
+            .from('users_followup')
+            .select('id, phone_1')
+            .eq('status', 'approved')
+            .neq('branch_id', targetBranchId)
+            .in('phone_1', chunk);
+
+          (crossMatches || []).forEach((m: any) => {
+            // Find the newly inserted record with the same phone and mark it pending
+            cleanRecords.forEach((r: any, idx: number) => {
+              if (r.phone_1 === m.phone_1 && r.status === 'approved' && insertedIds[idx]) {
+                crossBranchDuplicateIds.add(insertedIds[idx]);
+              }
+            });
+          });
+        }
+
+        if (crossBranchDuplicateIds.size > 0) {
+          await Promise.all(
+            [...crossBranchDuplicateIds].map(id =>
+              (supabase as any)
+                .from('users_followup')
+                .update({ status: 'pending' })
+                .eq('id', id)
+            )
+          );
+          console.log(`[Import] Flagged ${crossBranchDuplicateIds.size} cross-branch duplicates as pending.`);
+        }
       }
 
+      const duplicateCount = cleanRecords.filter((r: any) => r.status === 'pending').length;
+      const approvedCount = cleanRecords.length - duplicateCount;
       toast.success(ar(
-        `تم استبدال الشيت بنجاح بـ ${pendingImportRecords.length} سجل${linkUpdates.length > 0 ? ` (${linkUpdates.length} مرتبط)` : ''}.`,
-        `Sheet successfully replaced with ${pendingImportRecords.length} records${linkUpdates.length > 0 ? ` (${linkUpdates.length} linked)` : ''}.`
+        `تم استبدال الشيت بنجاح! ${approvedCount} سجل في الشيت${duplicateCount > 0 ? ` — ${duplicateCount} رقم مكرر ينتظر مراجعتك في تاب "برا الشيت"` : ''}.`,
+        `Sheet replaced! ${approvedCount} approved${duplicateCount > 0 ? ` — ${duplicateCount} duplicates waiting in "Out of Sheet" tab` : ''}.`
       ));
       setPendingImportRecords([]);
       await fetchUsers();
