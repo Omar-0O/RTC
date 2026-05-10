@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -60,6 +61,7 @@ import { Users } from 'lucide-react';
 
 export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
     const { isRTL, language } = useLanguage();
+    const { activeBranch, canViewAllBranches } = useBranch();
     const locale = language === 'ar' ? ar : enUS;
     const [ads, setAds] = useState<CourseAd[]>(propAds || []);
     const [loading, setLoading] = useState(!propAds);
@@ -119,12 +121,12 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
         } else {
             fetchAds();
         }
-    }, [propAds]);
+    }, [propAds, activeBranch?.id]);
 
     const fetchAds = async () => {
         try {
             // Fetch course ads
-            const { data: courseAdsData, error: courseError } = await supabase
+            let courseAdsQuery = supabase
                 .from('course_ads')
                 .select(`
           id,
@@ -133,14 +135,20 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
           ad_date,
           poster_done,
           content_done,
-          course:courses(name, start_date, has_interview, interview_date)
+          course:courses!inner(name, start_date, has_interview, interview_date, branch_id)
         `)
                 .order('ad_date', { ascending: true });
+
+            if (canViewAllBranches && activeBranch?.id) {
+                courseAdsQuery = courseAdsQuery.eq('course.branch_id', activeBranch.id);
+            }
+
+            const { data: courseAdsData, error: courseError } = await courseAdsQuery;
 
             if (courseError) throw courseError;
 
             // Fetch quran circle ads
-            const { data: circleAdsData, error: circleError } = await supabase
+            let circleAdsQuery = supabase
                 .from('quran_circle_ads')
                 .select(`
           id,
@@ -151,10 +159,17 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
           content_done,
           quran_circles!inner(
             teacher_id,
+            branch_id,
             quran_teachers(name)
           )
         `)
                 .order('ad_date', { ascending: true });
+
+            if (canViewAllBranches && activeBranch?.id) {
+                circleAdsQuery = circleAdsQuery.eq('quran_circles.branch_id', activeBranch.id);
+            }
+
+            const { data: circleAdsData, error: circleError } = await circleAdsQuery;
 
             if (circleError) console.error('Error fetching circle ads:', circleError);
 

@@ -236,7 +236,6 @@ export default function EventManagement() {
         let q = (supabase as any)
             .from('profiles')
             .select('id, full_name, phone, avatar_url')
-            .eq('is_active', true)
             .order('full_name');
 
         if (canViewAllBranches && activeBranch?.id) {

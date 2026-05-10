@@ -4,6 +4,7 @@ import { StatsCard } from '@/components/ui/stats-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 
@@ -42,6 +43,7 @@ type CommitteeStat = {
 
 export default function SupervisorDashboard() {
     const { t, isRTL } = useLanguage();
+    const { activeBranch, canViewAllBranches } = useBranch();
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<DashboardStats>({
         totalVolunteers: 0,
@@ -55,7 +57,7 @@ export default function SupervisorDashboard() {
 
     useEffect(() => {
         fetchDashboardData();
-    }, []);
+    }, [activeBranch?.id]);
 
     const fetchDashboardData = async () => {
         setLoading(true);
@@ -67,25 +69,41 @@ export default function SupervisorDashboard() {
                 committeesRes,
                 submissionsRes,
             ] = await Promise.all([
-                supabase.from('profiles').select('id, full_name, full_name_ar, total_points, level, committee_id'),
-                supabase.from('activity_submissions').select('points_awarded'),
-                supabase.from('committees').select('id, name, name_ar'),
-                supabase.from('activity_submissions' as any)
-                    .select(`
-            id,
-            points_awarded,
-            status,
-            submitted_at,
-            participant_type,
-            guest_name,
-            trainer_id,
-            volunteer:profiles!activity_submissions_volunteer_id_fkey(full_name, full_name_ar),
-            activity:activity_types!activity_submissions_activity_type_id_fkey(name, name_ar),
-            committee:committees!activity_submissions_committee_id_fkey(name, name_ar)
-          `)
-                    .neq('participant_type', 'guest')
-                    .order('submitted_at', { ascending: false })
-                    .limit(5),
+                (() => {
+                    let q = supabase.from('profiles').select('id, full_name, full_name_ar, total_points, level, committee_id');
+                    if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+                    return q;
+                })(),
+                (() => {
+                    let q = supabase.from('activity_submissions').select('points_awarded');
+                    if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+                    return q;
+                })(),
+                (() => {
+                    let q = supabase.from('committees').select('id, name, name_ar');
+                    if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+                    return q;
+                })(),
+                (() => {
+                    let q = (supabase.from('activity_submissions')
+                        .select(`
+                            id,
+                            points_awarded,
+                            status,
+                            submitted_at,
+                            participant_type,
+                            guest_name,
+                            trainer_id,
+                            volunteer:profiles!activity_submissions_volunteer_id_fkey(full_name, full_name_ar),
+                            activity:activity_types!activity_submissions_activity_type_id_fkey(name, name_ar),
+                            committee:committees!activity_submissions_committee_id_fkey(name, name_ar)
+                        `) as any)
+                        .neq('participant_type', 'guest')
+                        .order('submitted_at', { ascending: false })
+                        .limit(5);
+                    if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+                    return q;
+                })(),
             ]);
 
             // Calculate stats
@@ -110,7 +128,10 @@ export default function SupervisorDashboard() {
             });
 
             if (topVolunteersData) {
-                setTopVolunteers(topVolunteersData.slice(0, 5).map((v: any) => ({
+                const validProfileIds = new Set(profiles.map(p => p.id));
+                const filteredTopVolunteers = topVolunteersData.filter((v: any) => validProfileIds.has(v.volunteer_id));
+
+                setTopVolunteers(filteredTopVolunteers.slice(0, 5).map((v: any) => ({
                     id: v.volunteer_id,
                     full_name: isRTL ? (v.full_name_ar || v.full_name || '') : v.full_name || '',
                     total_points: v.total_points,

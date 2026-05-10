@@ -465,8 +465,8 @@ export default function FollowUpManagement() {
             if (bMatch) resolvedBranchId = bMatch.id;
           }
 
-          // If still null and user is branch admin, force their branch
-          if (!resolvedBranchId && !canViewAllBranches && activeBranch?.id) {
+          // If still null, fallback to the currently active branch in the UI
+          if (!resolvedBranchId && activeBranch?.id) {
             resolvedBranchId = activeBranch.id;
           }
 
@@ -1042,7 +1042,7 @@ export default function FollowUpManagement() {
             const row = data[i];
             if (!row || row.length === 0 || !row[nameIdx] || !row[phone1Idx]) continue;
             const rawBranch = branchIdx !== -1 && row[branchIdx] ? String(row[branchIdx]).trim() : null;
-            let branchIdToUse = (!canViewAllBranches && activeBranch?.id) ? activeBranch.id : null;
+            let branchIdToUse = activeBranch?.id || null;
             if (rawBranch) {
               const rbLower = rawBranch.toLowerCase();
               const bMatch = branches.find(b =>
@@ -1142,12 +1142,12 @@ export default function FollowUpManagement() {
         return;
       }
 
-      // 1. Soft-delete existing approved users FOR THIS BRANCH ONLY
+      // 1. Soft-delete existing approved users FOR THIS BRANCH AND ANY ORPHANED NULL BRANCHES
       const { error: deleteError } = await (supabase as any)
         .from('users_followup')
         .update({ status: 'rejected' })
         .eq('status', 'approved')
-        .eq('branch_id', targetBranchId);
+        .or(`branch_id.eq.${targetBranchId},branch_id.is.null`);
 
       if (deleteError) throw deleteError;
 

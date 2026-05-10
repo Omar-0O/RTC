@@ -72,7 +72,6 @@ export default function UnderFollowUp() {
         .from('profiles')
         .select('id, full_name, full_name_ar, avatar_url, phone, committee_id')
         .eq('level', 'under_follow_up')
-        .eq('is_active', true)
         .neq('full_name', 'RTC Admin')
         .order('full_name');
 

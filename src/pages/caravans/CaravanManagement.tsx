@@ -386,7 +386,6 @@ export default function CaravanManagement() {
             .from('profiles')
             .select('id, full_name, phone, committee_id, avatar_url')
             .neq('full_name', 'RTC Admin')
-            .eq('is_active', true)
             .order('full_name');
         if (data) setVolunteers(data);
     };

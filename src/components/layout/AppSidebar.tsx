@@ -229,6 +229,7 @@ export function AppSidebar() {
   const hrNavItems = [
     { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
     { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
+    { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
     { title: isRTL ? 'أعياد الميلاد' : 'Birthdays', url: '/birthdays', icon: Cake },
     { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
@@ -251,6 +252,7 @@ export function AppSidebar() {
         return [
           { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
           { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
+          { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
           { title: isRTL ? 'شيت المتابعة' : 'Follow-Up Sheet', url: '/admin/followup', icon: UserCheck },
           { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
@@ -264,6 +266,7 @@ export function AppSidebar() {
       case 'head_caravans':
         return [
           { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
+          { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
           { title: t('nav.caravans'), url: '/caravans', icon: Bus },
           { title: t('nav.events'), url: '/events', icon: Calendar },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
@@ -272,6 +275,7 @@ export function AppSidebar() {
       case 'head_events':
         return [
           { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
+          { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
           { title: t('nav.events'), url: '/events', icon: Calendar },
           { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
@@ -282,6 +286,7 @@ export function AppSidebar() {
       case 'head_fourth_year':
         return [
           { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
+          { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
           { title: t('leader.dashboard'), url: '/leader/committee', icon: Building2 },
           { title: t('leader.members'), url: '/leader/members', icon: Users },
           { title: t('nav.events'), url: '/events', icon: Calendar },
@@ -293,6 +298,7 @@ export function AppSidebar() {
       case 'head_ethics':
         return [
           { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/dashboard', icon: Home },
+          { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
           { title: t('ethics.competition'), url: '/ethics/competition', icon: Award },
           { title: t('ethics.calls'), url: '/ethics/calls', icon: PhoneCall },
           { title: t('nav.events'), url: '/events', icon: Calendar },
@@ -303,6 +309,7 @@ export function AppSidebar() {
         return [
           { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/dashboard', icon: Home },
           { title: isRTL ? 'داشبورد اللجنة' : 'Committee Dashboard', url: '/admin/quran-dashboard', icon: Building2 },
+          { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
 
           { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
           { title: isRTL ? 'إدارة المحفظين' : 'Quran Teachers', url: '/admin/quran-teachers', icon: Users },
@@ -317,6 +324,7 @@ export function AppSidebar() {
       case 'head_ashbal':
         return [
           { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/dashboard', icon: Home },
+          { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
           { title: isRTL ? 'إدارة الأشبال' : 'Ashbal Management', url: '/ashbal/management', icon: Users },
           { title: t('nav.events'), url: '/events', icon: Calendar },
           { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
@@ -325,6 +333,7 @@ export function AppSidebar() {
       case 'head_marketing':
         return [
           { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
+          { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
           { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
           { title: t('nav.events'), url: '/events', icon: Calendar },
           { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/marketing/quran-circles', icon: BookOpen },

@@ -175,7 +175,6 @@ export async function getVolunteers(): Promise<Volunteer[]> {
     .from('profiles')
     .select('id, full_name, full_name_ar, phone, avatar_url')
     .neq('full_name', 'RTC Admin') as any)
-    .eq('is_active', true)
     .order('full_name');
   if (error) throw error;
   return data || [];

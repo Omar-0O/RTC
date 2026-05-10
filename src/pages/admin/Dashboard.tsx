@@ -136,7 +136,10 @@ export default function AdminDashboard() {
       });
 
       if (topVolunteersData) {
-        setTopVolunteers(topVolunteersData.slice(0, 5).map((v: any) => ({
+        const validProfileIds = new Set(profiles.map(p => p.id));
+        const filteredTopVolunteers = topVolunteersData.filter((v: any) => validProfileIds.has(v.volunteer_id));
+
+        setTopVolunteers(filteredTopVolunteers.slice(0, 5).map((v: any) => ({
           id: v.volunteer_id,
           full_name: isRTL ? (v.full_name_ar || v.full_name || '') : v.full_name || '',
           avatar_url: v.avatar_url,

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
@@ -30,6 +31,7 @@ type QuranCircle = {
 
 const CommitteeDashboard = () => {
     const { t, isRTL } = useLanguage();
+    const { activeBranch, canViewAllBranches } = useBranch();
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState<Stats>({
         activeCircles: 0,
@@ -43,7 +45,7 @@ const CommitteeDashboard = () => {
 
     useEffect(() => {
         fetchDashboardData();
-    }, []);
+    }, [activeBranch?.id]);
 
     const fetchDashboardData = async () => {
         setLoading(true);
@@ -55,9 +57,21 @@ const CommitteeDashboard = () => {
                 quranTeachersRes,
                 sessionsRes,
             ] = await Promise.all([
-                supabase.from('quran_circles').select('*'),
-                supabase.from('quran_beneficiaries').select('id', { count: 'exact' }),
-                supabase.from('quran_teachers').select('id', { count: 'exact' }),
+                (() => {
+                    let q = supabase.from('quran_circles').select('*');
+                    if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+                    return q;
+                })(),
+                (() => {
+                    let q = supabase.from('quran_beneficiaries').select('id', { count: 'exact' });
+                    if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+                    return q;
+                })(),
+                (() => {
+                    let q = supabase.from('quran_teachers').select('id', { count: 'exact' });
+                    if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+                    return q;
+                })(),
                 supabase.from('quran_circle_sessions').select('id, circle_id'),
             ]);
 

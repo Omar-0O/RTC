@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -73,6 +74,7 @@ const HEAD_ROLES = ['admin', 'supervisor', 'head_production', 'head_fourth_year'
 export default function CourseSchedule() {
     const { primaryRole } = useAuth();
     const { isRTL, language } = useLanguage();
+    const { activeBranch, canViewAllBranches } = useBranch();
     const [courses, setCourses] = useState<Course[]>([]);
     const [circles, setCircles] = useState<QuranCircle[]>([]);
     const [loading, setLoading] = useState(true);
@@ -88,15 +90,19 @@ export default function CourseSchedule() {
     useEffect(() => {
         fetchCourses();
         fetchCircles();
-    }, []);
+    }, [activeBranch?.id]);
 
     const fetchCourses = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            let q = supabase
                 .from('courses')
                 .select('*')
                 .order('schedule_time', { ascending: true });
+            
+            if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+
+            const { data, error } = await q;
 
             if (error) throw error;
             setCourses(data || []);
@@ -110,10 +116,14 @@ export default function CourseSchedule() {
     const fetchCircles = async () => {
         try {
             // Fetch circles
-            const { data: circlesData, error: circlesError } = await supabase
+            let circlesQuery = supabase
                 .from('quran_circles')
                 .select('id, schedule, is_active, teacher_id')
                 .eq('is_active', true);
+            
+            if (canViewAllBranches && activeBranch?.id) circlesQuery = circlesQuery.eq('branch_id', activeBranch.id);
+
+            const { data: circlesData, error: circlesError } = await circlesQuery;
 
             if (circlesError) throw circlesError;
 
