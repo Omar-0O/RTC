@@ -210,42 +210,57 @@ export default function FollowUpManagement() {
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      // Only fetch approved + pending — rejected records are invisible to the UI
-      const statusFilter = ['approved', 'pending'];
+      let allData: FollowUpUser[] = [];
 
-      // Build base query — branch_admin sees only their branch
-      const baseQuery = () => {
-        let q = (supabase as any).from('users_followup').select('*', { count: 'exact', head: true })
-          .in('status', statusFilter);
-        if (!canViewAllBranches && activeBranch?.id) {
-          q = q.eq('branch_id', activeBranch.id);
-        }
+      // ── Approved records: always scoped to the active branch ──
+      const approvedQuery = () => {
+        let q = (supabase as any)
+          .from('users_followup')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'approved');
+        if (activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
         return q;
       };
 
-      const { count, error: countError } = await baseQuery();
-      if (countError) throw countError;
+      const { count: approvedCount, error: countError1 } = await approvedQuery();
+      if (countError1) throw countError1;
 
-      const total = count ?? 0;
       const pageSize = 1000;
-      let allData: FollowUpUser[] = [];
-
-      const promises = [];
-      for (let from = 0; from < total; from += pageSize) {
-        const to = Math.min(from + pageSize - 1, total - 1);
+      const approvedPromises = [];
+      for (let from = 0; from < (approvedCount ?? 0); from += pageSize) {
+        const to = Math.min(from + pageSize - 1, (approvedCount ?? 0) - 1);
         let q = (supabase as any)
           .from('users_followup')
           .select('*')
-          .in('status', statusFilter)
+          .eq('status', 'approved')
           .order('id', { ascending: true })
           .range(from, to);
-        if (!canViewAllBranches && activeBranch?.id) {
-          q = q.eq('branch_id', activeBranch.id);
-        }
-        promises.push(q);
+        if (activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+        approvedPromises.push(q);
       }
 
-      const results = await Promise.all(promises);
+      // ── Pending records: NO branch filter — they can come from any branch ──
+      // This ensures duplicates from submissions across branches are always visible
+      const { count: pendingCount, error: countError2 } = await (supabase as any)
+        .from('users_followup')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      if (countError2) throw countError2;
+
+      const pendingPromises = [];
+      for (let from = 0; from < (pendingCount ?? 0); from += pageSize) {
+        const to = Math.min(from + pageSize - 1, (pendingCount ?? 0) - 1);
+        pendingPromises.push(
+          (supabase as any)
+            .from('users_followup')
+            .select('*')
+            .eq('status', 'pending')
+            .order('id', { ascending: true })
+            .range(from, to)
+        );
+      }
+
+      const results = await Promise.all([...approvedPromises, ...pendingPromises]);
       for (const res of results) {
         if (res.error) throw res.error;
         if (res.data) allData = allData.concat(res.data as FollowUpUser[]);
@@ -285,8 +300,8 @@ export default function FollowUpManagement() {
           .select('id, guest_name, guest_phone, volunteer_id, trainer_id, branch_id, location')
           .range(subOffset, subOffset + subBatchSize - 1);
 
-        // Branch admin only syncs their own branch submissions
-        if (!canViewAllBranches && activeBranch?.id) {
+        // Filter submissions by branch if selected
+        if (activeBranch?.id) {
           subQuery = subQuery.eq('branch_id', activeBranch.id);
         }
 
@@ -1143,13 +1158,22 @@ export default function FollowUpManagement() {
       }
 
       // 1. Soft-delete existing approved users FOR THIS BRANCH AND ANY ORPHANED NULL BRANCHES
-      const { error: deleteError } = await (supabase as any)
+      console.log(`[Import] Wiping branch_id=${targetBranchId} and null branches...`);
+      
+      const { error: deleteError1 } = await (supabase as any)
         .from('users_followup')
         .update({ status: 'rejected' })
         .eq('status', 'approved')
-        .or(`branch_id.eq.${targetBranchId},branch_id.is.null`);
+        .eq('branch_id', targetBranchId);
 
-      if (deleteError) throw deleteError;
+      const { error: deleteError2 } = await (supabase as any)
+        .from('users_followup')
+        .update({ status: 'rejected' })
+        .eq('status', 'approved')
+        .is('branch_id', null);
+
+      if (deleteError1) throw deleteError1;
+      if (deleteError2) throw deleteError2;
 
       // 2. Extract linked_to row references (temporary field, not sent to DB)
       const linkedToRows: (number | null)[] = pendingImportRecords.map(r => r._linkedToRow ?? null);
