@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -54,8 +54,6 @@ const getGradient = (id: string) => {
 export default function UnderFollowUp() {
   const { isRTL } = useLanguage();
   const navigate = useNavigate();
-  const locationPath = useLocation().pathname;
-  const basePath = locationPath.startsWith('/hr') ? '/hr' : '/supervisor';
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -341,7 +339,7 @@ export default function UnderFollowUp() {
                     <Button
                       size="sm"
                       className="flex-1 h-9 gap-1.5 text-xs font-semibold bg-primary hover:bg-primary/90 shadow-sm group/btn"
-                      onClick={() => navigate(`${basePath}/log-for/${volunteer.id}`)}
+                      onClick={() => navigate(`/supervisor/log-for/${volunteer.id}`)}
                     >
                       <ClipboardList className="h-3.5 w-3.5" />
                       {isRTL ? 'تسجيل مشاركة' : 'Log Participation'}
