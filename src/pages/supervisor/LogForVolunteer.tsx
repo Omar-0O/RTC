@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -65,6 +65,8 @@ interface TargetVolunteer {
 export default function LogForVolunteer() {
   const { volunteerId } = useParams<{ volunteerId: string }>();
   const navigate = useNavigate();
+  const locationPath = useLocation().pathname;
+  const basePath = locationPath.startsWith('/hr') ? '/hr' : '/supervisor';
   const { user } = useAuth();
   const { t, isRTL } = useLanguage();
 
@@ -104,7 +106,7 @@ export default function LogForVolunteer() {
       if (data.committee_id) setCommitteeId(data.committee_id);
     } catch {
       toast.error(isRTL ? 'المتطوع غير موجود' : 'Volunteer not found');
-      navigate('/supervisor/under-follow-up');
+      navigate(`${basePath}/under-follow-up`);
     } finally {
       setLoadingVolunteer(false);
     }
@@ -239,7 +241,7 @@ export default function LogForVolunteer() {
               </Button>
               <Button
                 variant="outline"
-                onClick={() => navigate('/supervisor/under-follow-up')}
+                onClick={() => navigate(`${basePath}/under-follow-up`)}
                 className="flex-1 rounded-full h-12 font-semibold"
               >
                 <span className="flex items-center gap-2">
@@ -280,7 +282,7 @@ export default function LogForVolunteer() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate('/supervisor/under-follow-up')}
+            onClick={() => navigate(`${basePath}/under-follow-up`)}
             className="md:self-start gap-2 bg-background/50 hover:bg-background"
           >
             {isRTL ? <><ArrowRight className="h-4 w-4" /> رجوع للمتابعة</> : <><ArrowLeft className="h-4 w-4" /> Back to Follow-Up</>}
