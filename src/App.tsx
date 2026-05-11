@@ -234,6 +234,7 @@ function AppRoutes() {
 
         {/* HR Routes */}
         <Route path="/hr/submissions" element={<SubmissionManagement />} />
+        <Route path="/hr/under-follow-up" element={<UnderFollowUp />} />
         <Route path="/birthdays" element={<Birthdays />} />
 
         {/* Ethics Routes */}

@@ -229,6 +229,7 @@ export function AppSidebar() {
   const hrNavItems = [
     { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
     { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
+    { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/hr/under-follow-up', icon: UserCheck },
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
     { title: isRTL ? 'أعياد الميلاد' : 'Birthdays', url: '/birthdays', icon: Cake },
     { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
@@ -252,6 +253,7 @@ export function AppSidebar() {
           { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
           { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
           { title: isRTL ? 'شيت المتابعة' : 'Follow-Up Sheet', url: '/admin/followup', icon: UserCheck },
+          { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/hr/under-follow-up', icon: UserCheck },
           { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
           { title: isRTL ? 'أعياد الميلاد' : 'Birthdays', url: '/birthdays', icon: Cake },
