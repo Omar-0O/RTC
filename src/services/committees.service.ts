@@ -12,12 +12,17 @@ export interface Committee {
   name_ar: string;
 }
 
-export async function getCommittees(): Promise<Committee[]> {
+export async function getCommittees(branchId?: string): Promise<Committee[]> {
+  let query = supabase
+    .from('committees')
+    .select('id, name, name_ar');
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
   const data = unwrap(
-    await supabase
-      .from('committees')
-      .select('id, name, name_ar')
-      .order('name')
+    await query.order('name')
   );
   return (data || []) as Committee[];
 }

@@ -39,10 +39,10 @@ export function useUsers(opts: usersService.FetchUsersOptions) {
   });
 }
 
-export function useCommittees() {
+export function useCommittees(branchId?: string) {
   return useQuery({
-    queryKey: queryKeys.committees.list(),
-    queryFn: committeesService.getCommittees,
+    queryKey: queryKeys.committees.list(branchId),
+    queryFn: () => committeesService.getCommittees(branchId),
     staleTime: CACHE.committees.staleTime,
     gcTime: CACHE.committees.gcTime,
     refetchOnWindowFocus: false,  // Static data — never refetch on focus

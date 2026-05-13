@@ -154,10 +154,11 @@ export default function CommitteeManagement() {
   const fetchCommittees = async () => {
     setIsLoading(true);
     try {
-      const { data: committeesData, error } = await supabase
-        .from('committees')
-        .select('*')
-        .order('name');
+      let q = supabase.from('committees').select('*');
+      if (activeBranch?.id) {
+        q = q.eq('branch_id', activeBranch.id);
+      }
+      const { data: committeesData, error } = await q.order('name');
 
       if (error) throw error;
 
@@ -245,6 +246,7 @@ export default function CommitteeManagement() {
         description_ar: formDescriptionAr.trim() || null,
         color: formColor,
         committee_type: formType,
+        branch_id: activeBranch?.id || null,
       });
 
       if (error) throw error;
@@ -325,7 +327,11 @@ export default function CommitteeManagement() {
       const { startDate, endDate, label } = getDateRange(timeFilter);
 
       // Fetch fresh data for export
-      const { data: allCommittees } = await supabase.from('committees').select('*');
+      let exportQuery = supabase.from('committees').select('*');
+      if (activeBranch?.id) {
+        exportQuery = exportQuery.eq('branch_id', activeBranch.id);
+      }
+      const { data: allCommittees } = await exportQuery;
       if (!allCommittees) return;
 
       const reportData = await Promise.all(allCommittees.map(async (committee) => {

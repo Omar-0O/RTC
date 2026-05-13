@@ -241,7 +241,7 @@ export default function CallsManagement() {
         console.log('Submitting RPC payload:', submissions);
 
         // Use RPC to bypass RLS issues cleanly
-        const { error } = await supabase.rpc('award_ethics_call_points', {
+        const { error } = await supabase.rpc('award_ethics_call_points' as any, {
             participants: submissions
         });
 

@@ -18,7 +18,7 @@ export const queryKeys = {
   // ── Committees ────────────────────────────────────────────────────
   committees: {
     all: ['committees'] as const,
-    list: () => ['committees', 'list'] as const,
+    list: (branchId?: string) => ['committees', 'list', branchId] as const,
   },
 
   // ── User Roles ────────────────────────────────────────────────────

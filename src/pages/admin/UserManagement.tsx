@@ -92,7 +92,7 @@ export default function UserManagement() {
   const { primaryRole } = useAuth();
   // ── Pagination state ──
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 50;
+  const pageSize = 300;
 
   // ── React Query: data fetching (replaces useEffect + fetchData) ──
   const { data: usersData, isLoading: isUsersLoading } = useUsers({
@@ -103,10 +103,11 @@ export default function UserManagement() {
     page: currentPage,
     pageSize,
   });
-  const { data: committeesList } = useCommittees();
+  const { data: committeesList } = useCommittees(activeBranch?.id);
 
   const users = usersData?.users ?? [];
   const totalUserCount = usersData?.totalCount ?? 0;
+  const totalPages = Math.ceil(totalUserCount / pageSize);
   const committees = committeesList ?? [];
   const isLoading = isUsersLoading;
 
@@ -602,6 +603,8 @@ export default function UserManagement() {
       case 'hr':
       case 'head_hr':
         return 'bg-purple-100 text-purple-700';
+      case 'branch_admin':
+        return 'bg-orange-100 text-orange-700';
       case 'head_production': // Keep existing style if needed or map to default, but removing case as per plan. 
       // Actually if existing users have it they will be migrated. But to avoid runtime error if data is stale:
       case 'head_caravans':
@@ -627,6 +630,7 @@ export default function UserManagement() {
       case 'committee_leader': return t('common.committeeLeader');
       case 'hr': return t('common.hr');
       case 'head_hr': return t('common.head_hr');
+      case 'branch_admin': return language === 'ar' ? 'أدمن فرع' : 'Branch Admin';
       case 'head_caravans': return t('common.head_caravans');
       case 'head_events': return t('common.head_events');
       case 'head_ethics': return t('common.head_ethics');
@@ -727,6 +731,7 @@ export default function UserManagement() {
               case 'committee_leader': return 'هيد اللجنة';
               case 'hr': return 'HR';
               case 'head_hr': return 'Head HR';
+              case 'branch_admin': return 'أدمن فرع';
               case 'head_caravans': return 'هيد لجنة قوافل';
               case 'head_events': return 'هيد لجنة ايفنتات';
               case 'head_ethics': return 'هيد نشر اخلاقيات';
@@ -874,6 +879,7 @@ export default function UserManagement() {
                         <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
                         <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
                         <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                        <SelectItem value="branch_admin">{language === 'ar' ? 'أدمن فرع' : 'Branch Admin'}</SelectItem>
                         <SelectItem value="hr">{t('common.hr')}</SelectItem>
                         <SelectItem value="head_hr">{t('common.head_hr')}</SelectItem>
                         <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
@@ -1284,6 +1290,7 @@ export default function UserManagement() {
                       <SelectItem value="volunteer">{t('common.volunteer')}</SelectItem>
                       <SelectItem value="committee_leader">{t('common.committeeLeader')}</SelectItem>
                       <SelectItem value="supervisor">{t('common.supervisor')}</SelectItem>
+                      <SelectItem value="branch_admin">{language === 'ar' ? 'أدمن فرع' : 'Branch Admin'}</SelectItem>
                       <SelectItem value="head_caravans">{t('common.head_caravans')}</SelectItem>
                       <SelectItem value="head_events">{t('common.head_events')}</SelectItem>
                       <SelectItem value="head_ethics">{t('common.head_ethics')}</SelectItem>
@@ -1772,6 +1779,38 @@ export default function UserManagement() {
                   </Card>
                 ))}
               </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-6 mt-4 border-t">
+                  <span className="text-sm text-muted-foreground">
+                    {language === 'ar'
+                      ? `عرض ${(currentPage - 1) * pageSize + 1} إلى ${Math.min(currentPage * pageSize, totalUserCount)} من ${totalUserCount}`
+                      : `Showing ${(currentPage - 1) * pageSize + 1} to ${Math.min(currentPage * pageSize, totalUserCount)} of ${totalUserCount}`}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      {t('common.previous')}
+                    </Button>
+                    <span className="text-sm font-medium px-2">
+                      {currentPage} / {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      {t('common.next')}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </CardContent>

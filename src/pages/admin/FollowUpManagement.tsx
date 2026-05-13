@@ -995,6 +995,14 @@ export default function FollowUpManagement() {
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     ws['!rtl'] = isRTL;
+    ws['!cols'] = [
+      { wch: 5 },  // م
+      { wch: 30 }, // الاسم
+      { wch: 15 }, // الهاتف الأول
+      { wch: 15 }, // الهاتف الثاني
+      { wch: 15 }, // الفرع
+      { wch: 15 }, // مرتبط بـ
+    ];
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, ar('شيت المتابعة', 'Follow-up'));
@@ -1003,24 +1011,27 @@ export default function FollowUpManagement() {
     toast.success(ar('تم التصدير بنجاح', 'Exported successfully'));
   };
 
-  const downloadCSVTemplate = () => {
+  const downloadExcelTemplate = () => {
     const headers = ['id', 'full_name', 'phone_1', 'phone_2', 'branch_id', 'linked_to'];
     const example1 = ['', 'أحمد محمد', '01012345678', '01123456789', 'ma', ''];
     const example2 = ['', 'محمود خليل', '01234567890', '', 'hq', ''];
     const example3 = ['', 'أحمد م. القديم', '01099999999', '', 'ma', '1'];
 
-    // Create CSV string with UTF-8 BOM so Excel opens Arabic correctly
-    const csvContent = '\uFEFF' + [headers, example1, example2, example3].map(row => row.join(',')).join('\n');
+    const ws = XLSX.utils.aoa_to_sheet([headers, example1, example2, example3]);
+    ws['!rtl'] = false; // System parser expects standard English columns for id mapping
+    ws['!cols'] = [
+      { wch: 10 }, // id
+      { wch: 30 }, // full_name
+      { wch: 15 }, // phone_1
+      { wch: 15 }, // phone_2
+      { wch: 15 }, // branch_id
+      { wch: 15 }, // linked_to
+    ];
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'import_template.csv');
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+
+    XLSX.writeFile(wb, 'import_template.xlsx');
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1825,9 +1836,9 @@ export default function FollowUpManagement() {
             <Button variant="outline" onClick={() => setIsTemplateDialogOpen(false)}>
               {ar('إغلاق', 'Close')}
             </Button>
-            <Button onClick={downloadCSVTemplate} className="gap-2">
+            <Button onClick={downloadExcelTemplate} className="gap-2">
               <Download className="h-4 w-4" />
-              {ar('تحميل شيت فارغ (CSV)', 'Download Empty CSV')}
+              {ar('تحميل شيت فارغ (Excel)', 'Download Empty Excel')}
             </Button>
           </DialogFooter>
         </DialogContent>
