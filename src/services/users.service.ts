@@ -120,7 +120,11 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
     .range(from, to);
 
   if (branchId) {
-    profilesQuery = profilesQuery.eq('branch_id', branchId) as typeof profilesQuery;
+    if (canViewAllBranches) {
+      profilesQuery = profilesQuery.or(`branch_id.eq.${branchId},branch_id.is.null`) as typeof profilesQuery;
+    } else {
+      profilesQuery = profilesQuery.eq('branch_id', branchId) as typeof profilesQuery;
+    }
   }
 
   // 2. Lightweight lookup tables in parallel

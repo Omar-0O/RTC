@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import {
-  Search, Plus, Pencil, Trash2, Loader2, Download, Upload, RefreshCw, Check, History, Link2
+  Search, Plus, Pencil, Trash2, Loader2, Download, Upload, RefreshCw, Check, History, Link2, AlertTriangle
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,13 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
@@ -43,6 +50,13 @@ interface FollowUpUser {
   status: string;
   linked_to: number | null;
 }
+
+interface ConflictRecord {
+  excelRow: any;
+  possibleMatches: any[];
+  selectedMatchId?: number | 'skip' | 'new';
+}
+
 
 // ---------------------------------------------------------------------------
 // Phone normalization — delegate entirely to the centralized utility.
@@ -99,6 +113,10 @@ export default function FollowUpManagement() {
   const [participationsUser, setParticipationsUser] = useState<FollowUpUser | null>(null);
   const [participationsList, setParticipationsList] = useState<any[]>([]);
   const [isLoadingParticipations, setIsLoadingParticipations] = useState(false);
+
+  // Conflict Resolution
+  const [isConflictModalOpen, setIsConflictModalOpen] = useState(false);
+  const [conflictRecords, setConflictRecords] = useState<ConflictRecord[]>([]);
 
   const openParticipations = async (user: FollowUpUser) => {
     setParticipationsUser(user);
@@ -218,7 +236,13 @@ export default function FollowUpManagement() {
           .from('users_followup')
           .select('*', { count: 'exact', head: true })
           .eq('status', 'approved');
-        if (activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+        if (activeBranch?.id) {
+          if (canViewAllBranches) {
+            q = q.or(`branch_id.eq.${activeBranch.id},branch_id.is.null`);
+          } else {
+            q = q.eq('branch_id', activeBranch.id);
+          }
+        }
         return q;
       };
 
@@ -235,7 +259,13 @@ export default function FollowUpManagement() {
           .eq('status', 'approved')
           .order('id', { ascending: true })
           .range(from, to);
-        if (activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+        if (activeBranch?.id) {
+          if (canViewAllBranches) {
+            q = q.or(`branch_id.eq.${activeBranch.id},branch_id.is.null`);
+          } else {
+            q = q.eq('branch_id', activeBranch.id);
+          }
+        }
         approvedPromises.push(q);
       }
 
@@ -716,9 +746,15 @@ export default function FollowUpManagement() {
     }
 
     // Guard: no OTHER record in the SAME BRANCH should have the same phone_1 or phone_2
-    // (same phone is allowed in different branches)
+    // Only check if the phone or branch actually changed to prevent blocking edits on existing duplicates.
     const targetBranch = formBranch || selected.branch_id;
-    if (normPhone1 && targetBranch) {
+    
+    // Use strict string comparison of raw inputs to reliably detect if the user actually modified these fields
+    const isPhoneChanged = formPhone1.trim() !== (selected.phone_1 || '').trim() || 
+                           formPhone2.trim() !== (selected.phone_2 || '').trim();
+    const isBranchChanged = (formBranch || '') !== (selected.branch_id || '');
+
+    if ((isPhoneChanged || isBranchChanged) && normPhone1 && targetBranch) {
       const { data: existing } = await (supabase as any)
         .from('users_followup')
         .select('id, full_name, phone_1, phone_2')
@@ -1106,19 +1142,55 @@ export default function FollowUpManagement() {
           }
 
           // ── Handle duplicate phones within the uploaded file ──────────────────
-          // For records sharing the same phone_1:
-          //   - 1st occurrence → approved (goes into the main sheet)
-          //   - 2nd, 3rd, etc. → pending (goes into "برا الشيت" tab for manual review)
-          // This lets the admin see duplicates and decide who the participation goes to.
           const phoneSeenInFile = new Set<string>();
           for (const rec of newRecords) {
             const phone = rec.phone_1;
             if (phoneSeenInFile.has(phone)) {
-              // Duplicate within the file — send to pending for manual review
               rec.status = 'pending';
             } else {
               phoneSeenInFile.add(phone);
-              // Keep as approved (first occurrence)
+            }
+          }
+
+          // === Conflict Detection Logic ===
+          const uniquePhones = Array.from(new Set(newRecords.map(r => r.phone_1).filter(Boolean)));
+          
+          if (uniquePhones.length > 0) {
+            let query = (supabase as any)
+              .from('users_followup')
+              .select('id, full_name, phone_1, status, branch_id')
+              .in('phone_1', uniquePhones);
+
+            if (activeBranch?.id) {
+              query = query.eq('branch_id', activeBranch.id);
+            }
+
+            const { data: existingUsersRaw, error: fetchError } = await query;
+            const existingUsers = existingUsersRaw?.filter((u: any) => u.status !== 'rejected') || [];
+
+            if (!fetchError && existingUsers && existingUsers.length > 0) {
+              const conflicts: ConflictRecord[] = [];
+              const cleanRecords: any[] = [];
+
+              newRecords.forEach(rec => {
+                const matches = existingUsers.filter((eu: any) => eu.phone_1 === rec.phone_1);
+                if (matches.length > 0) {
+                  conflicts.push({
+                    excelRow: rec,
+                    possibleMatches: matches,
+                    selectedMatchId: matches[0].id // default select first match
+                  });
+                } else {
+                  cleanRecords.push(rec);
+                }
+              });
+
+              if (conflicts.length > 0) {
+                setConflictRecords(conflicts);
+                setPendingImportRecords(cleanRecords);
+                setIsConflictModalOpen(true);
+                return; // Stop here, wait for manual resolution
+              }
             }
           }
 
@@ -1174,11 +1246,29 @@ export default function FollowUpManagement() {
       if (deleteError1) throw deleteError1;
       if (deleteError2) throw deleteError2;
 
-      // 2. Extract linked_to row references (temporary field, not sent to DB)
+      // 2. Extract linked_to row references and mapped records
       const linkedToRows: (number | null)[] = pendingImportRecords.map(r => r._linkedToRow ?? null);
-      const cleanRecords = pendingImportRecords.map(({ _linkedToRow, ...rest }) => rest);
+      
+      const recordsToUpdate = pendingImportRecords.filter(r => r._mappedToExistingId);
+      const cleanRecords = pendingImportRecords
+        .filter(r => !r._mappedToExistingId)
+        .map(({ _linkedToRow, _mappedToExistingId, ...rest }) => rest);
 
-      // 3. Insert records in batches and capture the returned IDs in insertion order
+      // 3. Update mapped existing records
+      if (recordsToUpdate.length > 0) {
+        await Promise.all(recordsToUpdate.map(r => 
+          (supabase as any)
+            .from('users_followup')
+            .update({ 
+               status: 'approved', 
+               branch_id: targetBranchId 
+               // Intentionally not overwriting full_name/phone from the excel to preserve existing DB profile integrity
+            })
+            .eq('id', r._mappedToExistingId)
+        ));
+      }
+
+      // 4. Insert records in batches and capture the returned IDs in insertion order
       const insertedIds: number[] = [];
       const insertedPhones: string[] = []; // track phone per inserted record
       const BATCH = 100;
@@ -1193,58 +1283,14 @@ export default function FollowUpManagement() {
         batch.forEach((r: any) => insertedPhones.push(r.phone_1));
       }
 
-      // 4. Cross-branch duplicate check:
-      //    For every newly-inserted 'approved' record, check if the same phone exists
-      //    as 'approved' in ANOTHER branch. If so, flip this record to 'pending'
-      //    so the admin can see the conflict and manually decide.
-      const approvedNewIds = cleanRecords
-        .map((r: any, idx: number) => r.status === 'approved' ? insertedIds[idx] : null)
-        .filter((id: number | null): id is number => id !== null);
 
-      const approvedNewPhones = cleanRecords
-        .map((r: any) => r.status === 'approved' ? r.phone_1 : null)
-        .filter(Boolean) as string[];
-
-      if (approvedNewPhones.length > 0) {
-        const CHUNK = 100;
-        const crossBranchDuplicateIds = new Set<number>();
-        for (let i = 0; i < approvedNewPhones.length; i += CHUNK) {
-          const chunk = approvedNewPhones.slice(i, i + CHUNK);
-          const { data: crossMatches } = await (supabase as any)
-            .from('users_followup')
-            .select('id, phone_1')
-            .eq('status', 'approved')
-            .neq('branch_id', targetBranchId)
-            .in('phone_1', chunk);
-
-          (crossMatches || []).forEach((m: any) => {
-            // Find the newly inserted record with the same phone and mark it pending
-            cleanRecords.forEach((r: any, idx: number) => {
-              if (r.phone_1 === m.phone_1 && r.status === 'approved' && insertedIds[idx]) {
-                crossBranchDuplicateIds.add(insertedIds[idx]);
-              }
-            });
-          });
-        }
-
-        if (crossBranchDuplicateIds.size > 0) {
-          await Promise.all(
-            [...crossBranchDuplicateIds].map(id =>
-              (supabase as any)
-                .from('users_followup')
-                .update({ status: 'pending' })
-                .eq('id', id)
-            )
-          );
-          console.log(`[Import] Flagged ${crossBranchDuplicateIds.size} cross-branch duplicates as pending.`);
-        }
-      }
 
       const duplicateCount = cleanRecords.filter((r: any) => r.status === 'pending').length;
       const approvedCount = cleanRecords.length - duplicateCount;
+      const updatedCount = recordsToUpdate.length;
       toast.success(ar(
-        `تم استبدال الشيت بنجاح! ${approvedCount} سجل في الشيت${duplicateCount > 0 ? ` — ${duplicateCount} رقم مكرر ينتظر مراجعتك في تاب "برا الشيت"` : ''}.`,
-        `Sheet replaced! ${approvedCount} approved${duplicateCount > 0 ? ` — ${duplicateCount} duplicates waiting in "Out of Sheet" tab` : ''}.`
+        `تم العملية بنجاح! تم إدراج ${approvedCount} سجل جديد وتم ربط/تحديث ${updatedCount} سجل موجود${duplicateCount > 0 ? ` — ${duplicateCount} رقم مكرر ينتظر مراجعتك في تاب "برا الشيت"` : ''}.`,
+        `Operation successful! ${approvedCount} new records inserted and ${updatedCount} existing mapped${duplicateCount > 0 ? ` — ${duplicateCount} duplicates waiting in "Out of Sheet" tab` : ''}.`
       ));
       setPendingImportRecords([]);
       await fetchUsers();
@@ -1256,54 +1302,23 @@ export default function FollowUpManagement() {
     }
   };
 
-  const UserFormFields = () => (
-    <div className="grid gap-4 py-4">
-      <div className="grid gap-2">
-        <Label>{ar('الاسم الكامل', 'Full Name')} *</Label>
-        <Input
-          value={formName}
-          onChange={e => setFormName(e.target.value)}
-          placeholder={ar('محمد أحمد', 'Mohamed Ahmed')}
-          required
-          dir="auto"
-        />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="grid gap-2">
-          <Label>{ar('الهاتف الأول', 'Phone 1')} *</Label>
-          <Input
-            value={formPhone1}
-            onChange={e => setFormPhone1(e.target.value)}
-            placeholder="01XXXXXXXXX"
-            type="tel"
-            required
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label>{ar('الهاتف الثاني', 'Phone 2')} ({ar('اختياري', 'Optional')})</Label>
-          <Input
-            value={formPhone2}
-            onChange={e => setFormPhone2(e.target.value)}
-            placeholder="01XXXXXXXXX"
-            type="tel"
-          />
-        </div>
-      </div>
-      <div className="grid gap-2">
-        <Label>{ar('الفرع', 'Branch')}</Label>
-        <select
-          value={formBranch}
-          onChange={e => setFormBranch(e.target.value)}
-          className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          <option value="">{ar('-- بدون فرع --', '-- No Branch --')}</option>
-          {branches.map(b => (
-            <option key={b.id} value={b.id}>{language === 'ar' ? b.name_ar : b.name}</option>
-          ))}
-        </select>
-      </div>
-    </div>
-  );
+
+  const handleConflictResolutionSubmit = () => {
+    const resolvedRecords = conflictRecords.map(cr => {
+      if (cr.selectedMatchId === 'skip') {
+        return null;
+      }
+      if (cr.selectedMatchId === 'new') {
+        return { ...cr.excelRow, status: 'pending' }; // Insert as new duplicate, but send to pending
+      }
+      // Mapped to existing
+      return { ...cr.excelRow, _mappedToExistingId: cr.selectedMatchId };
+    }).filter(Boolean) as any[];
+
+    setPendingImportRecords(prev => [...prev, ...resolvedRecords]);
+    setIsConflictModalOpen(false);
+    setIsImportConfirmOpen(true);
+  };
 
   return (
     <div className="space-y-6 p-4 md:p-6 max-w-5xl mx-auto w-full">
@@ -1550,7 +1565,52 @@ export default function FollowUpManagement() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAdd}>
-            <UserFormFields />
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>{ar('الاسم الكامل', 'Full Name')} *</Label>
+                <Input
+                  value={formName}
+                  onChange={e => setFormName(e.target.value)}
+                  placeholder={ar('محمد أحمد', 'Mohamed Ahmed')}
+                  required
+                  dir="auto"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>{ar('الهاتف الأول', 'Phone 1')} *</Label>
+                  <Input
+                    value={formPhone1}
+                    onChange={e => setFormPhone1(e.target.value)}
+                    placeholder="01XXXXXXXXX"
+                    type="tel"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>{ar('الهاتف الثاني', 'Phone 2')} ({ar('اختياري', 'Optional')})</Label>
+                  <Input
+                    value={formPhone2}
+                    onChange={e => setFormPhone2(e.target.value)}
+                    placeholder="01XXXXXXXXX"
+                    type="tel"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>{ar('الفرع', 'Branch')}</Label>
+                <select
+                  value={formBranch}
+                  onChange={e => setFormBranch(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">{ar('-- بدون فرع --', '-- No Branch --')}</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.id}>{language === 'ar' ? b.name_ar : b.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => setIsAddOpen(false)}>
                 {ar('إلغاء', 'Cancel')}
@@ -1573,7 +1633,52 @@ export default function FollowUpManagement() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEdit}>
-            <UserFormFields />
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label>{ar('الاسم الكامل', 'Full Name')} *</Label>
+                <Input
+                  value={formName}
+                  onChange={e => setFormName(e.target.value)}
+                  placeholder={ar('محمد أحمد', 'Mohamed Ahmed')}
+                  required
+                  dir="auto"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label>{ar('الهاتف الأول', 'Phone 1')} *</Label>
+                  <Input
+                    value={formPhone1}
+                    onChange={e => setFormPhone1(e.target.value)}
+                    placeholder="01XXXXXXXXX"
+                    type="tel"
+                    required
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>{ar('الهاتف الثاني', 'Phone 2')} ({ar('اختياري', 'Optional')})</Label>
+                  <Input
+                    value={formPhone2}
+                    onChange={e => setFormPhone2(e.target.value)}
+                    placeholder="01XXXXXXXXX"
+                    type="tel"
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label>{ar('الفرع', 'Branch')}</Label>
+                <select
+                  value={formBranch}
+                  onChange={e => setFormBranch(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">{ar('-- بدون فرع --', '-- No Branch --')}</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.id}>{language === 'ar' ? b.name_ar : b.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
                 {ar('إلغاء', 'Cancel')}
@@ -1865,6 +1970,86 @@ export default function FollowUpManagement() {
               {isSubmitting && <Loader2 className="h-4 w-4 animate-spin ltr:mr-2 rtl:ml-2" />}
               <Link2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
               {ar('ربط ونقل المشاركات', 'Link & Transfer')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Conflict Resolution Modal */}
+      <Dialog open={isConflictModalOpen} onOpenChange={setIsConflictModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader className="text-start sm:text-start rtl:text-right ltr:text-left">
+            <DialogTitle className="text-amber-600 flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5" />
+              {ar('حل التعارضات (أرقام مكررة)', 'Resolve Conflicts (Duplicate Phones)')}
+            </DialogTitle>
+            <DialogDescription>
+              {ar(
+                'تم العثور على أرقام هواتف في الشيت موجودة بالفعل في قاعدة البيانات. اختر الإجراء المناسب لكل سجل.',
+                'Some phone numbers in the sheet already exist in the database. Choose the appropriate action for each record.'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto py-4 space-y-6">
+            {conflictRecords.map((conflict, idx) => (
+              <div key={idx} className="border rounded-md p-4 bg-muted/20">
+                <div className="flex items-start justify-between flex-wrap gap-4">
+                  <div>
+                    <Badge variant="outline" className="mb-2">
+                      {ar('من الشيت', 'From Sheet')}
+                    </Badge>
+                    <p className="font-semibold text-base">{conflict.excelRow.full_name}</p>
+                    <p className="text-sm font-mono text-muted-foreground">{conflict.excelRow.phone_1}</p>
+                  </div>
+                  
+                  <div className="w-full sm:w-1/2">
+                    <Label className="text-xs mb-1.5 inline-block text-muted-foreground">
+                      {ar('الإجراء', 'Action')}
+                    </Label>
+                    <Select
+                      value={conflict.selectedMatchId?.toString()}
+                      onValueChange={(val) => {
+                        const newConflicts = [...conflictRecords];
+                        let parsedVal: number | 'skip' | 'new' = 'skip';
+                        if (val === 'new') parsedVal = 'new';
+                        else if (val !== 'skip') parsedVal = parseInt(val, 10);
+                        
+                        newConflicts[idx].selectedMatchId = parsedVal;
+                        setConflictRecords(newConflicts);
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="skip" className="text-red-500 font-medium">
+                          {ar('تخطي (لا تقم بالإضافة)', 'Skip (Do not import)')}
+                        </SelectItem>
+                        <SelectItem value="new" className="text-blue-500 font-medium">
+                          {ar('إضافة كملف جديد منفصل (مكرر)', 'Add as new separate profile')}
+                        </SelectItem>
+                        {conflict.possibleMatches.map((match: any) => (
+                          <SelectItem key={match.id} value={match.id.toString()}>
+                            {ar('ربط مع:', 'Link to:')} {match.full_name} ({match.status})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter className="border-t pt-4">
+            <Button variant="outline" onClick={() => {
+              setIsConflictModalOpen(false);
+              setPendingImportRecords([]);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }}>
+              {ar('إلغاء الاستيراد', 'Cancel Import')}
+            </Button>
+            <Button onClick={handleConflictResolutionSubmit}>
+              {ar('متابعة للاستبدال', 'Continue to Replace')}
             </Button>
           </DialogFooter>
         </DialogContent>
