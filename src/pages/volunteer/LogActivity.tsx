@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import { ImagePreview } from '@/components/ui/image-preview';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -1307,13 +1308,13 @@ export default function LogActivity() {
                   >
                     <div className="flex items-center gap-4 flex-1 min-w-0">
                       {submission.proof_url ? (
-                        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border/50">
+                        <ImagePreview src={submission.proof_url} alt="Proof" className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border/50">
                           <img
                             src={submission.proof_url}
                             alt="Proof"
                             className="h-full w-full object-cover transition-transform group-hover:scale-110"
                           />
-                        </div>
+                        </ImagePreview>
                       ) : (
                         <div className="h-12 w-12 shrink-0 rounded-lg bg-primary/5 flex items-center justify-center border border-primary/10">
                           <Activity className="h-6 w-6 text-primary/40" />

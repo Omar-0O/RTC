@@ -187,6 +187,14 @@
     text-wrap: balance;
   }
 
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* RTL utility classes */
   [dir="rtl"] .space-x-2> :not([hidden])~ :not([hidden]) {
     --tw-space-x-reverse: 1;

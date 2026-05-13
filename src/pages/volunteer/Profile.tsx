@@ -3,13 +3,14 @@ import { useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import { ImagePreview } from '@/components/ui/image-preview';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
-import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X, MessageSquare, Plus, AlertCircle, Pencil, Trash2, Star, Trophy, Medal, Crown, Heart, Zap, Target } from 'lucide-react';
+import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X, MessageSquare, Plus, AlertCircle, Pencil, Trash2, Star, Trophy, Medal, Crown, Heart, Zap, Target, Copy } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -178,6 +179,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [copiedEmail, setCopiedEmail] = useState(false);
   const [badges, setBadges] = useState<UserBadge[]>([]);
   const [activities, setActivities] = useState<ActivitySubmission[]>([]);
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
@@ -289,7 +291,6 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
   const fetchData = async () => {
     if (!targetUserId) return;
-    setLoading(true);
     setLoading(true);
     try {
       // If viewing another user, fetch their profile first
@@ -508,6 +509,15 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     }
   };
 
+  const handleCopyEmail = () => {
+    if (displayProfile?.email) {
+      navigator.clipboard.writeText(displayProfile.email);
+      setCopiedEmail(true);
+      toast.success(isRTL ? 'تم نسخ البريد الإلكتروني' : 'Email copied to clipboard');
+      setTimeout(() => setCopiedEmail(false), 2000);
+    }
+  };
+
 
   const getStatusText = (status: string) => {
     switch (status) {
@@ -715,15 +725,15 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const coverImage = displayCover || getDefaultCover(targetUserId || 'default');
 
   return (
-    <div className="space-y-6 animate-slide-up">
+    <div className="space-y-4 sm:space-y-6 animate-slide-up overflow-x-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Profile Header */}
-      <Card className="overflow-hidden border-none shadow-md">
-        <div className="h-48 relative group/cover">
+      <Card className="overflow-hidden border-none shadow-md rounded-none sm:rounded-xl">
+        <div className="h-44 sm:h-64 relative group/cover">
           {/* Cover Image */}
           <img
             src={coverImage}
             alt="Cover"
-            className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+            className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
 
@@ -732,20 +742,20 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
             <Button
               size="sm"
               variant="secondary"
-              className="absolute top-4 right-4 opacity-0 group-hover/cover:opacity-100 transition-opacity backdrop-blur-sm bg-secondary/80"
+              className="absolute top-4 ltr:left-4 rtl:right-4 opacity-0 group-hover/cover:opacity-100 transition-opacity bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/10 shadow-lg"
               onClick={handleRandomCover}
             >
-              <Camera className="h-4 w-4 mr-2" />
+              <Camera className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
               {isRTL ? 'تغيير الغلاف' : 'Randomize Cover'}
             </Button>
           )}
         </div>
-        <CardContent className="relative pt-0 px-6 pb-6">
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-6">
-            <div className="relative group shrink-0 -mt-20">
-              <Avatar className="h-32 w-32 border-4 border-background shadow-xl">
+        <CardContent className="relative pt-0 px-4 sm:px-6 pb-6">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 mb-6">
+            <div className="relative group shrink-0 -mt-16 sm:-mt-20">
+              <Avatar className="h-24 w-24 sm:h-32 sm:w-32 border-4 border-background shadow-xl">
                 <AvatarImage src={avatarPreview || displayAvatar || undefined} alt={displayProfile?.full_name || ''} className="object-cover" />
-                <AvatarFallback className="bg-primary/20 text-primary text-4xl font-bold">
+                <AvatarFallback className="bg-primary/20 text-primary text-3xl sm:text-4xl font-bold">
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
@@ -760,7 +770,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                     className="hidden"
                   />
                   {avatarPreview ? (
-                    <div className="absolute -bottom-2 -right-2 flex gap-1 z-10">
+                    <div className="absolute -bottom-2 ltr:-right-2 rtl:-left-2 flex gap-1 z-10">
                       <Button
                         size="icon"
                         className="h-8 w-8 rounded-full shadow-lg bg-green-500 hover:bg-green-600 text-white"
@@ -783,7 +793,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                     <Button
                       size="icon"
                       variant="secondary"
-                      className="absolute bottom-1 right-1 h-9 w-9 rounded-full shadow-lg transition-all duration-200 hover:scale-110"
+                      className="absolute bottom-1 ltr:right-1 rtl:left-1 h-9 w-9 rounded-full shadow-lg transition-all duration-200 hover:scale-110"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploading}
                       title={isRTL ? "تغيير الصورة" : "Change Picture"}
@@ -799,12 +809,12 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
               )}
             </div>
 
-            <div className="flex-1 text-center md:text-start space-y-2 mb-2 pt-4">
-              <div className="flex flex-col md:flex-row items-center md:items-end gap-3 justify-center md:justify-start">
-                <h1 className="text-3xl font-bold tracking-tight">
+            <div className="flex-1 text-center sm:text-start space-y-2 mb-2 pt-2 sm:pt-4 min-w-0">
+              <div className="flex flex-col sm:flex-row items-center sm:items-end gap-2 sm:gap-3 justify-center sm:justify-start">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
                   {isRTL ? (displayProfile?.full_name_ar || displayProfile?.full_name) : displayProfile?.full_name}
                 </h1>
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 sm:mb-1">
                   <LevelBadge level={userLevel || 'under_follow_up'} />
                   {isAshbal && (
                     <span className="inline-flex items-center rounded-full border border-blue-200 px-2.5 py-0.5 text-xs font-semibold bg-blue-50 text-blue-700">
@@ -814,28 +824,39 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 </div>
               </div>
 
-              <div className="flex flex-wrap justify-center md:justify-start gap-x-6 gap-y-2 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1.5 transition-colors hover:text-foreground">
-                  <Mail className="h-4 w-4" />
-                  {displayProfile?.email}
+              <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 sm:gap-x-6 gap-y-2 text-xs sm:text-sm text-muted-foreground">
+                <span className="flex items-center gap-1.5 transition-colors hover:text-foreground truncate max-w-full group/email">
+                  <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+                  <span className="truncate">{displayProfile?.email}</span>
+                  <button
+                    onClick={handleCopyEmail}
+                    className="p-1 rounded-md hover:bg-muted transition-colors opacity-0 group-hover/email:opacity-100 focus:opacity-100"
+                    title={isRTL ? 'نسخ' : 'Copy'}
+                  >
+                    {copiedEmail ? (
+                      <Check className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                  </button>
                 </span>
                 <span className="flex items-center gap-1.5 transition-colors hover:text-foreground">
-                  <Calendar className="h-4 w-4" />
+                  <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
                   {isRTL ? 'ضمن العائلة من' : 'Family Member Since'} {formatDate(displayProfile?.join_date || new Date().toISOString())} 🤍😇
                 </span>
               </div>
             </div>
 
-            <div className="flex gap-4 items-center shrink-0 w-full md:w-auto justify-center md:justify-end mt-4 md:mt-0 pt-4">
-              <div className="flex flex-col items-center bg-muted/30 p-3 rounded-xl min-w-[100px] border">
-                <span className="text-2xl font-bold text-primary">{points}</span>
-                <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+            <div className="flex gap-3 sm:gap-4 items-center shrink-0 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0 pt-2 sm:pt-4">
+              <div className="flex flex-col items-center bg-muted/30 p-2.5 sm:p-3 rounded-xl min-w-[90px] sm:min-w-[100px] border">
+                <span className="text-xl sm:text-2xl font-bold text-primary">{points}</span>
+                <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider font-medium text-center leading-tight">
                   {!isViewOnly ? (isRTL ? 'أثر هذا الشهر' : 'Monthly Impact') : (isRTL ? 'إجمالي الأثر' : 'Total Impact')}
                 </span>
               </div>
-              <div className="flex flex-col items-center bg-muted/30 p-3 rounded-xl min-w-[100px] border">
-                <span className="text-2xl font-bold text-primary">{currentMonthActivities.length}</span>
-                <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+              <div className="flex flex-col items-center bg-muted/30 p-2.5 sm:p-3 rounded-xl min-w-[90px] sm:min-w-[100px] border">
+                <span className="text-xl sm:text-2xl font-bold text-primary">{currentMonthActivities.length}</span>
+                <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider font-medium text-center leading-tight">
                   {isRTL ? 'مشاركات هذا الشهر' : 'Monthly Participations'}
                 </span>
               </div>
@@ -856,7 +877,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
               : (showMiniCamp ? 'Mini Camp' : 'Camp');
 
             return (
-              <div className="flex items-center gap-4 pt-4 border-t mt-2">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-4 pt-4 border-t mt-2">
                 <div className="text-sm font-medium text-muted-foreground">{isRTL ? 'حالة الحضور:' : 'Attendance Status:'}</div>
                 {attended ? (
                   <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800">
@@ -877,24 +898,24 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
 
 
-      <Tabs defaultValue="activities" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="activities">{t('profile.activityHistory')}</TabsTrigger>
-          <TabsTrigger value="badges">
+      <Tabs defaultValue="activities" className="space-y-4 px-3 sm:px-0" dir={isRTL ? 'rtl' : 'ltr'}>
+        <TabsList className="w-full flex overflow-x-auto no-scrollbar rounded-xl">
+          <TabsTrigger value="activities" className="flex-1 min-w-fit text-xs sm:text-sm">{t('profile.activityHistory')}</TabsTrigger>
+          <TabsTrigger value="badges" className="flex-1 min-w-fit text-xs sm:text-sm">
             {t('profile.badges')} ({badges.length})
           </TabsTrigger>
-          <TabsTrigger value="feedbacks">
-            {isRTL ? 'الآراء والتقييمات' : 'Feedbacks'} ({feedbacks.length})
+          <TabsTrigger value="feedbacks" className="flex-1 min-w-fit text-xs sm:text-sm">
+            {isRTL ? 'الآراء' : 'Feedbacks'} ({feedbacks.length})
           </TabsTrigger>
-          <TabsTrigger value="fines">
+          <TabsTrigger value="fines" className="flex-1 min-w-fit text-xs sm:text-sm">
             {isRTL ? 'الغرامات' : 'Fines'} ({fines.length})
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="activities">
-          <Card>
+          <Card className="rounded-2xl">
             <CardHeader>
-              <CardTitle>{t('profile.activityHistory')}</CardTitle>
+              <CardTitle className={cn(isRTL && "text-right")}>{t('profile.activityHistory')}</CardTitle>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -910,37 +931,35 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                   {activities.map((activity) => (
                     <div
                       key={activity.id}
-                      className="flex items-center justify-between rounded-xl border bg-card p-4 transition-all hover:bg-muted/30 hover:shadow-sm"
+                      className="flex items-center justify-between rounded-xl border bg-card p-3 sm:p-4 transition-all hover:bg-muted/30 hover:shadow-sm gap-3"
                     >
-                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                      <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                         {activity.proof_url && (
-                          <a href={activity.proof_url} target="_blank" rel="noopener noreferrer" className="shrink-0 group relative overflow-hidden rounded-md border">
+                          <ImagePreview src={activity.proof_url} alt="Proof" className="shrink-0 group relative overflow-hidden rounded-md border">
                             <img
                               src={activity.proof_url}
                               alt="Proof"
-                              className="w-16 h-16 object-cover transition-transform duration-300 group-hover:scale-110"
+                              className="w-12 h-12 sm:w-16 sm:h-16 object-cover transition-transform duration-300 group-hover:scale-110"
                             />
                             <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <span className="text-white text-xs font-medium">View</span>
+                              <span className="text-white text-xs font-medium">{isRTL ? 'عرض' : 'View'}</span>
                             </div>
-                          </a>
+                          </ImagePreview>
                         )}
-                        <div className="space-y-1.5 flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-semibold truncate text-base">{activity.activity_name}</p>
-                          </div>
-                          <p className="text-sm text-muted-foreground flex items-center gap-2">
-                            <span className="inline-flex items-center gap-1 bg-muted/50 px-2 py-0.5 rounded text-xs">
+                        <div className="space-y-1 sm:space-y-1.5 flex-1 min-w-0">
+                          <p className="font-semibold truncate text-sm sm:text-base">{activity.activity_name}</p>
+                          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-muted-foreground">
+                            <span className="inline-flex items-center gap-1 bg-muted/50 px-2 py-0.5 rounded text-[11px] sm:text-xs">
                               {activity.committee_name}
                             </span>
-                            <span>•</span>
-                            <span>{formatDate(activity.submitted_at)}</span>
-                          </p>
+                            <span className="text-[11px] sm:text-xs">•</span>
+                            <span className="text-[11px] sm:text-xs">{formatDate(activity.submitted_at)}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0 pl-4 border-l ml-2">
-                        <div className="flex flex-col items-end">
-                          <span className="text-lg font-bold text-success">+{activity.points}</span>
+                      <div className="flex items-center gap-3 shrink-0 ltr:pl-3 ltr:border-l ltr:ml-1 rtl:pr-3 rtl:border-r rtl:mr-1 sm:ltr:pl-4 sm:rtl:pr-4">
+                        <div className={cn("flex flex-col", isRTL ? "items-start" : "items-end")}>
+                          <span className="text-base sm:text-lg font-bold text-success">+{activity.points}</span>
                           <span className="text-[10px] text-muted-foreground uppercase">{isRTL ? 'أثر' : 'Impact'}</span>
                         </div>
                       </div>
@@ -953,7 +972,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         </TabsContent>
 
         <TabsContent value="badges">
-          <Card>
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle>{t('profile.badges')}</CardTitle>
             </CardHeader>
@@ -994,7 +1013,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         </TabsContent>
 
         <TabsContent value="feedbacks">
-          <Card>
+          <Card className="rounded-2xl">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex flex-col space-y-1.5">
                 <CardTitle className="flex items-center gap-2">
@@ -1060,7 +1079,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                         }}
                         disabled={!newFeedback.trim() || submittingFeedback}
                       >
-                        {submittingFeedback && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {submittingFeedback && <Loader2 className="ltr:mr-2 rtl:ml-2 h-4 w-4 animate-spin" />}
                         {isRTL ? 'نشر' : 'Post'}
                       </Button>
                     </DialogFooter>
@@ -1119,7 +1138,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                               {feedback.content}
                             </p>
                             {user?.id === feedback.author_id && (
-                              <div className="absolute top-0 right-0 opacity-0 group-hover/feedback:opacity-100 transition-opacity flex gap-1 -mt-8 mr-2 bg-background/80 rounded-md shadow-sm border p-1">
+                              <div className="absolute top-0 ltr:right-0 rtl:left-0 opacity-0 group-hover/feedback:opacity-100 transition-opacity flex gap-1 -mt-8 ltr:mr-2 rtl:ml-2 bg-background/80 rounded-md shadow-sm border p-1">
                                 <Button
                                   size="icon"
                                   variant="ghost"
@@ -1153,7 +1172,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         </TabsContent>
 
         <TabsContent value="fines">
-          <Card>
+          <Card className="rounded-2xl">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
@@ -1216,7 +1235,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                               onClick={handleAddFine}
                               disabled={!selectedFineType || submittingFine}
                             >
-                              {submittingFine && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              {submittingFine && <Loader2 className="ltr:mr-2 rtl:ml-2 h-4 w-4 animate-spin" />}
                               {isRTL ? 'إضافة الغرامة' : 'Add Fine'}
                             </Button>
                           </DialogFooter>
@@ -1275,7 +1294,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                         )}
                         {fine.is_paid && (
                           <span className="inline-flex w-fit items-center text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200 mt-1">
-                            <Check className="h-3 w-3 mr-1" />
+                            <Check className="h-3 w-3 ltr:mr-1 rtl:ml-1" />
                             {isRTL ? 'معفي / مدفوع' : 'Waived / Paid'}
                           </span>
                         )}

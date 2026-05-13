@@ -25,8 +25,9 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X, Search, Pencil, MoreVertical } from 'lucide-react';
+import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X, Search, Pencil, MoreVertical, BarChart3 } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
+import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { StatsCard } from '@/components/ui/stats-card';
 import {
@@ -816,52 +817,20 @@ export default function CaravanManagement() {
         <div className="space-y-6">
 
 
-            {/* Header Section */}
-            <div className="flex flex-col gap-4">
+            {/* Header and Actions */}
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <h1 className="text-2xl sm:text-3xl font-bold">{t('caravans.title')}</h1>
-
-                {/* Filters and Actions Row */}
-                <div className="flex flex-wrap gap-2 items-center">
-                    <div className="relative flex-1 min-w-[200px]">
-                        <Search className="absolute ltr:left-2.5 rtl:right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            type="search"
-                            placeholder={isRTL ? 'بحث باسم القافلة...' : 'Search by caravan name...'}
-                            className="ltr:pl-8 rtl:pr-8 w-full"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                    </div>
-                    <Input
-                        type="date"
-                        className="w-full sm:w-auto"
-                        value={filterDate}
-                        onChange={(e) => setFilterDate(e.target.value)}
-                    />
-                    <Select value={timeFilter} onValueChange={setTimeFilter}>
-                        <SelectTrigger className="w-full sm:w-[180px] h-10">
-                            <SelectValue placeholder={isRTL ? 'اختر الفترة' : 'Select Period'} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">{isRTL ? 'الكل' : 'All'}</SelectItem>
-                            <SelectItem value="weekly">{isRTL ? 'أسبوعي' : 'Weekly'}</SelectItem>
-                            <SelectItem value="monthly">{isRTL ? 'شهري' : 'Monthly'}</SelectItem>
-                            <SelectItem value="quarterly">{isRTL ? 'ربع سنوي' : 'Quarterly'}</SelectItem>
-                            <SelectItem value="trimester">{isRTL ? 'ثلث سنوي' : 'Trimester'}</SelectItem>
-                            <SelectItem value="semi_annual">{isRTL ? 'نصف سنوي' : 'Semi-Annual'}</SelectItem>
-                            <SelectItem value="annual">{isRTL ? 'سنوي' : 'Annual'}</SelectItem>
-                        </SelectContent>
-                    </Select>
-
-                    <Button variant="outline" onClick={exportAllCaravans} className="flex-none">
+                
+                <div className="flex w-full sm:w-auto gap-2">
+                    <Button variant="outline" onClick={exportAllCaravans} className="flex-1 sm:flex-none">
                         <FileSpreadsheet className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                         <span className="text-xs sm:text-sm">
-                            {t('caravans.exportAll')} ({getFilterDisplayLabel(timeFilter)})
+                            {t('caravans.exportAll')} <span className="hidden sm:inline">({getFilterDisplayLabel(timeFilter)})</span>
                         </span>
                     </Button>
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
-                            <Button className="flex-none" onClick={() => { resetForm(); setIsCreateOpen(true); }}>
+                            <Button className="flex-1 sm:flex-none" onClick={() => { resetForm(); setIsCreateOpen(true); }}>
                                 <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                 <span className="text-xs sm:text-sm">{t('caravans.add')}</span>
                             </Button>
@@ -1185,40 +1154,94 @@ export default function CaravanManagement() {
                 </div>
             </div>
 
-            {/* Statistics Cards */}
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                <StatsCard
-                    title={isRTL ? 'إجمالي القوافل' : 'Total Caravans'}
-                    value={filteredCaravans.length.toString()}
-                    icon={Bus}
-                    description={getFilterDisplayLabel(timeFilter)}
+            {/* Filters Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-muted/20 p-3 sm:p-4 rounded-xl border border-border/50">
+                <div className="relative">
+                    <Search className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        type="search"
+                        placeholder={isRTL ? 'بحث باسم القافلة...' : 'Search by caravan name...'}
+                        className="ltr:pl-9 rtl:pr-9 w-full bg-background"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+                <Input
+                    type="date"
+                    className="w-full bg-background"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
                 />
-                <StatsCard
-                    title={isRTL ? 'إجمالي المشاركين' : 'Total Participants'}
-                    value={filteredCaravans.reduce((sum, c) => sum + (c.participants_count || 0), 0).toString()}
-                    icon={Users}
-                />
-                <StatsCard
-                    title={isRTL ? 'آخر قافلة' : 'Most Recent'}
-                    value={filteredCaravans.length > 0 ? format(new Date(filteredCaravans[0].date), 'MMM dd, yyyy') : (isRTL ? 'لا يوجد' : 'None')}
-                    icon={Calendar}
-                />
+                <Select value={timeFilter} onValueChange={setTimeFilter}>
+                    <SelectTrigger className="w-full bg-background h-10">
+                        <SelectValue placeholder={isRTL ? 'اختر الفترة' : 'Select Period'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">{isRTL ? 'الكل' : 'All'}</SelectItem>
+                        <SelectItem value="weekly">{isRTL ? 'أسبوعي' : 'Weekly'}</SelectItem>
+                        <SelectItem value="monthly">{isRTL ? 'شهري' : 'Monthly'}</SelectItem>
+                        <SelectItem value="quarterly">{isRTL ? 'ربع سنوي' : 'Quarterly'}</SelectItem>
+                        <SelectItem value="trimester">{isRTL ? 'ثلث سنوي' : 'Trimester'}</SelectItem>
+                        <SelectItem value="semi_annual">{isRTL ? 'نصف سنوي' : 'Semi-Annual'}</SelectItem>
+                        <SelectItem value="annual">{isRTL ? 'سنوي' : 'Annual'}</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
 
-            <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Statistics Section */}
+            <div className="bg-primary/5 border border-primary/10 rounded-2xl p-4 sm:p-6 mb-8 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+                <div className="absolute bottom-0 left-0 w-24 h-24 bg-primary/10 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none"></div>
+                
+                <h2 className="text-xl sm:text-2xl font-bold mb-4 flex items-center gap-2 text-foreground/90 relative z-10">
+                    <BarChart3 className="w-5 h-5 text-primary" />
+                    {isRTL ? 'الإحصائيات والتقارير' : 'Statistics & Reports'}
+                </h2>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 relative z-10">
+                    <StatsCard
+                        title={isRTL ? 'إجمالي القوافل' : 'Total Caravans'}
+                        value={filteredCaravans.length.toString()}
+                        icon={Bus}
+                    />
+                    <StatsCard
+                        title={isRTL ? 'إجمالي المشاركين' : 'Total Participants'}
+                        value={filteredCaravans.reduce((sum, c) => sum + (c.participants_count || 0), 0).toString()}
+                        icon={Users}
+                    />
+                    <StatsCard
+                        className="col-span-2 lg:col-span-1"
+                        title={isRTL ? 'آخر قافلة' : 'Most Recent'}
+                        value={filteredCaravans.length > 0 ? format(new Date(filteredCaravans[0].date), isRTL ? 'dd MMMM yyyy' : 'MMM dd, yyyy', { locale: isRTL ? ar : undefined }) : (isRTL ? 'لا يوجد' : 'None')}
+                        icon={Calendar}
+                    />
+                </div>
+            </div>
+
+            {/* Caravans List Section */}
+            <div className="space-y-4">
+                <h2 className="text-xl sm:text-2xl font-bold mb-4 flex items-center gap-2 text-foreground/90">
+                    <Bus className="w-5 h-5 text-primary" />
+                    {isRTL ? 'سجل القوافل' : 'Caravans Log'}
+                </h2>
+                <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredCaravans.map(caravan => (
-                    <Card key={caravan.id} className="transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
-                        <CardHeader className="pb-3">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <CardTitle>{caravan.name}</CardTitle>
-                                    <CardDescription>{getCaravanTypeLabel(caravan.type)}</CardDescription>
+                    <Card key={caravan.id} className="group relative overflow-hidden transition-all duration-300 hover:shadow-md hover:border-primary/40 bg-card/50 backdrop-blur-sm">
+                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/50 to-primary"></div>
+                        <CardHeader className="pb-2 pt-5">
+                            <div className="flex justify-between items-start gap-4">
+                                <div className="space-y-2 min-w-0">
+                                    <CardTitle className="text-lg font-bold group-hover:text-primary transition-colors truncate">
+                                        {caravan.name}
+                                    </CardTitle>
+                                    <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                                        {getCaravanTypeLabel(caravan.type)}
+                                    </div>
                                 </div>
                                 <DropdownMenu modal={false}>
                                     <DropdownMenuTrigger asChild>
                                         <Button
                                             variant="ghost"
-                                            className="h-8 w-8 p-0"
+                                            className="h-8 w-8 p-0 shrink-0 hover:bg-primary/10"
                                             onClick={(e) => e.stopPropagation()}
                                         >
                                             <span className="sr-only">Open menu</span>
@@ -1248,19 +1271,36 @@ export default function CaravanManagement() {
                                 </DropdownMenu>
                             </div>
                         </CardHeader>
-                        <CardContent>
-                            <div className="space-y-2 text-sm">
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <MapPin className="w-4 h-4" />
-                                    <span>{caravan.location}</span>
+                        <CardContent className="pt-4">
+                            <div className="grid grid-cols-2 gap-y-4 gap-x-3 text-sm">
+                                <div className="flex flex-col gap-1.5 col-span-2">
+                                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{isRTL ? 'الموقع' : 'Location'}</span>
+                                    <div className="flex items-center gap-2 font-medium">
+                                        <div className="w-7 h-7 rounded-md bg-secondary/60 flex items-center justify-center shrink-0">
+                                            <MapPin className="w-3.5 h-3.5 text-foreground/70" />
+                                        </div>
+                                        <span className="truncate">{caravan.location}</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <Calendar className="w-4 h-4" />
-                                    <span>{caravan.date ? format(new Date(caravan.date), 'PPP') : 'N/A'}</span>
+                                
+                                <div className="flex flex-col gap-1.5">
+                                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{isRTL ? 'التاريخ' : 'Date'}</span>
+                                    <div className="flex items-center gap-2 font-medium">
+                                        <div className="w-7 h-7 rounded-md bg-secondary/60 flex items-center justify-center shrink-0">
+                                            <Calendar className="w-3.5 h-3.5 text-foreground/70" />
+                                        </div>
+                                        <span className="truncate">{caravan.date ? format(new Date(caravan.date), isRTL ? 'dd MMM yyyy' : 'MMM dd, yyyy', { locale: isRTL ? ar : undefined }) : 'N/A'}</span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                    <Users className="w-4 h-4" />
-                                    <span>{caravan.participants_count || 0} {t('caravans.participants')}</span>
+
+                                <div className="flex flex-col gap-1.5">
+                                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{isRTL ? 'المشاركون' : 'Participants'}</span>
+                                    <div className="flex items-center gap-2 font-medium">
+                                        <div className="w-7 h-7 rounded-md bg-secondary/60 flex items-center justify-center shrink-0">
+                                            <Users className="w-3.5 h-3.5 text-foreground/70" />
+                                        </div>
+                                        <span className="truncate">{caravan.participants_count || 0}</span>
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
@@ -1272,6 +1312,7 @@ export default function CaravanManagement() {
                         <p>{t('caravans.noCaravans')}</p>
                     </div>
                 )}
+                </div>
             </div>
 
             {/* Delete Confirmation Dialog */}

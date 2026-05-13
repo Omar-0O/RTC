@@ -165,8 +165,8 @@ export default function UserManagement() {
       await toggleActiveMutation.mutateAsync({ userId: user.id, isActive: newStatus });
       toast.success(
         newStatus
-          ? (isRTL ? `✅ تم تفعيل ${user.full_name}` : `✅ ${user.full_name} activated`)
-          : (isRTL ? `🚫 تم تعطيل ${user.full_name}` : `🚫 ${user.full_name} deactivated`)
+          ? (isRTL ? `✅ تم تفعيل ${user.full_name_ar || user.full_name}` : `✅ ${user.full_name || user.full_name_ar} activated`)
+          : (isRTL ? `🚫 تم تعطيل ${user.full_name_ar || user.full_name}` : `🚫 ${user.full_name || user.full_name_ar} deactivated`)
       );
     } catch (err: any) {
       toast.error(err.message || (isRTL ? 'فشل في تغيير الحالة' : 'Failed to change status'));
@@ -176,6 +176,7 @@ export default function UserManagement() {
   const filteredUsers = users.filter(user => {
     const matchesSearch =
       (user.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (user.full_name_ar?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesLevel = levelFilter === 'all' || user.level === levelFilter;
     const matchesCommittee = committeeFilter === 'all' || user.committee_id === committeeFilter;
@@ -1536,9 +1537,9 @@ export default function UserManagement() {
                         <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
                           <div className="relative shrink-0">
                             <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border shadow-sm">
-                              <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                              <AvatarImage src={user.avatar_url || undefined} alt={(isRTL ? user.full_name_ar : user.full_name) || user.full_name || ''} />
                               <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
-                                {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                                {((isRTL && user.full_name_ar) ? user.full_name_ar : user.full_name)?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                               </AvatarFallback>
                             </Avatar>
                             {/* Online dot */}
@@ -1552,7 +1553,7 @@ export default function UserManagement() {
                           
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-bold text-base sm:text-lg truncate">{user.full_name || 'No name'}</h3>
+                              <h3 className="font-bold text-base sm:text-lg truncate">{(isRTL ? user.full_name_ar : user.full_name) || user.full_name || 'No name'}</h3>
                               {!user.is_active && (
                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200 shrink-0">
                                   {isRTL ? 'معطّل' : 'Inactive'}
@@ -1714,7 +1715,7 @@ export default function UserManagement() {
             <AlertDialogDescription>
               Are you sure you want to delete this user? This action cannot be undone.
               <br />
-              <strong>{selectedUser?.full_name} ({selectedUser?.email})</strong>
+              <strong>{(isRTL ? selectedUser?.full_name_ar : selectedUser?.full_name) || selectedUser?.full_name} ({selectedUser?.email})</strong>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1733,15 +1734,13 @@ export default function UserManagement() {
       {/* View Profile Dialog */}
       < Dialog open={!!viewProfileUser
       } onOpenChange={(open) => !open && setViewProfileUser(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {language === 'ar' ? 'الملف الشخصي للمتطوع' : "Volunteer Profile"}
-            </DialogTitle>
-            <DialogDescription>
-              {language === 'ar' ? 'عرض تفاصيل الملف الشخصي' : "View profile details"}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl sm:rounded-3xl gap-0">
+          <DialogTitle className="sr-only">
+            {language === 'ar' ? 'الملف الشخصي للمتطوع' : "Volunteer Profile"}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            {language === 'ar' ? 'عرض تفاصيل الملف الشخصي' : "View profile details"}
+          </DialogDescription>
           {viewProfileUser && <Profile userId={viewProfileUser.id} />}
         </DialogContent>
       </Dialog >

@@ -614,12 +614,10 @@ export default function SupervisorUserManagement() {
 
             {/* View Profile Dialog */}
             <Dialog open={!!viewProfileUser} onOpenChange={(open) => !open && setViewProfileUser(null)}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {language === 'ar' ? 'الملف الشخصي للمتطوع' : "Volunteer Profile"}
-                        </DialogTitle>
-                    </DialogHeader>
+                <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl sm:rounded-3xl gap-0">
+                    <DialogTitle className="sr-only">
+                        {language === 'ar' ? 'الملف الشخصي للمتطوع' : "Volunteer Profile"}
+                    </DialogTitle>
                     {viewProfileUser && <Profile userId={viewProfileUser.id} />}
                 </DialogContent>
             </Dialog>
