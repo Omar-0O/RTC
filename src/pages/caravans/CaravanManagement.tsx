@@ -22,6 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X, Search, Pencil, MoreVertical } from 'lucide-react';
@@ -467,6 +468,12 @@ export default function CaravanManagement() {
         setParticipants(newParticipants);
     };
 
+    const toggleParticipantVest = (index: number) => {
+        const newParticipants = [...participants];
+        newParticipants[index].wore_vest = !newParticipants[index].wore_vest;
+        setParticipants(newParticipants);
+    };
+
     // Helper to get or create 'Caravan' activity type
     const ensureCaravanActivityType = async () => {
         // 1. Try to find existing 'Caravan' activity
@@ -859,192 +866,155 @@ export default function CaravanManagement() {
                                 <span className="text-xs sm:text-sm">{t('caravans.add')}</span>
                             </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[90vh] overflow-y-auto">
-                            <DialogHeader>
-                                <DialogTitle className="text-2xl font-bold">{isEditMode ? (isRTL ? 'تعديل القافلة' : 'Edit Caravan') : t('caravans.add')}</DialogTitle>
-                                <DialogDescription>{isEditMode ? (isRTL ? 'تعديل تفاصيل القافلة' : 'Edit caravan details') : (isRTL ? 'أضف تفاصيل القافلة الجديدة' : 'Add new caravan details')}</DialogDescription>
+                        <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl sm:rounded-3xl border border-border/40 shadow-2xl">
+                            <DialogHeader className="px-4 sm:px-6 py-5 border-b-2 border-border/50 dark:border-border/80 shrink-0 bg-muted/30 flex flex-col items-center text-center">
+                                <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center justify-center gap-2">
+                                    <Bus className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                                    {isEditMode ? (isRTL ? 'تعديل القافلة' : 'Edit Caravan') : t('caravans.add')}
+                                </DialogTitle>
+                                <DialogDescription className="text-center mt-1.5">{isEditMode ? (isRTL ? 'تعديل تفاصيل القافلة' : 'Edit caravan details') : (isRTL ? 'أضف تفاصيل القافلة الجديدة' : 'Add new caravan details')}</DialogDescription>
                             </DialogHeader>
 
-                            <div className="grid gap-6 py-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                                    <div className="space-y-2">
-                                        <Label className="text-sm sm:text-base font-medium">{t('caravans.name')}</Label>
-                                        <Input
-                                            value={formData.name}
-                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                            className="h-11 sm:h-12"
-                                            placeholder={isRTL ? 'مثال: قافلة إطعام رمضان' : 'e.g., Ramadan Food Caravan'}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-sm sm:text-base font-medium">{t('caravans.type')}</Label>
-                                        <Select
-                                            value={formData.type}
-                                            onValueChange={val => setFormData({ ...formData, type: val })}
-                                        >
-                                            <SelectTrigger className="h-11 sm:h-12">
-                                                <SelectValue placeholder={isRTL ? 'اختر النوع' : 'Select Type'} />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="food_distribution">{isRTL ? 'إطعام' : 'Food Distribution'}</SelectItem>
-                                                <SelectItem value="charity_market">{isRTL ? 'سوق خيري' : 'Charity Market'}</SelectItem>
-                                                <SelectItem value="eid_carnival">{isRTL ? 'كرنفال العيد' : 'Eid Carnival'}</SelectItem>
-                                                <SelectItem value="other">{isRTL ? 'أخرى' : 'Other'}</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-sm sm:text-base font-medium">{t('caravans.location')}</Label>
-                                        <Input
-                                            value={formData.location}
-                                            onChange={e => setFormData({ ...formData, location: e.target.value })}
-                                            className="h-11 sm:h-12"
-                                            placeholder={isRTL ? 'مثال: قرية النهضة' : 'e.g., Al-Nahda Village'}
-                                        />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label className="text-sm sm:text-base font-medium">{t('caravans.date')}</Label>
-                                        <Input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} className="h-11 sm:h-12" />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2 sm:space-y-3">
-                                    <Label className="text-sm sm:text-base font-medium">{isRTL ? 'مواعيد التحرك' : 'Timings'}</Label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                                        <div className="space-y-1.5 sm:space-y-2">
-                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.moveTime')}</Label>
-                                            <Input type="time" value={formData.move_time} onChange={e => setFormData({ ...formData, move_time: e.target.value })} className="h-11 sm:h-12" />
-                                        </div>
-                                        <div className="space-y-1.5 sm:space-y-2">
-                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.actualMoveTime')}</Label>
-                                            <Input type="time" value={formData.actual_move_time} onChange={e => setFormData({ ...formData, actual_move_time: e.target.value })} className="h-11 sm:h-12" />
-                                        </div>
-                                        <div className="space-y-1.5 sm:space-y-2">
-                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.busArrivalTime')}</Label>
-                                            <Input type="time" value={formData.bus_arrival_time} onChange={e => setFormData({ ...formData, bus_arrival_time: e.target.value })} className="h-11 sm:h-12" />
-                                        </div>
-                                        <div className="space-y-1.5 sm:space-y-2">
-                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.returnTime')}</Label>
-                                            <Input type="time" value={formData.return_time} onChange={e => setFormData({ ...formData, return_time: e.target.value })} className="h-11 sm:h-12" />
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="border-t pt-4 sm:pt-6">
-                                    <h3 className="text-sm sm:text-base font-medium mb-3 sm:mb-4">{t('caravans.participants')}</h3>
-
-                                    <div className="space-y-4 sm:space-y-6">
-                                        <div className="space-y-2 sm:space-y-3">
-                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.addVolunteer')}</Label>
-                                            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-end">
-                                                {/* Full-screen volunteer selector button */}
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    className="w-full sm:flex-1 justify-between h-11 sm:h-12"
-                                                    onClick={() => { setVolunteerSearch(''); setIsVolunteerSelectorOpen(true); }}
+                            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-8">
+                                {/* القسم الأول: البيانات الأساسية */}
+                                <div className="space-y-4 sm:space-y-5">
+                                    <h3 className="text-lg sm:text-xl font-bold border-b-2 border-primary/20 dark:border-primary/40 pb-2 flex items-center gap-2 text-foreground/90">
+                                        <MapPin className="h-5 w-5 text-primary" />
+                                        {isRTL ? 'البيانات الأساسية' : 'Basic Info'}
+                                    </h3>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                            <div className="space-y-2 relative">
+                                                <Label className="text-sm font-semibold">{t('caravans.name')} <span className="text-destructive">*</span></Label>
+                                                <Input
+                                                    value={formData.name}
+                                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                                    className={`h-11 sm:h-12 ${!formData.name ? 'border-primary/20 hover:border-primary/50' : ''}`}
+                                                    placeholder={isRTL ? 'مثال: قافلة إطعام رمضان' : 'e.g., Ramadan Food Caravan'}
+                                                />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-semibold">{t('caravans.type')} <span className="text-destructive">*</span></Label>
+                                                <Select
+                                                    value={formData.type}
+                                                    onValueChange={val => setFormData({ ...formData, type: val })}
+                                                    dir={isRTL ? 'rtl' : 'ltr'}
                                                 >
-                                                    <span className="truncate text-sm">
-                                                        {isRTL ? `إضافة متطوعين (${participants.filter(p => p.is_volunteer).length} مضاف)` : `Add Volunteers (${participants.filter(p => p.is_volunteer).length} added)`}
-                                                    </span>
-                                                    <Users className="ltr:ml-2 rtl:mr-2 h-4 w-4 shrink-0 opacity-60" />
-                                                </Button>
+                                                    <SelectTrigger className={`h-11 sm:h-12 ${!formData.type ? 'border-primary/20 hover:border-primary/50' : ''}`}>
+                                                        <SelectValue placeholder={isRTL ? 'اختر النوع' : 'Select Type'} />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="food_distribution">{isRTL ? 'إطعام' : 'Food Distribution'}</SelectItem>
+                                                        <SelectItem value="charity_market">{isRTL ? 'سوق خيري' : 'Charity Market'}</SelectItem>
+                                                        <SelectItem value="eid_carnival">{isRTL ? 'كرنفال العيد' : 'Eid Carnival'}</SelectItem>
+                                                        <SelectItem value="other">{isRTL ? 'أخرى' : 'Other'}</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                            <div className="space-y-2 relative">
+                                                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                                                    {t('caravans.location')} <span className="text-destructive">*</span>
+                                                </Label>
+                                                <Input
+                                                    value={formData.location}
+                                                    onChange={e => setFormData({ ...formData, location: e.target.value })}
+                                                    className={`h-11 sm:h-12 ${!formData.location ? 'border-primary/20 hover:border-primary/50' : ''}`}
+                                                    placeholder={isRTL ? 'مثال: قرية النهضة' : 'e.g., Al-Nahda Village'}
+                                                />
+                                            </div>
+                                            <div className="space-y-2 relative">
+                                                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                                                    {t('caravans.date')} <span className="text-destructive">*</span>
+                                                </Label>
+                                                <Input 
+                                                    type="date" 
+                                                    value={formData.date} 
+                                                    onChange={e => setFormData({ ...formData, date: e.target.value })} 
+                                                    className="h-11 sm:h-12" 
+                                                />
+                                            </div>
+                                        </div>
+                                </div>
 
-                                                {/* Vest toggle */}
-                                                <div className="flex w-full sm:w-auto items-center space-x-2 rtl:space-x-reverse h-11 sm:h-12 border rounded-md px-3 bg-card/50">
-                                                    <Switch
-                                                        id="vest-toggle"
-                                                        checked={woreVest}
-                                                        onCheckedChange={setWoreVest}
-                                                    />
-                                                    <Label htmlFor="vest-toggle" className="cursor-pointer text-xs sm:text-sm whitespace-nowrap">
-                                                        {isRTL ? 'ارتدى الـ Vest' : 'Wore Vest'}
+                                {/* القسم الثاني: المواعيد */}
+                                <div className="space-y-4 sm:space-y-5">
+                                    <h3 className="text-lg sm:text-xl font-bold border-b-2 border-primary/20 dark:border-primary/40 pb-2 flex items-center gap-2 text-foreground/90">
+                                        <Clock className="h-5 w-5 text-primary" />
+                                        {isRTL ? 'المواعيد الزمانية' : 'Timings'}
+                                    </h3>
+                                    <div className="bg-muted/30 p-4 rounded-xl border border-border/50">
+                                            <p className="text-sm text-muted-foreground mb-4">
+                                                {isRTL ? 'أدخل مواعيد القافلة لتتبع الجدول الزمني بدقة.' : 'Enter caravan timings for accurate scheduling tracking.'}
+                                            </p>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                                                <div className="space-y-2 relative">
+                                                    <Label className="text-xs sm:text-sm font-medium flex items-center gap-1.5">
+                                                        <Clock className="h-3.5 w-3.5 text-blue-500" />
+                                                        {t('caravans.moveTime')}
                                                     </Label>
+                                                    <Input type="time" value={formData.move_time} onChange={e => setFormData({ ...formData, move_time: e.target.value })} className="h-11" />
+                                                </div>
+                                                <div className="space-y-2 relative">
+                                                    <Label className="text-xs sm:text-sm font-medium flex items-center gap-1.5">
+                                                        <Clock className="h-3.5 w-3.5 text-orange-500" />
+                                                        {t('caravans.actualMoveTime')}
+                                                    </Label>
+                                                    <Input type="time" value={formData.actual_move_time} onChange={e => setFormData({ ...formData, actual_move_time: e.target.value })} className="h-11" />
+                                                </div>
+                                                <div className="space-y-2 relative">
+                                                    <Label className="text-xs sm:text-sm font-medium flex items-center gap-1.5">
+                                                        <Clock className="h-3.5 w-3.5 text-emerald-500" />
+                                                        {t('caravans.busArrivalTime')}
+                                                    </Label>
+                                                    <Input type="time" value={formData.bus_arrival_time} onChange={e => setFormData({ ...formData, bus_arrival_time: e.target.value })} className="h-11" />
+                                                </div>
+                                                <div className="space-y-2 relative">
+                                                    <Label className="text-xs sm:text-sm font-medium flex items-center gap-1.5">
+                                                        <Clock className="h-3.5 w-3.5 text-purple-500" />
+                                                        {t('caravans.returnTime')}
+                                                    </Label>
+                                                    <Input type="time" value={formData.return_time} onChange={e => setFormData({ ...formData, return_time: e.target.value })} className="h-11" />
                                                 </div>
                                             </div>
-
-                                            {/* Full-screen Volunteer Selector Dialog */}
-                                            <Dialog open={isVolunteerSelectorOpen} onOpenChange={setIsVolunteerSelectorOpen}>
-                                                <DialogContent className="w-full max-w-[95vw] sm:max-w-md max-h-[92vh] flex flex-col p-0 gap-0" aria-describedby={undefined}>
-                                                    {/* Header */}
-                                                    <div className="flex items-center justify-between px-4 py-3 border-b bg-background shrink-0">
-                                                        <DialogTitle className="text-base font-semibold">
-                                                            {isRTL ? 'اختر المتطوعين' : 'Select Volunteers'}
-                                                        </DialogTitle>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsVolunteerSelectorOpen(false)}>
-                                                            <X className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
-                                                    {/* Search */}
-                                                    <div className="px-4 py-2 border-b bg-background shrink-0">
-                                                        <div className="relative">
-                                                            <Search className="absolute ltr:left-2.5 rtl:right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                                            <Input
-                                                                className="ltr:pl-8 rtl:pr-8 h-9"
-                                                                placeholder={isRTL ? 'بحث باسم المتطوع...' : 'Search volunteers...'}
-                                                                value={volunteerSearch}
-                                                                onChange={e => setVolunteerSearch(e.target.value)}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                    {/* Volunteer List */}
-                                                    <div className="flex-1 overflow-y-auto">
-                                                        {volunteers
-                                                            .filter(v => v.full_name.toLowerCase().includes(volunteerSearch.toLowerCase()))
-                                                            .map(volunteer => {
-                                                                const isAdded = participants.some(p => p.volunteer_id === volunteer.id);
-                                                                return (
-                                                                    <button
-                                                                        key={volunteer.id}
-                                                                        type="button"
-                                                                        className={`w-full flex items-center gap-3 px-4 py-3 text-start border-b last:border-0 transition-colors ${isAdded ? 'bg-primary/10' : 'hover:bg-muted/60'
-                                                                            }`}
-                                                                        onClick={() => {
-                                                                            if (!isAdded) handleAddVolunteer(volunteer.id);
-                                                                            else {
-                                                                                const idx = participants.findIndex(p => p.volunteer_id === volunteer.id);
-                                                                                if (idx !== -1) removeParticipant(idx);
-                                                                            }
-                                                                        }}
-                                                                    >
-                                                                        <Avatar className="h-8 w-8 shrink-0">
-                                                                            <AvatarImage src={volunteer.avatar_url || undefined} />
-                                                                            <AvatarFallback className="text-xs">{volunteer.full_name?.charAt(0)}</AvatarFallback>
-                                                                        </Avatar>
-                                                                        <span className="flex-1 text-sm font-medium truncate">{volunteer.full_name}</span>
-                                                                        {isAdded && <Check className="h-4 w-4 text-primary shrink-0" />}
-                                                                    </button>
-                                                                );
-                                                            })}
-                                                        {volunteers.filter(v => v.full_name.toLowerCase().includes(volunteerSearch.toLowerCase())).length === 0 && (
-                                                            <div className="text-center text-muted-foreground text-sm py-8">
-                                                                {isRTL ? 'لا يوجد نتائج' : 'No results'}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {/* Footer */}
-                                                    <div className="px-4 py-3 border-t bg-background shrink-0">
-                                                        <Button
-                                                            className="w-full h-11"
-                                                            onClick={() => setIsVolunteerSelectorOpen(false)}
-                                                        >
-                                                            <Check className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                                            {isRTL
-                                                                ? `تمام! (${participants.filter(p => p.is_volunteer).length} مختار)`
-                                                                : `Done! (${participants.filter(p => p.is_volunteer).length} selected)`}
-                                                        </Button>
-                                                    </div>
-                                                </DialogContent>
-                                            </Dialog>
                                         </div>
-                                        <div className="space-y-2 sm:space-y-3">
-                                            <Label className="text-xs sm:text-sm text-muted-foreground">{t('caravans.addGuest')}</Label>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+                                </div>
+
+                                {/* القسم الثالث: المشاركين */}
+                                <div className="space-y-4 sm:space-y-5">
+                                    <h3 className="text-lg sm:text-xl font-bold border-b-2 border-primary/20 dark:border-primary/40 pb-2 flex items-center gap-2 text-foreground/90">
+                                        <Users className="h-5 w-5 text-primary" />
+                                        {isRTL ? 'المشاركين' : 'Participants'}
+                                        {participants.length > 0 && (
+                                            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-full text-xs font-semibold">
+                                                {participants.length}
+                                            </span>
+                                        )}
+                                    </h3>
+                                    <div className="space-y-4 sm:space-y-5 flex flex-col h-full min-h-[300px]">
+                                        {/* Actions Row: Add Volunteer & Add Guest */}
+                                        <div className="flex flex-col gap-3 bg-muted/20 p-3 rounded-lg border border-border/50">
+                                            <Button
+                                                type="button"
+                                                className="w-full h-10 sm:h-11 shadow-sm"
+                                                onClick={() => { setVolunteerSearch(''); setIsVolunteerSelectorOpen(true); }}
+                                            >
+                                                <Users className="ltr:mr-2 rtl:ml-2 h-4 w-4" />
+                                                <span className="text-sm font-medium">
+                                                    {isRTL ? 'إضافة متطوعين' : 'Add Volunteers'}
+                                                </span>
+                                            </Button>
+
+                                            <div className="pt-3 border-t-2 border-primary/10 dark:border-primary/20 flex flex-col gap-2 w-full mt-1">
+                                                <span className="text-xs font-medium text-muted-foreground px-1">
+                                                    {isRTL ? 'إضافة ضيف (من خارج المتطوعين):' : 'Add guest (non-volunteer):'}
+                                                </span>
+                                                <div className="flex flex-col sm:flex-row gap-2 w-full">
                                                 <Input
                                                     value={guestName}
                                                     onChange={e => setGuestName(e.target.value)}
-                                                    placeholder={isRTL ? 'الاسم الثلاثي كاملاً' : 'Full tripartite name'}
-                                                    className="h-11 sm:h-12 text-sm"
+                                                    placeholder={isRTL ? 'الاسم الثلاثي (ضيف)' : 'Guest Full Name'}
+                                                    className="h-10 sm:h-11 text-sm bg-background flex-1"
                                                 />
                                                 <Input
                                                     value={guestPhone}
@@ -1052,69 +1022,164 @@ export default function CaravanManagement() {
                                                         const val = e.target.value;
                                                         if (/^\d*$/.test(val)) setGuestPhone(val);
                                                     }}
-                                                    placeholder={isRTL ? '01xxxxxxxxx' : '01xxxxxxxxx'}
-                                                    className="h-11 sm:h-12 text-sm"
+                                                    placeholder={isRTL ? 'رقم الموبايل 01xxxxxxxxx' : '01xxxxxxxxx'}
+                                                    className="h-10 sm:h-11 text-sm bg-background flex-1"
                                                     dir="ltr"
                                                     maxLength={11}
                                                 />
-                                                <Button onClick={handleAddGuest} variant="secondary" disabled={!guestName} className="h-11 sm:h-12 w-full text-sm">
-                                                    <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                <Button onClick={handleAddGuest} variant="secondary" disabled={!guestName} className="h-10 sm:h-11 w-full sm:w-auto shrink-0">
+                                                    <Plus className="w-4 h-4 ltr:mr-1 rtl:ml-1 sm:block" />
                                                     {isRTL ? 'إضافة ضيف' : 'Add Guest'}
                                                 </Button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    <div className="border rounded-md overflow-x-auto">
-                                        <div className="overflow-x-auto w-full">
-<Table className="min-w-[calc(100vw-2.5rem)] sm:w-[400px]">
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="text-xs sm:text-sm">{t('leaderboard.name')}</TableHead>
-                                                    <TableHead className="text-xs sm:text-sm">{t('users.phoneNumber')}</TableHead>
-                                                    <TableHead className="text-xs sm:text-sm">{t('users.role')}</TableHead>
-                                                    <TableHead className="text-xs sm:text-sm w-20 text-center">{isRTL ? 'Vest' : 'Vest'}</TableHead>
-                                                    <TableHead className="w-10"></TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {participants.length === 0 ? (
-                                                    <TableRow>
-                                                        <TableCell colSpan={5} className="text-center text-muted-foreground text-sm">{isRTL ? 'لا يوجد مشاركين' : 'No participants added'}</TableCell>
-                                                    </TableRow>
-                                                ) : (
-                                                    participants.map((p, idx) => (
-                                                        <TableRow key={idx}>
-                                                            <TableCell className="text-xs sm:text-sm truncate max-w-[120px]">{p.name}</TableCell>
-                                                            <TableCell className="text-xs sm:text-sm">{p.phone}</TableCell>
-                                                            <TableCell className="text-xs sm:text-sm">{p.is_volunteer ? t('common.volunteer') : t('caravans.addGuest')}</TableCell>
-                                                            <TableCell className="text-center">
-                                                                {p.is_volunteer && (
-                                                                    p.wore_vest ?
-                                                                        <Check className="w-4 h-4 text-green-500 mx-auto" /> :
-                                                                        <X className="w-4 h-4 text-muted-foreground mx-auto opacity-50" />
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <Button variant="ghost" size="sm" onClick={() => removeParticipant(idx)}>
-                                                                    <Trash2 className="w-4 h-4 text-destructive" />
-                                                                </Button>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))
-                                                )}
-                                            </TableBody>
-                                        </Table>
-</div>
+                                        {/* Participants List */}
+                                        <div className="border rounded-xl overflow-hidden shadow-sm bg-card flex-1 flex flex-col">
+                                            {participants.length === 0 ? (
+                                                <div className="p-8 sm:p-12 text-center flex flex-col items-center justify-center text-muted-foreground bg-muted/5 flex-1">
+                                                    <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                                                        <Users className="h-6 w-6 opacity-50" />
+                                                    </div>
+                                                    <p className="text-sm font-medium">{isRTL ? 'لا يوجد مشاركين بعد' : 'No participants added yet'}</p>
+                                                    <p className="text-xs opacity-70 mt-1">{isRTL ? 'قم بإضافة متطوعين أو ضيوف للبدء' : 'Add volunteers or guests to begin'}</p>
+                                                </div>
+                                            ) : (
+                                                <div className="overflow-x-auto w-full max-h-[350px] overflow-y-auto">
+                                                    <Table className="min-w-[500px]">
+                                                        <TableHeader className="bg-muted/50 sticky top-0 z-10 backdrop-blur-sm">
+                                                            <TableRow>
+                                                                <TableHead className="text-xs sm:text-sm font-semibold">{t('leaderboard.name')}</TableHead>
+                                                                <TableHead className="text-xs sm:text-sm font-semibold">{t('users.role')}</TableHead>
+                                                                <TableHead className="text-xs sm:text-sm font-semibold text-center w-24">{isRTL ? 'Vest' : 'Vest'}</TableHead>
+                                                                <TableHead className="w-12"></TableHead>
+                                                            </TableRow>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {participants.map((p, idx) => (
+                                                                <TableRow key={idx} className="group hover:bg-muted/20">
+                                                                    <TableCell>
+                                                                        <div className="flex flex-col">
+                                                                            <span className="text-xs sm:text-sm font-medium truncate max-w-[160px] sm:max-w-xs">{p.name}</span>
+                                                                            {p.phone && <span className="text-[10px] sm:text-xs text-muted-foreground font-mono" dir="ltr" style={{ textAlign: isRTL ? 'right' : 'left' }}>{p.phone}</span>}
+                                                                        </div>
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${p.is_volunteer ? 'bg-primary/10 text-primary' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'}`}>
+                                                                            {p.is_volunteer ? t('common.volunteer') : t('caravans.addGuest')}
+                                                                        </span>
+                                                                    </TableCell>
+                                                                    <TableCell className="text-center align-middle">
+                                                                        {p.is_volunteer ? (
+                                                                            <div className="flex justify-center">
+                                                                                <Switch
+                                                                                    checked={p.wore_vest}
+                                                                                    onCheckedChange={() => toggleParticipantVest(idx)}
+                                                                                    className="scale-75 sm:scale-90"
+                                                                                />
+                                                                            </div>
+                                                                        ) : (
+                                                                            <span className="text-xs text-muted-foreground opacity-50">—</span>
+                                                                        )}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-end align-middle">
+                                                                        <Button variant="ghost" size="icon" onClick={() => removeParticipant(idx)} className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <Trash2 className="w-4 h-4" />
+                                                                        </Button>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            ))}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Full-screen Volunteer Selector Dialog */}
+                                        <Dialog open={isVolunteerSelectorOpen} onOpenChange={setIsVolunteerSelectorOpen}>
+                                            <DialogContent className="w-full max-w-[95vw] sm:max-w-md max-h-[92vh] flex flex-col p-0 gap-0" aria-describedby={undefined}>
+                                                <div className="flex items-center justify-between px-4 py-4 border-b bg-background shrink-0">
+                                                    <DialogTitle className="text-base sm:text-lg font-bold">
+                                                        {isRTL ? 'اختر المتطوعين' : 'Select Volunteers'}
+                                                    </DialogTitle>
+                                                </div>
+                                                <div className="px-4 py-3 border-b bg-muted/10 shrink-0">
+                                                    <div className="relative">
+                                                        <Search className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                        <Input
+                                                            className="ltr:pl-9 rtl:pr-9 h-10 shadow-sm"
+                                                            placeholder={isRTL ? 'بحث باسم المتطوع...' : 'Search volunteers...'}
+                                                            value={volunteerSearch}
+                                                            onChange={e => setVolunteerSearch(e.target.value)}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="flex-1 overflow-y-auto p-2">
+                                                    {volunteers
+                                                        .filter(v => v.full_name.toLowerCase().includes(volunteerSearch.toLowerCase()))
+                                                        .map(volunteer => {
+                                                            const isAdded = participants.some(p => p.volunteer_id === volunteer.id);
+                                                            return (
+                                                                <button
+                                                                    key={volunteer.id}
+                                                                    type="button"
+                                                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-start transition-colors mb-1 ${isAdded ? 'bg-primary/10 text-primary hover:bg-primary/15' : 'hover:bg-muted'}`}
+                                                                    onClick={() => {
+                                                                        if (!isAdded) handleAddVolunteer(volunteer.id);
+                                                                        else {
+                                                                            const idx = participants.findIndex(p => p.volunteer_id === volunteer.id);
+                                                                            if (idx !== -1) removeParticipant(idx);
+                                                                        }
+                                                                    }}
+                                                                >
+                                                                    <Avatar className="h-9 w-9 shrink-0 border border-background shadow-sm">
+                                                                        <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                        <AvatarFallback className="text-xs font-semibold bg-background">{volunteer.full_name?.charAt(0)}</AvatarFallback>
+                                                                    </Avatar>
+                                                                    <span className={`flex-1 text-sm truncate ${isAdded ? 'font-semibold' : 'font-medium'}`}>{volunteer.full_name}</span>
+                                                                    {isAdded ? (
+                                                                        <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+                                                                            <Check className="h-3 w-3" />
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="h-5 w-5 rounded-full border border-muted-foreground/30 flex items-center justify-center shrink-0" />
+                                                                    )}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    {volunteers.filter(v => v.full_name.toLowerCase().includes(volunteerSearch.toLowerCase())).length === 0 && (
+                                                        <div className="text-center text-muted-foreground text-sm py-12 flex flex-col items-center">
+                                                            <Search className="h-8 w-8 opacity-20 mb-3" />
+                                                            {isRTL ? 'لا يوجد نتائج تطابق بحثك' : 'No results found'}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="px-4 py-3 border-t bg-background shrink-0 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)]">
+                                                    <Button
+                                                        className="w-full h-11 font-semibold"
+                                                        onClick={() => setIsVolunteerSelectorOpen(false)}
+                                                    >
+                                                        <Check className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL
+                                                            ? `تمام! (${participants.filter(p => p.is_volunteer).length} مختار)`
+                                                            : `Done! (${participants.filter(p => p.is_volunteer).length} selected)`}
+                                                    </Button>
+                                                </div>
+                                            </DialogContent>
+                                        </Dialog>
                                     </div>
                                 </div>
-
                             </div>
 
-                            <DialogFooter className="gap-2 sm:gap-0 pt-3 sm:pt-4">
-                                <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-11 sm:h-12 px-4 sm:px-6 w-full sm:w-auto text-sm">{t('common.cancel')}</Button>
-                                <Button onClick={isEditMode ? handleUpdateCaravan : handleCreateCaravan} className="h-11 sm:h-12 px-4 sm:px-6 w-full sm:w-auto text-sm">{isEditMode ? (isRTL ? 'تحديث' : 'Update') : t('common.save')}</Button>
-                            </DialogFooter>
+                            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t-2 border-border/50 dark:border-border/80 bg-muted/10 shrink-0">
+                                <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-11 sm:h-12 px-4 sm:px-8 w-full sm:w-auto text-sm font-medium">
+                                    {t('common.cancel')}
+                                </Button>
+                                <Button onClick={isEditMode ? handleUpdateCaravan : handleCreateCaravan} className="h-11 sm:h-12 px-4 sm:px-8 w-full sm:w-auto text-sm font-semibold shadow-sm">
+                                    {isEditMode ? (isRTL ? 'تحديث البيانات' : 'Update Info') : (isRTL ? 'حفظ القافلة' : 'Save Caravan')}
+                                </Button>
+                            </div>
                         </DialogContent>
                     </Dialog>
                 </div>

@@ -1526,172 +1526,54 @@ export default function UserManagement() {
             </p>
           ) : (
             <>
-              {/* Desktop View */}
-              <div className="hidden lg:block">
-                <div className="rounded-md border overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-start whitespace-nowrap">{t('users.fullName')}</TableHead>
-                        <TableHead className="text-start whitespace-nowrap">{language === 'ar' ? 'الفرع' : 'Branch'}</TableHead>
-                        <TableHead className="text-start whitespace-nowrap">{t('users.role')}</TableHead>
-                        <TableHead className="text-start whitespace-nowrap">{t('users.committee')}</TableHead>
-                        <TableHead className="text-start whitespace-nowrap">{t('users.level')}</TableHead>
-                        <TableHead className="text-start whitespace-nowrap">{language === 'ar' ? 'عدد المشاركات' : 'Number of Participations'}</TableHead>
-                        <TableHead className="text-start whitespace-nowrap">{language === 'ar' ? 'آخر ظهور' : 'Last Seen'}</TableHead>
-                        <TableHead className="w-[50px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredUsers.map((user) => (
-                        <TableRow key={user.id} className={!user.is_active ? 'opacity-60' : ''}>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
-                                <AvatarFallback className="text-xs">
-                                  {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <div className="flex items-center gap-1.5">
-                                  <p className="font-medium">{user.full_name || 'No name'}</p>
-                                  {!user.is_active && (
-                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 border border-red-200">
-                                      {isRTL ? 'معطّل' : 'Inactive'}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-sm text-muted-foreground">{user.email}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm">{user.branch_name || '—'}</span>
-                          </TableCell>
-                          <TableCell>
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
-                              {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
-                              {getRoleText(user.role)}
-                            </span>
-                          </TableCell>
-                          <TableCell>
-                            <span className="text-sm">{user.committee_name || '—'}</span>
-                          </TableCell>
-                          <TableCell>
-                            <LevelBadge level={user.level} size="sm" />
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-medium">{user.participation_count || 0}</span>
-                          </TableCell>
-                          <TableCell>
+              {/* Unified Responsive Cards View */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredUsers.map((user) => (
+                  <Card key={user.id} className={`overflow-hidden transition-all hover:shadow-md ${!user.is_active ? 'opacity-70 grayscale-[0.5]' : ''}`}>
+                    <div className="p-4 sm:p-5">
+                      {/* Header: Avatar, Name, Email, Status */}
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                          <div className="relative shrink-0">
+                            <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border shadow-sm">
+                              <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                              <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
+                                {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                              </AvatarFallback>
+                            </Avatar>
+                            {/* Online dot */}
                             {(() => {
                               const status = getLastSeenText(user.last_seen_at);
                               return (
-                                <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${status.color}`}>
-                                  <span className={`h-2 w-2 rounded-full ${status.dot}`} />
-                                  {status.text}
-                                </span>
+                                <span className={`absolute bottom-0 right-0 h-3 w-3 sm:h-3.5 sm:w-3.5 rounded-full border-2 border-background ${status.dot}`} />
                               );
                             })()}
-                          </TableCell>
-                          <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon">
-                                  <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                {['admin', 'head_hr'].includes(primaryRole) && (
-                                  <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                                    <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                    {t('common.edit')}
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
-                                  <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                  {t('users.viewProfile')}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    if (user.phone) {
-                                      window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
-                                    } else {
-                                      toast.error(language === 'ar' ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
-                                    }
-                                  }}
-                                >
-                                  <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                  {t('users.sendWhatsapp')}
-                                </DropdownMenuItem>
-                                {['admin', 'head_hr'].includes(primaryRole) && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      onClick={() => handleToggleActive(user)}
-                                      className={user.is_active ? 'text-orange-600 focus:text-orange-600' : 'text-emerald-600 focus:text-emerald-600'}
-                                    >
-                                      {user.is_active
-                                        ? <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ltr:mr-2 rtl:ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                                        : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ltr:mr-2 rtl:ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                      }
-                                      {user.is_active
-                                        ? (isRTL ? 'تعطيل المتطوع' : 'Deactivate')
-                                        : (isRTL ? 'تفعيل المتطوع' : 'Activate')
-                                      }
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                                {primaryRole === 'admin' && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      className="text-destructive"
-                                      onClick={() => {
-                                        setSelectedUser(user);
-                                        setIsDeleteDialogOpen(true);
-                                      }}
-                                    >
-                                      <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                      {t('common.delete')}
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-
-              {/* Mobile View */}
-              <div className="grid gap-4 lg:hidden">
-                {filteredUsers.map((user) => (
-                  <Card key={user.id}>
-                    <CardContent className="p-4">
-                      {/* Header with avatar and actions */}
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <Avatar className="h-12 w-12 shrink-0">
-                            <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
-                            <AvatarFallback className="text-sm">
-                              {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                            </AvatarFallback>
-                          </Avatar>
+                          </div>
+                          
                           <div className="min-w-0 flex-1">
-                            <p className="font-semibold truncate">{user.full_name || 'No name'}</p>
-                            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-bold text-base sm:text-lg truncate">{user.full_name || 'No name'}</h3>
+                              {!user.is_active && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200 shrink-0">
+                                  {isRTL ? 'معطّل' : 'Inactive'}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs sm:text-sm text-muted-foreground truncate" dir="ltr" style={{ textAlign: isRTL ? 'right' : 'left' }}>{user.email}</p>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-semibold ${getRoleBadgeClass(user.role)}`}>
+                                {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
+                                {getRoleText(user.role)}
+                              </span>
+                              <LevelBadge level={user.level} size="sm" />
+                            </div>
                           </div>
                         </div>
+
+                        {/* Actions Dropdown */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 -mr-2 rtl:-ml-2">
+                            <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 -mr-2 rtl:-ml-2 mt-1">
                               <MoreHorizontal className="h-5 w-5" />
                             </Button>
                           </DropdownMenuTrigger>
@@ -1720,6 +1602,24 @@ export default function UserManagement() {
                               <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                               {t('users.sendWhatsapp')}
                             </DropdownMenuItem>
+                            {['admin', 'head_hr'].includes(primaryRole) && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleToggleActive(user)}
+                                  className={user.is_active ? 'text-orange-600 focus:text-orange-600' : 'text-emerald-600 focus:text-emerald-600'}
+                                >
+                                  {user.is_active
+                                    ? <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ltr:mr-2 rtl:ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                                    : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ltr:mr-2 rtl:ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                                  }
+                                  {user.is_active
+                                    ? (isRTL ? 'تعطيل المتطوع' : 'Deactivate')
+                                    : (isRTL ? 'تفعيل المتطوع' : 'Activate')
+                                  }
+                                </DropdownMenuItem>
+                              </>
+                            )}
                             {primaryRole === 'admin' && (
                               <>
                                 <DropdownMenuSeparator />
@@ -1739,43 +1639,33 @@ export default function UserManagement() {
                         </DropdownMenu>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 mb-3">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${getRoleBadgeClass(user.role)}`}>
-                          {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
-                          {getRoleText(user.role)}
-                        </span>
-                        <LevelBadge level={user.level} size="sm" />
-                      </div>
-
-                      <div className="grid grid-cols-1 xs:grid-cols-2 gap-3 pt-3 border-t text-sm">
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-0.5">{t('users.committee')}</p>
-                          <p className="font-medium truncate">{user.committee_name || '—'}</p>
+                      {/* Stats & Details grid */}
+                      <div className="bg-muted/30 rounded-xl p-3 space-y-2 text-sm border border-border/50">
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-muted-foreground text-xs font-medium">{t('users.committee')}</span>
+                          <span className="font-semibold text-xs text-foreground bg-background px-2 py-1 rounded-md border shadow-sm">{user.committee_name || '—'}</span>
                         </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-0.5">{language === 'ar' ? 'عدد المشاركات' : 'Participations'}</p>
-                          <p className="font-medium">{user.participation_count || 0}</p>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-muted-foreground text-xs font-medium">{language === 'ar' ? 'عدد المشاركات' : 'Participations'}</span>
+                          <span className="font-semibold text-xs bg-primary/10 text-primary px-2 py-1 rounded-md">{user.participation_count || 0}</span>
                         </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-0.5">{language === 'ar' ? 'آخر ظهور' : 'Last Seen'}</p>
-                          {(() => {
-                            const status = getLastSeenText(user.last_seen_at);
-                            return (
-                              <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${status.color}`}>
-                                <span className={`h-2 w-2 rounded-full ${status.dot}`} />
-                                {status.text}
-                              </span>
-                            );
-                          })()}
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-muted-foreground text-xs font-medium">{language === 'ar' ? 'آخر ظهور' : 'Last Seen'}</span>
+                          <span className="font-medium text-xs">
+                            {(() => {
+                              const status = getLastSeenText(user.last_seen_at);
+                              return status.text;
+                            })()}
+                          </span>
                         </div>
                         {user.phone && (
-                          <div>
-                            <p className="text-xs text-muted-foreground mb-0.5">{t('users.phoneNumber')}</p>
-                            <p dir="ltr" className={language === 'ar' ? "text-right" : "text-left"}>{user.phone}</p>
+                          <div className="flex justify-between items-center py-1 border-t border-border/50 pt-2 mt-1">
+                            <span className="text-muted-foreground text-xs font-medium">{t('users.phoneNumber')}</span>
+                            <span className="font-medium text-xs font-mono" dir="ltr">{user.phone}</span>
                           </div>
                         )}
                       </div>
-                    </CardContent>
+                    </div>
                   </Card>
                 ))}
               </div>
