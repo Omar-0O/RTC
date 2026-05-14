@@ -2218,23 +2218,26 @@ export default function CourseManagement() {
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-md bg-muted/20">
+                                                <div className="grid grid-cols-1 gap-4 border p-4 rounded-md bg-muted/20">
                                                     <div className="space-y-2">
-                                                        <Label>{isRTL ? 'اسم المدرب الخارجي *' : 'External Trainer Name *'}</Label>
+                                                        <Label>{isRTL ? 'أسماء المدربين (خارجي) *' : 'External Trainers Names *'}</Label>
                                                         <Input
                                                             value={formData.trainer_name}
                                                             onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
                                                             className="h-10 bg-background"
-                                                            placeholder={isRTL ? 'أدخل اسم المدرب' : 'Enter trainer name'}
+                                                            placeholder={isRTL ? 'مثال: أحمد محمود، خالد عبد الله' : 'e.g. Ahmed, Khaled'}
                                                         />
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {isRTL ? 'يمكنك كتابة أكثر من اسم مفصولين بمسافة أو فاصلة' : 'You can enter multiple names separated by commas'}
+                                                        </p>
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label>{isRTL ? 'رقم الهاتف' : 'Phone Number'}</Label>
+                                                        <Label>{isRTL ? 'أرقام الهواتف' : 'Phone Numbers'}</Label>
                                                         <Input
                                                             value={formData.trainer_phone}
                                                             onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
                                                             className="h-10 bg-background"
-                                                            placeholder="01xxxxxxxxx"
+                                                            placeholder="01xxxxxxxxx, 01xxxxxxxxx"
                                                             dir="ltr"
                                                         />
                                                     </div>
@@ -2919,21 +2922,26 @@ export default function CourseManagement() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border p-4 rounded-md bg-muted/20">
+                                <div className="grid grid-cols-1 gap-4 border p-4 rounded-md bg-muted/20">
                                     <div className="space-y-2">
-                                        <Label>{isRTL ? 'اسم المدرب الخارجي *' : 'External Trainer Name *'}</Label>
+                                        <Label>{isRTL ? 'أسماء المدربين (خارجي) *' : 'External Trainers Names *'}</Label>
                                         <Input
                                             value={formData.trainer_name}
                                             onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
                                             className="h-10 bg-background"
+                                            placeholder={isRTL ? 'مثال: أحمد محمود، خالد عبد الله' : 'e.g. Ahmed, Khaled'}
                                         />
+                                        <p className="text-xs text-muted-foreground">
+                                            {isRTL ? 'يمكنك كتابة أكثر من اسم مفصولين بمسافة أو فاصلة' : 'You can enter multiple names separated by commas'}
+                                        </p>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>{isRTL ? 'رقم الهاتف' : 'Phone Number'}</Label>
+                                        <Label>{isRTL ? 'أرقام الهواتف' : 'Phone Numbers'}</Label>
                                         <Input
                                             value={formData.trainer_phone}
                                             onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
                                             className="h-10 bg-background"
+                                            placeholder="01xxxxxxxxx, 01xxxxxxxxx"
                                             dir="ltr"
                                         />
                                     </div>
