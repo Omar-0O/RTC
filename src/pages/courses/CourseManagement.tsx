@@ -205,6 +205,30 @@ export default function CourseManagement() {
     // Multi-trainer support
     const [courseTrainers, setCourseTrainers] = useState<CourseTrainer[]>([]);
     const [trainerPopoverOpen, setTrainerPopoverOpen] = useState(false);
+    const [externalTrainersList, setExternalTrainersList] = useState<{name: string, phone: string}[]>([]);
+    const [newExtName, setNewExtName] = useState('');
+    const [newExtPhone, setNewExtPhone] = useState('');
+
+    useEffect(() => {
+        if (isExternalTrainer) {
+            setFormData(prev => ({
+                ...prev,
+                trainer_name: externalTrainersList.map(t => t.name).join('، '),
+                trainer_phone: externalTrainersList.map(t => t.phone).join(' - ')
+            }));
+        }
+    }, [externalTrainersList, isExternalTrainer]);
+
+    const handleAddExternalTrainer = () => {
+        if (!newExtName.trim()) return;
+        setExternalTrainersList(prev => [...prev, { name: newExtName.trim(), phone: newExtPhone.trim() }]);
+        setNewExtName('');
+        setNewExtPhone('');
+    };
+
+    const removeExtTrainer = (index: number) => {
+        setExternalTrainersList(prev => prev.filter((_, i) => i !== index));
+    };
 
     // roles and profile already destructured above
     const isRestricted = roles.includes('committee_leader') &&
@@ -259,7 +283,7 @@ export default function CourseManagement() {
             if (activeCourses.length === 0) return;
 
             const activeIds = activeCourses.map(c => c.id);
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('course_ads')
                 .select('*, updater:updated_by(full_name, full_name_ar), course:courses(name, start_date, interview_date, has_interview)')
                 .in('course_id', activeIds)
@@ -295,7 +319,7 @@ export default function CourseManagement() {
 
     const fetchRooms = async () => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('rooms')
                 .select('id, name, name_ar')
                 .order('created_at');
@@ -436,7 +460,7 @@ export default function CourseManagement() {
 
     const fetchCourseAds = async (courseId: string) => {
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('course_ads')
                 .select('*, updater:updated_by(full_name, full_name_ar)')
                 .eq('course_id', courseId)
@@ -455,7 +479,7 @@ export default function CourseManagement() {
         fetchCourseAds(course.id);
 
         // Fetch existing marketers for this course
-        const { data: mktData } = await supabase
+        const { data: mktData } = await (supabase as any)
             .from('course_marketers')
             .select('id, volunteer_id, name, phone')
             .eq('course_id', course.id);
@@ -469,7 +493,7 @@ export default function CourseManagement() {
         if (detailsMarketers.some(m => m.volunteer_id === volunteer.id)) return;
 
         try {
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('course_marketers')
                 .insert({
                     course_id: selectedMarketingCourse.id,
@@ -493,7 +517,7 @@ export default function CourseManagement() {
 
     const handleRemoveMarketerFromDetails = async (marketerId: string) => {
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('course_marketers')
                 .delete()
                 .eq('id', marketerId);
@@ -764,7 +788,7 @@ export default function CourseManagement() {
 
             // Add organizers
             if (organizers.length > 0) {
-                const { error: orgError } = await supabase
+                const { error: orgError } = await (supabase as any)
                     .from('course_organizers')
                     .insert(organizers.map(o => ({
                         course_id: course.id,
@@ -778,7 +802,7 @@ export default function CourseManagement() {
 
             // Add marketers
             if (marketers.length > 0) {
-                const { error: mktError } = await supabase
+                const { error: mktError } = await (supabase as any)
                     .from('course_marketers')
                     .insert(marketers.map(m => ({
                         course_id: course.id,
@@ -792,7 +816,7 @@ export default function CourseManagement() {
 
             // Add course trainers (multi-trainer)
             if (courseTrainers.length > 0) {
-                const { error: ctError } = await supabase
+                const { error: ctError } = await (supabase as any)
                     .from('course_trainers')
                     .insert(courseTrainers.map(ct => ({
                         course_id: course.id,
@@ -810,7 +834,7 @@ export default function CourseManagement() {
                     created_by: user?.id
                 }));
 
-                const { error: adsError } = await supabase
+                const { error: adsError } = await (supabase as any)
                     .from('course_ads')
                     .insert(adEntries);
 
@@ -862,11 +886,20 @@ export default function CourseManagement() {
             committee_id: course.committee_id || null,
         });
         setSelectedTrainerId(course.trainer_id || '');
-        setIsExternalTrainer(!course.trainer_id && !!course.trainer_name);
+        if (!course.trainer_id && course.trainer_name) {
+            setIsExternalTrainer(true);
+            const names = course.trainer_name.split(/[,،]/).map((s: string) => s.trim()).filter(Boolean);
+            const phones = course.trainer_phone ? course.trainer_phone.split(/[,-]/).map((s: string) => s.trim()) : [];
+            const parsedExt = names.map((name: string, i: number) => ({ name, phone: phones[i] || '' }));
+            setExternalTrainersList(parsedExt);
+        } else {
+            setIsExternalTrainer(false);
+            setExternalTrainersList([]);
+        }
 
         // Fetch organizers for this course
         const fetchCourseOrganizers = async () => {
-            const { data } = await supabase
+            const { data } = await (supabase as any)
                 .from('course_organizers')
                 .select('*')
                 .eq('course_id', course.id);
@@ -879,7 +912,7 @@ export default function CourseManagement() {
 
         // Fetch marketers for this course
         const fetchCourseMarketers = async () => {
-            const { data: marketersData } = await supabase
+            const { data: marketersData } = await (supabase as any)
                 .from('course_marketers')
                 .select(`
                     id,
@@ -908,7 +941,7 @@ export default function CourseManagement() {
 
         // Fetch course trainers (multi-trainer)
         const fetchCourseTrainersForEdit = async () => {
-            const { data: ctData } = await supabase
+            const { data: ctData } = await (supabase as any)
                 .from('course_trainers')
                 .select('id, course_id, trainer_id')
                 .eq('course_id', course.id);
@@ -1009,7 +1042,7 @@ export default function CourseManagement() {
             await supabase.from('course_organizers').delete().eq('course_id', editingCourseId);
 
             if (organizers.length > 0) {
-                await supabase
+                await (supabase as any)
                     .from('course_organizers')
                     .insert(organizers.map(o => ({
                         course_id: editingCourseId,
@@ -1023,7 +1056,7 @@ export default function CourseManagement() {
             await supabase.from('course_marketers').delete().eq('course_id', editingCourseId);
 
             if (marketers.length > 0) {
-                await supabase
+                await (supabase as any)
                     .from('course_marketers')
                     .insert(marketers.map(m => ({
                         course_id: editingCourseId,
@@ -1034,7 +1067,7 @@ export default function CourseManagement() {
             // Update course trainers - delete all and re-insert
             await supabase.from('course_trainers').delete().eq('course_id', editingCourseId);
             if (courseTrainers.length > 0) {
-                await supabase
+                await (supabase as any)
                     .from('course_trainers')
                     .insert(courseTrainers.map(ct => ({
                         course_id: editingCourseId,
@@ -1151,7 +1184,7 @@ export default function CourseManagement() {
                 content_done: false
             };
 
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('course_ads')
                 .insert(newAdData)
                 .select()
@@ -1218,7 +1251,7 @@ export default function CourseManagement() {
 
     const handleUpdateAd = async (adId: string, updates: Partial<CourseAd>) => {
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('course_ads')
                 .update({ ...updates, updated_by: user?.id, updated_at: new Date().toISOString() })
                 .eq('id', adId);
@@ -1258,7 +1291,7 @@ export default function CourseManagement() {
 
     const handleDeleteAd = async (adId: string) => {
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('course_ads')
                 .delete()
                 .eq('id', adId);
@@ -1296,7 +1329,7 @@ export default function CourseManagement() {
         }
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('course_ads')
                 .update({ ad_date: newDate })
                 .eq('id', adId);
@@ -1336,7 +1369,7 @@ export default function CourseManagement() {
                 content_done: false
             };
 
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('course_ads')
                 .insert(newAdData)
                 .select('*, updater:updated_by(full_name, full_name_ar), course:courses(name, start_date, interview_date, has_interview)')
@@ -1372,7 +1405,7 @@ export default function CourseManagement() {
                 .order('lecture_number');
 
             // Fetch course ads
-            const { data: adsData } = await supabase
+            const { data: adsData } = await (supabase as any)
                 .from('course_ads')
                 .select(`
                     *,
@@ -1418,7 +1451,7 @@ export default function CourseManagement() {
                 }
             }
             // Fetch organizers
-            const { data: organizersData } = await supabase
+            const { data: organizersData } = await (supabase as any)
                 .from('course_organizers')
                 .select('*')
                 .eq('course_id', course.id);
@@ -1428,7 +1461,7 @@ export default function CourseManagement() {
             }
 
             // Fetch course marketers
-            const { data: marketersData } = await supabase
+            const { data: marketersData } = await (supabase as any)
                 .from('course_marketers')
                 .select(`
                     id,
@@ -1545,7 +1578,7 @@ export default function CourseManagement() {
     const exportCourseToExcel = async (course: Course) => {
         try {
             // Fetch organizers
-            const { data: orgs } = await supabase
+            const { data: orgs } = await (supabase as any)
                 .from('course_organizers')
                 .select('*')
                 .eq('course_id', course.id);
@@ -1999,7 +2032,7 @@ export default function CourseManagement() {
                 phone: volunteer.phone || ''
             };
 
-            const { data, error } = await supabase
+            const { data, error } = await (supabase as any)
                 .from('course_organizers')
                 .insert(newOrganizer)
                 .select()
@@ -2019,7 +2052,7 @@ export default function CourseManagement() {
         if (!organizerId) return;
 
         try {
-            const { error } = await supabase
+            const { error } = await (supabase as any)
                 .from('course_organizers')
                 .delete()
                 .eq('id', organizerId);
@@ -2218,28 +2251,50 @@ export default function CourseManagement() {
                                                     </div>
                                                 </div>
                                             ) : (
-                                                <div className="grid grid-cols-1 gap-4 border p-4 rounded-md bg-muted/20">
-                                                    <div className="space-y-2">
-                                                        <Label>{isRTL ? 'أسماء المدربين (خارجي) *' : 'External Trainers Names *'}</Label>
-                                                        <Input
-                                                            value={formData.trainer_name}
-                                                            onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
-                                                            className="h-10 bg-background"
-                                                            placeholder={isRTL ? 'مثال: أحمد محمود، خالد عبد الله' : 'e.g. Ahmed, Khaled'}
-                                                        />
-                                                        <p className="text-xs text-muted-foreground">
-                                                            {isRTL ? 'يمكنك كتابة أكثر من اسم مفصولين بمسافة أو فاصلة' : 'You can enter multiple names separated by commas'}
-                                                        </p>
+                                                <div className="space-y-3">
+                                                    <div className="flex flex-wrap gap-2 min-h-[48px] p-2 border rounded-md bg-background items-center transition-colors">
+                                                        {externalTrainersList.length > 0 ? (
+                                                            externalTrainersList.map((ext, idx) => (
+                                                                <div key={idx} className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-full text-sm">
+                                                                    <Avatar className="h-5 w-5 bg-background">
+                                                                        <AvatarFallback className="text-[10px]"><User className="h-3 w-3" /></AvatarFallback>
+                                                                    </Avatar>
+                                                                    <span>{ext.name}</span>
+                                                                    <button type="button" onClick={() => removeExtTrainer(idx)} className="text-muted-foreground hover:text-destructive transition-colors">
+                                                                        <X className="h-3 w-3" />
+                                                                     </button>
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            <span className="text-sm text-muted-foreground px-2">
+                                                                {isRTL ? 'لم يتم إضافة مدربين خارجيين...' : 'No external trainers added...'}
+                                                            </span>
+                                                        )}
                                                     </div>
-                                                    <div className="space-y-2">
-                                                        <Label>{isRTL ? 'أرقام الهواتف' : 'Phone Numbers'}</Label>
-                                                        <Input
-                                                            value={formData.trainer_phone}
-                                                            onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
-                                                            className="h-10 bg-background"
-                                                            placeholder="01xxxxxxxxx, 01xxxxxxxxx"
-                                                            dir="ltr"
-                                                        />
+                                                    <div className="flex items-end gap-2 bg-muted/20 p-3 rounded-md border">
+                                                        <div className="flex-1 space-y-1.5">
+                                                            <Label className="text-xs">{isRTL ? 'اسم المدرب' : 'Trainer Name'}</Label>
+                                                            <Input
+                                                                value={newExtName}
+                                                                onChange={e => setNewExtName(e.target.value)}
+                                                                className="h-9 bg-background"
+                                                                placeholder={isRTL ? 'الاسم' : 'Name'}
+                                                            />
+                                                        </div>
+                                                        <div className="flex-1 space-y-1.5">
+                                                            <Label className="text-xs">{isRTL ? 'الهاتف (اختياري)' : 'Phone (Optional)'}</Label>
+                                                            <Input
+                                                                value={newExtPhone}
+                                                                onChange={e => setNewExtPhone(e.target.value)}
+                                                                className="h-9 bg-background"
+                                                                placeholder="01xxxxxxxxx"
+                                                                dir="ltr"
+                                                            />
+                                                        </div>
+                                                        <Button type="button" onClick={handleAddExternalTrainer} variant="secondary" className="h-9 whitespace-nowrap">
+                                                            <Plus className="w-4 h-4 mr-1" />
+                                                            {isRTL ? 'إضافة' : 'Add'}
+                                                        </Button>
                                                     </div>
                                                 </div>
                                             )}
@@ -2922,28 +2977,50 @@ export default function CourseManagement() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="grid grid-cols-1 gap-4 border p-4 rounded-md bg-muted/20">
-                                    <div className="space-y-2">
-                                        <Label>{isRTL ? 'أسماء المدربين (خارجي) *' : 'External Trainers Names *'}</Label>
-                                        <Input
-                                            value={formData.trainer_name}
-                                            onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
-                                            className="h-10 bg-background"
-                                            placeholder={isRTL ? 'مثال: أحمد محمود، خالد عبد الله' : 'e.g. Ahmed, Khaled'}
-                                        />
-                                        <p className="text-xs text-muted-foreground">
-                                            {isRTL ? 'يمكنك كتابة أكثر من اسم مفصولين بمسافة أو فاصلة' : 'You can enter multiple names separated by commas'}
-                                        </p>
+                                <div className="space-y-3">
+                                    <div className="flex flex-wrap gap-2 min-h-[48px] p-2 border rounded-md bg-background items-center transition-colors">
+                                        {externalTrainersList.length > 0 ? (
+                                            externalTrainersList.map((ext, idx) => (
+                                                <div key={idx} className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-full text-sm">
+                                                    <Avatar className="h-5 w-5 bg-background">
+                                                        <AvatarFallback className="text-[10px]"><User className="h-3 w-3" /></AvatarFallback>
+                                                    </Avatar>
+                                                    <span>{ext.name}</span>
+                                                    <button type="button" onClick={() => removeExtTrainer(idx)} className="text-muted-foreground hover:text-destructive transition-colors">
+                                                        <X className="h-3 w-3" />
+                                                    </button>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <span className="text-sm text-muted-foreground px-2">
+                                                {isRTL ? 'لم يتم إضافة مدربين خارجيين...' : 'No external trainers added...'}
+                                            </span>
+                                        )}
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>{isRTL ? 'أرقام الهواتف' : 'Phone Numbers'}</Label>
-                                        <Input
-                                            value={formData.trainer_phone}
-                                            onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
-                                            className="h-10 bg-background"
-                                            placeholder="01xxxxxxxxx, 01xxxxxxxxx"
-                                            dir="ltr"
-                                        />
+                                    <div className="flex items-end gap-2 bg-muted/20 p-3 rounded-md border">
+                                        <div className="flex-1 space-y-1.5">
+                                            <Label className="text-xs">{isRTL ? 'اسم المدرب' : 'Trainer Name'}</Label>
+                                            <Input
+                                                value={newExtName}
+                                                onChange={e => setNewExtName(e.target.value)}
+                                                className="h-9 bg-background"
+                                                placeholder={isRTL ? 'الاسم' : 'Name'}
+                                            />
+                                        </div>
+                                        <div className="flex-1 space-y-1.5">
+                                            <Label className="text-xs">{isRTL ? 'الهاتف (اختياري)' : 'Phone (Optional)'}</Label>
+                                            <Input
+                                                value={newExtPhone}
+                                                onChange={e => setNewExtPhone(e.target.value)}
+                                                className="h-9 bg-background"
+                                                placeholder="01xxxxxxxxx"
+                                                dir="ltr"
+                                            />
+                                        </div>
+                                        <Button type="button" onClick={handleAddExternalTrainer} variant="secondary" className="h-9 whitespace-nowrap">
+                                            <Plus className="w-4 h-4 mr-1" />
+                                            {isRTL ? 'إضافة' : 'Add'}
+                                        </Button>
                                     </div>
                                 </div>
                             )}
@@ -3846,3 +3923,4 @@ function AttendanceRegisterDialog({ lectureId, onRegister, isRTL, attendees }: {
         </Popover>
     );
 }
+
