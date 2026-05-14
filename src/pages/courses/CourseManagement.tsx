@@ -70,6 +70,7 @@ interface Course {
     trainer_id: string | null;
     course_lectures?: { status: string }[];
     course_organizers?: { id: string }[];
+    course_trainers?: { trainer_id: string; trainers?: { name_ar: string; name_en: string } }[];
     has_certificates: boolean;
     certificate_status: 'pending' | 'printing' | 'ready' | 'delivered';
 }
@@ -124,6 +125,13 @@ interface Trainer {
     phone: string | null;
     image_url: string | null;
     committee_id?: string | null;
+}
+
+interface CourseTrainer {
+    id?: string;
+    course_id?: string;
+    trainer_id: string;
+    trainer?: Trainer;
 }
 
 interface CourseAd {
@@ -194,6 +202,9 @@ export default function CourseManagement() {
     const [courseAds, setCourseAds] = useState<CourseAd[]>([]);
     const [isMarketingDialogOpen, setIsMarketingDialogOpen] = useState(false);
     const [selectedMarketingCourse, setSelectedMarketingCourse] = useState<Course | null>(null);
+    // Multi-trainer support
+    const [courseTrainers, setCourseTrainers] = useState<CourseTrainer[]>([]);
+    const [trainerPopoverOpen, setTrainerPopoverOpen] = useState(false);
 
     // roles and profile already destructured above
     const isRestricted = roles.includes('committee_leader') &&
@@ -404,7 +415,7 @@ export default function CourseManagement() {
         try {
             let query: any = supabase
                 .from('courses')
-                .select('*, course_lectures(status), course_organizers(id)')
+                .select('*, course_lectures(status), course_organizers(id), course_trainers(trainer_id, trainers(name_ar, name_en))')
                 .order('start_date', { ascending: false });
 
             if (isRestricted && profile?.committee_id) {
@@ -518,6 +529,7 @@ export default function CourseManagement() {
         setPlannedAds([]);
         setSelectedTrainerId('');
         setIsExternalTrainer(false);
+        setCourseTrainers([]);
     };
 
     const handleAddOrganizer = (volunteer: Volunteer) => {
@@ -552,6 +564,16 @@ export default function CourseManagement() {
 
     const removeMarketer = (index: number) => {
         setMarketers(marketers.filter((_, i) => i !== index));
+    };
+
+    const handleAddCourseTrainer = (trainer: Trainer) => {
+        if (courseTrainers.some(ct => ct.trainer_id === trainer.id)) return;
+        setCourseTrainers([...courseTrainers, { trainer_id: trainer.id, trainer }]);
+        setTrainerPopoverOpen(false);
+    };
+
+    const removeCourseTrainer = (trainerId: string) => {
+        setCourseTrainers(courseTrainers.filter(ct => ct.trainer_id !== trainerId));
     };
 
     const toggleDay = (day: string) => {
@@ -768,6 +790,17 @@ export default function CourseManagement() {
                 }
             }
 
+            // Add course trainers (multi-trainer)
+            if (courseTrainers.length > 0) {
+                const { error: ctError } = await supabase
+                    .from('course_trainers')
+                    .insert(courseTrainers.map(ct => ({
+                        course_id: course.id,
+                        trainer_id: ct.trainer_id
+                    })));
+                if (ctError) console.error('Error adding course trainers:', ctError);
+            }
+
             // Add Planned Ads
             if (plannedAds.length > 0) {
                 const adEntries = plannedAds.map((date, index) => ({
@@ -873,6 +906,33 @@ export default function CourseManagement() {
         };
         fetchCourseMarketers();
 
+        // Fetch course trainers (multi-trainer)
+        const fetchCourseTrainersForEdit = async () => {
+            const { data: ctData } = await supabase
+                .from('course_trainers')
+                .select('id, course_id, trainer_id')
+                .eq('course_id', course.id);
+
+            if (ctData && ctData.length > 0) {
+                const enriched = ctData.map((ct: any) => ({
+                    id: ct.id,
+                    course_id: ct.course_id,
+                    trainer_id: ct.trainer_id,
+                    trainer: trainers.find(t => t.id === ct.trainer_id)
+                }));
+                setCourseTrainers(enriched);
+            } else {
+                // Fallback: if course has a single trainer_id, seed it
+                if (course.trainer_id) {
+                    const t = trainers.find(t => t.id === course.trainer_id);
+                    setCourseTrainers(t ? [{ trainer_id: course.trainer_id, trainer: t }] : []);
+                } else {
+                    setCourseTrainers([]);
+                }
+            }
+        };
+        fetchCourseTrainersForEdit();
+
         setIsEditOpen(true);
     };
 
@@ -971,7 +1031,19 @@ export default function CourseManagement() {
                     })));
             }
 
+            // Update course trainers - delete all and re-insert
+            await supabase.from('course_trainers').delete().eq('course_id', editingCourseId);
+            if (courseTrainers.length > 0) {
+                await supabase
+                    .from('course_trainers')
+                    .insert(courseTrainers.map(ct => ({
+                        course_id: editingCourseId,
+                        trainer_id: ct.trainer_id
+                    })));
+            }
+
             // Fetch existing lectures
+
             const { data: existingLectures } = await supabase
                 .from('course_lectures')
                 .select('id, lecture_number, date')
@@ -2057,72 +2129,85 @@ export default function CourseManagement() {
                                             </Select>
                                         </div>
 
-                                        {/* Common Fields: Trainer */}
-                                        <div className="space-y-4">
+                                        {/* Common Fields: Trainers (Multi) */}
+                                        <div className="space-y-3">
                                             <div className="flex items-center justify-between">
-                                                <Label className="text-base">{isRTL ? 'المدرب' : 'Trainer'}</Label>
-                                                <div className="flex items-center gap-3">
-                                                    <span className={`text-sm ${!isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
-                                                        {isRTL ? 'من الفرع' : 'Internal'}
-                                                    </span>
-                                                    <Switch
-                                                        checked={isExternalTrainer}
-                                                        onCheckedChange={(checked) => {
-                                                            setIsExternalTrainer(checked);
-                                                            if (checked) {
-                                                                setSelectedTrainerId('');
-                                                            } else {
-                                                                setFormData({ ...formData, trainer_name: '', trainer_phone: '' });
-                                                            }
-                                                        }}
-                                                    />
-                                                    <span className={`text-sm ${isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
-                                                        {isRTL ? 'خارجي' : 'External'}
-                                                    </span>
-                                                </div>
+                                                <Label className="text-base">{isRTL ? 'المدربون' : 'Trainers'}</Label>
+                                                <Popover open={trainerPopoverOpen} onOpenChange={setTrainerPopoverOpen}>
+                                                    <PopoverTrigger asChild>
+                                                        <Button type="button" variant="outline" size="sm" className="h-8 gap-1">
+                                                            <Plus className="w-3.5 h-3.5" />
+                                                            {isRTL ? 'إضافة مدرب' : 'Add Trainer'}
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-72 p-0" align="end">
+                                                        <Command>
+                                                            <CommandInput placeholder={isRTL ? 'ابحث عن مدرب...' : 'Search trainer...'} />
+                                                            <CommandList>
+                                                                <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results'}</CommandEmpty>
+                                                                <CommandGroup>
+                                                                    {trainers
+                                                                        .filter(t => !courseTrainers.some(ct => ct.trainer_id === t.id))
+                                                                        .map(trainer => (
+                                                                            <CommandItem
+                                                                                key={trainer.id}
+                                                                                onSelect={() => handleAddCourseTrainer(trainer)}
+                                                                                className="flex items-center gap-2 cursor-pointer"
+                                                                            >
+                                                                                <Avatar className="h-7 w-7">
+                                                                                    <AvatarImage src={trainer.image_url || undefined} />
+                                                                                    <AvatarFallback className="text-xs">{(isRTL ? trainer.name_ar : trainer.name_en).charAt(0)}</AvatarFallback>
+                                                                                </Avatar>
+                                                                                <div className="flex flex-col min-w-0">
+                                                                                    <span className="text-sm font-medium truncate">{isRTL ? trainer.name_ar : trainer.name_en}</span>
+                                                                                    {trainer.phone && <span className="text-xs text-muted-foreground" dir="ltr">{trainer.phone}</span>}
+                                                                                </div>
+                                                                            </CommandItem>
+                                                                        ))}
+                                                                </CommandGroup>
+                                                            </CommandList>
+                                                        </Command>
+                                                    </PopoverContent>
+                                                </Popover>
                                             </div>
-
-                                            {!isExternalTrainer ? (
-                                                <div className="space-y-3">
-                                                    <Select value={selectedTrainerId} onValueChange={setSelectedTrainerId}>
-                                                        <SelectTrigger className="h-12">
-                                                            <SelectValue placeholder={isRTL ? 'اختر مدرب من الفرع...' : 'Select trainer from branch...'} />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {trainers.map(trainer => (
-                                                                <SelectItem key={trainer.id} value={trainer.id} className="py-3">
-                                                                    <div className="flex items-center gap-2 w-full flex-row-reverse justify-end">
-                                                                        <div className="flex flex-col items-end">
-                                                                            <span>{isRTL ? trainer.name_ar : trainer.name_en}</span>
-                                                                            {trainer.phone && <span className="text-muted-foreground text-xs">{trainer.phone}</span>}
-                                                                        </div>
-                                                                        <Avatar className="h-8 w-8">
-                                                                            <AvatarImage src={trainer.image_url || undefined} />
-                                                                            <AvatarFallback>{(isRTL ? trainer.name_ar : trainer.name_en).charAt(0)}</AvatarFallback>
-                                                                        </Avatar>
-                                                                    </div>
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
+                                            {/* Selected trainers chips */}
+                                            {courseTrainers.length > 0 && (
+                                                <div className="flex flex-wrap gap-2">
+                                                    {courseTrainers.map(ct => {
+                                                        const tr = ct.trainer || trainers.find(t => t.id === ct.trainer_id);
+                                                        return (
+                                                            <div key={ct.trainer_id} className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-full text-sm">
+                                                                <Avatar className="h-5 w-5">
+                                                                    <AvatarImage src={tr?.image_url || undefined} />
+                                                                    <AvatarFallback className="text-[10px]">{tr ? (isRTL ? tr.name_ar : tr.name_en).charAt(0) : '?'}</AvatarFallback>
+                                                                </Avatar>
+                                                                <span>{tr ? (isRTL ? tr.name_ar : tr.name_en) : ct.trainer_id}</span>
+                                                                <button type="button" onClick={() => removeCourseTrainer(ct.trainer_id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                                                                    <X className="h-3 w-3" />
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
-                                            ) : (
+                                            )}
+                                            {/* External trainer name/phone (kept for legacy) */}
+                                            {courseTrainers.length === 0 && (
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                     <div className="space-y-2">
-                                                        <Label>{isRTL ? 'اسم المدرب *' : 'Trainer Name *'}</Label>
+                                                        <Label className="text-sm text-muted-foreground">{isRTL ? 'أو اسم مدرب خارجي' : 'Or external trainer name'}</Label>
                                                         <Input
                                                             value={formData.trainer_name}
                                                             onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
-                                                            className="h-12"
-                                                            placeholder={isRTL ? 'أدخل اسم المدرب' : 'Enter trainer name'}
+                                                            className="h-10"
+                                                            placeholder={isRTL ? 'اسم المدرب الخارجي' : 'External trainer name'}
                                                         />
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label>{isRTL ? 'رقم المدرب' : 'Trainer Phone'}</Label>
+                                                        <Label className="text-sm text-muted-foreground">{isRTL ? 'رقمه' : 'Phone'}</Label>
                                                         <Input
                                                             value={formData.trainer_phone}
                                                             onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
-                                                            className="h-12"
+                                                            className="h-10"
                                                             placeholder="01xxxxxxxxx"
                                                             dir="ltr"
                                                         />
@@ -2467,7 +2552,12 @@ export default function CourseManagement() {
                                                 );
                                             })()}
                                         </div>
-                                        <CardDescription>{course.trainer_name}</CardDescription>
+                                        <CardDescription>
+                                            {course.course_trainers && course.course_trainers.length > 0
+                                                ? course.course_trainers.map(ct => isRTL ? ct.trainers?.name_ar : ct.trainers?.name_en).filter(Boolean).join(' · ')
+                                                : course.trainer_name
+                                            }
+                                        </CardDescription>
                                     </div>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
@@ -2714,81 +2804,75 @@ export default function CourseManagement() {
                             </Select>
                         </div>
 
-                        {/* Trainer Info */}
-                        <div className="space-y-4">
+                        {/* Trainer Info — Multi */}
+                        <div className="space-y-3">
                             <div className="flex items-center justify-between">
-                                <Label className="text-base">{isRTL ? 'المدرب' : 'Trainer'}</Label>
-                                <div className="flex items-center gap-3">
-                                    <span className={`text-sm ${!isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
-                                        {isRTL ? 'من الفرع' : 'Internal'}
-                                    </span>
-                                    <Switch
-                                        checked={isExternalTrainer}
-                                        onCheckedChange={(checked) => {
-                                            setIsExternalTrainer(checked);
-                                            if (checked) {
-                                                setSelectedTrainerId('');
-                                            } else {
-                                                setFormData({ ...formData, trainer_name: '', trainer_phone: '' });
-                                            }
-                                        }}
-                                    />
-                                    <span className={`text-sm ${isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
-                                        {isRTL ? 'خارجي' : 'External'}
-                                    </span>
-                                </div>
+                                <Label className="text-base">{isRTL ? 'المدربون' : 'Trainers'}</Label>
+                                <Popover open={trainerPopoverOpen} onOpenChange={setTrainerPopoverOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button type="button" variant="outline" size="sm" className="h-8 gap-1">
+                                            <Plus className="w-3.5 h-3.5" />
+                                            {isRTL ? 'إضافة مدرب' : 'Add Trainer'}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-72 p-0" align="end">
+                                        <Command>
+                                            <CommandInput placeholder={isRTL ? 'ابحث عن مدرب...' : 'Search trainer...'} />
+                                            <CommandList>
+                                                <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results'}</CommandEmpty>
+                                                <CommandGroup>
+                                                    {trainers
+                                                        .filter(t => !courseTrainers.some(ct => ct.trainer_id === t.id))
+                                                        .map(trainer => (
+                                                            <CommandItem
+                                                                key={trainer.id}
+                                                                onSelect={() => handleAddCourseTrainer(trainer)}
+                                                                className="flex items-center gap-2 cursor-pointer"
+                                                            >
+                                                                <Avatar className="h-7 w-7">
+                                                                    <AvatarImage src={trainer.image_url || undefined} />
+                                                                    <AvatarFallback className="text-xs">{(isRTL ? trainer.name_ar : trainer.name_en).charAt(0)}</AvatarFallback>
+                                                                </Avatar>
+                                                                <div className="flex flex-col min-w-0">
+                                                                    <span className="text-sm font-medium truncate">{isRTL ? trainer.name_ar : trainer.name_en}</span>
+                                                                    {trainer.phone && <span className="text-xs text-muted-foreground" dir="ltr">{trainer.phone}</span>}
+                                                                </div>
+                                                            </CommandItem>
+                                                        ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
                             </div>
-
-                            {!isExternalTrainer ? (
-                                <div className="space-y-3">
-                                    <Select value={selectedTrainerId} onValueChange={setSelectedTrainerId}>
-                                        <SelectTrigger className="h-12">
-                                            <SelectValue placeholder={isRTL ? 'اختر مدرب من الفرع...' : 'Select trainer from branch...'} />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {trainers.map(trainer => (
-                                                <SelectItem key={trainer.id} value={trainer.id} className="py-3">
-                                                    <div className="flex items-center gap-3 w-full justify-end">
-                                                        <div className="flex flex-col items-end min-w-0 flex-1">
-                                                            <span className="truncate font-medium w-full text-right">
-                                                                {isRTL ? trainer.name_ar : trainer.name_en}
-                                                            </span>
-                                                            {trainer.phone && (
-                                                                <span className="text-muted-foreground text-xs truncate w-full text-right" dir="ltr">
-                                                                    {trainer.phone}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        <Avatar className="h-9 w-9 shrink-0 border">
-                                                            <AvatarImage src={trainer.image_url || undefined} />
-                                                            <AvatarFallback className="bg-primary/10 text-primary">
-                                                                {(isRTL ? trainer.name_ar : trainer.name_en).charAt(0)}
-                                                            </AvatarFallback>
-                                                        </Avatar>
-                                                    </div>
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                            {courseTrainers.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                    {courseTrainers.map(ct => {
+                                        const tr = ct.trainer || trainers.find(t => t.id === ct.trainer_id);
+                                        return (
+                                            <div key={ct.trainer_id} className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-full text-sm">
+                                                <Avatar className="h-5 w-5">
+                                                    <AvatarImage src={tr?.image_url || undefined} />
+                                                    <AvatarFallback className="text-[10px]">{tr ? (isRTL ? tr.name_ar : tr.name_en).charAt(0) : '?'}</AvatarFallback>
+                                                </Avatar>
+                                                <span>{tr ? (isRTL ? tr.name_ar : tr.name_en) : ct.trainer_id}</span>
+                                                <button type="button" onClick={() => removeCourseTrainer(ct.trainer_id)} className="text-muted-foreground hover:text-destructive transition-colors">
+                                                    <X className="h-3 w-3" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            ) : (
+                            )}
+                            {courseTrainers.length === 0 && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label>{isRTL ? 'اسم المدرب *' : 'Trainer Name *'}</Label>
-                                        <Input
-                                            value={formData.trainer_name}
-                                            onChange={e => setFormData({ ...formData, trainer_name: e.target.value })}
-                                            className="h-12"
-                                        />
+                                        <Label className="text-sm text-muted-foreground">{isRTL ? 'أو اسم مدرب خارجي' : 'Or external trainer name'}</Label>
+                                        <Input value={formData.trainer_name} onChange={e => setFormData({ ...formData, trainer_name: e.target.value })} className="h-10" />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>{isRTL ? 'رقم المدرب' : 'Trainer Phone'}</Label>
-                                        <Input
-                                            value={formData.trainer_phone}
-                                            onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })}
-                                            className="h-12"
-                                            dir="ltr"
-                                        />
+                                        <Label className="text-sm text-muted-foreground">{isRTL ? 'رقمه' : 'Phone'}</Label>
+                                        <Input value={formData.trainer_phone} onChange={e => setFormData({ ...formData, trainer_phone: e.target.value })} className="h-10" dir="ltr" />
                                     </div>
                                 </div>
                             )}
@@ -2920,7 +3004,12 @@ export default function CourseManagement() {
                             )}
                         </DialogTitle>
                         <DialogDescription className="flex flex-col gap-1">
-                            <span>{selectedCourse?.trainer_name} - {selectedCourse?.room && getRoomLabel(selectedCourse.room)}</span>
+                            <span>
+                                {selectedCourse?.course_trainers && selectedCourse.course_trainers.length > 0
+                                    ? selectedCourse.course_trainers.map(ct => isRTL ? ct.trainers?.name_ar : ct.trainers?.name_en).filter(Boolean).join(' · ')
+                                    : selectedCourse?.trainer_name
+                                } - {selectedCourse?.room && getRoomLabel(selectedCourse.room)}
+                            </span>
                             {detailsOrganizers.length > 0 && (
                                 <span className="text-xs text-muted-foreground">
                                     {isRTL ? 'المنظمين: ' : 'Organizers: '}
