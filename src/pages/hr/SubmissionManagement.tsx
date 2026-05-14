@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
+import { ImagePreview } from '@/components/ui/image-preview';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1007,13 +1008,13 @@ export default function SubmissionManagement() {
                                             {/* Proof Image */}
                                             {submission.proof_url && (
                                                 <div className="mt-2">
-                                                    <a href={submission.proof_url} target="_blank" rel="noopener noreferrer" className="block w-fit">
+                                                    <ImagePreview src={submission.proof_url} alt={isRTL ? 'إثبات المشاركة' : 'Submission Proof'}>
                                                         <img
                                                             src={submission.proof_url}
                                                             alt={isRTL ? 'إثبات المشاركة' : 'Submission Proof'}
                                                             className="h-24 w-auto object-cover rounded-md border hover:opacity-90 transition-opacity"
                                                         />
-                                                    </a>
+                                                    </ImagePreview>
                                                 </div>
                                             )}
 

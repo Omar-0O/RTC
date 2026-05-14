@@ -111,7 +111,12 @@ async function cacheFirst(request, cacheName) {
   } catch (err) {
     // Offline: return offline fallback for navigation
     if (request.mode === 'navigate') {
-      return caches.match('/index.html');
+      const fallback = await caches.match('/index.html');
+      if (fallback) return fallback;
+      return new Response('Network error and no cache available.', {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain' }
+      });
     }
     throw err;
   }
@@ -152,7 +157,13 @@ async function staleWhileRevalidate(request, cacheName) {
       }
       return response;
     })
-    .catch(() => cached);
+    .catch((err) => {
+      if (cached) return cached;
+      return new Response('Network error and no cache available.', {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain' }
+      });
+    });
 
   return cached || fetchPromise;
 }

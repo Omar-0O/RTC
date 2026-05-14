@@ -412,15 +412,13 @@ export default function AshbalManagement() {
 
             {/* View Profile Dialog */}
             <Dialog open={!!viewProfileUser} onOpenChange={(open) => !open && setViewProfileUser(null)}>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {isRTL ? 'الملف الشخصي للمتطوع' : "Volunteer Profile"}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {isRTL ? 'عرض تفاصيل الملف الشخصي' : "View profile details"}
-                        </DialogDescription>
-                    </DialogHeader>
+                <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl sm:rounded-3xl gap-0">
+                    <DialogTitle className="sr-only">
+                        {isRTL ? 'الملف الشخصي للمتطوع' : "Volunteer Profile"}
+                    </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        {isRTL ? 'عرض تفاصيل الملف الشخصي' : "View profile details"}
+                    </DialogDescription>
                     {viewProfileUser && <Profile userId={viewProfileUser.id} />}
                 </DialogContent>
             </Dialog>

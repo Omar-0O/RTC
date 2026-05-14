@@ -276,24 +276,28 @@ export default function AdminDashboard() {
           value={stats.totalVolunteers}
           icon={Users}
           description={t('common.volunteers')}
+          variant="admin"
         />
         <StatsCard
           title={isRTL ? 'إجمالي المشاركات' : 'Total Participations'}
           value={stats.totalParticipations}
           icon={Activity}
           description={isRTL ? 'مشاركة مسجلة' : 'logged participations'}
+          variant="admin"
         />
         <StatsCard
           title={t('admin.pointsAwarded')}
           value={stats.totalPointsAwarded.toLocaleString()}
           icon={Award}
           description={t('common.points')}
+          variant="admin"
         />
         <StatsCard
           title={t('admin.activeCommittees')}
           value={stats.activeCommittees}
           icon={Building2}
           description={t('nav.committees')}
+          variant="admin"
         />
       </div>
 
