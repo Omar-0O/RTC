@@ -100,7 +100,7 @@ export default function CourseSchedule() {
                 .select('*')
                 .order('schedule_time', { ascending: true });
             
-            if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
+            if (canViewAllBranches && activeBranch?.id) q = (q as any).eq('branch_id', activeBranch.id);
 
             const { data, error } = await q;
 
@@ -121,7 +121,7 @@ export default function CourseSchedule() {
                 .select('id, schedule, is_active, teacher_id')
                 .eq('is_active', true);
             
-            if (canViewAllBranches && activeBranch?.id) circlesQuery = circlesQuery.eq('branch_id', activeBranch.id);
+            if (canViewAllBranches && activeBranch?.id) circlesQuery = (circlesQuery as any).eq('branch_id', activeBranch.id);
 
             const { data: circlesData, error: circlesError } = await circlesQuery;
 
