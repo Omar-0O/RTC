@@ -17,11 +17,7 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-slot', '@radix-ui/react-toast', 'lucide-react'],
-          'db-vendor': ['@supabase/supabase-js', '@tanstack/react-query'],
-        },
+        // Letting Vite handle chunking automatically to avoid linking issues
       },
     },
   },
