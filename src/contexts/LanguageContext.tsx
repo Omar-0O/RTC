@@ -111,6 +111,7 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.welcomeBack': 'Welcome back',
     'auth.loginSubtitle': 'Sign in to your account',
     'auth.demoAccounts': 'Demo Accounts',
+    'auth.rememberMe': 'Remember me',
 
     // New Auth translations
     'error': 'Error',
@@ -383,6 +384,7 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.welcomeBack': 'مرحباً بعودتك',
     'auth.loginSubtitle': 'سجل دخولك إلى حسابك',
     'auth.demoAccounts': 'حسابات تجريبية',
+    'auth.rememberMe': 'تذكرني',
 
     // New Auth translations
     'error': 'خطأ',

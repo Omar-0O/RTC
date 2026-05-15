@@ -12,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from 'next-themes';
@@ -23,6 +24,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t, isRTL, language, setLanguage } = useLanguage();
@@ -35,6 +37,9 @@ export default function Auth() {
     // Clean input
     const cleanEmail = email.trim();
     console.log('Attempting login with:', cleanEmail);
+
+    // Save remember me preference before login
+    localStorage.setItem('rememberMe', String(rememberMe));
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -152,6 +157,19 @@ export default function Auth() {
                     )}
                   </button>
                 </div>
+              </div>
+              <div className="flex items-center space-x-2 rtl:space-x-reverse mb-4">
+                <Checkbox
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                />
+                <Label
+                  htmlFor="rememberMe"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
+                  {t('auth.rememberMe')}
+                </Label>
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? t('signingIn') : t('signIn')}
