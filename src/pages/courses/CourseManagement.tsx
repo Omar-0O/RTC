@@ -2837,29 +2837,6 @@ export default function CourseManagement() {
                                 <Label className="text-base">{isRTL ? 'المدربون' : 'Trainers'}</Label>
                             </div>
 
-                            {/* Legacy: show external trainer info if no trainers selected and course has trainer_name without trainer_id */}
-                            {courseTrainers.length === 0 && !editingCourseId && formData.trainer_name && (supabase as any) && false ? null :
-                                courseTrainers.length === 0 && formData.trainer_name && (() => {
-                                    const editingCourse = courses.find(c => c.id === editingCourseId);
-                                    return editingCourse && !editingCourse.trainer_id && editingCourse.trainer_name;
-                                })() ? (
-                                <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md text-sm">
-                                    <span className="text-amber-600 dark:text-amber-400">⚠️</span>
-                                    <div className="flex-1 min-w-0">
-                                        <span className="font-medium text-amber-800 dark:text-amber-300">
-                                            {isRTL ? 'مدرب خارجي مسجّل سابقاً:' : 'Previously saved external trainer:'}
-                                        </span>
-                                        {' '}
-                                        <span className="text-amber-700 dark:text-amber-400">
-                                            {formData.trainer_name}
-                                            {formData.trainer_phone && ` (${formData.trainer_phone})`}
-                                        </span>
-                                    </div>
-                                    <span className="text-xs text-amber-600 dark:text-amber-500">
-                                        {isRTL ? 'أضف مدرباً من القائمة ليحل محله' : 'Add a trainer from list to replace'}
-                                    </span>
-                                </div>
-                            ) : null}
 
                             <div className="space-y-3">
                                     <div className="flex flex-wrap gap-2 min-h-[48px] p-2 border rounded-md bg-background items-center transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
