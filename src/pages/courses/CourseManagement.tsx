@@ -26,7 +26,7 @@ import {
 import { toast } from 'sonner';
 import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search, Megaphone, AlertTriangle, User } from 'lucide-react';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { format, addDays, getDay } from 'date-fns';
+import { format, addDays, getDay, parseISO } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -125,6 +125,7 @@ interface Trainer {
     phone: string | null;
     image_url: string | null;
     committee_id?: string | null;
+    user_id?: string | null;  // linked volunteer account
 }
 
 interface CourseTrainer {
@@ -195,7 +196,6 @@ export default function CourseManagement() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [trainers, setTrainers] = useState<Trainer[]>([]);
     const [selectedTrainerId, setSelectedTrainerId] = useState<string>('');
-    const [isExternalTrainer, setIsExternalTrainer] = useState(false);
     const [committees, setCommittees] = useState<{ id: string, name: string, name_ar: string, committee_type?: string | null }[]>([]);
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
@@ -205,30 +205,6 @@ export default function CourseManagement() {
     // Multi-trainer support
     const [courseTrainers, setCourseTrainers] = useState<CourseTrainer[]>([]);
     const [trainerPopoverOpen, setTrainerPopoverOpen] = useState(false);
-    const [externalTrainersList, setExternalTrainersList] = useState<{name: string, phone: string}[]>([]);
-    const [newExtName, setNewExtName] = useState('');
-    const [newExtPhone, setNewExtPhone] = useState('');
-
-    useEffect(() => {
-        if (isExternalTrainer) {
-            setFormData(prev => ({
-                ...prev,
-                trainer_name: externalTrainersList.map(t => t.name).join('، '),
-                trainer_phone: externalTrainersList.map(t => t.phone).join(' - ')
-            }));
-        }
-    }, [externalTrainersList, isExternalTrainer]);
-
-    const handleAddExternalTrainer = () => {
-        if (!newExtName.trim()) return;
-        setExternalTrainersList(prev => [...prev, { name: newExtName.trim(), phone: newExtPhone.trim() }]);
-        setNewExtName('');
-        setNewExtPhone('');
-    };
-
-    const removeExtTrainer = (index: number) => {
-        setExternalTrainersList(prev => prev.filter((_, i) => i !== index));
-    };
 
     // roles and profile already destructured above
     const isRestricted = roles.includes('committee_leader') &&
@@ -368,7 +344,7 @@ export default function CourseManagement() {
         }
 
         const calculateEndDate = () => {
-            const start = new Date(formData.start_date);
+            const start = parseISO(formData.start_date);
             let current = start;
             let count = 0;
             const targetLectures = formData.total_lectures;
@@ -419,7 +395,7 @@ export default function CourseManagement() {
         try {
             let query: any = supabase
                 .from('trainers')
-                .select('id, name_en, name_ar, phone, image_url, committee_id')
+                .select('id, name_en, name_ar, phone, image_url, committee_id, user_id')
                 .order('name_ar');
 
             if (isRestricted && profile?.committee_id) {
@@ -552,7 +528,6 @@ export default function CourseManagement() {
         setMarketers([]);
         setPlannedAds([]);
         setSelectedTrainerId('');
-        setIsExternalTrainer(false);
         setCourseTrainers([]);
     };
 
@@ -718,7 +693,7 @@ export default function CourseManagement() {
 
         try {
             // Smart Date Calculation
-            const start = new Date(formData.start_date);
+            const start = parseISO(formData.start_date);
             let current = start;
             let lectureDates: Date[] = [];
             const targetLectures = formData.total_lectures;
@@ -886,16 +861,6 @@ export default function CourseManagement() {
             committee_id: course.committee_id || null,
         });
         setSelectedTrainerId(course.trainer_id || '');
-        if (!course.trainer_id && course.trainer_name) {
-            setIsExternalTrainer(true);
-            const names = course.trainer_name.split(/[,،]/).map((s: string) => s.trim()).filter(Boolean);
-            const phones = course.trainer_phone ? course.trainer_phone.split(/[,-]/).map((s: string) => s.trim()) : [];
-            const parsedExt = names.map((name: string, i: number) => ({ name, phone: phones[i] || '' }));
-            setExternalTrainersList(parsedExt);
-        } else {
-            setIsExternalTrainer(false);
-            setExternalTrainersList([]);
-        }
 
         // Fetch organizers for this course
         const fetchCourseOrganizers = async () => {
@@ -979,7 +944,7 @@ export default function CourseManagement() {
 
         try {
             // Smart Date Calculation (Same as create)
-            const start = new Date(formData.start_date);
+            const start = parseISO(formData.start_date);
             let current = start;
             let lectureDates: Date[] = [];
             const targetLectures = formData.total_lectures;
@@ -1065,7 +1030,7 @@ export default function CourseManagement() {
             }
 
             // Update course trainers - delete all and re-insert
-            await supabase.from('course_trainers').delete().eq('course_id', editingCourseId);
+            await (supabase as any).from('course_trainers').delete().eq('course_id', editingCourseId);
             if (courseTrainers.length > 0) {
                 await (supabase as any)
                     .from('course_trainers')
@@ -1083,61 +1048,38 @@ export default function CourseManagement() {
                 .eq('course_id', editingCourseId)
                 .order('lecture_number', { ascending: true });
 
-            const currentLecturesCount = existingLectures?.length || 0;
+            const existing = existingLectures || [];
             
-            // Append new lectures if the total increased
-            if (currentLecturesCount > 0 && currentLecturesCount < formData.total_lectures) {
-                const lecturesToAdd = formData.total_lectures - currentLecturesCount;
-                const lastLecture = existingLectures[existingLectures.length - 1];
-                let current = addDays(new Date(lastLecture.date), 1);
-                let newDates: Date[] = [];
-                
-                let appendSafetyCounter = 0;
-                while (newDates.length < lecturesToAdd && appendSafetyCounter < 365) {
-                    const dayIndex = getDay(current);
-                    if (selectedDaysIndices.includes(dayIndex)) {
-                        newDates.push(current);
-                    }
-                    current = addDays(current, 1);
-                    appendSafetyCounter++;
-                }
-
-                if (newDates.length > 0) {
-                    const newLectures = newDates.map((date, index) => ({
-                        course_id: editingCourseId,
-                        lecture_number: lastLecture.lecture_number + index + 1,
-                        date: format(date, 'yyyy-MM-dd'),
-                        status: 'scheduled'
-                    }));
-
-                    const { error: lectError } = await supabase
+            // 1. Update existing lectures dates
+            for (let i = 0; i < Math.min(existing.length, lectureDates.length); i++) {
+                const newDateStr = format(lectureDates[i], 'yyyy-MM-dd');
+                if (existing[i].date !== newDateStr) {
+                    await supabase
                         .from('course_lectures')
-                        .insert(newLectures);
-
-                    if (lectError) {
-                        console.error('Error creating new lectures:', lectError);
-                        toast.error(isRTL ? 'حدث خطأ أثناء إضافة المحاضرات الجديدة' : 'Error adding new lectures');
-                    }
+                        .update({ date: newDateStr })
+                        .eq('id', existing[i].id);
                 }
-            } else if (currentLecturesCount === 0 && lectureDates.length > 0) {
-                // Edge case: no existing lectures at all, insert them all
-                const newLectures = lectureDates.map((date, index) => ({
+            }
+
+            // 2. Add new lectures if total increased
+            if (lectureDates.length > existing.length) {
+                const newLectures = lectureDates.slice(existing.length).map((date, index) => ({
                     course_id: editingCourseId,
-                    lecture_number: index + 1,
+                    lecture_number: existing.length + index + 1,
                     date: format(date, 'yyyy-MM-dd'),
                     status: 'scheduled'
                 }));
+
                 const { error: lectError } = await supabase.from('course_lectures').insert(newLectures);
                 if (lectError) {
                     console.error('Error creating new lectures:', lectError);
                     toast.error(isRTL ? 'حدث خطأ أثناء إضافة المحاضرات الجديدة' : 'Error adding new lectures');
                 }
-            } else if (formData.total_lectures < currentLecturesCount) {
-                // Delete excess lectures from the end
-                const countToDelete = currentLecturesCount - formData.total_lectures;
-                const lecturesToDelete = existingLectures.slice(-countToDelete);
-                const idsToDelete = lecturesToDelete.map((l: any) => l.id);
+            }
 
+            // 3. Delete excess lectures if total decreased
+            if (existing.length > lectureDates.length) {
+                const idsToDelete = existing.slice(lectureDates.length).map((l: any) => l.id);
                 const { error: delError } = await supabase
                     .from('course_lectures')
                     .delete()
@@ -1202,28 +1144,32 @@ export default function CourseManagement() {
 
     const recordMarketingActivity = async (type: 'poster' | 'content', courseName: string, adNumber: number) => {
         try {
-            // Get Marketing Committee
-            const { data: committee } = await supabase
-                .from('committees')
-                .select('id')
-                .eq('name', 'Marketing')
-                .single();
+            // Get all committees and find marketing one in JS (avoid .eq with potentially wrong name)
+            const { data: allCommittees } = await supabase.from('committees').select('id, name');
+            const committee = allCommittees?.find(c =>
+                c.name.toLowerCase().includes('market') ||
+                c.name.includes('تسويق') ||
+                c.name.includes('إعلام')
+            );
 
             if (!committee) {
-                console.error('Marketing committee not found');
+                console.warn('لم يتم إيجاد لجنة التسويق - أسماء اللجان المتاحة:', allCommittees?.map(c => c.name));
                 return;
             }
 
-            // Get Activity Type
-            const activityName = type === 'poster' ? 'Course Ad Poster' : 'Course Ad Content';
-            const { data: activityType } = await supabase
-                .from('activity_types')
-                .select('id, points')
-                .eq('name', activityName)
-                .single();
+            // Get all activity types and find the right one
+            const { data: allTypes } = await supabase.from('activity_types').select('id, points, name');
+            const activityNameExact = type === 'poster' ? 'Course Ad Poster' : 'Course Ad Content';
+            const activityType = allTypes?.find(a => a.name === activityNameExact)
+                || allTypes?.find(a =>
+                    (type === 'poster' && (a.name.toLowerCase().includes('poster') || a.name.includes('بوستر'))) ||
+                    (type === 'content' && (a.name.toLowerCase().includes('content') || a.name.includes('محتوى') || a.name.includes('محتوي'))) ||
+                    a.name.toLowerCase().includes('ad') ||
+                    a.name.toLowerCase().includes('market')
+                );
 
             if (!activityType) {
-                console.error(`Activity type ${activityName} not found`);
+                console.warn(`نوع النشاط '${activityNameExact}' غير موجود - أسماء الأنواع المتاحة:`, allTypes?.map(a => a.name));
                 return;
             }
 
@@ -1245,7 +1191,6 @@ export default function CourseManagement() {
 
         } catch (error) {
             console.error('Error recording marketing activity:', error);
-            // Don't show toast error to user to avoid confusion if it's a backend config issue, just log it
         }
     };
 
@@ -1255,8 +1200,6 @@ export default function CourseManagement() {
                 .from('course_ads')
                 .update({ ...updates, updated_by: user?.id, updated_at: new Date().toISOString() })
                 .eq('id', adId);
-
-            if (error) throw error;
 
             if (error) throw error;
 
@@ -1502,8 +1445,12 @@ export default function CourseManagement() {
             if (error) throw error;
 
             // If marked as completed, create trainer participation
+            // Only register if lecture was NOT already completed (prevent duplicate)
             if (status === 'completed' && selectedCourse) {
-                await createTrainerParticipation(selectedCourse, lectureId);
+                const currentLecture = lectures.find(l => l.id === lectureId);
+                if (currentLecture?.status !== 'completed') {
+                    await createTrainerParticipation(selectedCourse, lectureId);
+                }
             }
 
             setLectures(lectures.map(l => l.id === lectureId ? { ...l, status } : l));
@@ -1515,60 +1462,122 @@ export default function CourseManagement() {
     };
 
     // Create trainer participation when lecture is completed
+    // Always logs in trainer_lecture_records (name + phone, no account needed)
+    // Additionally logs in activity_submissions if the trainer has a system profile
     const createTrainerParticipation = async (course: Course, lectureId: string) => {
-        if (!course.trainer_id) return; // External trainer, no account
-
         try {
-            // Get trainer info to find user_id
-            const { data: trainerData } = await supabase
-                .from('trainers')
-                .select('user_id, name')
-                .eq('id', course.trainer_id)
-                .single();
+            // Helper: find profile ID by phone (returns null if not found)
+            const findProfileByPhone = async (phone: string): Promise<string | null> => {
+                const cleanPhone = phone.replace(/[\s\-]/g, '');
+                const { data } = await supabase
+                    .from('profiles').select('id')
+                    .or(`phone.eq.${cleanPhone},phone.eq.${phone}`)
+                    .limit(1).maybeSingle();
+                return data?.id || null;
+            };
 
-            if (!(trainerData as any)?.user_id) return; // Trainer not linked to a user account
+            // Helper: insert into trainer_lecture_records (always, no profile needed)
+            const logTrainerRecord = async (name: string, phone: string | null, volunteerId: string | null) => {
+                await (supabase as any).from('trainer_lecture_records').insert({
+                    course_id: course.id,
+                    lecture_id: lectureId,
+                    trainer_name: name,
+                    trainer_phone: phone || null,
+                    volunteer_id: volunteerId || null
+                });
+            };
 
-            // Get trainer committee
-            const { data: committee } = await supabase
-                .from('committees')
-                .select('id')
-                .eq('name', 'Trainer')
-                .single();
+            // Helper: log in activity_submissions (only if profile found)
+            const logActivitySubmission = async (
+                volunteerId: string,
+                committeeId: string,
+                activityTypeId: string,
+                activityPoints: number,
+                lectureNum: number | string
+            ) => {
+                const { error } = await supabase.from('activity_submissions').insert({
+                    volunteer_id: volunteerId,
+                    activity_type_id: activityTypeId,
+                    committee_id: committeeId,
+                    description: `محاضرة ${lectureNum} في كورس: ${course.name}`,
+                    points_awarded: activityPoints,
+                    status: 'approved',
+                    location: 'branch',
+                    proof_url: null
+                });
+                if (error) console.error('خطأ في activity_submissions:', error);
+                else console.log(`✅ نقاط مسجلة لـ ${volunteerId}`);
+            };
 
-            // Get trainer lecture activity type
-            const { data: activityType } = await supabase
-                .from('activity_types')
-                .select('id, points')
-                .eq('name', 'Trainer Lecture')
-                .single();
+            // --- Collect trainers list (name, phone, potential profile) ---
+            interface TrainerEntry { name: string; phone: string | null; volunteerId: string | null; }
+            const trainers: TrainerEntry[] = [];
 
-            if (!committee || !activityType) {
-                console.warn('لجنة المدرب أو نوع المهمة غير موجود');
-                return;
+            // Case A: Trainers from trainers table
+            const trainerIds = new Set<string>();
+            if (course.trainer_id) trainerIds.add(course.trainer_id);
+            if (course.course_trainers?.length) {
+                course.course_trainers.forEach(ct => trainerIds.add(ct.trainer_id));
+            }
+            for (const tId of trainerIds) {
+                const { data: td } = await (supabase as any)
+                    .from('trainers').select('user_id, phone, name_ar, name_en').eq('id', tId).single();
+                if (!td) continue;
+                let vid: string | null = td.user_id || null;
+                if (!vid && td.phone) vid = await findProfileByPhone(td.phone);
+                trainers.push({ name: td.name_ar || td.name_en || 'مدرب', phone: td.phone, volunteerId: vid });
             }
 
-            // Get lecture info for description
+            // Case B: External trainer (name + phone directly on course, no trainer_id)
+            if (!course.trainer_id && course.trainer_name) {
+                const phones = course.trainer_phone
+                    ? course.trainer_phone.split(/[-,]/).map(p => p.trim()).filter(Boolean)
+                    : [null];
+                for (const phone of phones) {
+                    const vid = phone ? await findProfileByPhone(phone) : null;
+                    trainers.push({ name: course.trainer_name, phone: phone || course.trainer_phone || null, volunteerId: vid });
+                }
+            }
+
+            if (trainers.length === 0) return;
+
             const lecture = lectures.find(l => l.id === lectureId);
             const lectureNum = lecture?.lecture_number || '';
 
-            // Create activity submission for the trainer
-            const { error: submitError } = await supabase.from('activity_submissions').insert({
-                volunteer_id: (trainerData as any).user_id,
-                activity_type_id: activityType.id,
-                committee_id: committee.id,
-                description: `محاضرة ${lectureNum} في كورس: ${course.name}`,
-                points_awarded: activityType.points,
-                status: 'approved',
-                location: 'branch',
-                proof_url: null,
-                participant_type: 'trainer',
-                trainer_id: course.trainer_id
-            });
+            // --- Get committee + activity type (only needed for activity_submissions) ---
+            let committeeId: string | null = null;
+            let activityTypeId: string | null = null;
+            let activityPoints = 0;
+            const hasProfileTrainer = trainers.some(t => t.volunteerId);
 
-            if (submitError) {
-                console.error('Error creating trainer participation:', submitError);
-            } else {
-                console.log('تم تسجيل مشاركة المدرب');
+            if (hasProfileTrainer) {
+                const { data: allCommittees } = await supabase.from('committees').select('id, name');
+                if (allCommittees?.length) {
+                    const found = allCommittees.find(c =>
+                        c.name.toLowerCase().includes('trainer') || c.name.toLowerCase().includes('course') ||
+                        c.name.includes('تدريب') || c.name.includes('كورس')
+                    );
+                    committeeId = found?.id || course.committee_id || allCommittees[0].id;
+                }
+                const { data: allTypes } = await supabase.from('activity_types').select('id, points, name');
+                if (allTypes?.length) {
+                    const chosen = allTypes.find(a => a.name === 'Trainer Lecture')
+                        || allTypes.find(a => a.name.toLowerCase().includes('trainer') || a.name.toLowerCase().includes('lecture')
+                            || a.name.includes('محاضر') || a.name.includes('مدرب'));
+                    if (chosen) { activityTypeId = chosen.id; activityPoints = chosen.points; }
+                }
+            }
+
+            // --- Process each trainer ---
+            for (const trainer of trainers) {
+                // 1. Always log in trainer_lecture_records
+                await logTrainerRecord(trainer.name, trainer.phone, trainer.volunteerId);
+                console.log(`📋 تم تسجيل مشاركة "${trainer.name}" في محاضرة ${lectureNum}`);
+
+                // 2. If has profile + committee + activity type → also log points
+                if (trainer.volunteerId && committeeId && activityTypeId) {
+                    await logActivitySubmission(trainer.volunteerId, committeeId, activityTypeId, activityPoints, lectureNum);
+                }
             }
         } catch (error) {
             console.error('Error in createTrainerParticipation:', error);
@@ -1733,7 +1742,8 @@ export default function CourseManagement() {
     };
 
     const isLectureOpen = (dateStr: string) => {
-        const lectureDate = new Date(dateStr);
+        // Use parseISO to avoid UTC midnight timezone shift (+03:00 would make it previous day)
+        const lectureDate = parseISO(dateStr);
         const now = new Date();
         lectureDate.setHours(0, 0, 0, 0);
         now.setHours(0, 0, 0, 0);
@@ -2071,7 +2081,7 @@ export default function CourseManagement() {
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold flex items-center gap-2">
+                    <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
                         {isRTL ? 'إدارة الكورسات' : 'Course Management'}
                         {isRestricted && profile?.committee_id && committees.find(c => c.id === profile.committee_id) && (
                             <span className="text-primary text-2xl">
@@ -2166,29 +2176,9 @@ export default function CourseManagement() {
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between">
                                                 <Label className="text-base">{isRTL ? 'المدربون' : 'Trainers'}</Label>
-                                                <div className="flex items-center gap-3">
-                                                    <span className={`text-sm ${!isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
-                                                        {isRTL ? 'من الفرع' : 'Internal'}
-                                                    </span>
-                                                    <Switch
-                                                        checked={isExternalTrainer}
-                                                        onCheckedChange={(checked) => {
-                                                            setIsExternalTrainer(checked);
-                                                            if (checked) {
-                                                                setCourseTrainers([]); // Clear internal selection if switching to external
-                                                            } else {
-                                                                setFormData({ ...formData, trainer_name: '', trainer_phone: '' }); // Clear external if switching to internal
-                                                            }
-                                                        }}
-                                                    />
-                                                    <span className={`text-sm ${isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
-                                                        {isRTL ? 'خارجي' : 'External'}
-                                                    </span>
-                                                </div>
                                             </div>
 
-                                            {!isExternalTrainer ? (
-                                                <div className="space-y-3">
+                                            <div className="space-y-3">
                                                     <div className="flex flex-wrap gap-2 min-h-[48px] p-2 border rounded-md bg-background items-center transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
                                                         {courseTrainers.length > 0 ? (
                                                             courseTrainers.map(ct => {
@@ -2250,60 +2240,13 @@ export default function CourseManagement() {
                                                         </Popover>
                                                     </div>
                                                 </div>
-                                            ) : (
-                                                <div className="space-y-3">
-                                                    <div className="flex flex-wrap gap-2 min-h-[48px] p-2 border rounded-md bg-background items-center transition-colors">
-                                                        {externalTrainersList.length > 0 ? (
-                                                            externalTrainersList.map((ext, idx) => (
-                                                                <div key={idx} className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-full text-sm">
-                                                                    <Avatar className="h-5 w-5 bg-background">
-                                                                        <AvatarFallback className="text-[10px]"><User className="h-3 w-3" /></AvatarFallback>
-                                                                    </Avatar>
-                                                                    <span>{ext.name}</span>
-                                                                    <button type="button" onClick={() => removeExtTrainer(idx)} className="text-muted-foreground hover:text-destructive transition-colors">
-                                                                        <X className="h-3 w-3" />
-                                                                     </button>
-                                                                </div>
-                                                            ))
-                                                        ) : (
-                                                            <span className="text-sm text-muted-foreground px-2">
-                                                                {isRTL ? 'لم يتم إضافة مدربين خارجيين...' : 'No external trainers added...'}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex items-end gap-2 bg-muted/20 p-3 rounded-md border">
-                                                        <div className="flex-1 space-y-1.5">
-                                                            <Label className="text-xs">{isRTL ? 'اسم المدرب' : 'Trainer Name'}</Label>
-                                                            <Input
-                                                                value={newExtName}
-                                                                onChange={e => setNewExtName(e.target.value)}
-                                                                className="h-9 bg-background"
-                                                                placeholder={isRTL ? 'الاسم' : 'Name'}
-                                                            />
-                                                        </div>
-                                                        <div className="flex-1 space-y-1.5">
-                                                            <Label className="text-xs">{isRTL ? 'الهاتف (اختياري)' : 'Phone (Optional)'}</Label>
-                                                            <Input
-                                                                value={newExtPhone}
-                                                                onChange={e => setNewExtPhone(e.target.value)}
-                                                                className="h-9 bg-background"
-                                                                placeholder="01xxxxxxxxx"
-                                                                dir="ltr"
-                                                            />
-                                                        </div>
-                                                        <Button type="button" onClick={handleAddExternalTrainer} variant="secondary" className="h-9 whitespace-nowrap">
-                                                            <Plus className="w-4 h-4 mr-1" />
-                                                            {isRTL ? 'إضافة' : 'Add'}
-                                                        </Button>
-                                                    </div>
-                                                </div>
                                             )}
                                         </div>
 
                                         {/* Common Fields: Schedule */}
                                         <div className="space-y-3">
                                             <Label className="text-base">{isRTL ? 'أيام الكورس *' : 'Course Days *'}</Label>
-                                            <div className="flex flex-wrap gap-3">
+                                            <div className="grid grid-cols-3 sm:grid-cols-4 md:flex md:flex-wrap gap-2">
                                                 {DAYS.map(day => {
                                                     const isSelected = formData.schedule_days.includes(day.value);
                                                     return (
@@ -2311,14 +2254,14 @@ export default function CourseManagement() {
                                                             key={day.value}
                                                             onClick={() => toggleDay(day.value)}
                                                             className={`
-                                                        flex items-center gap-2 px-4 py-3 border rounded-lg cursor-pointer transition-all
+                                                        flex items-center justify-center gap-1 px-2 py-2.5 border rounded-lg cursor-pointer transition-all text-center
                                                         ${isSelected
                                                                     ? 'bg-primary text-primary-foreground border-primary'
                                                                     : 'hover:bg-accent hover:border-accent-foreground/50 bg-background'
                                                                 }
                                                     `}
                                                         >
-                                                            <span className="font-medium">{day.label[language as 'en' | 'ar']}</span>
+                                                            <span className="font-medium text-sm">{day.label[language as 'en' | 'ar']}</span>
                                                         </div>
                                                     );
                                                 })}
@@ -2892,29 +2835,33 @@ export default function CourseManagement() {
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
                                 <Label className="text-base">{isRTL ? 'المدربون' : 'Trainers'}</Label>
-                                <div className="flex items-center gap-3">
-                                    <span className={`text-sm ${!isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
-                                        {isRTL ? 'من الفرع' : 'Internal'}
-                                    </span>
-                                    <Switch
-                                        checked={isExternalTrainer}
-                                        onCheckedChange={(checked) => {
-                                            setIsExternalTrainer(checked);
-                                            if (checked) {
-                                                setCourseTrainers([]);
-                                            } else {
-                                                setFormData({ ...formData, trainer_name: '', trainer_phone: '' });
-                                            }
-                                        }}
-                                    />
-                                    <span className={`text-sm ${isExternalTrainer ? 'font-medium' : 'text-muted-foreground'}`}>
-                                        {isRTL ? 'خارجي' : 'External'}
-                                    </span>
-                                </div>
                             </div>
 
-                            {!isExternalTrainer ? (
-                                <div className="space-y-3">
+                            {/* Legacy: show external trainer info if no trainers selected and course has trainer_name without trainer_id */}
+                            {courseTrainers.length === 0 && !editingCourseId && formData.trainer_name && (supabase as any) && false ? null :
+                                courseTrainers.length === 0 && formData.trainer_name && (() => {
+                                    const editingCourse = courses.find(c => c.id === editingCourseId);
+                                    return editingCourse && !editingCourse.trainer_id && editingCourse.trainer_name;
+                                })() ? (
+                                <div className="flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md text-sm">
+                                    <span className="text-amber-600 dark:text-amber-400">⚠️</span>
+                                    <div className="flex-1 min-w-0">
+                                        <span className="font-medium text-amber-800 dark:text-amber-300">
+                                            {isRTL ? 'مدرب خارجي مسجّل سابقاً:' : 'Previously saved external trainer:'}
+                                        </span>
+                                        {' '}
+                                        <span className="text-amber-700 dark:text-amber-400">
+                                            {formData.trainer_name}
+                                            {formData.trainer_phone && ` (${formData.trainer_phone})`}
+                                        </span>
+                                    </div>
+                                    <span className="text-xs text-amber-600 dark:text-amber-500">
+                                        {isRTL ? 'أضف مدرباً من القائمة ليحل محله' : 'Add a trainer from list to replace'}
+                                    </span>
+                                </div>
+                            ) : null}
+
+                            <div className="space-y-3">
                                     <div className="flex flex-wrap gap-2 min-h-[48px] p-2 border rounded-md bg-background items-center transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
                                         {courseTrainers.length > 0 ? (
                                             courseTrainers.map(ct => {
@@ -2976,60 +2923,12 @@ export default function CourseManagement() {
                                         </Popover>
                                     </div>
                                 </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    <div className="flex flex-wrap gap-2 min-h-[48px] p-2 border rounded-md bg-background items-center transition-colors">
-                                        {externalTrainersList.length > 0 ? (
-                                            externalTrainersList.map((ext, idx) => (
-                                                <div key={idx} className="flex items-center gap-1.5 bg-muted px-2 py-1 rounded-full text-sm">
-                                                    <Avatar className="h-5 w-5 bg-background">
-                                                        <AvatarFallback className="text-[10px]"><User className="h-3 w-3" /></AvatarFallback>
-                                                    </Avatar>
-                                                    <span>{ext.name}</span>
-                                                    <button type="button" onClick={() => removeExtTrainer(idx)} className="text-muted-foreground hover:text-destructive transition-colors">
-                                                        <X className="h-3 w-3" />
-                                                    </button>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <span className="text-sm text-muted-foreground px-2">
-                                                {isRTL ? 'لم يتم إضافة مدربين خارجيين...' : 'No external trainers added...'}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-end gap-2 bg-muted/20 p-3 rounded-md border">
-                                        <div className="flex-1 space-y-1.5">
-                                            <Label className="text-xs">{isRTL ? 'اسم المدرب' : 'Trainer Name'}</Label>
-                                            <Input
-                                                value={newExtName}
-                                                onChange={e => setNewExtName(e.target.value)}
-                                                className="h-9 bg-background"
-                                                placeholder={isRTL ? 'الاسم' : 'Name'}
-                                            />
-                                        </div>
-                                        <div className="flex-1 space-y-1.5">
-                                            <Label className="text-xs">{isRTL ? 'الهاتف (اختياري)' : 'Phone (Optional)'}</Label>
-                                            <Input
-                                                value={newExtPhone}
-                                                onChange={e => setNewExtPhone(e.target.value)}
-                                                className="h-9 bg-background"
-                                                placeholder="01xxxxxxxxx"
-                                                dir="ltr"
-                                            />
-                                        </div>
-                                        <Button type="button" onClick={handleAddExternalTrainer} variant="secondary" className="h-9 whitespace-nowrap">
-                                            <Plus className="w-4 h-4 mr-1" />
-                                            {isRTL ? 'إضافة' : 'Add'}
-                                        </Button>
-                                    </div>
-                                </div>
-                            )}
                         </div>
 
                         {/* Schedule */}
                         <div className="space-y-3">
                             <Label className="text-base">{isRTL ? 'أيام الكورس *' : 'Course Days *'}</Label>
-                            <div className="flex flex-wrap gap-3">
+                            <div className="grid grid-cols-3 sm:grid-cols-4 md:flex md:flex-wrap gap-2">
                                 {DAYS.map(day => {
                                     const isSelected = formData.schedule_days.includes(day.value);
                                     return (
@@ -3037,14 +2936,14 @@ export default function CourseManagement() {
                                             key={day.value}
                                             onClick={() => toggleDay(day.value)}
                                             className={`
-                                            flex items-center gap-2 px-4 py-3 border rounded-lg cursor-pointer transition-all
+                                            flex items-center justify-center gap-1 px-2 py-2.5 border rounded-lg cursor-pointer transition-all text-center
                                             ${isSelected
                                                     ? 'bg-primary text-primary-foreground border-primary'
                                                     : 'hover:bg-accent hover:border-accent-foreground/50 bg-background'
                                                 }
                                         `}
                                         >
-                                            <span className="font-medium">{day.label[language as 'en' | 'ar']}</span>
+                                            <span className="font-medium text-sm">{day.label[language as 'en' | 'ar']}</span>
                                         </div>
                                     );
                                 })}
@@ -3205,12 +3104,12 @@ export default function CourseManagement() {
 
                     <Tabs defaultValue="beneficiaries" className="w-full">
                         <div className="overflow-x-auto -mx-2 px-2 pb-2">
-                            <TabsList className="flex w-full min-w-max h-auto p-1">
-                                <TabsTrigger value="beneficiaries" className="flex-1 px-4 py-2">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
-                                <TabsTrigger value="lectures" className="flex-1 px-4 py-2">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
-                                <TabsTrigger value="sheet" className="flex-1 px-4 py-2">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                            <TabsList className="flex min-w-max h-auto p-1">
+                                <TabsTrigger value="beneficiaries" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
+                                <TabsTrigger value="lectures" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
+                                <TabsTrigger value="sheet" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance'}</TabsTrigger>
                                 {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_marketing')) && (
-                                    <TabsTrigger value="organizers" className="flex-1 px-4 py-2">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
+                                    <TabsTrigger value="organizers" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
                                 )}
                             </TabsList>
                         </div>
