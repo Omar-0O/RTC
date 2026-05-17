@@ -285,7 +285,43 @@ export default function MyCourses() {
         }
     };
 
+    const handleLeaveCourse = async (courseId: string) => {
+        if (!user) return;
+        if (!confirm(isRTL ? 'هل أنت متأكد من إزالة نفسك كمنظم من هذا الكورس؟' : 'Are you sure you want to remove yourself as an organizer from this course?')) return;
+        
+        try {
+            const { error } = await supabase
+                .from('course_organizers')
+                .delete()
+                .match({ course_id: courseId, volunteer_id: user.id });
 
+            if (error) throw error;
+            toast.success(isRTL ? 'تم إزالة الكورس بنجاح' : 'Course removed successfully');
+            fetchMyCourses();
+        } catch (error: any) {
+            console.error('Error leaving course:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء الإزالة' : 'Error removing organizer');
+        }
+    };
+
+    const handleLeaveCourse = async (courseId: string) => {
+        if (!user) return;
+        if (!confirm(isRTL ? 'هل أنت متأكد من إزالة نفسك كمنظم من هذا الكورس؟' : 'Are you sure you want to remove yourself as an organizer from this course?')) return;
+        
+        try {
+            const { error } = await supabase
+                .from('course_organizers')
+                .delete()
+                .match({ course_id: courseId, volunteer_id: user.id });
+
+            if (error) throw error;
+            toast.success(isRTL ? 'تم إزالة الكورس بنجاح' : 'Course removed successfully');
+            fetchMyCourses();
+        } catch (error: any) {
+            console.error('Error leaving course:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء الإزالة' : 'Error removing organizer');
+        }
+    };
 
     const openCourseDetails = async (course: Course, tab: string = 'beneficiaries') => {
         setSelectedCourse(course);
@@ -785,10 +821,17 @@ export default function MyCourses() {
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             {organizerCourseIds.has(course.id) && (
-                                                <DropdownMenuItem onClick={() => openCourseDetails(course)}>
-                                                    <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                    {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
-                                                </DropdownMenuItem>
+                                                <>
+                                                    <DropdownMenuItem onClick={() => openCourseDetails(course)}>
+                                                        <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={() => handleLeaveCourse(course.id)} className="text-destructive focus:bg-destructive/10">
+                                                        <Trash2 className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'إزالة نفسي كمنظم' : 'Leave as Organizer'}
+                                                    </DropdownMenuItem>
+                                                </>
                                             )}
                                             {marketerCourseIds.has(course.id) && (
                                                 <DropdownMenuItem onClick={() => openCourseDetails(course, 'marketing')}>

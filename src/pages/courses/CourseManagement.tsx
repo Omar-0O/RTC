@@ -2162,7 +2162,7 @@ export default function CourseManagement() {
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {committees
-                                                        .filter(c => c.committee_type !== 'fourth_year')
+                                                        .filter(c => c.committee_type === 'production')
                                                         .map(committee => (
                                                             <SelectItem key={committee.id} value={committee.id} className="py-3">
                                                                 {isRTL ? committee.name_ar : committee.name}
@@ -2204,7 +2204,7 @@ export default function CourseManagement() {
 
                                                         <Popover open={trainerPopoverOpen} onOpenChange={setTrainerPopoverOpen}>
                                                             <PopoverTrigger asChild>
-                                                                <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 text-muted-foreground hover:text-foreground ml-auto">
+                                                                <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 text-muted-foreground hover:text-foreground ml-auto" disabled={!formData.committee_id}>
                                                                     <Plus className="w-3.5 h-3.5" />
                                                                     {isRTL ? 'إضافة مدرب' : 'Add'}
                                                                 </Button>
@@ -2217,6 +2217,7 @@ export default function CourseManagement() {
                                                                         <CommandGroup>
                                                                             {trainers
                                                                                 .filter(t => !courseTrainers.some(ct => ct.trainer_id === t.id))
+                                                                                .filter(t => !formData.committee_id || t.committee_id === formData.committee_id)
                                                                                 .map(trainer => (
                                                                                     <CommandItem
                                                                                         key={trainer.id}
@@ -2821,7 +2822,7 @@ export default function CourseManagement() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     {committees
-                                        .filter(c => c.committee_type !== 'fourth_year')
+                                        .filter(c => c.committee_type === 'production')
                                         .map(committee => (
                                             <SelectItem key={committee.id} value={committee.id} className="py-3">
                                                 {isRTL ? committee.name_ar : committee.name}
@@ -2864,7 +2865,7 @@ export default function CourseManagement() {
 
                                         <Popover open={trainerPopoverOpen} onOpenChange={setTrainerPopoverOpen}>
                                             <PopoverTrigger asChild>
-                                                <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 text-muted-foreground hover:text-foreground ml-auto">
+                                                <Button type="button" variant="ghost" size="sm" className="h-7 gap-1 text-muted-foreground hover:text-foreground ml-auto" disabled={!formData.committee_id}>
                                                     <Plus className="w-3.5 h-3.5" />
                                                     {isRTL ? 'إضافة مدرب' : 'Add'}
                                                 </Button>
@@ -2877,6 +2878,7 @@ export default function CourseManagement() {
                                                         <CommandGroup>
                                                             {trainers
                                                                 .filter(t => !courseTrainers.some(ct => ct.trainer_id === t.id))
+                                                                .filter(t => !formData.committee_id || t.committee_id === formData.committee_id)
                                                                 .map(trainer => (
                                                                     <CommandItem
                                                                         key={trainer.id}
