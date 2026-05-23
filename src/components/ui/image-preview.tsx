@@ -11,6 +11,12 @@ interface ImagePreviewProps {
   className?: string;
 }
 
+const getDistance = (t1: Touch | React.Touch, t2: Touch | React.Touch) => {
+  const dx = t1.clientX - t2.clientX;
+  const dy = t1.clientY - t2.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+};
+
 /**
  * ImagePreview — A premium smart popup lightbox.
  * Wraps any clickable element and opens a full-screen preview overlay on click.
@@ -29,6 +35,8 @@ export function ImagePreview({ src, alt = 'Image preview', children, className }
   const posStart = useRef({ x: 0, y: 0 });
   const controlsTimer = useRef<ReturnType<typeof setTimeout>>();
   const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartDistance = useRef(0);
+  const touchStartScale = useRef(1);
 
   const open = useCallback(() => {
     setScale(1);
@@ -143,28 +151,54 @@ export function ImagePreview({ src, alt = 'Image preview', children, className }
     setIsDragging(false);
   }, []);
 
-  // Touch drag support
+  // Touch zoom and drag support
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (scale <= 1 || e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    setIsDragging(true);
-    dragStart.current = { x: touch.clientX, y: touch.clientY };
-    posStart.current = { ...position };
-  }, [scale, position]);
+    resetControlsTimer();
+    if (e.touches.length === 2) {
+      // Pinch to zoom start
+      const dist = getDistance(e.touches[0], e.touches[1]);
+      touchStartDistance.current = dist;
+      touchStartScale.current = scale;
+      setIsDragging(false);
+    } else if (e.touches.length === 1) {
+      // Pan start
+      const touch = e.touches[0];
+      if (scale > 1) {
+        setIsDragging(true);
+        dragStart.current = { x: touch.clientX, y: touch.clientY };
+        posStart.current = { ...position };
+      }
+    }
+  }, [scale, position, resetControlsTimer]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging || e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    const dx = touch.clientX - dragStart.current.x;
-    const dy = touch.clientY - dragStart.current.y;
-    setPosition({
-      x: posStart.current.x + dx,
-      y: posStart.current.y + dy,
-    });
-  }, [isDragging]);
+    resetControlsTimer();
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = getDistance(e.touches[0], e.touches[1]);
+      if (touchStartDistance.current > 0) {
+        const ratio = dist / touchStartDistance.current;
+        setScale(() => {
+          const next = Math.max(0.5, Math.min(touchStartScale.current * ratio, 5));
+          if (next <= 1) setPosition({ x: 0, y: 0 });
+          setIsFitted(false);
+          return next;
+        });
+      }
+    } else if (e.touches.length === 1 && isDragging) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - dragStart.current.x;
+      const dy = touch.clientY - dragStart.current.y;
+      setPosition({
+        x: posStart.current.x + dx,
+        y: posStart.current.y + dy,
+      });
+    }
+  }, [isDragging, resetControlsTimer]);
 
   const handleTouchEnd = useCallback(() => {
     setIsDragging(false);
+    touchStartDistance.current = 0;
   }, []);
 
   if (!isOpen) {

@@ -490,7 +490,7 @@ export default function EventManagement() {
                             committee_id: targetCommitteeId,
                             status: 'approved' as const,
                             points_awarded: 5,
-                            submitted_at: new Date().toISOString(),
+                            submitted_at: formData.date ? new Date(formData.date + 'T12:00:00').toISOString() : new Date().toISOString(),
                             description: `Event Speaker: ${formData.name}`,
                         }))
                     );
@@ -514,7 +514,7 @@ export default function EventManagement() {
                             committee_id: targetCommitteeId,
                             status: 'approved' as const,
                             points_awarded: 5,
-                            submitted_at: new Date().toISOString(),
+                            submitted_at: formData.date ? new Date(formData.date + 'T12:00:00').toISOString() : new Date().toISOString(),
                             description: `Event: ${formData.name}`,
                         }))
                     );

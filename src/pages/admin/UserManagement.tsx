@@ -1,6 +1,7 @@
 import { useState, useRef, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
-import { Calendar as CalendarIcon, Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download, Eye, EyeOff } from 'lucide-react';
+import { ar } from 'date-fns/locale';
+import { Calendar as CalendarIcon, Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download, Eye, EyeOff, UserPlus } from 'lucide-react';
 
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -791,12 +792,17 @@ export default function UserManagement() {
               </DialogTrigger>
             </div>
           )}
-          <DialogContent className="max-w-[95vw] sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>{t('users.addUser')}</DialogTitle>
-
+          <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl sm:rounded-3xl border border-border/40 shadow-2xl" dir={isRTL ? 'rtl' : 'ltr'}>
+            <DialogHeader className="px-4 sm:px-6 py-5 border-b-2 border-border/50 dark:border-border/80 shrink-0 bg-muted/30 flex flex-col items-center text-center">
+              <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center justify-center gap-2">
+                <UserPlus className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                {t('users.addUser')}
+              </DialogTitle>
+              <DialogDescription className="text-center mt-1.5">
+                {language === 'ar' ? 'أدخل تفاصيل الحساب لإنشاء متطوع جديد' : 'Enter account details to create a new volunteer'}
+              </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleAddUser} className="max-h-[70vh] overflow-y-auto px-1">
+            <form onSubmit={handleAddUser} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="grid gap-2">
@@ -1058,12 +1064,16 @@ export default function UserManagement() {
                       <Button
                         variant={"outline"}
                         className={cn(
-                          "w-full justify-start text-left font-normal",
+                          "w-full justify-start text-start font-normal",
                           !formJoinDate && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formJoinDate ? format(new Date(formJoinDate), "PPP") : <span>Pick a date</span>}
+                        <CalendarIcon className="ltr:mr-2 rtl:ml-2 h-4 w-4" />
+                        {formJoinDate ? (
+                          format(new Date(formJoinDate), "PPP", { locale: language === 'ar' ? ar : undefined })
+                        ) : (
+                          <span>{language === 'ar' ? 'اختر التاريخ' : 'Pick a date'}</span>
+                        )}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -1074,7 +1084,7 @@ export default function UserManagement() {
                         initialFocus
                         captionLayout="dropdown-buttons"
                         fromYear={2000}
-                        toYear={2030}
+                        toYear={new Date().getFullYear() + 5}
                       />
                     </PopoverContent>
                   </Popover>
@@ -1087,12 +1097,16 @@ export default function UserManagement() {
                       <Button
                         variant={"outline"}
                         className={cn(
-                          "w-full justify-start text-left font-normal",
+                          "w-full justify-start text-start font-normal",
                           !formBirthDate && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formBirthDate ? format(new Date(formBirthDate), "PPP") : <span>Pick a date</span>}
+                        <CalendarIcon className="ltr:mr-2 rtl:ml-2 h-4 w-4" />
+                        {formBirthDate ? (
+                          format(new Date(formBirthDate), "PPP", { locale: language === 'ar' ? ar : undefined })
+                        ) : (
+                          <span>{language === 'ar' ? 'اختر التاريخ' : 'Pick a date'}</span>
+                        )}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -1103,7 +1117,7 @@ export default function UserManagement() {
                         initialFocus
                         captionLayout="dropdown-buttons"
                         fromYear={1960}
-                        toYear={2030}
+                        toYear={new Date().getFullYear() + 5}
                       />
                     </PopoverContent>
                   </Popover>
@@ -1121,14 +1135,14 @@ export default function UserManagement() {
                 </Label>
               </div>
 
-              <DialogFooter className="gap-2 sm:gap-0">
-                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} className="w-full sm:w-auto">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t-2 border-border/50 dark:border-border/80 bg-muted/10 shrink-0">
+                <Button type="button" variant="outline" onClick={() => setIsAddDialogOpen(false)} className="w-full sm:w-auto h-11 px-6 text-sm font-medium">
                   {t('common.cancel')}
                 </Button>
-                <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
-                  {isSubmitting ? 'Adding...' : t('common.add')}
+                <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto h-11 px-6 text-sm font-semibold shadow-sm">
+                  {isSubmitting ? (language === 'ar' ? 'جاري الإضافة...' : 'Adding...') : t('common.add')}
                 </Button>
-              </DialogFooter>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
@@ -1142,12 +1156,17 @@ export default function UserManagement() {
           resetForm();
         }
       }}>
-        <DialogContent className="max-w-[95vw] sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{language === 'ar' ? 'تعديل المستخدم' : 'Edit User'}</DialogTitle>
-            <DialogDescription>{language === 'ar' ? 'تعديل بيانات المستخدم' : 'Update user information'}</DialogDescription>
+        <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl sm:rounded-3xl border border-border/40 shadow-2xl" dir={isRTL ? 'rtl' : 'ltr'}>
+          <DialogHeader className="px-4 sm:px-6 py-5 border-b-2 border-border/50 dark:border-border/80 shrink-0 bg-muted/30 flex flex-col items-center text-center">
+            <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center justify-center gap-2">
+              <Pencil className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              {language === 'ar' ? 'تعديل المستخدم' : 'Edit User'}
+            </DialogTitle>
+            <DialogDescription className="text-center mt-1.5">
+              {language === 'ar' ? 'تعديل بيانات الحساب للمتطوع' : 'Update volunteer account information'}
+            </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEditUser} className="max-h-[70vh] overflow-y-auto px-1">
+          <form onSubmit={handleEditUser} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
@@ -1361,12 +1380,16 @@ export default function UserManagement() {
                       <Button
                         variant={"outline"}
                         className={cn(
-                          "w-full justify-start text-left font-normal",
+                          "w-full justify-start text-start font-normal",
                           !formJoinDate && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formJoinDate ? format(new Date(formJoinDate), "PPP") : <span>Pick a date</span>}
+                        <CalendarIcon className="ltr:mr-2 rtl:ml-2 h-4 w-4" />
+                        {formJoinDate ? (
+                          format(new Date(formJoinDate), "PPP", { locale: language === 'ar' ? ar : undefined })
+                        ) : (
+                          <span>{language === 'ar' ? 'اختر التاريخ' : 'Pick a date'}</span>
+                        )}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -1377,7 +1400,7 @@ export default function UserManagement() {
                         initialFocus
                         captionLayout="dropdown-buttons"
                         fromYear={2000}
-                        toYear={2030}
+                        toYear={new Date().getFullYear() + 5}
                       />
                     </PopoverContent>
                   </Popover>
@@ -1389,12 +1412,16 @@ export default function UserManagement() {
                       <Button
                         variant={"outline"}
                         className={cn(
-                          "w-full justify-start text-left font-normal",
+                          "w-full justify-start text-start font-normal",
                           !formBirthDate && "text-muted-foreground"
                         )}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formBirthDate ? format(new Date(formBirthDate), "PPP") : <span>Pick a date</span>}
+                        <CalendarIcon className="ltr:mr-2 rtl:ml-2 h-4 w-4" />
+                        {formBirthDate ? (
+                          format(new Date(formBirthDate), "PPP", { locale: language === 'ar' ? ar : undefined })
+                        ) : (
+                          <span>{language === 'ar' ? 'اختر التاريخ' : 'Pick a date'}</span>
+                        )}
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
@@ -1405,7 +1432,7 @@ export default function UserManagement() {
                         initialFocus
                         captionLayout="dropdown-buttons"
                         fromYear={1960}
-                        toYear={2030}
+                        toYear={new Date().getFullYear() + 5}
                       />
                     </PopoverContent>
                   </Popover>
@@ -1459,14 +1486,14 @@ export default function UserManagement() {
 
 
 
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto">
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t-2 border-border/50 dark:border-border/80 bg-muted/10 shrink-0">
+              <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto h-11 px-6 text-sm font-medium">
                 {t('common.cancel')}
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
-                {isSubmitting ? 'Updating...' : t('common.save')}
+              <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto h-11 px-6 text-sm font-semibold shadow-sm">
+                {isSubmitting ? (language === 'ar' ? 'جاري الحفظ...' : 'Saving...') : t('common.save')}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog >

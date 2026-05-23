@@ -1142,7 +1142,7 @@ export default function CourseManagement() {
         }
     };
 
-    const recordMarketingActivity = async (type: 'poster' | 'content', courseName: string, adNumber: number) => {
+    const recordMarketingActivity = async (type: 'poster' | 'content', courseName: string, adNumber: number, adDate?: string) => {
         try {
             // Get all committees and find marketing one in JS (avoid .eq with potentially wrong name)
             const { data: allCommittees } = await supabase.from('committees').select('id, name');
@@ -1174,6 +1174,7 @@ export default function CourseManagement() {
             }
 
             // Create Submission
+            const submissionDate = adDate ? new Date(adDate + 'T12:00:00').toISOString() : new Date().toISOString();
             const { error } = await supabase.from('activity_submissions').insert({
                 volunteer_id: user?.id,
                 committee_id: committee.id,
@@ -1182,7 +1183,8 @@ export default function CourseManagement() {
                 points_awarded: activityType.points,
                 status: 'approved',
                 location: 'remote',
-                proof_url: null
+                proof_url: null,
+                submitted_at: submissionDate
             });
 
             if (error) throw error;
@@ -1215,13 +1217,14 @@ export default function CourseManagement() {
             // If we are marking as done, record activity
             const courseName = selectedMarketingCourse?.name || globalAd?.course?.name;
             const adNumber = updatedAd?.ad_number || globalAd?.ad_number;
+            const adDate = updatedAd?.ad_date || globalAd?.ad_date;
 
             if (courseName && adNumber && user) {
                 if (updates.poster_done === true) {
-                    recordMarketingActivity('poster', courseName, adNumber);
+                    recordMarketingActivity('poster', courseName, adNumber, adDate);
                 }
                 if (updates.content_done === true) {
-                    recordMarketingActivity('content', courseName, adNumber);
+                    recordMarketingActivity('content', courseName, adNumber, adDate);
                 }
             }
 
@@ -1466,6 +1469,10 @@ export default function CourseManagement() {
     // Additionally logs in activity_submissions if the trainer has a system profile
     const createTrainerParticipation = async (course: Course, lectureId: string) => {
         try {
+            const lecture = lectures.find(l => l.id === lectureId);
+            const lectureNum = lecture?.lecture_number || '';
+            const lectureDate = lecture?.date;
+
             // Helper: find profile ID by phone (returns null if not found)
             const findProfileByPhone = async (phone: string): Promise<string | null> => {
                 const cleanPhone = phone.replace(/[\s\-]/g, '');
@@ -1503,7 +1510,8 @@ export default function CourseManagement() {
                     points_awarded: activityPoints,
                     status: 'approved',
                     location: 'branch',
-                    proof_url: null
+                    proof_url: null,
+                    submitted_at: lectureDate ? new Date(lectureDate + 'T12:00:00').toISOString() : new Date().toISOString()
                 });
                 if (error) console.error('خطأ في activity_submissions:', error);
                 else console.log(`✅ نقاط مسجلة لـ ${volunteerId}`);
@@ -1540,9 +1548,6 @@ export default function CourseManagement() {
             }
 
             if (trainers.length === 0) return;
-
-            const lecture = lectures.find(l => l.id === lectureId);
-            const lectureNum = lecture?.lecture_number || '';
 
             // --- Get committee + activity type (only needed for activity_submissions) ---
             let committeeId: string | null = null;
@@ -2241,7 +2246,6 @@ export default function CourseManagement() {
                                                         </Popover>
                                                     </div>
                                                 </div>
-                                            )}
                                         </div>
 
                                         {/* Common Fields: Schedule */}

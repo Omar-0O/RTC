@@ -18,12 +18,14 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import {
   CheckCircle2,
   Loader2,
   ClipboardList,
   Building2,
-  Calendar,
+  Calendar as CalendarIcon,
   Activity,
   FileText,
   MapPin,
@@ -83,6 +85,20 @@ export default function LogForVolunteer() {
   const [woreVest, setWoreVest] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-';
+    try {
+      return new Date(dateString).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch (e) {
+      return '-';
+    }
+  };
 
   useEffect(() => {
     if (volunteerId) {
@@ -332,16 +348,42 @@ export default function LogForVolunteer() {
               {/* Activity Date */}
               <div className="space-y-2.5">
                 <Label className="text-sm font-medium flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
                   {isRTL ? 'تاريخ المشاركة' : 'Participation Date'} <span className="text-destructive">*</span>
                 </Label>
-                <Input
-                  type="date"
-                  value={activityDate}
-                  onChange={(e) => setActivityDate(e.target.value)}
-                  max={new Date().toISOString().split('T')[0]}
-                  className="h-12 text-base px-4 border-2 hover:border-primary/50 transition-colors"
-                />
+                <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start text-start font-normal h-12 text-base px-4 border-2 hover:border-primary/50 transition-colors bg-background"
+                    >
+                      <CalendarIcon className="ltr:mr-2 rtl:ml-2 h-4 w-4 text-muted-foreground shrink-0" />
+                      {activityDate ? (
+                        formatDate(activityDate)
+                      ) : (
+                        <span className="text-muted-foreground">{isRTL ? 'اختر التاريخ' : 'Pick a date'}</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={activityDate ? new Date(activityDate) : undefined}
+                      onSelect={(date) => {
+                        if (date) {
+                          const year = date.getFullYear();
+                          const month = String(date.getMonth() + 1).padStart(2, '0');
+                          const day = String(date.getDate()).padStart(2, '0');
+                          setActivityDate(`${year}-${month}-${day}`);
+                          setIsCalendarOpen(false);
+                        }
+                      }}
+                      disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Activity Type */}

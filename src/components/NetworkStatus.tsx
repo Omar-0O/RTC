@@ -21,6 +21,31 @@ export function NetworkStatus() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [showSynced, setShowSynced] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsMounted(true), 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleUpdate = () => {
+    // Clear caches
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => caches.delete(name));
+      });
+    }
+    // Unregister service workers
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        registrations.forEach(registration => registration.unregister());
+      });
+    }
+    // Reload after a short timeout
+    setTimeout(() => {
+      window.location.reload();
+    }, 300);
+  };
 
   // Listen for SW updates
   useEffect(() => {
@@ -46,26 +71,38 @@ export function NetworkStatus() {
   // ─── Update Available Banner ────────────────────────────────────
   if (updateAvailable) {
     return (
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-bottom-4">
-        <div className="flex items-center gap-3 bg-primary text-primary-foreground px-4 py-3 rounded-lg shadow-lg">
-          <Download className="h-4 w-4 shrink-0" />
-          <span className="text-sm font-medium">تحديث جديد متاح</span>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground px-3 py-1 rounded text-xs font-medium transition-colors"
-          >
-            تحديث الآن
-          </button>
-          <button onClick={() => setUpdateAvailable(false)} className="opacity-60 hover:opacity-100">
-            <X className="h-3.5 w-3.5" />
-          </button>
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] px-4 w-full max-w-sm sm:max-w-md animate-in fade-in-0 slide-in-from-bottom-6 duration-300">
+        <div className="flex items-center justify-between gap-3 bg-card/90 dark:bg-card/85 backdrop-blur-xl border border-border/80 dark:border-white/10 px-4 py-3.5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.4)]">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-sm">
+              <Download className="h-4 w-4 animate-bounce" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">تحديث جديد متاح</p>
+              <p className="text-xs text-muted-foreground truncate">اضغط لتثبيت أحدث الميزات والتحسينات</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleUpdate}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all hover:scale-105 active:scale-95 duration-200 cursor-pointer"
+            >
+              تحديث الآن
+            </button>
+            <button
+              onClick={() => setUpdateAvailable(false)}
+              className="h-8 w-8 rounded-lg hover:bg-muted/80 text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors cursor-pointer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   // ─── Offline Banner ─────────────────────────────────────────────
-  if (isOffline && !dismissed) {
+  if (isOffline && !dismissed && isMounted) {
     return (
       <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999] animate-in slide-in-from-bottom-4">
         <div className="flex items-center gap-3 bg-destructive text-destructive-foreground px-4 py-3 rounded-lg shadow-lg">

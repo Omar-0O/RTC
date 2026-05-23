@@ -186,14 +186,17 @@ export default function VolunteerDashboard() {
             <h1 className="text-xl sm:text-2xl font-bold truncate flex items-center gap-2">
               {t('dashboard.welcome')}, {(isRTL ? (profile?.full_name_ar || profile?.full_name) : profile?.full_name)?.split(' ')[0] || (isRTL ? 'متطوع' : 'Volunteer')}! 👋
             </h1>
-            <div className="mt-2 mb-2 inline-flex items-center gap-3 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground px-5 py-2 rounded-2xl shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-transform duration-300 border border-primary-foreground/10">
-              <span className="text-xl">🌱</span>
-              <p className="text-base md:text-lg font-medium leading-normal" style={{ fontFamily: '"Amiri", serif' }}>
-                ﴿ وَمَنْ تَطَوَّعَ خَيْرًا فَإِنَّ اللَّهَ شَاكِرٌ عَلِيمٌ ﴾
+            <div className="mt-2 mb-2 inline-flex items-center gap-1.5 sm:gap-3 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground px-3.5 py-1.5 sm:px-5 sm:py-2.5 rounded-2xl shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-transform duration-300 border border-primary-foreground/10 max-w-full">
+              <span className="text-lg sm:text-xl md:text-2xl shrink-0">🌱</span>
+              <p 
+                className="text-[15px] sm:text-base md:text-lg lg:text-xl font-medium leading-normal font-amiri tracking-wide select-none"
+                dir="rtl"
+              >
+                {t('dashboard.verse')}
               </p>
-              <div className="flex gap-1 text-xl">
+              <div className="flex gap-0.5 sm:gap-1 text-lg sm:text-xl md:text-2xl shrink-0">
                 <span>⭐</span>
-                <span className="animate-pulse">🤍</span>
+                <span>🤍</span>
               </div>
             </div>
           </div>
@@ -257,7 +260,7 @@ export default function VolunteerDashboard() {
                 >
                   <div className="space-y-0.5 min-w-0 flex-1">
                     <p className="font-medium text-sm truncate">{submission.activity_name}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(submission.submitted_at)}</p>
+                    <p className="text-xs text-muted-foreground">{isRTL ? 'تاريخ المشاركة:' : 'Participated:'} {formatDate(submission.submitted_at)}</p>
                   </div>
                   <div className="flex items-center gap-2 self-start sm:self-auto">
                     <span className="text-sm font-medium text-primary whitespace-nowrap"><span dir="ltr">+{submission.points}</span> {isRTL ? 'أثر' : 'pts'}</span>

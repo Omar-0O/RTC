@@ -47,6 +47,7 @@ const ROOMS: Record<string, { en: string; ar: string; color: string; bg: string 
     'lab_4': { en: 'Lab 4', ar: 'لاب 4', color: 'bg-orange-500', bg: 'bg-orange-100 dark:bg-orange-900/30 border-orange-300' },
     'impact_hall': { en: 'Impact Hall', ar: 'قاعة الأثر', color: 'bg-pink-500', bg: 'bg-pink-100 dark:bg-pink-900/30 border-pink-300' },
     'quran_circle': { en: 'Quran Circle', ar: 'حلقة قرآن', color: 'bg-teal-500', bg: 'bg-teal-100 dark:bg-teal-900/30 border-teal-300' },
+    'leader_s_hall': { en: "Leader's Hall", ar: 'قاعة القادة', color: 'bg-indigo-500', bg: 'bg-indigo-100 dark:bg-indigo-900/30 border-indigo-300 dark:border-indigo-800' },
 };
 
 const DAY_MAP: Record<number, string> = {
@@ -172,7 +173,7 @@ export default function CourseSchedule() {
     };
 
     const getRoomLabel = (room: string) => ROOMS[room]?.[language as 'en' | 'ar'] || room;
-    const getRoomBg = (room: string) => ROOMS[room]?.bg || 'bg-gray-100 border-gray-300';
+    const getRoomBg = (room: string) => ROOMS[room]?.bg || 'bg-gray-100 dark:bg-zinc-800/40 border-gray-300 dark:border-zinc-700';
     const getRoomColor = (room: string) => ROOMS[room]?.color || 'bg-gray-500';
 
     const formatTime = (timeStr: string) => {
@@ -354,7 +355,7 @@ export default function CourseSchedule() {
     return (
         <>
             <Card className="col-span-full">
-                <CardHeader className="flex flex-row items-center justify-between pb-4">
+                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4">
                     <div>
                         <CardTitle className="flex items-center gap-2 text-xl">
                             <BookOpen className="h-6 w-6" />

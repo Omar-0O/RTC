@@ -342,7 +342,7 @@ export default function AshbalManagement() {
                             {isRTL ? "إضافة شبل" : "Add Ashbal"}
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-2xl lg:max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl sm:rounded-3xl border border-border/40 shadow-2xl">
                         <AddUserForm
                             onSuccess={() => {
                                 setIsAddUserOpen(false);

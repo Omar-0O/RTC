@@ -236,3 +236,33 @@
     max-width: 100vw;
   }
 }
+
+/* React Day Picker Dropdown Overrides */
+.rdp-vhidden {
+  @apply sr-only;
+}
+
+.rdp-dropdown {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.rdp-dropdown select {
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+}
+
+.rdp-dropdown select:hover {
+  background-color: hsl(var(--muted));
+}
+
+.rdp-dropdown select:focus {
+  border-color: hsl(var(--ring));
+}

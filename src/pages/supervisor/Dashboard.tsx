@@ -207,14 +207,17 @@ export default function SupervisorDashboard() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{isRTL ? 'لوحة التحكم' : 'Dashboard'}</h1>
-                <div className="mt-2 mb-3 inline-flex items-center gap-3 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground px-5 py-2 rounded-2xl shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-transform duration-300 border border-primary-foreground/10">
-                    <span className="text-xl">🌱</span>
-                    <p className="text-base md:text-lg font-medium leading-normal" style={{ fontFamily: '"Amiri", serif' }}>
-                        ﴿ وَمَنْ تَطَوَّعَ خَيْرًا فَإِنَّ اللَّهَ شَاكِرٌ عَلِيمٌ ﴾
+                <div className="mt-2 mb-3 inline-flex items-center gap-1.5 sm:gap-3 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground px-3.5 py-1.5 sm:px-5 sm:py-2.5 rounded-2xl shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-transform duration-300 border border-primary-foreground/10 max-w-full">
+                    <span className="text-lg sm:text-xl md:text-2xl shrink-0">🌱</span>
+                    <p 
+                        className="text-[15px] sm:text-base md:text-lg lg:text-xl font-medium leading-normal font-amiri tracking-wide select-none"
+                        dir="rtl"
+                    >
+                        {t('dashboard.verse')}
                     </p>
-                    <div className="flex gap-1 text-xl">
+                    <div className="flex gap-0.5 sm:gap-1 text-lg sm:text-xl md:text-2xl shrink-0">
                         <span>⭐</span>
-                        <span className="animate-pulse">🤍</span>
+                        <span>🤍</span>
                     </div>
                 </div>
                 <p className="text-sm sm:text-base text-muted-foreground">{isRTL ? 'نظرة عامة على جميع البيانات' : 'Overview of all data'}</p>

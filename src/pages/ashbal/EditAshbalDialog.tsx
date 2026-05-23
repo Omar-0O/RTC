@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
+import { ar } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Eye, EyeOff } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 
@@ -410,7 +411,11 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formJoinDate ? format(new Date(formJoinDate), "PPP") : <span>Pick a date</span>}
+                      {formJoinDate ? (
+                        format(new Date(formJoinDate), "PPP", { locale: language === 'ar' ? ar : undefined })
+                      ) : (
+                        <span>{language === 'ar' ? 'اختر التاريخ' : 'Pick a date'}</span>
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -421,7 +426,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
                       initialFocus
                       captionLayout="dropdown-buttons"
                       fromYear={2000}
-                      toYear={2030}
+                      toYear={new Date().getFullYear() + 5}
                     />
                   </PopoverContent>
                 </Popover>
@@ -438,7 +443,11 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
                       )}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formBirthDate ? format(new Date(formBirthDate), "PPP") : <span>Pick a date</span>}
+                      {formBirthDate ? (
+                        format(new Date(formBirthDate), "PPP", { locale: language === 'ar' ? ar : undefined })
+                      ) : (
+                        <span>{language === 'ar' ? 'اختر التاريخ' : 'Pick a date'}</span>
+                      )}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
@@ -449,7 +458,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
                       initialFocus
                       captionLayout="dropdown-buttons"
                       fromYear={1960}
-                      toYear={2030}
+                      toYear={new Date().getFullYear() + 5}
                     />
                   </PopoverContent>
                 </Popover>

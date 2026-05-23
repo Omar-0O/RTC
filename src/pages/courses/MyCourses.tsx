@@ -304,25 +304,6 @@ export default function MyCourses() {
         }
     };
 
-    const handleLeaveCourse = async (courseId: string) => {
-        if (!user) return;
-        if (!confirm(isRTL ? 'هل أنت متأكد من إزالة نفسك كمنظم من هذا الكورس؟' : 'Are you sure you want to remove yourself as an organizer from this course?')) return;
-        
-        try {
-            const { error } = await supabase
-                .from('course_organizers')
-                .delete()
-                .match({ course_id: courseId, volunteer_id: user.id });
-
-            if (error) throw error;
-            toast.success(isRTL ? 'تم إزالة الكورس بنجاح' : 'Course removed successfully');
-            fetchMyCourses();
-        } catch (error: any) {
-            console.error('Error leaving course:', error);
-            toast.error(isRTL ? 'حدث خطأ أثناء الإزالة' : 'Error removing organizer');
-        }
-    };
-
     const openCourseDetails = async (course: Course, tab: string = 'beneficiaries') => {
         setSelectedCourse(course);
         setIsDetailsOpen(true);
@@ -465,6 +446,7 @@ export default function MyCourses() {
 
             const lecture = lectures.find(l => l.id === lectureId);
             const lectureNum = lecture?.lecture_number || '';
+            const lectureDate = lecture?.date;
 
             // Get committee + activity type (only for profile trainers)
             let committeeId: string | null = null;
@@ -500,7 +482,8 @@ export default function MyCourses() {
                         committee_id: committeeId,
                         description: `محاضرة ${lectureNum} في كورس: ${course.name}`,
                         points_awarded: activityPoints,
-                        status: 'approved', location: 'branch', proof_url: null
+                        status: 'approved', location: 'branch', proof_url: null,
+                        submitted_at: lectureDate ? new Date(lectureDate + 'T12:00:00').toISOString() : new Date().toISOString()
                     });
                     if (error) console.error('خطأ في activity_submissions:', error);
                     else console.log(`✅ نقاط مسجلة لـ ${trainer.name}`);

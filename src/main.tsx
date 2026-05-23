@@ -79,8 +79,10 @@ createRoot(document.getElementById("root")!).render(
 import { registerServiceWorker } from '@/lib/serviceWorkerRegistration';
 import { initSyncManager } from '@/lib/syncManager';
 
-// Register SW with update detection
-registerServiceWorker();
+// Register SW with update detection only in production to prevent dev-server cache conflicts
+if (import.meta.env.PROD) {
+  registerServiceWorker();
+}
 
 // Start offline sync engine (flushes queue on connectivity change)
 initSyncManager();
