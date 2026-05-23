@@ -868,26 +868,45 @@ export default function MyCourses() {
                 )}
             </div>
 
-            {/* Course Details Dialog */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>{selectedCourse?.name}</DialogTitle>
-                        <DialogDescription>{selectedCourse?.trainer_name}</DialogDescription>
+                <DialogContent className="w-[calc(100%-1.5rem)] max-w-4xl max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-2xl p-4 sm:p-6">
+                    <DialogHeader className="text-center sm:text-center flex flex-col items-center justify-center">
+                        <DialogTitle className="text-xl sm:text-2xl font-bold text-center w-full">{selectedCourse?.name}</DialogTitle>
+                        <DialogDescription className="text-center w-full">{selectedCourse?.trainer_name}</DialogDescription>
                     </DialogHeader>
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <div className="overflow-x-auto -mx-2 px-2 pb-1">
-                            <TabsList className="flex min-w-max h-auto p-1">
+                        <div className="overflow-x-auto -mx-2 px-2 pb-1.5 scrollbar-none">
+                            <TabsList className="flex w-full h-auto p-1 bg-muted/50 rounded-xl gap-0.5 xs:gap-1">
                                 {isOrganizer && (
                                     <>
-                                        <TabsTrigger value="beneficiaries" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
-                                        <TabsTrigger value="lectures" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
-                                        <TabsTrigger value="sheet" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance'}</TabsTrigger>
+                                        <TabsTrigger
+                                            value="beneficiaries"
+                                            className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                        >
+                                            {isRTL ? 'المستفيدين' : 'Beneficiaries'}
+                                        </TabsTrigger>
+                                        <TabsTrigger
+                                            value="lectures"
+                                            className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                        >
+                                            {isRTL ? 'المحاضرات' : 'Lectures'}
+                                        </TabsTrigger>
+                                        <TabsTrigger
+                                            value="sheet"
+                                            className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                        >
+                                            {isRTL ? 'شيت الحضور' : 'Attendance'}
+                                        </TabsTrigger>
                                     </>
                                 )}
                                 {isMarketer && (
-                                    <TabsTrigger value="marketing" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'التسويق' : 'Marketing'}</TabsTrigger>
+                                    <TabsTrigger
+                                        value="marketing"
+                                        className="flex-1 sm:flex-initial px-3 sm:px-6 py-2 text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                    >
+                                        {isRTL ? 'التسويق' : 'Marketing'}
+                                    </TabsTrigger>
                                 )}
                             </TabsList>
                         </div>

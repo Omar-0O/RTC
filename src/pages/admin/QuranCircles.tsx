@@ -184,6 +184,7 @@ export default function QuranCircles() {
     // Details dialog
     const [selectedCircle, setSelectedCircle] = useState<QuranCircle | null>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<string>('sessions');
     const [sessions, setSessions] = useState<Session[]>([]);
     const [detailsBeneficiaries, setDetailsBeneficiaries] = useState<Beneficiary[]>([]);
     const [attendanceData, setAttendanceData] = useState<Record<string, Attendance[]>>({});
@@ -596,7 +597,7 @@ export default function QuranCircles() {
             fetchCircles();
         } catch (error) {
             console.error('Error deleting:', error);
-            toast.error('Failed to delete');
+            toast.error(isRTL ? 'فشل الحذف' : 'Failed to delete');
         } finally {
             setDeleteId(null);
         }
@@ -801,6 +802,7 @@ export default function QuranCircles() {
 
     const openCircleDetails = async (circle: QuranCircle) => {
         setSelectedCircle(circle);
+        setActiveTab('sessions');
         setIsDetailsOpen(true);
 
         // Auto-fill defaults for new beneficiary
@@ -2064,25 +2066,46 @@ export default function QuranCircles() {
                 </AlertDialogContent>
             </AlertDialog >
 
-            {/* Circle Details Dialog */}
-            < Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen} >
-                <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>{selectedCircle && getCircleName(selectedCircle)}</DialogTitle>
-                        <DialogDescription>
+            <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+                <DialogContent className="w-[calc(100%-1.5rem)] max-w-4xl max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-2xl p-4 sm:p-6">
+                    <DialogHeader className="text-center sm:text-center flex flex-col items-center justify-center">
+                        <DialogTitle className="text-xl sm:text-2xl font-bold text-center w-full">{selectedCircle && getCircleName(selectedCircle)}</DialogTitle>
+                        <DialogDescription className="text-center w-full">
                             {selectedCircle && getScheduleDisplay(selectedCircle.schedule)} • {getScheduleTime(selectedCircle?.schedule || [])}
                         </DialogDescription>
                     </DialogHeader>
 
-                    <Tabs defaultValue="sessions" className="w-full">
-                        <TabsList className={`flex flex-wrap h-auto w-full gap-1 p-1 sm:grid ${canManageOrganizers && canManageAds ? 'sm:grid-cols-5' : (canManageOrganizers || canManageAds) ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
-                            <TabsTrigger value="beneficiaries" className="flex-1 sm:flex-none">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
-                            <TabsTrigger value="sessions" className="flex-1 sm:flex-none">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
-                            <TabsTrigger value="sheet" className="flex-1 sm:flex-none">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
-                            {canManageOrganizers && (
-                                <TabsTrigger value="organizers" className="flex-1 sm:flex-none">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
-                            )}
-                        </TabsList>
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <div className="overflow-x-auto -mx-2 px-2 pb-1.5 scrollbar-none">
+                            <TabsList className="flex w-full h-auto p-1 bg-muted/50 rounded-xl gap-0.5 xs:gap-1">
+                                <TabsTrigger
+                                    value="beneficiaries"
+                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                >
+                                    {isRTL ? 'المستفيدين' : 'Beneficiaries'}
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="sessions"
+                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                >
+                                    {isRTL ? 'الجلسات' : 'Sessions'}
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="sheet"
+                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                >
+                                    {isRTL ? 'شيت الحضور' : 'Attendance Sheet'}
+                                </TabsTrigger>
+                                {canManageOrganizers && (
+                                    <TabsTrigger
+                                        value="organizers"
+                                        className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                    >
+                                        {isRTL ? 'المنظمين' : 'Organizers'}
+                                    </TabsTrigger>
+                                )}
+                            </TabsList>
+                        </div>
 
                         {/* Sessions Tab */}
                         <TabsContent value="sessions" className="space-y-4 py-4">

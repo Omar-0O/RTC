@@ -226,7 +226,7 @@ export default function QuranTeachers() {
             fetchTeachers();
         } catch (error) {
             console.error('Error deleting:', error);
-            toast.error('Failed to delete');
+            toast.error(isRTL ? 'فشل الحذف' : 'Failed to delete');
         } finally {
             setDeleteId(null);
         }
@@ -399,7 +399,7 @@ export default function QuranTeachers() {
 
         } catch (error) {
             console.error('Export all failed:', error);
-            toast.error('Export failed');
+            toast.error(isRTL ? 'فشل التصدير' : 'Export failed');
         }
     };
 

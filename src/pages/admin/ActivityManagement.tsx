@@ -118,7 +118,7 @@ export default function ActivityManagement() {
       setActivities(activitiesRes.data as unknown as ActivityType[] || []);
       setCommittees(committeesRes.data || []);
     } catch (error: any) {
-      toast.error('فشل في تحميل البيانات');
+      toast.error(isRTL ? 'فشل في تحميل البيانات' : 'Failed to fetch data');
       console.error(error);
     } finally {
       setLoading(false);

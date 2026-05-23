@@ -186,7 +186,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
       }
     } catch (e) {
       console.error(e)
-      toast.error('Failed to crop image')
+      toast.error(language === 'ar' ? 'فشل في قص الصورة' : 'Failed to crop image')
     }
   }
 
@@ -216,7 +216,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
     if (!user) return;
 
     if (!formName.trim()) {
-      toast.error('Please fill in required fields');
+      toast.error(language === 'ar' ? 'يرجى ملء الحقول المطلوبة' : 'Please fill in required fields');
       return;
     }
 
@@ -257,7 +257,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
           }
         } catch (avatarError) {
           console.error('Avatar upload failed:', avatarError);
-          toast.error('Failed to upload new avatar');
+          toast.error(language === 'ar' ? 'فشل في رفع الصورة الشخصية الجديدة' : 'Failed to upload new avatar');
         }
       }
 
@@ -266,7 +266,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
       onOpenChange(false);
     } catch (error: any) {
       console.error('Error updating user:', error);
-      toast.error(error.message || 'Failed to update user');
+      toast.error(error.message || (language === 'ar' ? 'فشل في تحديث بيانات المستخدم' : 'Failed to update user'));
     } finally {
       setIsSubmitting(false);
     }

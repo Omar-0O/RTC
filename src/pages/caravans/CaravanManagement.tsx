@@ -36,6 +36,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
 
 interface Caravan {
@@ -50,6 +51,10 @@ interface Caravan {
     return_time: string | null;
     created_by: string;
     participants_count?: number;
+    target_meals?: number | null;
+    actual_meals?: number | null;
+    total_bags?: number | null;
+    bag_contents?: string[] | null;
 }
 
 interface Participant {
@@ -98,7 +103,11 @@ export default function CaravanManagement() {
         move_time: '',
         actual_move_time: '',
         bus_arrival_time: '',
-        return_time: ''
+        return_time: '',
+        target_meals: '',
+        actual_meals: '',
+        total_bags: '',
+        bag_contents: ''
     });
 
     const [participants, setParticipants] = useState<Participant[]>([]);
@@ -141,7 +150,11 @@ export default function CaravanManagement() {
             move_time: caravan.move_time || '',
             actual_move_time: caravan.actual_move_time || '',
             bus_arrival_time: caravan.bus_arrival_time || '',
-            return_time: caravan.return_time || ''
+            return_time: caravan.return_time || '',
+            target_meals: caravan.target_meals !== undefined && caravan.target_meals !== null ? String(caravan.target_meals) : '',
+            actual_meals: caravan.actual_meals !== undefined && caravan.actual_meals !== null ? String(caravan.actual_meals) : '',
+            total_bags: caravan.total_bags !== undefined && caravan.total_bags !== null ? String(caravan.total_bags) : '',
+            bag_contents: caravan.bag_contents ? caravan.bag_contents.join(', ') : ''
         });
 
         // Fetch participants
@@ -192,18 +205,24 @@ export default function CaravanManagement() {
 
         try {
             // 1. Update Caravan Details
+            const updatePayload: any = {
+                name: formData.name,
+                type: formData.type,
+                location: formData.location,
+                date: formData.date,
+                move_time: formData.move_time || null,
+                actual_move_time: formData.actual_move_time || null,
+                bus_arrival_time: formData.bus_arrival_time || null,
+                return_time: formData.return_time || null,
+                target_meals: formData.type === 'food_distribution' ? (formData.target_meals ? Number(formData.target_meals) : null) : null,
+                actual_meals: formData.type === 'food_distribution' ? (formData.actual_meals ? Number(formData.actual_meals) : null) : null,
+                total_bags: formData.type === 'charity_market' ? (formData.total_bags ? Number(formData.total_bags) : null) : null,
+                bag_contents: formData.type === 'charity_market' ? (formData.bag_contents.trim() ? formData.bag_contents.split(',').map((item: string) => item.trim()).filter(Boolean) : null) : null
+            };
+
             const { error: updateError } = await supabase
                 .from('caravans')
-                .update({
-                    name: formData.name,
-                    type: formData.type,
-                    location: formData.location,
-                    date: formData.date,
-                    move_time: formData.move_time || null,
-                    actual_move_time: formData.actual_move_time || null,
-                    bus_arrival_time: formData.bus_arrival_time || null,
-                    return_time: formData.return_time || null
-                })
+                .update(updatePayload)
                 .eq('id', selectedCaravanId);
 
             if (updateError) throw updateError;
@@ -542,12 +561,25 @@ export default function CaravanManagement() {
         try {
             // 1. Create Caravan
             // 1. Create Caravan
+            const insertPayload: any = {
+                name: formData.name,
+                type: formData.type,
+                location: formData.location,
+                date: formData.date,
+                move_time: formData.move_time || null,
+                actual_move_time: formData.actual_move_time || null,
+                bus_arrival_time: formData.bus_arrival_time || null,
+                return_time: formData.return_time || null,
+                created_by: user?.id,
+                target_meals: formData.type === 'food_distribution' ? (formData.target_meals ? Number(formData.target_meals) : null) : null,
+                actual_meals: formData.type === 'food_distribution' ? (formData.actual_meals ? Number(formData.actual_meals) : null) : null,
+                total_bags: formData.type === 'charity_market' ? (formData.total_bags ? Number(formData.total_bags) : null) : null,
+                bag_contents: formData.type === 'charity_market' ? (formData.bag_contents.trim() ? formData.bag_contents.split(',').map((item: string) => item.trim()).filter(Boolean) : null) : null
+            };
+
             const { data: caravan, error: caravanError } = await supabase
                 .from('caravans' as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-                .insert({
-                    ...formData,
-                    created_by: user?.id
-                })
+                .insert(insertPayload)
                 .select()
                 .single();
 
@@ -594,7 +626,11 @@ export default function CaravanManagement() {
             move_time: '',
             actual_move_time: '',
             bus_arrival_time: '',
-            return_time: ''
+            return_time: '',
+            target_meals: '',
+            actual_meals: '',
+            total_bags: '',
+            bag_contents: ''
         });
         setParticipants([]);
         setWoreVest(true); // Reset vest status
@@ -691,7 +727,7 @@ export default function CaravanManagement() {
             downloadCSV(exportData, `${caravan.name}_Report`);
         } catch (error) {
             console.error('Export error:', error);
-            toast.error('Export failed');
+             toast.error(isRTL ? 'فشل التصدير' : 'Export failed');
         }
     };
 
@@ -809,7 +845,7 @@ export default function CaravanManagement() {
 
         } catch (e) {
             console.error(e);
-            toast.error('Failed to export all');
+             toast.error(isRTL ? 'فشل تصدير الكل' : 'Failed to export all');
         }
     };
 
@@ -891,18 +927,87 @@ export default function CaravanManagement() {
                                                     placeholder={isRTL ? 'مثال: قرية النهضة' : 'e.g., Al-Nahda Village'}
                                                 />
                                             </div>
-                                            <div className="space-y-2 relative">
-                                                <Label className="text-sm font-semibold flex items-center gap-1.5">
-                                                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                                                    {t('caravans.date')} <span className="text-destructive">*</span>
-                                                </Label>
-                                                <Input 
-                                                    type="date" 
-                                                    value={formData.date} 
-                                                    onChange={e => setFormData({ ...formData, date: e.target.value })} 
-                                                    className="h-11 sm:h-12" 
-                                                />
-                                            </div>
+                                             <div className="space-y-2 relative">
+                                                 <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                                     <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                                                     {t('caravans.date')} <span className="text-destructive">*</span>
+                                                 </Label>
+                                                 <Popover>
+                                                     <PopoverTrigger asChild>
+                                                         <Button
+                                                             variant="outline"
+                                                             className={cn(
+                                                                 "w-full justify-start text-start font-normal h-11 sm:h-12 border-primary/20 hover:border-primary/50",
+                                                                 !formData.date && "text-muted-foreground"
+                                                             )}
+                                                         >
+                                                             <Calendar className="ltr:mr-2 rtl:ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                                                             {formData.date ? (
+                                                                 format(new Date(formData.date), "PPP", { locale: isRTL ? ar : undefined })
+                                                             ) : (
+                                                                 <span>{isRTL ? 'اختر التاريخ' : 'Pick a date'}</span>
+                                                             )}
+                                                         </Button>
+                                                     </PopoverTrigger>
+                                                     <PopoverContent className="w-auto p-0" align="start">
+                                                         <CalendarComponent
+                                                             mode="single"
+                                                             selected={formData.date ? new Date(formData.date) : undefined}
+                                                             onSelect={(date) => setFormData({ ...formData, date: date ? format(date, 'yyyy-MM-dd') : '' })}
+                                                             initialFocus
+                                                         />
+                                                     </PopoverContent>
+                                                 </Popover>
+                                             </div>
+                                            
+                                            {formData.type === 'food_distribution' && (
+                                                <div className="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-border/50 pt-4 mt-2">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-sm font-semibold">{isRTL ? 'وجبات التارجت (العدد المستهدف)' : 'Target Meals'}</Label>
+                                                        <Input
+                                                            type="number"
+                                                            value={formData.target_meals}
+                                                            onChange={e => setFormData({ ...formData, target_meals: e.target.value })}
+                                                            placeholder="100"
+                                                            className="h-11 sm:h-12"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-sm font-semibold">{isRTL ? 'العدد الفعلي للوجبات' : 'Actual Meals'}</Label>
+                                                        <Input
+                                                            type="number"
+                                                            value={formData.actual_meals}
+                                                            onChange={e => setFormData({ ...formData, actual_meals: e.target.value })}
+                                                            placeholder="110"
+                                                            className="h-11 sm:h-12"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {formData.type === 'charity_market' && (
+                                                <div className="col-span-1 sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-border/50 pt-4 mt-2">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-sm font-semibold">{isRTL ? 'عدد الشنط' : 'Total Bags'}</Label>
+                                                        <Input
+                                                            type="number"
+                                                            value={formData.total_bags}
+                                                            onChange={e => setFormData({ ...formData, total_bags: e.target.value })}
+                                                            placeholder="50"
+                                                            className="h-11 sm:h-12"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-sm font-semibold">{isRTL ? 'محتويات الشنطة (مفصولة بفواصل)' : 'Bag Contents (comma-separated)'}</Label>
+                                                        <Input
+                                                            value={formData.bag_contents}
+                                                            onChange={e => setFormData({ ...formData, bag_contents: e.target.value })}
+                                                            placeholder={isRTL ? 'مثال: كيلو سكر، كيلو زيت، علبة سمن' : 'e.g., Sugar, Oil, Rice'}
+                                                            className="h-11 sm:h-12"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                 </div>
 
@@ -1166,13 +1271,52 @@ export default function CaravanManagement() {
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
                 </div>
-                <Input
-                    type="date"
-                    className="w-full bg-background"
-                    value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                />
-                <Select value={timeFilter} onValueChange={setTimeFilter}>
+                <div className="relative w-full">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                className={cn(
+                                    "w-full justify-start text-start font-normal bg-background h-10 border border-input",
+                                    filterDate ? (isRTL ? "pl-8" : "pr-8") : "",
+                                    !filterDate && "text-muted-foreground"
+                                )}
+                            >
+                                <Calendar className="ltr:mr-2 rtl:ml-2 h-4 w-4 shrink-0" />
+                                {filterDate ? (
+                                    format(new Date(filterDate), "PPP", { locale: isRTL ? ar : undefined })
+                                ) : (
+                                    <span>{isRTL ? 'اختر التاريخ...' : 'Choose Date...'}</span>
+                                )}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                                mode="single"
+                                selected={filterDate ? new Date(filterDate) : undefined}
+                                onSelect={(date) => setFilterDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                                initialFocus
+                                captionLayout="dropdown-buttons"
+                                fromYear={2020}
+                                toYear={new Date().getFullYear() + 5}
+                            />
+                        </PopoverContent>
+                    </Popover>
+                    {filterDate && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute ltr:right-2 rtl:left-2 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setFilterDate('');
+                            }}
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </Button>
+                    )}
+                </div>
+                <Select value={timeFilter} onValueChange={setTimeFilter} dir={isRTL ? 'rtl' : 'ltr'}>
                     <SelectTrigger className="w-full bg-background h-10">
                         <SelectValue placeholder={isRTL ? 'اختر الفترة' : 'Select Period'} />
                     </SelectTrigger>
@@ -1302,6 +1446,52 @@ export default function CaravanManagement() {
                                         <span className="truncate">{caravan.participants_count || 0}</span>
                                     </div>
                                 </div>
+
+                                {caravan.type === 'food_distribution' && (
+                                    <>
+                                        {(caravan.target_meals !== null && caravan.target_meals !== undefined) && (
+                                            <div className="flex flex-col gap-1.5">
+                                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{isRTL ? 'الهدف (وجبات)' : 'Target Meals'}</span>
+                                                <div className="flex items-center gap-2 font-medium">
+                                                    <span className="text-base text-primary font-bold">{caravan.target_meals}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {(caravan.actual_meals !== null && caravan.actual_meals !== undefined) && (
+                                            <div className="flex flex-col gap-1.5">
+                                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{isRTL ? 'الفعلي (وجبات)' : 'Actual Meals'}</span>
+                                                <div className="flex items-center gap-2 font-medium">
+                                                    <span className="text-base text-emerald-600 dark:text-emerald-400 font-bold">{caravan.actual_meals}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {caravan.type === 'charity_market' && (
+                                    <>
+                                        {(caravan.total_bags !== null && caravan.total_bags !== undefined) && (
+                                            <div className="flex flex-col gap-1.5">
+                                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{isRTL ? 'عدد الشنط' : 'Total Bags'}</span>
+                                                <div className="flex items-center gap-2 font-medium">
+                                                    <span className="text-base text-primary font-bold">{caravan.total_bags}</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {caravan.bag_contents && caravan.bag_contents.length > 0 && (
+                                            <div className="flex flex-col gap-1.5 col-span-2">
+                                                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">{isRTL ? 'محتويات الشنطة' : 'Bag Contents'}</span>
+                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                    {caravan.bag_contents.map((item, idx) => (
+                                                        <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-muted text-muted-foreground border border-border">
+                                                            {item}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
                             </div>
                         </CardContent>
                     </Card>

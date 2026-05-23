@@ -16,7 +16,7 @@ const customStorage = {
       val = Cookies.get(key) || null;
       if (val) {
         // Migrate to standard web storage immediately to bypass the 4KB cookie limit
-        const rememberMe = localStorage.getItem('rememberMe') === 'true';
+        const rememberMe = localStorage.getItem('rememberMe') !== 'false';
         if (rememberMe) {
           localStorage.setItem(key, val);
         } else {
@@ -29,7 +29,7 @@ const customStorage = {
     return val;
   },
   setItem: (key: string, value: string) => {
-    const rememberMe = localStorage.getItem('rememberMe') === 'true';
+    const rememberMe = localStorage.getItem('rememberMe') !== 'false';
     if (rememberMe) {
       localStorage.setItem(key, value);
       sessionStorage.removeItem(key); // Ensure clean separation

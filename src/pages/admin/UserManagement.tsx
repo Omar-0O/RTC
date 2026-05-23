@@ -250,7 +250,7 @@ export default function UserManagement() {
       }
     } catch (e) {
       console.error(e)
-      toast.error('Failed to crop image')
+      toast.error(isRTL ? 'فشل في قص الصورة' : 'Failed to crop image')
     }
   }
 
@@ -279,12 +279,12 @@ export default function UserManagement() {
     e.preventDefault();
 
     if (!formName.trim() || !formEmail.trim() || !formPassword.trim()) {
-      toast.error('Please fill in all required fields');
+      toast.error(isRTL ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill in all required fields');
       return;
     }
 
     if (formPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
+      toast.error(isRTL ? 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل' : 'Password must be at least 6 characters');
       return;
     }
 
@@ -293,7 +293,7 @@ export default function UserManagement() {
       // Get the current session to pass the auth token
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        toast.error('Session expired. Please log in again.');
+        toast.error(isRTL ? 'انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.' : 'Session expired. Please log in again.');
         return;
       }
 
@@ -388,14 +388,14 @@ export default function UserManagement() {
         }
       }
 
-      toast.success('User added successfully');
+      toast.success(language === 'ar' ? 'تم إضافة المستخدم بنجاح' : 'User added successfully');
       setIsAddDialogOpen(false);
       resetForm();
       // React Query auto-invalidates via createUserMutation
 
     } catch (error: any) {
       console.error('Error adding user:', error);
-      const message = error?.message || error?.error || 'Failed to add user';
+      const message = error?.message || error?.error || (language === 'ar' ? 'فشل في إضافة المستخدم' : 'Failed to add user');
       toast.error(message);
     } finally {
       setIsSubmitting(false);
@@ -430,7 +430,7 @@ export default function UserManagement() {
     if (!selectedUser) return;
 
     if (!formName.trim() || !formEmail.trim()) {
-      toast.error('Please fill in all required fields');
+      toast.error(isRTL ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill in all required fields');
       return;
     }
 
@@ -477,7 +477,7 @@ export default function UserManagement() {
           }
         } catch (avatarError) {
           console.error('Avatar upload failed:', avatarError);
-          toast.error('Failed to upload new avatar');
+          toast.error(isRTL ? 'فشل في رفع الصورة الشخصية الجديدة' : 'Failed to upload new avatar');
         }
       }
 
@@ -504,7 +504,7 @@ export default function UserManagement() {
       // Update password if provided
       if (formPassword.trim()) {
         if (formPassword.length < 6) {
-          toast.error('Password must be at least 6 characters');
+          toast.error(isRTL ? 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل' : 'Password must be at least 6 characters');
           return;
         }
 
@@ -519,14 +519,14 @@ export default function UserManagement() {
         if (passwordData?.error) throw new Error(passwordData.error);
       }
 
-      toast.success('User updated successfully');
+      toast.success(language === 'ar' ? 'تم تحديث بيانات المستخدم بنجاح' : 'User updated successfully');
       setIsEditDialogOpen(false);
       setSelectedUser(null);
       resetForm();
       // React Query auto-invalidates via updateUserMutation
     } catch (error: any) {
       console.error('Error updating user:', error);
-      toast.error(error.message || 'Failed to update user');
+      toast.error(error.message || (language === 'ar' ? 'فشل في تحديث بيانات المستخدم' : 'Failed to update user'));
     } finally {
       setIsSubmitting(false);
     }
@@ -586,11 +586,11 @@ export default function UserManagement() {
 
 
 
-      toast.success('Role updated successfully');
+      toast.success(language === 'ar' ? 'تم تحديث دور المستخدم بنجاح' : 'Role updated successfully');
       // React Query auto-invalidates via updateRoleMutation
     } catch (error: any) {
       console.error('Error updating role:', error);
-      toast.error(error.message || 'Failed to update role');
+      toast.error(error.message || (language === 'ar' ? 'فشل في تحديث دور المستخدم' : 'Failed to update role'));
     }
   };
 
@@ -756,7 +756,7 @@ export default function UserManagement() {
 
     } catch (error) {
       console.error('Export error:', error);
-      toast.error('Failed to export users');
+      toast.error(isRTL ? 'فشل في تصدير المستخدمين' : 'Failed to export users');
     }
   };
 

@@ -211,7 +211,7 @@ export default function CommitteeManagement() {
       setCommittees(committeesWithStats);
     } catch (error) {
       console.error('Error fetching committees:', error);
-      toast.error('Failed to load committees');
+      toast.error(language === 'ar' ? 'فشل في تحميل اللجان' : 'Failed to load committees');
     } finally {
       setIsLoading(false);
     }
@@ -233,7 +233,7 @@ export default function CommitteeManagement() {
   const handleAddCommittee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || !formNameAr.trim()) {
-      toast.error('Please fill in required fields');
+      toast.error(language === 'ar' ? 'يرجى ملء الحقول المطلوبة' : 'Please fill in required fields');
       return;
     }
 
@@ -251,13 +251,13 @@ export default function CommitteeManagement() {
 
       if (error) throw error;
 
-      toast.success('Committee added successfully');
+      toast.success(language === 'ar' ? 'تم إضافة اللجنة بنجاح' : 'Committee added successfully');
       setIsAddDialogOpen(false);
       resetForm();
       fetchCommittees();
     } catch (error: any) {
       console.error('Error adding committee:', error);
-      toast.error(error.message || 'Failed to add committee');
+      toast.error(error.message || (language === 'ar' ? 'فشل في إضافة اللجنة' : 'Failed to add committee'));
     } finally {
       setIsSubmitting(false);
     }
@@ -284,14 +284,14 @@ export default function CommitteeManagement() {
 
       if (error) throw error;
 
-      toast.success('Committee updated successfully');
+      toast.success(language === 'ar' ? 'تم تحديث اللجنة بنجاح' : 'Committee updated successfully');
       setIsEditDialogOpen(false);
       setSelectedCommittee(null);
       resetForm();
       fetchCommittees();
     } catch (error: any) {
       console.error('Error updating committee:', error);
-      toast.error(error.message || 'Failed to update committee');
+      toast.error(error.message || (language === 'ar' ? 'فشل في تحديث اللجنة' : 'Failed to update committee'));
     } finally {
       setIsSubmitting(false);
     }
@@ -309,13 +309,13 @@ export default function CommitteeManagement() {
 
       if (error) throw error;
 
-      toast.success('Committee deleted successfully');
+      toast.success(language === 'ar' ? 'تم حذف اللجنة بنجاح' : 'Committee deleted successfully');
       setIsDeleteDialogOpen(false);
       setSelectedCommittee(null);
       fetchCommittees();
     } catch (error: any) {
       console.error('Error deleting committee:', error);
-      toast.error(error.message || 'Failed to delete committee');
+      toast.error(error.message || (language === 'ar' ? 'فشل في حذف اللجنة' : 'Failed to delete committee'));
     } finally {
       setIsSubmitting(false);
     }
@@ -384,7 +384,7 @@ export default function CommitteeManagement() {
 
     } catch (error) {
       console.error('Export error:', error);
-      toast.error('Failed to export report');
+      toast.error(language === 'ar' ? 'فشل في تصدير التقرير' : 'Failed to export report');
     } finally {
       setIsExporting(false);
     }

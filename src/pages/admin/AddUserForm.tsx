@@ -185,7 +185,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
       }
     } catch (e) {
       console.error(e)
-      toast.error('Failed to crop image')
+      toast.error(isRTL ? 'فشل في قص الصورة' : 'Failed to crop image')
     }
   }
 
@@ -214,12 +214,12 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
     e.preventDefault();
 
     if (!formName.trim() || !formEmail.trim() || !formPassword.trim()) {
-      toast.error('Please fill in all required fields');
+      toast.error(isRTL ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill in all required fields');
       return;
     }
 
     if (formPassword.length < 6) {
-      toast.error('Password must be at least 6 characters');
+      toast.error(isRTL ? 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل' : 'Password must be at least 6 characters');
       return;
     }
 
@@ -227,7 +227,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        toast.error('Session expired. Please log in again.');
+        toast.error(isRTL ? 'انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.' : 'Session expired. Please log in again.');
         return;
       }
 
@@ -285,11 +285,11 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
         }
       }
 
-      toast.success('User added successfully');
+      toast.success(language === 'ar' ? 'تم إضافة المستخدم بنجاح' : 'User added successfully');
       onSuccess();
     } catch (error: any) {
       console.error('Error adding user:', error);
-      const message = error?.message || error?.error || 'Failed to add user';
+      const message = error?.message || error?.error || (language === 'ar' ? 'فشل في إضافة المستخدم' : 'Failed to add user');
       toast.error(message);
     } finally {
       setIsSubmitting(false);

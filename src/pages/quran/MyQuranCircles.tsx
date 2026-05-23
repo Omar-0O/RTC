@@ -135,6 +135,7 @@ export default function MyQuranCircles() {
     // Details dialog
     const [selectedCircle, setSelectedCircle] = useState<QuranCircle | null>(null);
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<string>('sessions');
     const [sessions, setSessions] = useState<Session[]>([]);
     const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
     const [attendanceData, setAttendanceData] = useState<Record<string, Attendance[]>>({});
@@ -298,6 +299,8 @@ export default function MyQuranCircles() {
 
     const openCircleDetails = async (circle: QuranCircle) => {
         setSelectedCircle(circle);
+        const isMarketerOnly = marketerCircleIds.has(circle.id) && !organizerCircleIds.has(circle.id);
+        setActiveTab(isMarketerOnly ? 'ads' : 'sessions');
         setIsDetailsOpen(true);
 
         // Fetch sessions
@@ -1057,32 +1060,58 @@ export default function MyQuranCircles() {
                 )}
             </div>
 
-            {/* Circle Details Dialog */}
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[85vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>{selectedCircle && getCircleName(selectedCircle)}</DialogTitle>
-                        <DialogDescription>
+                <DialogContent className="w-[calc(100%-1.5rem)] max-w-4xl max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-2xl p-4 sm:p-6">
+                    <DialogHeader className="text-center sm:text-center flex flex-col items-center justify-center">
+                        <DialogTitle className="text-xl sm:text-2xl font-bold text-center w-full">{selectedCircle && getCircleName(selectedCircle)}</DialogTitle>
+                        <DialogDescription className="text-center w-full">
                             {selectedCircle && getScheduleDisplay(selectedCircle.schedule)} • {getScheduleTime(selectedCircle?.schedule || [])}
                         </DialogDescription>
                     </DialogHeader>
 
-                    <Tabs defaultValue={selectedCircle && marketerCircleIds.has(selectedCircle.id) && !organizerCircleIds.has(selectedCircle.id) ? 'ads' : 'sessions'} className="w-full">
-                        {(() => {
-                            const isMarketerOnly = selectedCircle ? (marketerCircleIds.has(selectedCircle.id) && !organizerCircleIds.has(selectedCircle.id)) : false;
-                            return isMarketerOnly ? (
-                                <TabsList className="flex flex-wrap h-auto w-full gap-1 p-1 sm:grid sm:grid-cols-1">
-                                    <TabsTrigger value="ads" className="flex-1 sm:flex-none">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
-                                </TabsList>
-                            ) : (
-                                <TabsList className="flex flex-wrap h-auto w-full gap-1 p-1 sm:grid sm:grid-cols-4">
-                                    <TabsTrigger value="beneficiaries" className="flex-1 sm:flex-none">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
-                                    <TabsTrigger value="sessions" className="flex-1 sm:flex-none">{isRTL ? 'الجلسات' : 'Sessions'}</TabsTrigger>
-                                    <TabsTrigger value="sheet" className="flex-1 sm:flex-none">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
-                                    <TabsTrigger value="ads" className="flex-1 sm:flex-none">{isRTL ? 'الإعلانات' : 'Ads'}</TabsTrigger>
-                                </TabsList>
-                            );
-                        })()}
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                        <div className="overflow-x-auto -mx-2 px-2 pb-1.5 scrollbar-none">
+                            {(() => {
+                                const isMarketerOnly = selectedCircle ? (marketerCircleIds.has(selectedCircle.id) && !organizerCircleIds.has(selectedCircle.id)) : false;
+                                return isMarketerOnly ? (
+                                    <TabsList className="flex w-full h-auto p-1 bg-muted/50 rounded-xl gap-0.5 xs:gap-1">
+                                        <TabsTrigger
+                                            value="ads"
+                                            className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                        >
+                                            {isRTL ? 'الإعلانات' : 'Ads'}
+                                        </TabsTrigger>
+                                    </TabsList>
+                                ) : (
+                                    <TabsList className="flex w-full h-auto p-1 bg-muted/50 rounded-xl gap-0.5 xs:gap-1">
+                                        <TabsTrigger
+                                            value="beneficiaries"
+                                            className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                        >
+                                            {isRTL ? 'المستفيدين' : 'Beneficiaries'}
+                                        </TabsTrigger>
+                                        <TabsTrigger
+                                            value="sessions"
+                                            className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                        >
+                                            {isRTL ? 'الجلسات' : 'Sessions'}
+                                        </TabsTrigger>
+                                        <TabsTrigger
+                                            value="sheet"
+                                            className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                        >
+                                            {isRTL ? 'شيت الحضور' : 'Attendance Sheet'}
+                                        </TabsTrigger>
+                                        <TabsTrigger
+                                            value="ads"
+                                            className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                        >
+                                            {isRTL ? 'الإعلانات' : 'Ads'}
+                                        </TabsTrigger>
+                                    </TabsList>
+                                );
+                            })()}
+                        </div>
 
                         {/* Beneficiaries Tab */}
                         <TabsContent value="beneficiaries" className="space-y-4 py-4">

@@ -132,7 +132,7 @@ export default function SupervisorUserManagement() {
             setUsers(usersWithDetails);
         } catch (error) {
             console.error('Error fetching data:', error);
-            toast.error('Failed to load users');
+            toast.error(isRTL ? 'فشل في تحميل المستخدمين' : 'Failed to load users');
         } finally {
             setIsLoading(false);
         }

@@ -214,7 +214,7 @@ export default function QuranManagement() {
             fetchBeneficiaries();
         } catch (error: any) {
             console.error('Error saving:', error);
-            toast.error(error.message || 'Error occurred');
+            toast.error(error.message || (isRTL ? 'حدث خطأ' : 'Error occurred'));
         } finally {
             setIsUploading(false);
         }
@@ -236,7 +236,7 @@ export default function QuranManagement() {
             fetchBeneficiaries();
         } catch (error) {
             console.error('Error deleting:', error);
-            toast.error('Failed to delete');
+            toast.error(isRTL ? 'فشل الحذف' : 'Failed to delete');
         } finally {
             setDeleteId(null);
         }

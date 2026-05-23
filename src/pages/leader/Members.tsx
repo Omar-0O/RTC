@@ -151,7 +151,7 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
 
         } catch (error: any) {
             console.error('Error fetching data:', error);
-            toast.error(error.message || 'Failed to load members');
+            toast.error(error.message || (language === 'ar' ? 'فشل في تحميل الأعضاء' : 'Failed to load members'));
         } finally {
             setIsLoading(false);
         }

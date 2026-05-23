@@ -600,9 +600,9 @@ export default function CourseSchedule() {
 
             {/* Course/Circle Details Dialog */}
             <Dialog open={!!selectedCourse || !!selectedCircle} onOpenChange={() => { setSelectedCourse(null); setSelectedCircle(null); }}>
-                <DialogContent className="max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>
+                <DialogContent className="max-w-lg w-[calc(100%-2rem)] rounded-2xl sm:rounded-2xl">
+                    <DialogHeader className="text-center sm:text-center flex flex-col items-center justify-center">
+                        <DialogTitle className="text-center w-full text-xl font-bold">
                             {selectedCourse ? selectedCourse.name : (selectedCircle?.teacher_name ? (isRTL ? 'حلقة المحفظ ' + selectedCircle.teacher_name : selectedCircle.teacher_name + "'s Circle") : (isRTL ? 'حلقة قرآن' : 'Quran Circle'))}
                         </DialogTitle>
                     </DialogHeader>

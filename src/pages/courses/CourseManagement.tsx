@@ -3015,11 +3015,10 @@ export default function CourseManagement() {
                 </DialogContent>
             </Dialog >
 
-            {/* Course Details Dialog */}
             < Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen} >
-                <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="text-2xl flex items-center gap-2">
+                <DialogContent className="w-[calc(100%-1.5rem)] max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-2xl p-4 sm:p-6">
+                    <DialogHeader className="text-center sm:text-center flex flex-col items-center justify-center">
+                        <DialogTitle className="text-xl sm:text-2xl font-bold flex flex-wrap items-center justify-center gap-2 text-center w-full">
                             {selectedCourse?.name}
                             {selectedCourse?.has_certificates && (
                                 <Badge variant="outline">
@@ -3033,13 +3032,13 @@ export default function CourseManagement() {
                                 </Badge>
                             )}
                         </DialogTitle>
-                        <DialogDescription className="flex flex-col gap-1">
+                        <DialogDescription className="flex flex-col gap-1 items-center justify-center text-center w-full">
                             <span>
                                 {selectedCourse?.course_trainers && selectedCourse.course_trainers.length > 0
                                     ? selectedCourse.course_trainers.map(ct => isRTL ? ct.trainers?.name_ar : ct.trainers?.name_en).filter(Boolean).join(' · ')
                                     : selectedCourse?.trainer_name
                                 } - {selectedCourse?.room && getRoomLabel(selectedCourse.room)}
-                            </span>
+							</span>
                             {detailsOrganizers.length > 0 && (
                                 <span className="text-xs text-muted-foreground">
                                     {isRTL ? 'المنظمين: ' : 'Organizers: '}
@@ -3086,13 +3085,33 @@ export default function CourseManagement() {
                     )}
 
                     <Tabs defaultValue="beneficiaries" className="w-full">
-                        <div className="overflow-x-auto -mx-2 px-2 pb-2">
-                            <TabsList className="flex min-w-max h-auto p-1">
-                                <TabsTrigger value="beneficiaries" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
-                                <TabsTrigger value="lectures" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
-                                <TabsTrigger value="sheet" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance'}</TabsTrigger>
+                        <div className="overflow-x-auto -mx-2 px-2 pb-1.5 scrollbar-none">
+                            <TabsList className="flex w-full h-auto p-1 bg-muted/50 rounded-xl gap-0.5 xs:gap-1">
+                                <TabsTrigger
+                                    value="beneficiaries"
+                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                >
+                                    {isRTL ? 'المستفيدين' : 'Beneficiaries'}
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="lectures"
+                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                >
+                                    {isRTL ? 'المحاضرات' : 'Lectures'}
+                                </TabsTrigger>
+                                <TabsTrigger
+                                    value="sheet"
+                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                >
+                                    {isRTL ? 'شيت الحضور' : 'Attendance'}
+                                </TabsTrigger>
                                 {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_marketing')) && (
-                                    <TabsTrigger value="organizers" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'المنظمين' : 'Organizers'}</TabsTrigger>
+                                    <TabsTrigger
+                                        value="organizers"
+                                        className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                    >
+                                        {isRTL ? 'المنظمين' : 'Organizers'}
+                                    </TabsTrigger>
                                 )}
                             </TabsList>
                         </div>
