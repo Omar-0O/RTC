@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { BookOpen, Calendar, Clock, MapPin, Users, Check, X, Loader2, GraduationCap } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { Plus, Trash2, Pencil, MoreHorizontal, Download, Megaphone, Image, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -166,11 +166,36 @@ export default function MyCourses() {
 
             if (mktError) throw mktError;
 
+            // Get courses where current user is a trainer (via course_trainers)
+            // First find the trainer record linked to this user
+            const { data: trainerRecord } = await (supabase as any)
+                .from('trainers')
+                .select('id')
+                .eq('user_id', user?.id)
+                .single();
+
+            let trainerCourseIds: string[] = [];
+            if (trainerRecord?.id) {
+                const { data: trainerCourseData } = await (supabase as any)
+                    .from('course_trainers')
+                    .select('course_id')
+                    .eq('trainer_id', trainerRecord.id);
+                trainerCourseIds = trainerCourseData?.map((t: any) => t.course_id) || [];
+
+                // Also check if trainer is primary trainer (trainer_id column on courses)
+                const { data: primaryTrainerCourses } = await supabase
+                    .from('courses')
+                    .select('id')
+                    .eq('trainer_id', trainerRecord.id);
+                const primaryIds = primaryTrainerCourses?.map(c => c.id) || [];
+                trainerCourseIds = Array.from(new Set([...trainerCourseIds, ...primaryIds]));
+            }
+
             const organizerIds = organizerData?.map(o => o.course_id) || [];
             const marketerIds = marketerData?.map(m => m.course_id) || [];
-            setOrganizerCourseIds(new Set(organizerIds));
+            setOrganizerCourseIds(new Set([...organizerIds, ...trainerCourseIds])); // trainers can manage lectures
             setMarketerCourseIds(new Set(marketerIds));
-            const allCourseIds = Array.from(new Set([...organizerIds, ...marketerIds]));
+            const allCourseIds = Array.from(new Set([...organizerIds, ...marketerIds, ...trainerCourseIds]));
 
             if (allCourseIds.length === 0) {
                 setCourses([]);
@@ -260,7 +285,43 @@ export default function MyCourses() {
         }
     };
 
+    const handleLeaveCourse = async (courseId: string) => {
+        if (!user) return;
+        if (!confirm(isRTL ? 'هل أنت متأكد من إزالة نفسك كمنظم من هذا الكورس؟' : 'Are you sure you want to remove yourself as an organizer from this course?')) return;
+        
+        try {
+            const { error } = await supabase
+                .from('course_organizers')
+                .delete()
+                .match({ course_id: courseId, volunteer_id: user.id });
 
+            if (error) throw error;
+            toast.success(isRTL ? 'تم إزالة الكورس بنجاح' : 'Course removed successfully');
+            fetchMyCourses();
+        } catch (error: any) {
+            console.error('Error leaving course:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء الإزالة' : 'Error removing organizer');
+        }
+    };
+
+    const handleLeaveCourse = async (courseId: string) => {
+        if (!user) return;
+        if (!confirm(isRTL ? 'هل أنت متأكد من إزالة نفسك كمنظم من هذا الكورس؟' : 'Are you sure you want to remove yourself as an organizer from this course?')) return;
+        
+        try {
+            const { error } = await supabase
+                .from('course_organizers')
+                .delete()
+                .match({ course_id: courseId, volunteer_id: user.id });
+
+            if (error) throw error;
+            toast.success(isRTL ? 'تم إزالة الكورس بنجاح' : 'Course removed successfully');
+            fetchMyCourses();
+        } catch (error: any) {
+            console.error('Error leaving course:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء الإزالة' : 'Error removing organizer');
+        }
+    };
 
     const openCourseDetails = async (course: Course, tab: string = 'beneficiaries') => {
         setSelectedCourse(course);
@@ -337,8 +398,12 @@ export default function MyCourses() {
         }
 
         // If marked as completed, create trainer participation
+        // Only register if lecture was NOT already completed (prevent duplicate)
         if (status === 'completed' && selectedCourse) {
-            await createTrainerParticipation(selectedCourse, lectureId);
+            const currentLecture = lectures.find(l => l.id === lectureId);
+            if (currentLecture?.status !== 'completed') {
+                await createTrainerParticipation(selectedCourse, lectureId);
+            }
         }
 
         toast.success(isRTL ? 'تم التحديث' : 'Updated');
@@ -346,67 +411,110 @@ export default function MyCourses() {
     };
 
     // Create trainer participation when lecture is completed
+    // Always logs in trainer_lecture_records (name + phone, no account needed)
+    // Additionally logs in activity_submissions if the trainer has a system profile
     const createTrainerParticipation = async (course: Course, lectureId: string) => {
-        if (!course.trainer_id) return; // External trainer, no account
-
         try {
-            // Get trainer info to find user_id
-            const { data: trainerData } = await (supabase as any)
-                .from('trainers')
-                .select('user_id')
-                .eq('id', course.trainer_id)
-                .single();
+            // Helper: find profile ID by phone
+            const findProfileByPhone = async (phone: string): Promise<string | null> => {
+                const cleanPhone = phone.replace(/[\s\-]/g, '');
+                const { data } = await supabase.from('profiles').select('id')
+                    .or(`phone.eq.${cleanPhone},phone.eq.${phone}`).limit(1).maybeSingle();
+                return data?.id || null;
+            };
 
-            if (!trainerData?.user_id) return; // Trainer not linked to a user account
+            // Helper: always log in trainer_lecture_records (no profile needed)
+            const logTrainerRecord = async (name: string, phone: string | null, volunteerId: string | null) => {
+                await (supabase as any).from('trainer_lecture_records').insert({
+                    course_id: course.id, lecture_id: lectureId,
+                    trainer_name: name, trainer_phone: phone || null, volunteer_id: volunteerId || null
+                });
+            };
 
-            // Get trainer committee
-            const { data: committee } = await supabase
-                .from('committees')
-                .select('id')
-                .eq('name', 'Trainer')
-                .single();
+            interface TrainerEntry { name: string; phone: string | null; volunteerId: string | null; }
+            const trainers: TrainerEntry[] = [];
 
-            // Get trainer lecture activity type
-            const { data: activityType } = await supabase
-                .from('activity_types')
-                .select('id, points')
-                .eq('name', 'Trainer Lecture')
-                .single();
+            // Case A: Trainers from trainers table (trainer_id + course_trainers from DB)
+            const trainerIds = new Set<string>();
+            if (course.trainer_id) trainerIds.add(course.trainer_id);
+            const { data: ctData } = await (supabase as any)
+                .from('course_trainers').select('trainer_id').eq('course_id', course.id);
+            ctData?.forEach((ct: any) => trainerIds.add(ct.trainer_id));
 
-            if (!committee || !activityType) {
-                console.warn('لجنة المدرب أو نوع المهمة غير موجود');
-                return;
+            for (const tId of trainerIds) {
+                const { data: td } = await (supabase as any)
+                    .from('trainers').select('user_id, phone, name_ar, name_en').eq('id', tId).single();
+                if (!td) continue;
+                let vid: string | null = td.user_id || null;
+                if (!vid && td.phone) vid = await findProfileByPhone(td.phone);
+                trainers.push({ name: td.name_ar || td.name_en || 'مدرب', phone: td.phone, volunteerId: vid });
             }
 
-            // Get lecture info for description
+            // Case B: External trainer (name + phone on course, no trainer_id)
+            if (!course.trainer_id && course.trainer_name) {
+                const phones = course.trainer_phone
+                    ? course.trainer_phone.split(/[-,]/).map((p: string) => p.trim()).filter(Boolean)
+                    : [null];
+                for (const phone of phones) {
+                    const vid = phone ? await findProfileByPhone(phone) : null;
+                    trainers.push({ name: course.trainer_name, phone: phone || course.trainer_phone || null, volunteerId: vid });
+                }
+            }
+
+            if (trainers.length === 0) return;
+
             const lecture = lectures.find(l => l.id === lectureId);
             const lectureNum = lecture?.lecture_number || '';
 
-            // Create activity submission for the trainer
-            const { error: submitError } = await supabase.from('activity_submissions').insert({
-                volunteer_id: trainerData.user_id,
-                activity_type_id: activityType.id,
-                committee_id: committee.id,
-                description: `محاضرة ${lectureNum} في كورس: ${course.name}`,
-                points_awarded: activityType.points,
-                status: 'approved',
-                location: 'branch',
-                participant_type: 'trainer',
-                proof_url: null
-            });
+            // Get committee + activity type (only for profile trainers)
+            let committeeId: string | null = null;
+            let activityTypeId: string | null = null;
+            let activityPoints = 0;
 
-            if (submitError) {
-                console.error('Error creating trainer participation:', submitError);
-            } else {
-                console.log('تم تسجيل مشاركة المدرب');
+            if (trainers.some(t => t.volunteerId)) {
+                const { data: allCommittees } = await supabase.from('committees').select('id, name');
+                if (allCommittees?.length) {
+                    const found = allCommittees.find(c =>
+                        c.name.toLowerCase().includes('trainer') || c.name.toLowerCase().includes('course') ||
+                        c.name.includes('تدريب') || c.name.includes('كورس'));
+                    committeeId = found?.id || course.committee_id || allCommittees[0].id;
+                }
+                const { data: allTypes } = await supabase.from('activity_types').select('id, points, name');
+                if (allTypes?.length) {
+                    const chosen = allTypes.find(a => a.name === 'Trainer Lecture')
+                        || allTypes.find(a => a.name.toLowerCase().includes('trainer') || a.name.includes('محاضر'));
+                    if (chosen) { activityTypeId = chosen.id; activityPoints = chosen.points; }
+                }
+            }
+
+            for (const trainer of trainers) {
+                // 1. Always record with name + phone (no account needed)
+                await logTrainerRecord(trainer.name, trainer.phone, trainer.volunteerId);
+                console.log(`📋 تم تسجيل مشاركة "${trainer.name}" في محاضرة ${lectureNum}`);
+
+                // 2. If has profile + committee + activity → also record points
+                if (trainer.volunteerId && committeeId && activityTypeId) {
+                    const { error } = await supabase.from('activity_submissions').insert({
+                        volunteer_id: trainer.volunteerId,
+                        activity_type_id: activityTypeId,
+                        committee_id: committeeId,
+                        description: `محاضرة ${lectureNum} في كورس: ${course.name}`,
+                        points_awarded: activityPoints,
+                        status: 'approved', location: 'branch', proof_url: null
+                    });
+                    if (error) console.error('خطأ في activity_submissions:', error);
+                    else console.log(`✅ نقاط مسجلة لـ ${trainer.name}`);
+                }
             }
         } catch (error) {
             console.error('Error in createTrainerParticipation:', error);
         }
     };
 
+
     const isLectureOpen = (dateStr: string) => {
-        const lectureDate = new Date(dateStr);
+        // Use parseISO to avoid UTC midnight timezone shift (+03:00 would make it previous day)
+        const lectureDate = parseISO(dateStr);
         const now = new Date();
         lectureDate.setHours(0, 0, 0, 0);
         now.setHours(0, 0, 0, 0);
@@ -713,10 +821,17 @@ export default function MyCourses() {
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             {organizerCourseIds.has(course.id) && (
-                                                <DropdownMenuItem onClick={() => openCourseDetails(course)}>
-                                                    <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                    {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
-                                                </DropdownMenuItem>
+                                                <>
+                                                    <DropdownMenuItem onClick={() => openCourseDetails(course)}>
+                                                        <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={() => handleLeaveCourse(course.id)} className="text-destructive focus:bg-destructive/10">
+                                                        <Trash2 className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'إزالة نفسي كمنظم' : 'Leave as Organizer'}
+                                                    </DropdownMenuItem>
+                                                </>
                                             )}
                                             {marketerCourseIds.has(course.id) && (
                                                 <DropdownMenuItem onClick={() => openCourseDetails(course, 'marketing')}>
@@ -779,17 +894,17 @@ export default function MyCourses() {
                     </DialogHeader>
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <div className="overflow-x-auto -mx-2 px-2">
-                            <TabsList className={`grid w-full min-w-[300px] ${isOrganizer ? (isMarketer ? 'grid-cols-4' : 'grid-cols-3') : 'grid-cols-1'}`}>
+                        <div className="overflow-x-auto -mx-2 px-2 pb-1">
+                            <TabsList className="flex min-w-max h-auto p-1">
                                 {isOrganizer && (
                                     <>
-                                        <TabsTrigger value="beneficiaries" className="text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
-                                        <TabsTrigger value="lectures" className="text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
-                                        <TabsTrigger value="sheet" className="text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance Sheet'}</TabsTrigger>
+                                        <TabsTrigger value="beneficiaries" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'المستفيدين' : 'Beneficiaries'}</TabsTrigger>
+                                        <TabsTrigger value="lectures" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'المحاضرات' : 'Lectures'}</TabsTrigger>
+                                        <TabsTrigger value="sheet" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'شيت الحضور' : 'Attendance'}</TabsTrigger>
                                     </>
                                 )}
                                 {isMarketer && (
-                                    <TabsTrigger value="marketing" className="text-xs sm:text-sm">{isRTL ? 'التسويق' : 'Marketing'}</TabsTrigger>
+                                    <TabsTrigger value="marketing" className="flex-none px-3 py-2 text-xs sm:text-sm">{isRTL ? 'التسويق' : 'Marketing'}</TabsTrigger>
                                 )}
                             </TabsList>
                         </div>
