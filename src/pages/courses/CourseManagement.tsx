@@ -3339,7 +3339,7 @@ export default function CourseManagement() {
 <Table>
                                         <TableHeader>
                                             <TableRow>
-                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                <TableHead className="min-w-[200px] whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
                                                 <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
                                                 {lectures.map(l => (
                                                     <TableHead key={l.id} className="text-center w-12 whitespace-nowrap">
@@ -3363,7 +3363,7 @@ export default function CourseManagement() {
 
                                                 return (
                                                     <TableRow key={beneficiary.id}>
-                                                        <TableCell className="font-medium whitespace-nowrap">{beneficiary.name}</TableCell>
+                                                        <TableCell className="font-medium whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{beneficiary.name}</TableCell>
                                                         <TableCell className="whitespace-nowrap">{beneficiary.phone}</TableCell>
                                                         {lectures.map((lecture, idx) => {
                                                             const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone);

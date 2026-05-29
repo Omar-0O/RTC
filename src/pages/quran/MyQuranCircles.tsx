@@ -1430,13 +1430,14 @@ export default function MyQuranCircles() {
                         {/* Attendance Sheet Tab */}
                         <TabsContent value="sheet" className="py-4">
                             <div className="border rounded-lg overflow-x-auto max-h-[600px]">
-                                <Table>
+                                <div className="overflow-x-auto w-full">
+<Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead className="min-w-[200px] sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                            <TableHead className="min-w-[120px]">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                            <TableHead className="min-w-[200px] whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                            <TableHead className="min-w-[120px] whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
                                             {sessions.map((s, idx) => (
-                                                <TableHead key={s.id} className="text-center min-w-[80px]">
+                                                <TableHead key={s.id} className="text-center min-w-[80px] whitespace-nowrap">
                                                     <div className="flex flex-col items-center">
                                                         <span>{idx + 1}</span>
                                                         <span className="text-[10px] font-normal text-muted-foreground">
@@ -1445,9 +1446,9 @@ export default function MyQuranCircles() {
                                                     </div>
                                                 </TableHead>
                                             ))}
-                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'حضر' : 'Attended'}</TableHead>
-                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'غاب' : 'Missed'}</TableHead>
-                                            <TableHead className="text-center min-w-[80px]">{isRTL ? 'نسبة' : '%'}</TableHead>
+                                            <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'حضر' : 'Attended'}</TableHead>
+                                            <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'غاب' : 'Missed'}</TableHead>
+                                            <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'نسبة' : '%'}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -1461,10 +1462,10 @@ export default function MyQuranCircles() {
 
                                             return (
                                                 <TableRow key={beneficiary.id}>
-                                                    <TableCell className="font-medium sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">
+                                                    <TableCell className="font-medium whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">
                                                         {beneficiary.name_ar}
                                                     </TableCell>
-                                                    <TableCell className="text-sm text-muted-foreground">{beneficiary.phone || '-'}</TableCell>
+                                                    <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{beneficiary.phone || '-'}</TableCell>
                                                     {sessions.map((session, idx) => {
                                                         const attendanceRecord = attendanceData[session.id]?.find(a => a.beneficiary_id === beneficiary.id);
                                                         const isPresent = !!attendanceRecord;
@@ -1507,13 +1508,14 @@ export default function MyQuranCircles() {
                                         })}
                                         {beneficiaries.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={sessions.length + 5} className="text-center py-8 text-muted-foreground">
+                                                <TableCell colSpan={sessions.length + 5} className="text-center py-8 text-muted-foreground whitespace-nowrap">
                                                     {isRTL ? 'لا يوجد طلاب مسجلين' : 'No students enrolled'}
                                                 </TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
                                 </Table>
+</div>
                             </div>
                         </TabsContent>
 
