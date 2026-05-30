@@ -78,6 +78,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-This project is open source and available under the [MIT License](LICENSE).
+This project is open source and available under the [GPL v3 License](LICENSE).
 
 ✨
