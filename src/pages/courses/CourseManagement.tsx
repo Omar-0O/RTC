@@ -24,7 +24,7 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search, Megaphone, AlertTriangle, User } from 'lucide-react';
+import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search, Megaphone, AlertTriangle, User, UserPlus, UserCheck, Table as TableIcon } from 'lucide-react';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { format, addDays, getDay, parseISO } from 'date-fns';
 import * as XLSX from 'xlsx';
@@ -188,6 +188,10 @@ export default function CourseManagement() {
     const [beneficiaries, setBeneficiaries] = useState<CourseBeneficiary[]>([]);
     const [newBeneficiary, setNewBeneficiary] = useState({ name: '', phone: '', national_id: '' });
     const [editingBeneficiary, setEditingBeneficiary] = useState<CourseBeneficiary | null>(null);
+    const [beneficiaryTabSearch, setBeneficiaryTabSearch] = useState('');
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [beneficiaryToDelete, setBeneficiaryToDelete] = useState<CourseBeneficiary | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [courseToDelete, setCourseToDelete] = useState<Course | null>(null);
     const [detailsOrganizers, setDetailsOrganizers] = useState<CourseOrganizer[]>([]);
@@ -205,6 +209,9 @@ export default function CourseManagement() {
     // Multi-trainer support
     const [courseTrainers, setCourseTrainers] = useState<CourseTrainer[]>([]);
     const [trainerPopoverOpen, setTrainerPopoverOpen] = useState(false);
+    const [isEditStudentDialogOpen, setIsEditStudentDialogOpen] = useState(false);
+    const [historyStudent, setHistoryStudent] = useState<CourseBeneficiary | null>(null);
+    const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
 
     // roles and profile already destructured above
     const isRestricted = roles.includes('committee_leader') &&
@@ -1755,6 +1762,22 @@ export default function CourseManagement() {
         return now >= lectureDate;
     };
 
+    const getStudentStats = (studentPhone: string) => {
+        const completedLectures = lectures.filter(l => l.status === 'completed');
+        let attendedCount = 0;
+        completedLectures.forEach(l => {
+            const isPresent = attendanceData[l.id]?.some(a => a.student_phone === studentPhone && a.status === 'present');
+            if (isPresent) attendedCount++;
+        });
+        const totalCompleted = completedLectures.length;
+        const rate = totalCompleted > 0 ? Math.round((attendedCount / totalCompleted) * 100) : 0;
+        return {
+            attended: attendedCount,
+            missed: totalCompleted - attendedCount,
+            rate
+        };
+    };
+
     const registerAttendance = async (lectureId: string, name: string, phone: string) => {
         try {
             const { error } = await supabase.from('course_attendance').insert({
@@ -1856,20 +1879,29 @@ export default function CourseManagement() {
         }
     };
 
-    const deleteBeneficiary = async (id: string) => {
+    const confirmDeleteBeneficiary = (beneficiary: CourseBeneficiary) => {
+        setBeneficiaryToDelete(beneficiary);
+        setIsDeleteConfirmOpen(true);
+    };
+
+    const deleteBeneficiary = async () => {
+        if (!beneficiaryToDelete) return;
         try {
             const { error } = await supabase
                 .from('course_beneficiaries')
                 .delete()
-                .eq('id', id);
+                .eq('id', beneficiaryToDelete.id);
 
             if (error) throw error;
 
-            setBeneficiaries(beneficiaries.filter(b => b.id !== id));
+            setBeneficiaries(beneficiaries.filter(b => b.id !== beneficiaryToDelete.id));
             toast.success(isRTL ? 'تم حذف المستفيد' : 'Beneficiary deleted');
         } catch (error) {
             console.error('Error deleting beneficiary:', error);
             toast.error(isRTL ? 'فشل الحذف' : 'Failed to delete');
+        } finally {
+            setIsDeleteConfirmOpen(false);
+            setBeneficiaryToDelete(null);
         }
     };
 
@@ -3015,240 +3047,404 @@ export default function CourseManagement() {
                 </DialogContent>
             </Dialog >
 
-            < Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen} >
-                <DialogContent className="w-[calc(100%-1.5rem)] max-w-4xl max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-2xl p-4 sm:p-6">
-                    <DialogHeader className="text-center sm:text-center flex flex-col items-center justify-center">
-                        <DialogTitle className="text-xl sm:text-2xl font-bold flex flex-wrap items-center justify-center gap-2 text-center w-full">
-                            {selectedCourse?.name}
-                            {selectedCourse?.has_certificates && (
-                                <Badge variant="outline">
-                                    {isRTL ? 'شهادات: ' : 'Certificates: '}
-                                    {isRTL ?
-                                        (selectedCourse.certificate_status === 'pending' ? 'انتظار' :
-                                            selectedCourse.certificate_status === 'printing' ? 'طباعة' :
-                                                selectedCourse.certificate_status === 'ready' ? 'جاهزة' : 'تم التسليم')
-                                        : selectedCourse.certificate_status
-                                    }
-                                </Badge>
-                            )}
-                        </DialogTitle>
-                        <DialogDescription className="flex flex-col gap-1 items-center justify-center text-center w-full">
-                            <span>
-                                {selectedCourse?.course_trainers && selectedCourse.course_trainers.length > 0
-                                    ? selectedCourse.course_trainers.map(ct => isRTL ? ct.trainers?.name_ar : ct.trainers?.name_en).filter(Boolean).join(' · ')
-                                    : selectedCourse?.trainer_name
-                                } - {selectedCourse?.room && getRoomLabel(selectedCourse.room)}
-							</span>
-                            {detailsOrganizers.length > 0 && (
-                                <span className="text-xs text-muted-foreground">
-                                    {isRTL ? 'المنظمين: ' : 'Organizers: '}
-                                    {detailsOrganizers.map(o => o.name).join(', ')}
-                                </span>
-                            )}
-                        </DialogDescription>
-                    </DialogHeader>
+            <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+                {(() => {
+                    const filteredTabBeneficiaries = beneficiaries.filter(b => 
+                        b.name.toLowerCase().includes(beneficiaryTabSearch.toLowerCase()) ||
+                        b.phone.includes(beneficiaryTabSearch) ||
+                        (b.national_id && b.national_id.includes(beneficiaryTabSearch))
+                    );
+                    return (
+                        <DialogContent className="w-full h-full sm:w-[calc(100%-1.5rem)] sm:max-w-5xl sm:max-h-[90vh] p-0 overflow-hidden flex flex-col rounded-none sm:rounded-2xl">
+                            <Tabs defaultValue="beneficiaries" className="w-full h-full flex flex-col">
+                                <div className="flex flex-col h-full bg-background overflow-hidden">
+                                    {/* Sticky Header */}
+                                    <div className="border-b shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                                        <DialogHeader className="p-4 sm:p-6 pb-2 text-center sm:text-center flex flex-col items-center justify-center relative">
+                                            <DialogTitle className="text-xl sm:text-2xl font-bold flex flex-wrap items-center justify-center gap-2 text-center w-full mt-2 sm:mt-0 px-8">
+                                                <span className="truncate max-w-[calc(100%-4rem)]">{selectedCourse?.name}</span>
+                                                {selectedCourse?.has_certificates && (
+                                                    <Badge variant="outline" className="text-xs shrink-0 font-bold bg-primary/5 text-primary border-primary/20">
+                                                        {isRTL ? 'شهادات: ' : 'Certificates: '}
+                                                        {isRTL ?
+                                                            (selectedCourse.certificate_status === 'pending' ? 'انتظار' :
+                                                                selectedCourse.certificate_status === 'printing' ? 'طباعة' :
+                                                                    selectedCourse.certificate_status === 'ready' ? 'جاهزة' : 'تم التسليم')
+                                                            : selectedCourse.certificate_status
+                                                        }
+                                                    </Badge>
+                                                )}
+                                            </DialogTitle>
+                                            <DialogDescription className="flex flex-col gap-1 items-center justify-center text-center w-full text-xs sm:text-sm mt-1 font-medium">
+                                                <span>
+                                                    {selectedCourse?.course_trainers && selectedCourse.course_trainers.length > 0
+                                                        ? selectedCourse.course_trainers.map(ct => isRTL ? ct.trainers?.name_ar : ct.trainers?.name_en).filter(Boolean).join(' · ')
+                                                        : selectedCourse?.trainer_name
+                                                    } - {selectedCourse?.room && getRoomLabel(selectedCourse.room)}
+                                                </span>
+                                                {detailsOrganizers.length > 0 && (
+                                                    <span className="text-xs text-muted-foreground font-semibold">
+                                                        {isRTL ? 'المنظمين: ' : 'Organizers: '}
+                                                        {detailsOrganizers.map(o => o.name).join(', ')}
+                                                    </span>
+                                                )}
+                                            </DialogDescription>
+                                        </DialogHeader>
 
-                    {selectedCourse?.has_certificates && (hasRole('admin') || hasRole('committee_leader') || hasRole('head_marketing') || detailsOrganizers.some(o => o.volunteer_id === user?.id)) && (
-                        <div className="bg-muted/10 p-4 rounded-lg border mb-4">
-                            <h3 className="font-semibold mb-3 flex items-center gap-2">
-                                <FileSpreadsheet className="w-4 h-4" />
-                                {isRTL ? 'إدارة الشهادات' : 'Certificates Management'}
-                            </h3>
-                            <div className="flex items-center gap-4">
-                                <div className="flex-1">
-                                    <Label className="text-xs text-muted-foreground mb-1.5 block">
-                                        {isRTL ? 'حالة الشهادات' : 'Certificates Status'}
-                                    </Label>
-                                    <Select
-                                        value={selectedCourse.certificate_status}
-                                        onValueChange={(val) => updateCertificateStatus(selectedCourse.id, val)}
-                                        disabled={!selectedCourse.end_date || new Date(selectedCourse.end_date) > new Date()}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="pending">{isRTL ? 'الكورس لسة مخلصش' : 'Pending (Ongoing)'}</SelectItem>
-                                            <SelectItem value="printing">{isRTL ? 'جاري الطباعة' : 'Printing'}</SelectItem>
-                                            <SelectItem value="ready">{isRTL ? 'جاهزة للتسليم' : 'Ready'}</SelectItem>
-                                            <SelectItem value="delivered">{isRTL ? 'تم التسليم' : 'Delivered'}</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    {(!selectedCourse.end_date || new Date(selectedCourse.end_date) > new Date()) && (
-                                        <p className="text-[10px] text-muted-foreground mt-1 text-red-500">
-                                            {isRTL ? '* لا يمكن تغيير الحالة قبل انتهاء الكورس' : '* Cannot change status before course ends'}
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    <Tabs defaultValue="beneficiaries" className="w-full">
-                        <div className="overflow-x-auto -mx-2 px-2 pb-1.5 scrollbar-none">
-                            <TabsList className="flex w-full h-auto p-1 bg-muted/50 rounded-xl gap-0.5 xs:gap-1">
-                                <TabsTrigger
-                                    value="beneficiaries"
-                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                >
-                                    {isRTL ? 'المستفيدين' : 'Beneficiaries'}
-                                </TabsTrigger>
-                                <TabsTrigger
-                                    value="lectures"
-                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                >
-                                    {isRTL ? 'المحاضرات' : 'Lectures'}
-                                </TabsTrigger>
-                                <TabsTrigger
-                                    value="sheet"
-                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                >
-                                    {isRTL ? 'شيت الحضور' : 'Attendance'}
-                                </TabsTrigger>
-                                {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_marketing')) && (
-                                    <TabsTrigger
-                                        value="organizers"
-                                        className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                    >
-                                        {isRTL ? 'المنظمين' : 'Organizers'}
-                                    </TabsTrigger>
-                                )}
-                            </TabsList>
-                        </div>
-
-                        {/* Beneficiaries Tab */}
-                        <TabsContent value="beneficiaries" className="space-y-4 py-4">
-                            {/* Add Beneficiary Form */}
-                            <Card>
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-base">{isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary'}</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="flex flex-col sm:flex-row gap-2">
-                                        <Input
-                                            placeholder={isRTL ? 'الاسم' : 'Name'}
-                                            value={newBeneficiary.name}
-                                            onChange={e => setNewBeneficiary({ ...newBeneficiary, name: e.target.value })}
-                                            className="w-full sm:flex-1"
-                                        />
-                                        <Input
-                                            placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
-                                            value={newBeneficiary.phone}
-                                            onChange={e => {
-                                                const val = e.target.value;
-                                                if (/^[0-9+]*$/.test(val)) {
-                                                    setNewBeneficiary({ ...newBeneficiary, phone: val });
-                                                }
-                                            }}
-                                            className="w-full sm:flex-1"
-                                        />
-                                        <Input
-                                            placeholder={isRTL ? 'الرقم القومي' : 'National ID'}
-                                            value={newBeneficiary.national_id}
-                                            onChange={e => setNewBeneficiary({ ...newBeneficiary, national_id: e.target.value })}
-                                            className="w-full sm:flex-1"
-                                        />
-                                        <Button onClick={addBeneficiary} className="w-full sm:w-auto">
-                                            <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                            {isRTL ? 'إضافة' : 'Add'}
-                                        </Button>
+                                        {/* Tabs Header Selection */}
+                                        <div className="px-4 sm:px-6 pb-3">
+                                            <div className="overflow-x-auto -mx-2 px-2 pb-0.5 scrollbar-none">
+                                                <TabsList className="flex w-full h-auto p-1 bg-muted/50 rounded-xl gap-0.5 xs:gap-1">
+                                                    <TabsTrigger
+                                                        value="beneficiaries"
+                                                        className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                                    >
+                                                        <span className="flex items-center gap-1.5 justify-center w-full">
+                                                            <Users className="w-3.5 h-3.5" />
+                                                            <span>{isRTL ? 'المستفيدين' : 'Beneficiaries'}</span>
+                                                        </span>
+                                                    </TabsTrigger>
+                                                    <TabsTrigger
+                                                        value="lectures"
+                                                        className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                                    >
+                                                        <span className="flex items-center gap-1.5 justify-center w-full">
+                                                            <BookOpen className="w-3.5 h-3.5" />
+                                                            <span>{isRTL ? 'المحاضرات' : 'Lectures'}</span>
+                                                        </span>
+                                                    </TabsTrigger>
+                                                    <TabsTrigger
+                                                        value="sheet"
+                                                        className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                                    >
+                                                        <span className="flex items-center gap-1.5 justify-center w-full">
+                                                            <TableIcon className="w-3.5 h-3.5" />
+                                                            <span>{isRTL ? 'شيت الحضور' : 'Attendance'}</span>
+                                                        </span>
+                                                    </TabsTrigger>
+                                                    {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_marketing')) && (
+                                                        <TabsTrigger
+                                                            value="organizers"
+                                                            className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                                        >
+                                                            <span className="flex items-center gap-1.5 justify-center w-full">
+                                                                <UserCheck className="w-3.5 h-3.5" />
+                                                                <span>{isRTL ? 'المنظمين' : 'Organizers'}</span>
+                                                            </span>
+                                                        </TabsTrigger>
+                                                    )}
+                                                </TabsList>
+                                            </div>
+                                        </div>
                                     </div>
-                                </CardContent>
-                            </Card>
 
-                            {/* Beneficiaries List */}
-                            <div className="border rounded-lg overflow-hidden">
-                                <div className="overflow-x-auto">
-                                    <div className="overflow-x-auto w-full">
-<Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                <TableHead className="whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
-                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم القومي' : 'National ID'}</TableHead>
-                                                <TableHead className="w-24 whitespace-nowrap"></TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {beneficiaries.map(b => (
-                                                <TableRow key={b.id}>
-                                                    <TableCell className="whitespace-nowrap">
-                                                        {editingBeneficiary?.id === b.id ? (
-                                                            <Input
-                                                                value={editingBeneficiary.name}
-                                                                onChange={e => setEditingBeneficiary({ ...editingBeneficiary, name: e.target.value })}
-                                                                className="h-8"
-                                                            />
-                                                        ) : (
-                                                            b.name
+                                    {/* Scrollable Tabs Content Area */}
+                                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-muted/5 dark:bg-muted/10">
+                                        {/* Certificates Section */}
+                                        {selectedCourse?.has_certificates && (hasRole('admin') || hasRole('committee_leader') || hasRole('head_marketing') || detailsOrganizers.some(o => o.volunteer_id === user?.id)) && (
+                                            <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10 mb-4 shadow-sm">
+                                                <CardContent className="p-4">
+                                                    <h3 className="font-semibold text-sm mb-3 flex items-center gap-2 text-primary">
+                                                        <FileSpreadsheet className="w-4 h-4" />
+                                                        {isRTL ? 'إدارة الشهادات' : 'Certificates Management'}
+                                                    </h3>
+                                                    <div className="flex flex-col gap-2">
+                                                        <Label className="text-xs text-muted-foreground mb-1 block">
+                                                            {isRTL ? 'حالة الشهادات' : 'Certificates Status'}
+                                                        </Label>
+                                                        <Select
+                                                            value={selectedCourse.certificate_status}
+                                                            onValueChange={(val) => updateCertificateStatus(selectedCourse.id, val)}
+                                                            disabled={!selectedCourse.end_date || new Date(selectedCourse.end_date) > new Date()}
+                                                        >
+                                                            <SelectTrigger className="h-10 bg-background">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="pending">{isRTL ? 'الكورس لسة مخلصش' : 'Pending (Ongoing)'}</SelectItem>
+                                                                <SelectItem value="printing">{isRTL ? 'جاري الطباعة' : 'Printing'}</SelectItem>
+                                                                <SelectItem value="ready">{isRTL ? 'جاهزة للتسليم' : 'Ready'}</SelectItem>
+                                                                <SelectItem value="delivered">{isRTL ? 'تم التسليم' : 'Delivered'}</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        {(!selectedCourse.end_date || new Date(selectedCourse.end_date) > new Date()) && (
+                                                            <p className="text-[10px] text-destructive mt-1 flex items-center gap-1 font-medium">
+                                                                <span>•</span>
+                                                                <span>{isRTL ? 'لا يمكن تغيير الحالة قبل انتهاء الكورس' : 'Cannot change status before course ends'}</span>
+                                                            </p>
                                                         )}
-                                                    </TableCell>
-                                                    <TableCell className="whitespace-nowrap">
-                                                        {editingBeneficiary?.id === b.id ? (
-                                                            <Input
-                                                                value={editingBeneficiary.phone}
-                                                                onChange={e => {
-                                                                    const val = e.target.value;
-                                                                    if (/^[0-9+]*$/.test(val)) {
-                                                                        setEditingBeneficiary({ ...editingBeneficiary, phone: val });
-                                                                    }
-                                                                }}
-                                                                className="h-8"
-                                                            />
-                                                        ) : (
-                                                            b.phone
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="whitespace-nowrap">
-                                                        {editingBeneficiary?.id === b.id ? (
-                                                            <Input
-                                                                value={editingBeneficiary.national_id || ''}
-                                                                onChange={e => setEditingBeneficiary({ ...editingBeneficiary, national_id: e.target.value })}
-                                                                className="h-8"
-                                                            />
-                                                        ) : (
-                                                            b.national_id || '-'
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="whitespace-nowrap">
-                                                        {editingBeneficiary?.id === b.id ? (
-                                                            <div className="flex gap-1">
-                                                                <Button size="sm" variant="ghost" onClick={updateBeneficiary}>
-                                                                    <Check className="w-4 h-4 text-green-600" />
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        )}
+
+                                        {/* Beneficiaries Tab */}
+                                        <TabsContent value="beneficiaries" className="space-y-4 py-0 outline-none">
+                                            {/* Action Bar */}
+                                            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between">
+                                                <div className="relative w-full sm:w-72">
+                                                    <Search className="absolute ltr:left-3 rtl:right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    <Input
+                                                        placeholder={isRTL ? 'بحث عن مستفيد...' : 'Search beneficiary...'}
+                                                        value={beneficiaryTabSearch}
+                                                        onChange={e => setBeneficiaryTabSearch(e.target.value)}
+                                                        className="ltr:pl-9 rtl:pr-9 h-9 bg-background"
+                                                    />
+                                                </div>
+                                                <Button
+                                                    onClick={() => {
+                                                        setEditingBeneficiary(null);
+                                                        setNewBeneficiary({ name: '', phone: '', national_id: '' });
+                                                        setShowAddForm(!showAddForm);
+                                                    }}
+                                                    variant={showAddForm ? 'outline' : 'default'}
+                                                    className="w-full sm:w-auto h-9"
+                                                >
+                                                    {showAddForm ? (
+                                                        <>
+                                                            <X className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                            {isRTL ? 'إلغاء' : 'Cancel'}
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                            {isRTL ? 'إضافة مستفيد' : 'Add Beneficiary'}
+                                                        </>
+                                                    )}
+                                                </Button>
+                                            </div>
+
+                                            {/* Add Beneficiary Form */}
+                                            {showAddForm && (
+                                                <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10 transition-all duration-300">
+                                                    <CardHeader className="pb-3">
+                                                        <CardTitle className="text-sm font-semibold flex items-center gap-2 text-primary">
+                                                            <UserPlus className="h-4 w-4" />
+                                                            {isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary'}
+                                                        </CardTitle>
+                                                    </CardHeader>
+                                                    <CardContent>
+                                                        <div className="flex flex-col gap-4">
+                                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[11px] font-semibold text-muted-foreground">{isRTL ? 'الاسم *' : 'Name *'}</label>
+                                                                    <Input
+                                                                        placeholder={isRTL ? 'الاسم' : 'Name'}
+                                                                        value={newBeneficiary.name}
+                                                                        onChange={(e) => setNewBeneficiary({ ...newBeneficiary, name: e.target.value })}
+                                                                        className="bg-background"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[11px] font-semibold text-muted-foreground">{isRTL ? 'رقم الهاتف *' : 'Phone *'}</label>
+                                                                    <Input
+                                                                        placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
+                                                                        value={newBeneficiary.phone}
+                                                                        onChange={(e) => {
+                                                                            const val = e.target.value;
+                                                                            if (/^[0-9+]*$/.test(val)) {
+                                                                                setNewBeneficiary({ ...newBeneficiary, phone: val });
+                                                                            }
+                                                                        }}
+                                                                        className="bg-background"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-1">
+                                                                    <label className="text-[11px] font-semibold text-muted-foreground">{isRTL ? 'الرقم القومي' : 'National ID'}</label>
+                                                                    <Input
+                                                                        placeholder={isRTL ? 'الرقم القومي' : 'National ID'}
+                                                                        value={newBeneficiary.national_id}
+                                                                        onChange={(e) => setNewBeneficiary({ ...newBeneficiary, national_id: e.target.value })}
+                                                                        className="bg-background"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex justify-end gap-2">
+                                                                <Button
+                                                                    onClick={() => setShowAddForm(false)}
+                                                                    variant="ghost"
+                                                                    size="sm"
+                                                                >
+                                                                    {isRTL ? 'إلغاء' : 'Cancel'}
                                                                 </Button>
-                                                                <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(null)}>
-                                                                    <X className="w-4 h-4 text-red-600" />
+                                                                <Button
+                                                                    onClick={addBeneficiary}
+                                                                    size="sm"
+                                                                    className="bg-primary hover:bg-primary/95 text-primary-foreground font-semibold"
+                                                                >
+                                                                    <Plus className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
+                                                                    {isRTL ? 'إضافة' : 'Add'}
                                                                 </Button>
                                                             </div>
-                                                        ) : (
-                                                            <div className="flex gap-1">
-                                                                <Button size="sm" variant="ghost" onClick={() => setEditingBeneficiary(b)}>
-                                                                    <Pencil className="w-4 h-4" />
-                                                                </Button>
-                                                                <Button size="sm" variant="ghost" onClick={() => deleteBeneficiary(b.id)}>
-                                                                    <Trash2 className="w-4 h-4 text-destructive" />
-                                                                </Button>
-                                                            </div>
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ))}
-                                            {beneficiaries.length === 0 && (
-                                                <TableRow>
-                                                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                                                        {isRTL ? 'لا يوجد مستفيدين بعد' : 'No beneficiaries yet'}
-                                                    </TableCell>
-                                                </TableRow>
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
                                             )}
-                                        </TableBody>
-                                    </Table>
-</div>
-                                </div>
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                                {isRTL ? `إجمالي المستفيدين: ${beneficiaries.length}` : `Total beneficiaries: ${beneficiaries.length}`}
-                            </div>
-                        </TabsContent>
+
+                                            {/* Mobile Cards View */}
+                                            <div className="grid gap-3 sm:hidden">
+                                                {filteredTabBeneficiaries.length === 0 ? (
+                                                    <div className="text-center py-8 text-muted-foreground bg-muted/20 rounded-xl border border-dashed">
+                                                        {isRTL ? 'لا يوجد مستفيدين' : 'No beneficiaries found'}
+                                                    </div>
+                                                ) : (
+                                                    filteredTabBeneficiaries.map((b) => {
+                                                        const stats = getStudentStats(b.phone);
+                                                        return (
+                                                            <Card key={b.id} className="border hover:border-primary/20 transition-all bg-card shadow-sm">
+                                                                <CardContent className="p-4 flex flex-col gap-3">
+                                                                    <div className="flex items-start justify-between">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <Avatar className="h-10 w-10 border border-muted">
+                                                                                <AvatarFallback className="bg-primary/5 text-primary font-bold text-xs">
+                                                                                    {b.name?.slice(0, 2)}
+                                                                                </AvatarFallback>
+                                                                            </Avatar>
+                                                                            <div>
+                                                                                <div className="font-semibold text-xs text-foreground">{b.name}</div>
+                                                                                <div className="text-[10px] text-muted-foreground mt-0.5">{b.phone}</div>
+                                                                                {b.national_id && <div className="text-[10px] text-muted-foreground">{b.national_id}</div>}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex flex-col items-end gap-1.5">
+                                                                            <div className="text-[10px] font-semibold">
+                                                                                <span className={stats.rate >= 80 ? 'text-green-600 dark:text-green-400' : stats.rate >= 50 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}>
+                                                                                    {isRTL ? 'حضور:' : 'Attendance:'} {stats.rate}%
+                                                                                </span>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Progress bar */}
+                                                                    <div className="w-full bg-muted/60 h-1.5 rounded-full overflow-hidden">
+                                                                        <div
+                                                                            className={`h-full rounded-full transition-all ${stats.rate >= 80 ? 'bg-green-500' : stats.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                                                            style={{ width: `${stats.rate}%` }}
+                                                                        />
+                                                                    </div>
+
+                                                                    <div className="flex items-center justify-between border-t pt-2 mt-1">
+                                                                        <div className="text-[10px] text-muted-foreground">
+                                                                            {isRTL ? `حضور: ${stats.attended} • غياب: ${stats.missed}` : `Present: ${stats.attended} • Absent: ${stats.missed}`}
+                                                                        </div>
+                                                                        <div className="flex gap-2">
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                className="h-8 px-2.5 text-xs font-semibold"
+                                                                                onClick={() => {
+                                                                                    setEditingBeneficiary(b);
+                                                                                    setIsEditStudentDialogOpen(true);
+                                                                                }}
+                                                                            >
+                                                                                <Pencil className="w-3.5 h-3.5 ltr:mr-1 rtl:ml-1" />
+                                                                                {isRTL ? 'تعديل' : 'Edit'}
+                                                                            </Button>
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="ghost"
+                                                                                className="h-8 px-2 text-destructive hover:bg-destructive/10"
+                                                                                onClick={() => confirmDeleteBeneficiary(b)}
+                                                                            >
+                                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                            </Button>
+                                                                        </div>
+                                                                    </div>
+                                                                </CardContent>
+                                                            </Card>
+                                                        );
+                                                    })
+                                                )}
+                                            </div>
+
+                                            {/* Desktop View Table */}
+                                            <div className="hidden sm:block border rounded-xl overflow-hidden shadow-sm bg-card">
+                                                <Table>
+                                                    <TableHeader className="bg-muted/40">
+                                                        <TableRow>
+                                                            <TableHead>{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                            <TableHead>{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                                            <TableHead>{isRTL ? 'الرقم القومي' : 'National ID'}</TableHead>
+                                                            <TableHead className="text-center">{isRTL ? 'إحصائيات الحضور' : 'Attendance Stats'}</TableHead>
+                                                            <TableHead className="w-28 text-center">{isRTL ? 'إجراءات' : 'Actions'}</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {filteredTabBeneficiaries.length === 0 ? (
+                                                            <TableRow>
+                                                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                                                    {isRTL ? 'لا يوجد مستفيدين' : 'No beneficiaries found'}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ) : (
+                                                            filteredTabBeneficiaries.map((b) => {
+                                                                const stats = getStudentStats(b.phone);
+                                                                return (
+                                                                    <TableRow key={b.id} className="hover:bg-muted/20 transition-colors">
+                                                                        <TableCell>
+                                                                            <div className="flex items-center gap-3">
+                                                                                <Avatar className="h-8 w-8 border border-muted">
+                                                                                    <AvatarFallback className="bg-primary/5 text-primary font-bold text-xs">
+                                                                                        {b.name?.slice(0, 2)}
+                                                                                    </AvatarFallback>
+                                                                                </Avatar>
+                                                                                <div className="font-semibold text-xs text-foreground">{b.name}</div>
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell className="text-xs font-mono text-muted-foreground">{b.phone}</TableCell>
+                                                                        <TableCell className="text-xs text-muted-foreground">{b.national_id || '-'}</TableCell>
+                                                                        <TableCell>
+                                                                            <div className="flex flex-col items-center justify-center gap-1.5 max-w-[150px] mx-auto">
+                                                                                <div className="flex justify-between items-center w-full text-[10px]">
+                                                                                    <span className="font-bold text-muted-foreground">{isRTL ? `نسبة: ${stats.rate}%` : `Rate: ${stats.rate}%`}</span>
+                                                                                    <span className="text-[9px] text-muted-foreground">
+                                                                                        {isRTL 
+                                                                                            ? `حضر ${stats.attended}/${lectures.filter(l => l.status === 'completed').length}` 
+                                                                                            : `${stats.attended}/${lectures.filter(l => l.status === 'completed').length} attended`}
+                                                                                    </span>
+                                                                                </div>
+                                                                                <div className="w-full bg-muted/80 h-1 rounded-full overflow-hidden">
+                                                                                    <div
+                                                                                        className={`h-full rounded-full transition-all ${stats.rate >= 80 ? 'bg-green-500' : stats.rate >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                                                                        style={{ width: `${stats.rate}%` }}
+                                                                                    />
+                                                                                </div>
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                            <div className="flex gap-1 justify-center">
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="ghost"
+                                                                                    className="h-8 w-8 p-0"
+                                                                                    onClick={() => {
+                                                                                        setEditingBeneficiary(b);
+                                                                                        setIsEditStudentDialogOpen(true);
+                                                                                    }}
+                                                                                >
+                                                                                    <Pencil className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                                                                                </Button>
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    variant="ghost"
+                                                                                    className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+                                                                                    onClick={() => confirmDeleteBeneficiary(b)}
+                                                                                >
+                                                                                    <Trash2 className="w-4 h-4" />
+                                                                                </Button>
+                                                                            </div>
+                                                                        </TableCell>
+                                                                    </TableRow>
+                                                                );
+                                                            })
+                                                        )}
+                                                    </TableBody>
+                                                </Table>
+                                            </div>
+                                            <div className="text-sm text-muted-foreground">
+                                                {isRTL ? `إجمالي المستفيدين: ${beneficiaries.length}` : `Total beneficiaries: ${beneficiaries.length}`}
+                                            </div>
+                                        </TabsContent>
 
                         {/* Lectures Tab */}
                         <TabsContent value="lectures" className="space-y-4 py-4">
@@ -3332,77 +3528,130 @@ export default function CourseManagement() {
                                 </Card>
                             ))}</TabsContent>
 
-                        <TabsContent value="sheet" className="py-4">
-                            <div className="border rounded-lg overflow-hidden">
+                        <TabsContent value="sheet" className="py-4 outline-none">
+                            {/* Desktop View Table */}
+                            <div className="hidden sm:block border rounded-xl overflow-hidden shadow-sm bg-card">
                                 <div className="overflow-x-auto">
                                     <div className="overflow-x-auto w-full">
-<Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead className="min-w-[200px] whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
-                                                {lectures.map(l => (
-                                                    <TableHead key={l.id} className="text-center w-12 whitespace-nowrap">
-                                                        L{l.lecture_number}
-                                                    </TableHead>
-                                                ))}
-                                                <TableHead className="text-center whitespace-nowrap">{isRTL ? 'حضر' : 'Attended'}</TableHead>
-                                                <TableHead className="text-center whitespace-nowrap">{isRTL ? 'غاب' : 'Missed'}</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {beneficiaries.map(beneficiary => {
-                                                const studentAttendance = lectures.map(l =>
-                                                    attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
-                                                );
-                                                const attendedCount = studentAttendance.filter(a => a && a.status === 'present').length;
-                                                const completedLectures = lectures.filter(l => l.status === 'completed');
-                                                const missedCount = completedLectures.filter(l =>
-                                                    !attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
-                                                ).length;
-
-                                                return (
-                                                    <TableRow key={beneficiary.id}>
-                                                        <TableCell className="font-medium whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{beneficiary.name}</TableCell>
-                                                        <TableCell className="whitespace-nowrap">{beneficiary.phone}</TableCell>
-                                                        {lectures.map((lecture, idx) => {
-                                                            const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone);
-                                                            const isCancelled = lecture.status === 'cancelled';
-                                                            const isCompleted = lecture.status === 'completed';
-                                                            const isOpen = isLectureOpen(lecture.date);
-                                                            const canMarkAttendance = isCompleted || isOpen;
-                                                            return (
-                                                                <TableCell key={idx} className="text-center">
-                                                                    {isCancelled ? (
-                                                                        <span className="text-muted-foreground text-xs">-</span>
-                                                                    ) : canMarkAttendance ? (
-                                                                        <Checkbox
-                                                                            checked={isPresent}
-                                                                            onCheckedChange={() => toggleBeneficiaryAttendance(lecture.id, beneficiary)}
-                                                                            className="mx-auto"
-                                                                        />
-                                                                    ) : (
-                                                                        <span className="text-muted-foreground text-xs">-</span>
-                                                                    )}
-                                                                </TableCell>
-                                                            );
-                                                        })}
-                                                        <TableCell className="text-center font-bold text-green-600 whitespace-nowrap">{attendedCount}</TableCell>
-                                                        <TableCell className="text-center font-bold text-red-600 whitespace-nowrap">{missedCount}</TableCell>
-                                                    </TableRow>
-                                                );
-                                            })}
-                                            {beneficiaries.length === 0 && (
+                                        <Table>
+                                            <TableHeader className="bg-muted/40">
                                                 <TableRow>
-                                                    <TableCell colSpan={lectures.length + 4} className="text-center py-8 text-muted-foreground whitespace-nowrap">
-                                                        {isRTL ? 'لا يوجد مستفيدين - أضف مستفيدين من تبويب المستفيدين أولاً' : 'No beneficiaries - Add beneficiaries from the Beneficiaries tab first'}
-                                                    </TableCell>
+                                                    <TableHead className="min-w-[200px] whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                                    {lectures.map(l => (
+                                                        <TableHead key={l.id} className="text-center w-12 whitespace-nowrap">
+                                                            L{l.lecture_number}
+                                                        </TableHead>
+                                                    ))}
+                                                    <TableHead className="text-center whitespace-nowrap">{isRTL ? 'حضر' : 'Attended'}</TableHead>
+                                                    <TableHead className="text-center whitespace-nowrap">{isRTL ? 'غاب' : 'Missed'}</TableHead>
                                                 </TableRow>
-                                            )}
-                                        </TableBody>
-                                    </Table>
-</div>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {beneficiaries.map(beneficiary => {
+                                                    const studentAttendance = lectures.map(l =>
+                                                        attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
+                                                    );
+                                                    const attendedCount = studentAttendance.filter(a => a && a.status === 'present').length;
+                                                    const completedLectures = lectures.filter(l => l.status === 'completed');
+                                                    const missedCount = completedLectures.filter(l =>
+                                                        !attendanceData[l.id]?.find(a => a.student_phone === beneficiary.phone)
+                                                    ).length;
+
+                                                    return (
+                                                        <TableRow key={beneficiary.id}>
+                                                            <TableCell className="font-medium whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{beneficiary.name}</TableCell>
+                                                            <TableCell className="whitespace-nowrap">{beneficiary.phone}</TableCell>
+                                                            {lectures.map((lecture, idx) => {
+                                                                const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone && a.status === 'present');
+                                                                const isCancelled = lecture.status === 'cancelled';
+                                                                const isCompleted = lecture.status === 'completed';
+                                                                const isOpen = isLectureOpen(lecture.date);
+                                                                const canMarkAttendance = isCompleted || isOpen;
+                                                                return (
+                                                                    <TableCell key={idx} className="text-center">
+                                                                        {isCancelled ? (
+                                                                            <span className="text-muted-foreground text-xs">-</span>
+                                                                        ) : canMarkAttendance ? (
+                                                                            <Checkbox
+                                                                                checked={isPresent}
+                                                                                onCheckedChange={() => toggleBeneficiaryAttendance(lecture.id, beneficiary)}
+                                                                                className="mx-auto"
+                                                                            />
+                                                                        ) : (
+                                                                            <span className="text-muted-foreground text-xs">-</span>
+                                                                        )}
+                                                                    </TableCell>
+                                                                );
+                                                            })}
+                                                            <TableCell className="text-center font-bold text-green-600 whitespace-nowrap">{attendedCount}</TableCell>
+                                                            <TableCell className="text-center font-bold text-red-600 whitespace-nowrap">{missedCount}</TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                                {beneficiaries.length === 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={lectures.length + 4} className="text-center py-8 text-muted-foreground whitespace-nowrap">
+                                                            {isRTL ? 'لا يوجد مستفيدين - أضف مستفيدين من تبويب المستفيدين أولاً' : 'No beneficiaries - Add beneficiaries from the Beneficiaries tab first'}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
                                 </div>
+                            </div>
+
+                            {/* Mobile View - Student Cards with detailed history dialog */}
+                            <div className="sm:hidden space-y-3">
+                                {beneficiaries.length === 0 ? (
+                                    <div className="text-center py-8 text-muted-foreground bg-muted/20 rounded-xl border border-dashed text-xs">
+                                        {isRTL ? 'لا يوجد مستفيدين - أضف مستفيدين من تبويب المستفيدين أولاً' : 'No beneficiaries - Add beneficiaries from the Beneficiaries tab first'}
+                                    </div>
+                                ) : (
+                                    beneficiaries.map(beneficiary => {
+                                        const stats = getStudentStats(beneficiary.phone);
+                                        return (
+                                            <Card key={beneficiary.id} className="border hover:border-primary/20 transition-all bg-card shadow-sm">
+                                                <CardContent className="p-4 flex flex-col gap-3">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <Avatar className="h-9 w-9 border border-muted">
+                                                                <AvatarFallback className="bg-primary/5 text-primary font-bold text-xs">
+                                                                    {beneficiary.name?.slice(0, 2)}
+                                                                </AvatarFallback>
+                                                            </Avatar>
+                                                            <div>
+                                                                <div className="font-semibold text-xs text-foreground">{beneficiary.name}</div>
+                                                                <div className="text-[10px] text-muted-foreground font-mono">{beneficiary.phone || '-'}</div>
+                                                            </div>
+                                                        </div>
+                                                        <Badge variant="outline" className={`text-xs px-2 py-0.5 rounded-full ${stats.rate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : stats.rate >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                                                            {stats.rate}%
+                                                        </Badge>
+                                                    </div>
+
+                                                    <div className="flex justify-between items-center text-[10px] text-muted-foreground border-t border-dashed pt-3 mt-1">
+                                                        <div>
+                                                            {isRTL ? `حضور: ${stats.attended} | غياب: ${stats.missed}` : `Present: ${stats.attended} | Absent: ${stats.missed}`}
+                                                        </div>
+                                                        <Button 
+                                                            size="sm" 
+                                                            variant="outline" 
+                                                            className="h-8 text-xs font-semibold"
+                                                            onClick={() => {
+                                                                setHistoryStudent(beneficiary);
+                                                                setIsHistoryDialogOpen(true);
+                                                            }}
+                                                        >
+                                                            {isRTL ? 'تعديل سجل الحضور' : 'Edit History'}
+                                                        </Button>
+                                                    </div>
+                                                </CardContent>
+                                            </Card>
+                                        );
+                                    })
+                                )}
                             </div>
                         </TabsContent>
                         {(hasRole('admin') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_marketing')) && (
@@ -3463,23 +3712,22 @@ export default function CourseManagement() {
                                                 </PopoverContent>
                                             </Popover>
 
-                                            <div className="border rounded-lg overflow-hidden">
-                                                <div className="overflow-x-auto">
-                                                    <div className="overflow-x-auto w-full">
-<Table>
+                                            <div className="border rounded-lg overflow-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
+                                                <div className="overflow-x-auto w-full">
+                                                    <Table>
                                                         <TableHeader>
                                                             <TableRow>
-                                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
-                                                                <TableHead className="w-16 whitespace-nowrap"></TableHead>
+                                                                <TableHead className="whitespace-nowrap text-start">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                                <TableHead className="whitespace-nowrap text-start">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
+                                                                <TableHead className="w-12 whitespace-nowrap"></TableHead>
                                                             </TableRow>
                                                         </TableHeader>
                                                         <TableBody>
                                                             {detailsOrganizers.map(org => (
                                                                 <TableRow key={org.id}>
-                                                                    <TableCell className="whitespace-nowrap">{org.name}</TableCell>
-                                                                    <TableCell className="whitespace-nowrap">{org.phone}</TableCell>
-                                                                    <TableCell className="whitespace-nowrap">
+                                                                    <TableCell className="whitespace-nowrap text-start">{org.name}</TableCell>
+                                                                    <TableCell className="whitespace-nowrap text-start font-mono text-sm" dir="ltr">{org.phone}</TableCell>
+                                                                    <TableCell className="whitespace-nowrap text-center">
                                                                         <Button size="sm" variant="ghost" onClick={() => handleRemoveOrganizerFromDetails(org.id!)}>
                                                                             <Trash2 className="w-4 h-4 text-destructive" />
                                                                         </Button>
@@ -3495,7 +3743,6 @@ export default function CourseManagement() {
                                                             )}
                                                         </TableBody>
                                                     </Table>
-</div>
                                                 </div>
                                             </div>
                                         </div>
@@ -3503,9 +3750,13 @@ export default function CourseManagement() {
                                 </Card>
                             </TabsContent>
                         )}
-                    </Tabs>
-                </DialogContent>
-            </Dialog >
+                                    </div>
+                                </div>
+                            </Tabs>
+                        </DialogContent>
+                    );
+                })()}
+            </Dialog>
 
             {/* Delete Confirmation Dialog */}
             < AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen} >
@@ -3759,6 +4010,197 @@ export default function CourseManagement() {
                 </DialogContent>
 
             </Dialog>
+
+            {/* Edit Student Dialog for Courses */}
+            <Dialog open={isEditStudentDialogOpen} onOpenChange={setIsEditStudentDialogOpen}>
+                <DialogContent className="max-w-md w-[calc(100%-2rem)] rounded-xl p-6">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg font-bold">
+                            {isRTL ? 'تعديل بيانات المستفيد' : 'Edit Beneficiary Details'}
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-muted-foreground">
+                            {isRTL ? 'تعديل الاسم ورقم الهاتف والرقم القومي للمستفيد' : 'Edit name, phone, and national ID for the beneficiary'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <Label className="text-xs font-semibold">{isRTL ? 'الاسم' : 'Name'}</Label>
+                            <Input
+                                value={editingBeneficiary?.name || ''}
+                                onChange={(e) => setEditingBeneficiary(prev => prev ? { ...prev, name: e.target.value } : null)}
+                                className="h-10"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-xs font-semibold">{isRTL ? 'رقم الهاتف' : 'Phone'}</Label>
+                            <Input
+                                value={editingBeneficiary?.phone || ''}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (/^[0-9+]*$/.test(val)) {
+                                        setEditingBeneficiary(prev => prev ? { ...prev, phone: val } : null);
+                                    }
+                                }}
+                                className="h-10"
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-xs font-semibold">{isRTL ? 'الرقم القومي' : 'National ID'}</Label>
+                            <Input
+                                value={editingBeneficiary?.national_id || ''}
+                                onChange={(e) => setEditingBeneficiary(prev => prev ? { ...prev, national_id: e.target.value } : null)}
+                                className="h-10"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="flex flex-row gap-2 justify-end mt-4">
+                        <Button variant="outline" onClick={() => setIsEditStudentDialogOpen(false)} className="h-10 px-4">
+                            {isRTL ? 'إلغاء' : 'Cancel'}
+                        </Button>
+                        <Button
+                            onClick={async () => {
+                                if (!editingBeneficiary) return;
+                                try {
+                                    const { error } = await supabase
+                                        .from('course_beneficiaries')
+                                        .update({
+                                            name: editingBeneficiary.name,
+                                            phone: editingBeneficiary.phone,
+                                            national_id: editingBeneficiary.national_id || null
+                                        })
+                                        .eq('id', editingBeneficiary.id);
+                                    if (error) throw error;
+                                    toast.success(isRTL ? 'تم التعديل بنجاح' : 'Updated successfully');
+                                    setBeneficiaries(prev => prev.map(b => b.id === editingBeneficiary.id ? editingBeneficiary : b));
+                                    setIsEditStudentDialogOpen(false);
+                                } catch (err: any) {
+                                    toast.error(err.message);
+                                }
+                            }}
+                            className="h-10 px-4"
+                        >
+                            {isRTL ? 'حفظ التعديلات' : 'Save Changes'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Student Attendance History Dialog */}
+            <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
+                <DialogContent className="w-full h-full sm:w-[calc(100%-1.5rem)] sm:max-w-md sm:max-h-[85vh] p-0 flex flex-col rounded-none sm:rounded-2xl overflow-hidden">
+                    <DialogHeader className="p-4 sm:p-6 pb-2 border-b shrink-0">
+                        <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                            <Avatar className="h-8 w-8 border border-muted shrink-0">
+                                <AvatarFallback className="bg-primary/5 text-primary font-bold text-xs">
+                                    {historyStudent?.name?.slice(0, 2)}
+                                </AvatarFallback>
+                            </Avatar>
+                            <span className="truncate max-w-[200px]">{historyStudent?.name}</span>
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-muted-foreground font-medium">
+                            {isRTL ? 'سجل حضور المحاضرات وتعديله' : 'Lecture attendance history and management'}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    {/* Scrollable checklist of lectures */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/5 dark:bg-muted/10">
+                        {lectures.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground bg-muted/20 rounded-xl border border-dashed text-xs">
+                                {isRTL ? 'لا توجد محاضرات في هذا الكورس بعد' : 'No lectures in this course yet'}
+                            </div>
+                        ) : (
+                            lectures.map((l) => {
+                                const isPresent = attendanceData[l.id]?.some(a => a.student_phone === historyStudent?.phone && a.status === 'present');
+                                const isCancelled = l.status === 'cancelled';
+                                const isCompleted = l.status === 'completed';
+                                const isOpen = isLectureOpen(l.date);
+                                const disabled = isCancelled || !(isCompleted || isOpen);
+
+                                return (
+                                    <div
+                                        key={l.id}
+                                        className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                                            isPresent
+                                                ? 'border-green-200 bg-green-50/20 dark:border-green-950 dark:bg-green-950/5'
+                                                : isCancelled
+                                                ? 'border-destructive/20 bg-destructive/5 opacity-70'
+                                                : 'bg-background hover:bg-muted/30'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="font-mono text-[10px] text-muted-foreground font-semibold">
+                                                {isRTL ? `محاضرة ${l.lecture_number}` : `Lecture ${l.lecture_number}`}
+                                            </span>
+                                            <span className="font-medium text-xs">
+                                                {l.date}
+                                            </span>
+                                            {isCancelled && (
+                                                <span className="text-[9px] text-destructive font-semibold">
+                                                    {isRTL ? 'ملغية' : 'Cancelled'}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-3">
+                                            <label className="text-xs cursor-pointer select-none font-medium" htmlFor={`hist-att-${l.id}`}>
+                                                {isPresent ? (
+                                                    <span className="text-green-600 dark:text-green-400 font-bold">{isRTL ? 'حاضر' : 'Present'}</span>
+                                                ) : (
+                                                    <span className="text-muted-foreground">{isRTL ? 'غائب' : 'Absent'}</span>
+                                                )}
+                                            </label>
+
+                                            <Checkbox
+                                                id={`hist-att-${l.id}`}
+                                                checked={isPresent}
+                                                disabled={disabled}
+                                                onCheckedChange={() => toggleBeneficiaryAttendance(l.id, historyStudent!)}
+                                                className="h-5 w-5 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+                                            />
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    <div className="p-4 border-t shrink-0 flex justify-end bg-background">
+                        <Button className="w-full sm:w-auto" onClick={() => setIsHistoryDialogOpen(false)}>
+                            {isRTL ? 'إغلاق' : 'Close'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Beneficiary Confirmation */}
+            <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+                <AlertDialogContent className="max-w-sm w-[calc(100%-2rem)] rounded-xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                            <Trash2 className="w-5 h-5" />
+                            {isRTL ? 'تأكيد الحذف' : 'Confirm Delete'}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm">
+                            {isRTL
+                                ? `هل أنت متأكد من حذف المستفيد "${beneficiaryToDelete?.name}"؟ لا يمكن التراجع عن هذا الإجراء.`
+                                : `Are you sure you want to delete "${beneficiaryToDelete?.name}"? This action cannot be undone.`
+                            }
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2">
+                        <AlertDialogCancel className="flex-1 sm:flex-none">
+                            {isRTL ? 'إلغاء' : 'Cancel'}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={deleteBeneficiary}
+                            className="flex-1 sm:flex-none bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                        >
+                            <Trash2 className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
+                            {isRTL ? 'حذف' : 'Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div >
     );
 }
@@ -3824,4 +4266,3 @@ function AttendanceRegisterDialog({ lectureId, onRegister, isRTL, attendees }: {
         </Popover>
     );
 }
-

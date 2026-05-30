@@ -68,7 +68,7 @@ import * as XLSX from 'xlsx';
 import {
     Activity, BookOpen, Calendar, Clock, Users, Plus, Check, X, Trash2,
     MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User,
-    CalendarDays, TrendingUp, Percent, Filter, Search, MoreVertical, Pencil, UserPlus, UserMinus, ClipboardList, Megaphone
+    CalendarDays, TrendingUp, Percent, Filter, Search, MoreVertical, Pencil, UserPlus, UserMinus, ClipboardList, Megaphone, History
 } from 'lucide-react';
 
 interface Teacher {
@@ -165,6 +165,12 @@ const DAYS = [
 const DAYS_SHORT_AR = ['أحد', 'إثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'];
 const DAYS_SHORT_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+const getLocalDateObj = (dateStr: string) => {
+    if (!dateStr) return undefined;
+    const [year, month, day] = dateStr.split('-').map(Number);
+    return new Date(year, month - 1, day);
+};
+
 export default function QuranCircles() {
     const { isRTL, language } = useLanguage();
     const navigate = useNavigate();
@@ -211,6 +217,7 @@ export default function QuranCircles() {
     // Session creation
     const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
     const [sessionDate, setSessionDate] = useState(new Date().toISOString().split('T')[0]);
+    const [isSessionCalendarOpen, setIsSessionCalendarOpen] = useState(false);
     const [sessionNotes, setSessionNotes] = useState('');
     const [sessionOrganizerId, setSessionOrganizerId] = useState<string>('none');
     const [circleOrganizersForSession, setCircleOrganizersForSession] = useState<Organizer[]>([]);
@@ -263,6 +270,11 @@ export default function QuranCircles() {
         gender: 'male' as 'male' | 'female',
         beneficiary_type: 'adult' as 'child' | 'adult'
     });
+    const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [beneficiaryToDelete, setBeneficiaryToDelete] = useState<Beneficiary | null>(null);
+    const [historyStudent, setHistoryStudent] = useState<Beneficiary | null>(null);
+    const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
+    const [isEditStudentDialogOpen, setIsEditStudentDialogOpen] = useState(false);
 
     // Marketing Team State
     const [marketers, setMarketers] = useState<QuranCircleMarketer[]>([]);
@@ -1457,6 +1469,44 @@ export default function QuranCircles() {
         }
     };
 
+    const confirmUnenrollBeneficiary = (beneficiary: Beneficiary) => {
+        setBeneficiaryToDelete(beneficiary);
+        setIsDeleteConfirmOpen(true);
+    };
+
+    const handleUnenrollBeneficiary = async () => {
+        if (!beneficiaryToDelete || !selectedCircle) return;
+        try {
+            const { error } = await supabase
+                .from('quran_enrollments')
+                .update({ status: 'inactive' })
+                .eq('circle_id', selectedCircle.id)
+                .eq('beneficiary_id', beneficiaryToDelete.id);
+
+            if (error) throw error;
+            toast.success(isRTL ? 'تم إلغاء التسجيل' : 'Unenrolled successfully');
+            openCircleDetails(selectedCircle);
+            fetchCircles();
+        } catch (err: any) {
+            toast.error(err.message);
+        } finally {
+            setIsDeleteConfirmOpen(false);
+            setBeneficiaryToDelete(null);
+        }
+    };
+
+    const getStudentStats = (beneficiaryId: string) => {
+        let attendedCount = 0;
+        sessions.forEach(s => {
+            const hasAttended = attendanceData[s.id]?.some(a => a.beneficiary_id === beneficiaryId);
+            if (hasAttended) attendedCount++;
+        });
+        const totalSessions = sessions.length;
+        const rate = totalSessions > 0 ? Math.round((attendedCount / totalSessions) * 100) : 0;
+        const missed = totalSessions - attendedCount;
+        return { attended: attendedCount, rate, missed };
+    };
+
     const openMarketingDialog = async (circle: QuranCircle) => {
         setSelectedMarketingCircle(circle);
 
@@ -2067,559 +2117,622 @@ export default function QuranCircles() {
             </AlertDialog >
 
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="w-[calc(100%-1.5rem)] max-w-4xl max-h-[85vh] overflow-y-auto overflow-x-hidden rounded-2xl sm:rounded-2xl p-4 sm:p-6">
-                    <DialogHeader className="text-center sm:text-center flex flex-col items-center justify-center">
-                        <DialogTitle className="text-xl sm:text-2xl font-bold text-center w-full">{selectedCircle && getCircleName(selectedCircle)}</DialogTitle>
-                        <DialogDescription className="text-center w-full">
-                            {selectedCircle && getScheduleDisplay(selectedCircle.schedule)} • {getScheduleTime(selectedCircle?.schedule || [])}
-                        </DialogDescription>
-                    </DialogHeader>
+                <DialogContent className="w-full h-full sm:w-[calc(100%-1.5rem)] sm:max-w-5xl sm:max-h-[90vh] p-0 overflow-hidden flex flex-col rounded-none sm:rounded-2xl">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full flex flex-col">
+                        <div className="flex flex-col h-full bg-background overflow-hidden">
+                            {/* Sticky Header */}
+                            <div className="border-b shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                                <DialogHeader className="p-4 sm:p-6 pb-2 text-center sm:text-center flex flex-col items-center justify-center relative">
+                                    <DialogTitle className="text-xl sm:text-2xl font-bold text-center w-full mt-2 sm:mt-0">
+                                        {selectedCircle && getCircleName(selectedCircle)}
+                                    </DialogTitle>
+                                    <DialogDescription className="text-center w-full text-xs sm:text-sm mt-1">
+                                        {selectedCircle && getScheduleDisplay(selectedCircle.schedule)} • {getScheduleTime(selectedCircle?.schedule || [])}
+                                    </DialogDescription>
+                                </DialogHeader>
 
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                        <div className="overflow-x-auto -mx-2 px-2 pb-1.5 scrollbar-none">
-                            <TabsList className="flex w-full h-auto p-1 bg-muted/50 rounded-xl gap-0.5 xs:gap-1">
-                                <TabsTrigger
-                                    value="beneficiaries"
-                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                >
-                                    {isRTL ? 'المستفيدين' : 'Beneficiaries'}
-                                </TabsTrigger>
-                                <TabsTrigger
-                                    value="sessions"
-                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                >
-                                    {isRTL ? 'الجلسات' : 'Sessions'}
-                                </TabsTrigger>
-                                <TabsTrigger
-                                    value="sheet"
-                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                >
-                                    {isRTL ? 'شيت الحضور' : 'Attendance Sheet'}
-                                </TabsTrigger>
-                                {canManageOrganizers && (
-                                    <TabsTrigger
-                                        value="organizers"
-                                        className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                    >
-                                        {isRTL ? 'المنظمين' : 'Organizers'}
-                                    </TabsTrigger>
-                                )}
-                            </TabsList>
-                        </div>
-
-                        {/* Sessions Tab */}
-                        <TabsContent value="sessions" className="space-y-4 py-4">
-                            {/* Add Session Button */}
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <h3 className="font-semibold">{isRTL ? 'الجلسات' : 'Sessions'}</h3>
-                                    <p className="text-sm text-muted-foreground">
-                                        {sessions.length} {isRTL ? 'جلسة' : 'sessions'}
-                                    </p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button onClick={() => selectedCircle && exportCircleToExcel(selectedCircle)} variant="outline" size="sm">
-                                        <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                        {isRTL ? 'تصدير' : 'Export'}
-                                    </Button>
-                                    <Button onClick={() => {
-                                        if (selectedCircle) {
-                                            setSessionDate(getNextScheduleDate(selectedCircle.schedule));
-                                        }
-                                        setIsSessionDialogOpen(true);
-                                    }} size="sm">
-                                        <Plus className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
-                                        {isRTL ? 'جلسة جديدة' : 'New Session'}
-                                    </Button>
-                                </div>
-                            </div>
-
-                            {detailsBeneficiaries.length === 0 && (
-                                <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm flex items-center gap-2">
-                                    <Users className="h-4 w-4" />
-                                    {isRTL
-                                        ? 'يمكنك إضافة مستفيدين جديد من تبويب المستفيدين.'
-                                        : 'You can add new beneficiaries from the Beneficiaries tab.'}
-                                </div>
-                            )}
-
-                            {/* Sessions List */}
-                            <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                                {sessions.map((session, index) => {
-                                    const rate = getAttendanceRate(session);
-                                    const hasAttendance = session.attendees_count !== undefined && session.attendees_count > 0;
-                                    return (
-                                        <div
-                                            key={session.id}
-                                            className={`flex items-center justify-between p-3 rounded-lg border transition-all hover:shadow-sm ${hasAttendance
-                                                ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/10 hover:bg-green-50 dark:hover:bg-green-950/20'
-                                                : 'hover:bg-muted/50'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className={`p-2 rounded-full ${hasAttendance ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary/10'}`}>
-                                                    <Calendar className={`h-4 w-4 ${hasAttendance ? 'text-green-600 dark:text-green-400' : 'text-primary'}`} />
-                                                </div>
-                                                <div>
-                                                    <div className="flex flex-col">
-                                                        <div className="flex items-center gap-2">
-                                                            <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-mono">
-                                                                #{sessions.length - index}
-                                                            </Badge>
-                                                            <p className="font-medium">
-                                                                {format(new Date(session.session_date), 'EEEE, d MMMM', { locale: isRTL ? ar : enUS })}
-                                                            </p>
-                                                        </div>
-                                                        <p className="text-xs text-muted-foreground mt-1">
-                                                            {isRTL ? 'الحضور:' : 'Attendance:'} <span className={hasAttendance ? 'font-bold text-green-600 dark:text-green-400' : ''}>{session.attendees_count || 0}</span> / {detailsBeneficiaries.length}
-                                                        </p>
-                                                        {session.organizer_name && (
-                                                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                                                                <User className="h-3 w-3" />
-                                                                {session.organizer_name}
-                                                            </p>
-                                                        )}
-                                                        {session.notes && (
-                                                            <div className="flex items-start gap-1 mt-2 text-xs text-muted-foreground bg-muted/50 p-1.5 rounded w-full">
-                                                                <span className="shrink-0 mt-0.5">📝</span>
-                                                                <span className="break-words line-clamp-2">{session.notes}</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                {rate !== null && hasAttendance && (
-                                                    <Badge variant="secondary" className={`text-xs ${rate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                                        rate >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                                            'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                                        }`}>
-                                                        <Percent className="h-3 w-3 ltr:mr-0.5 rtl:ml-0.5" />
-                                                        {rate}
-                                                    </Badge>
-                                                )}
-                                                <Badge variant={hasAttendance ? 'default' : 'outline'}>
-                                                    <Users className="h-3 w-3 ltr:mr-1 rtl:ml-1" />
-                                                    {session.attendees_count || 0}
-                                                </Badge>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setDeleteSessionId(session.id);
-                                                    }}
+                                {/* Tabs Selection */}
+                                <div className="px-4 sm:px-6 pb-3">
+                                    <div className="overflow-x-auto -mx-2 px-2 pb-0.5 scrollbar-none">
+                                        <TabsList className="flex w-full h-auto p-1 bg-muted/50 rounded-xl gap-0.5 xs:gap-1">
+                                            <TabsTrigger
+                                                value="beneficiaries"
+                                                className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                            >
+                                                {isRTL ? 'المستفيدين' : 'Beneficiaries'}
+                                            </TabsTrigger>
+                                            <TabsTrigger
+                                                value="sessions"
+                                                className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                            >
+                                                {isRTL ? 'الجلسات' : 'Sessions'}
+                                            </TabsTrigger>
+                                            <TabsTrigger
+                                                value="sheet"
+                                                className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
+                                            >
+                                                {isRTL ? 'شيت الحضور' : 'Attendance Sheet'}
+                                            </TabsTrigger>
+                                            {canManageOrganizers && (
+                                                <TabsTrigger
+                                                    value="organizers"
+                                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
                                                 >
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-
-                                {sessions.length === 0 && (
-                                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                                        <div className="p-3 rounded-full bg-muted/50 mb-3">
-                                            <Calendar className="h-8 w-8 opacity-30" />
-                                        </div>
-                                        <p className="font-medium">{isRTL ? 'لا توجد جلسات بعد' : 'No sessions yet'}</p>
-                                        <p className="text-sm mt-1">{isRTL ? 'أنشئ أول جلسة للبدء' : 'Create the first session to get started'}</p>
-                                    </div>
-                                )}
-                            </div>
-                        </TabsContent>
-
-                        {/* Beneficiaries Tab */}
-                        <TabsContent value="beneficiaries" className="space-y-4 py-4">
-                            {/* Add Beneficiary Form */}
-                            <Card>
-                                <CardHeader className="pb-3">
-                                    <CardTitle className="text-base">{isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary'}</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="flex flex-col gap-4">
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                                            <Input
-                                                placeholder={isRTL ? 'الاسم (عربي)' : 'Name (Arabic)'}
-                                                value={newBeneficiary.name_ar}
-                                                onChange={(e) => setNewBeneficiary({ ...newBeneficiary, name_ar: e.target.value })}
-                                            />
-                                            <Input
-                                                placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
-                                                value={newBeneficiary.phone}
-                                                onChange={(e) => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
-                                            />
-                                            <Select
-                                                value={newBeneficiary.gender}
-                                                onValueChange={(val: 'male' | 'female') => setNewBeneficiary({ ...newBeneficiary, gender: val })}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder={isRTL ? 'النوع' : 'Gender'} />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="male">{isRTL ? 'ذكر' : 'Male'}</SelectItem>
-                                                    <SelectItem value="female">{isRTL ? 'أنثى' : 'Female'}</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <Select
-                                                value={newBeneficiary.beneficiary_type}
-                                                onValueChange={(val: 'adult' | 'child') => setNewBeneficiary({ ...newBeneficiary, beneficiary_type: val })}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder={isRTL ? 'نوع المستفيد' : 'Type'} />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="adult">{isRTL ? 'بالغ' : 'Adult'}</SelectItem>
-                                                    <SelectItem value="child">{isRTL ? 'طفل' : 'Child'}</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        <div className="flex justify-end">
-                                            <Button onClick={handleAddBeneficiary} className="w-full sm:w-auto">
-                                                <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                {isRTL ? 'إضافة' : 'Add'}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-
-
-                            {/* Beneficiaries Table */}
-                            <div className="border rounded-lg overflow-hidden">
-                                <div className="overflow-x-auto">
-                                    <div className="overflow-x-auto w-full">
-<Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                <TableHead className="whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
-                                                <TableHead className="whitespace-nowrap">{isRTL ? 'النوع' : 'Gender'}</TableHead>
-                                                <TableHead className="whitespace-nowrap">{isRTL ? 'الفئة' : 'Type'}</TableHead>
-                                                <TableHead className="w-24 whitespace-nowrap"></TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {filteredDetailsBeneficiaries.length === 0 ? (
-                                                <TableRow>
-                                                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground whitespace-nowrap">
-                                                        {isRTL ? 'لا يوجد مستفيدين' : 'No beneficiaries found'}
-                                                    </TableCell>
-                                                </TableRow>
-                                            ) : (
-                                                filteredDetailsBeneficiaries.map((b) => (
-                                                    <TableRow key={b.id}>
-                                                        <TableCell className="font-medium whitespace-nowrap">
-                                                            {/* Inline Edit for Name */}
-                                                            {editingBeneficiary?.id === b.id ? (
-                                                                <Input
-                                                                    value={newBeneficiary.name_ar}
-                                                                    onChange={e => setNewBeneficiary({ ...newBeneficiary, name_ar: e.target.value })}
-                                                                    className="h-8"
-                                                                />
-                                                            ) : (
-                                                                <div>
-                                                                    <div>{b.name_ar}</div>
-                                                                    {b.name_en && <div className="text-xs text-muted-foreground">{b.name_en}</div>}
-                                                                </div>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="whitespace-nowrap">
-                                                            {editingBeneficiary?.id === b.id ? (
-                                                                <Input
-                                                                    value={newBeneficiary.phone}
-                                                                    onChange={e => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
-                                                                    className="h-8"
-                                                                />
-                                                            ) : (
-                                                                b.phone || '-'
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="whitespace-nowrap">
-                                                            {editingBeneficiary?.id === b.id ? (
-                                                                <Select
-                                                                    value={newBeneficiary.gender}
-                                                                    onValueChange={(val: 'male' | 'female') => setNewBeneficiary({ ...newBeneficiary, gender: val })}
-                                                                >
-                                                                    <SelectTrigger className="h-8">
-                                                                        <SelectValue />
-                                                                    </SelectTrigger>
-                                                                    <SelectContent>
-                                                                        <SelectItem value="male">{isRTL ? 'ذكر' : 'Male'}</SelectItem>
-                                                                        <SelectItem value="female">{isRTL ? 'أنثى' : 'Female'}</SelectItem>
-                                                                    </SelectContent>
-                                                                </Select>
-                                                            ) : (
-                                                                <span className={b.gender === 'male' ? 'text-blue-600' : 'text-pink-600'}>
-                                                                    {b.gender === 'male' ? (isRTL ? 'ذكر' : 'Male') : (isRTL ? 'أنثى' : 'Female')}
-                                                                </span>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="whitespace-nowrap">
-                                                            {editingBeneficiary?.id === b.id ? (
-                                                                <Select
-                                                                    value={newBeneficiary.beneficiary_type}
-                                                                    onValueChange={(val: 'adult' | 'child') => setNewBeneficiary({ ...newBeneficiary, beneficiary_type: val })}
-                                                                >
-                                                                    <SelectTrigger className="h-8">
-                                                                        <SelectValue />
-                                                                    </SelectTrigger>
-                                                                    <SelectContent>
-                                                                        <SelectItem value="adult">{isRTL ? 'بالغ' : 'Adult'}</SelectItem>
-                                                                        <SelectItem value="child">{isRTL ? 'طفل' : 'Child'}</SelectItem>
-                                                                    </SelectContent>
-                                                                </Select>
-                                                            ) : (
-                                                                <Badge variant="outline">
-                                                                    {b.beneficiary_type === 'adult' ? (isRTL ? 'بالغ' : 'Adult') : (isRTL ? 'طفل' : 'Child')}
-                                                                </Badge>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="whitespace-nowrap">
-                                                            {editingBeneficiary?.id === b.id ? (
-                                                                <div className="flex gap-1">
-                                                                    <Button size="sm" variant="ghost" onClick={handleAddBeneficiary}>
-                                                                        <Check className="w-4 h-4 text-green-600" />
-                                                                    </Button>
-                                                                    <Button size="sm" variant="ghost" onClick={() => {
-                                                                        setEditingBeneficiary(null);
-                                                                        setNewBeneficiary({
-                                                                            name_ar: '',
-                                                                            name_en: '',
-                                                                            phone: '',
-                                                                            gender: 'male',
-                                                                            beneficiary_type: 'adult'
-                                                                        });
-                                                                    }}>
-                                                                        <X className="w-4 h-4 text-red-600" />
-                                                                    </Button>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="flex gap-1">
-                                                                    <Button size="sm" variant="ghost" onClick={() => {
-                                                                        setEditingBeneficiary(b);
-                                                                        setNewBeneficiary({
-                                                                            name_ar: b.name_ar,
-                                                                            name_en: b.name_en || '',
-                                                                            phone: b.phone || '',
-                                                                            gender: b.gender || 'male',
-                                                                            beneficiary_type: b.beneficiary_type || 'adult'
-                                                                        });
-                                                                    }}>
-                                                                        <Pencil className="w-4 h-4" />
-                                                                    </Button>
-                                                                    <Button size="sm" variant="ghost" onClick={async () => {
-                                                                        if (!confirm(isRTL ? 'هل أنت متأكد من إزالة هذا الطالب من الحلقة؟' : 'Are you sure you want to remove this student?')) return;
-                                                                        try {
-                                                                            const { error } = await supabase
-                                                                                .from('quran_enrollments')
-                                                                                .update({ status: 'inactive' })
-                                                                                .eq('circle_id', selectedCircle?.id)
-                                                                                .eq('beneficiary_id', b.id);
-
-                                                                            if (error) throw error;
-                                                                            toast.success(isRTL ? 'تم إلغاء التسجيل' : 'Unenrolled successfully');
-                                                                            if (selectedCircle) openCircleDetails(selectedCircle);
-                                                                            fetchCircles();
-                                                                        } catch (err: any) {
-                                                                            toast.error(err.message);
-                                                                        }
-                                                                    }}>
-                                                                        <UserMinus className="w-4 h-4 text-destructive" />
-                                                                    </Button>
-                                                                </div>
-                                                            )}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))
+                                                    {isRTL ? 'المنظمين' : 'Organizers'}
+                                                </TabsTrigger>
                                             )}
-                                        </TableBody>
-                                    </Table>
-</div>
-                                </div>
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                                {isRTL ? `إجمالي المستفيدين: ${filteredDetailsBeneficiaries.length}` : `Total beneficiaries: ${filteredDetailsBeneficiaries.length}`}
-                            </div>
-                        </TabsContent>
-
-                        {/* Attendance Sheet Tab */}
-                        <TabsContent value="sheet" className="py-4">
-                            <div className="border rounded-lg overflow-x-auto max-h-[600px]">
-                                <div className="overflow-x-auto w-full">
-<Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="min-w-[200px] whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                            <TableHead className="min-w-[120px] whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
-                                            {sessions.map((s, idx) => (
-                                                <TableHead key={s.id} className="text-center min-w-[80px] whitespace-nowrap">
-                                                    <div className="flex flex-col items-center">
-                                                        <span>{idx + 1}</span>
-                                                        <span className="text-[10px] font-normal text-muted-foreground">
-                                                            {format(new Date(s.session_date), 'd/M')}
-                                                        </span>
-                                                    </div>
-                                                </TableHead>
-                                            ))}
-                                            <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'حضر' : 'Attended'}</TableHead>
-                                            <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'غاب' : 'Missed'}</TableHead>
-                                            <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'نسبة' : '%'}</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {detailsBeneficiaries.map(beneficiary => {
-                                            const studentAttendance = sessions.map(s =>
-                                                attendanceData[s.id]?.find(a => a.beneficiary_id === beneficiary.id)
-                                            );
-                                            const attendedCount = studentAttendance.filter(Boolean).length;
-                                            const missedCount = sessions.length - attendedCount;
-                                            const attendanceRate = sessions.length > 0 ? Math.round((attendedCount / sessions.length) * 100) : 0;
-
-                                            return (
-                                                <TableRow key={beneficiary.id}>
-                                                    <TableCell className="font-medium sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">
-                                                        {beneficiary.name_ar}
-                                                    </TableCell>
-                                                    <TableCell className="text-sm text-muted-foreground">{beneficiary.phone || '-'}</TableCell>
-                                                    {sessions.map((session, idx) => {
-                                                        const attendanceRecord = attendanceData[session.id]?.find(a => a.beneficiary_id === beneficiary.id);
-                                                        const isPresent = !!attendanceRecord;
-
-                                                        return (
-                                                            <TableCell key={session.id} className="text-center p-2">
-                                                                <div className="flex flex-col items-center gap-1">
-                                                                    <Checkbox
-                                                                        checked={isPresent}
-                                                                        onCheckedChange={() => toggleCircleAttendance(session.id, beneficiary.id)}
-                                                                        className="mx-auto"
-                                                                    />
-                                                                    {isPresent && (
-                                                                        <select
-                                                                            className="text-[10px] border rounded bg-transparent p-0.5 w-[50px] text-center"
-                                                                            value={attendanceRecord?.attendance_type}
-                                                                            onChange={(e) => updateSheetAttendanceType(session.id, beneficiary.id, e.target.value as any)}
-                                                                            onClick={(e) => e.stopPropagation()}
-                                                                        >
-                                                                            <option value="memorization">{isRTL ? 'حفظ' : 'Mem'}</option>
-                                                                            <option value="revision">{isRTL ? 'مراجعة' : 'Rev'}</option>
-                                                                        </select>
-                                                                    )}
-                                                                </div>
-                                                            </TableCell>
-                                                        );
-                                                    })}
-                                                    <TableCell className="text-center font-bold text-green-600">{attendedCount}</TableCell>
-                                                    <TableCell className="text-center font-bold text-red-600">{missedCount}</TableCell>
-                                                    <TableCell className="text-center font-bold">
-                                                        <span className={`${attendanceRate >= 80 ? 'text-green-600' : attendanceRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-                                                            {attendanceRate}%
-                                                        </span>
-                                                    </TableCell>
-                                                </TableRow>
-                                            );
-                                        })}
-                                        {detailsBeneficiaries.length === 0 && (
-                                            <TableRow>
-                                                <TableCell colSpan={sessions.length + 5} className="text-center py-8 text-muted-foreground">
-                                                    {isRTL ? 'لا يوجد طلاب مسجلين' : 'No students enrolled'}
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-</div>
-                            </div>
-                        </TabsContent>
-
-                        {/* Organizers Tab */}
-                        {canManageOrganizers && (
-                            <TabsContent value="organizers" className="space-y-4 py-4">
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <h3 className="font-semibold">{isRTL ? 'المنظمين' : 'Organizers'}</h3>
-                                        <p className="text-sm text-muted-foreground">
-                                            {selectedCircle?.organizers?.length || 0} {isRTL ? 'منظم' : 'organizer'}
-                                        </p>
+                                        </TabsList>
                                     </div>
-                                    <Popover open={organizerPopoverOpen} onOpenChange={setOrganizerPopoverOpen}>
-                                        <PopoverTrigger asChild>
-                                            <Button size="sm">
-                                                <UserPlus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                {isRTL ? 'إضافة منظم' : 'Add Organizer'}
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="p-0" align={isRTL ? "end" : "start"}>
-                                            <Command>
-                                                <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
-                                                <CommandList>
-                                                    <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results found.'}</CommandEmpty>
-                                                    <CommandGroup>
-                                                        {volunteers.map(volunteer => (
-                                                            <CommandItem
-                                                                key={volunteer.id}
-                                                                onSelect={() => {
-                                                                    handleAddOrganizerToCircle({
-                                                                        volunteer_id: volunteer.id,
-                                                                        name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
-                                                                        phone: volunteer.phone || ''
-                                                                    });
-                                                                    setOrganizerPopoverOpen(false);
-                                                                }}
-                                                            >
-                                                                <div className="flex items-center gap-2">
-                                                                    <Avatar className="h-6 w-6">
-                                                                        <AvatarImage src={volunteer.avatar_url || undefined} />
-                                                                        <AvatarFallback>{volunteer.full_name.charAt(0)}</AvatarFallback>
-                                                                    </Avatar>
-                                                                    <div className="flex flex-col">
-                                                                        <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
-                                                                        {volunteer.phone && <span className="text-xs text-muted-foreground">{volunteer.phone}</span>}
-                                                                    </div>
-                                                                </div>
-                                                            </CommandItem>
-                                                        ))}
-                                                    </CommandGroup>
-                                                </CommandList>
-                                            </Command>
-                                        </PopoverContent>
-                                    </Popover>
                                 </div>
+                            </div>
 
-                                <div className="space-y-2">
-                                    {selectedCircle?.organizers?.map((organizer, index) => (
-                                        <div key={index} className="flex items-center justify-between p-3 rounded-lg border bg-card">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 rounded-full bg-primary/10 text-primary">
-                                                    <User className="h-4 w-4" />
-                                                </div>
-                                                <div>
-                                                    <p className="font-medium">{organizer.name}</p>
-                                                    {organizer.phone && <p className="text-sm text-muted-foreground">{organizer.phone}</p>}
-                                                </div>
-                                            </div>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="text-muted-foreground hover:text-destructive"
-                                                onClick={() => handleRemoveOrganizerFromCircle(organizer)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
+                            {/* Scrollable Container */}
+                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 scrollbar-none">
+                                {/* Sessions Tab */}
+                                <TabsContent value="sessions" className="space-y-4 py-0 outline-none">
+                                    {/* Add Session Button */}
+                                    <div className="flex justify-between items-center bg-card p-3 rounded-xl border">
+                                        <div>
+                                            <h3 className="font-semibold text-xs sm:text-sm">{isRTL ? 'الجلسات' : 'Sessions'}</h3>
+                                            <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                {sessions.length} {isRTL ? 'جلسة' : 'sessions'}
+                                            </p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <Button onClick={() => selectedCircle && exportCircleToExcel(selectedCircle)} variant="outline" size="sm" className="h-8 text-xs">
+                                                <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'تصدير' : 'Export'}
+                                            </Button>
+                                            <Button onClick={() => {
+                                                if (selectedCircle) {
+                                                    setSessionDate(getNextScheduleDate(selectedCircle.schedule));
+                                                }
+                                                setIsSessionDialogOpen(true);
+                                            }} size="sm" className="h-8 text-xs">
+                                                <Plus className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
+                                                {isRTL ? 'جلسة جديدة' : 'New Session'}
                                             </Button>
                                         </div>
-                                    ))}
-                                    {(!selectedCircle?.organizers || selectedCircle.organizers.length === 0) && (
-                                        <div className="text-center py-8 text-muted-foreground">
-                                            <Users className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                                            <p>{isRTL ? 'لا يوجد منظمين لهذه الحلقة' : 'No organizers for this circle'}</p>
+                                    </div>
+
+                                    {detailsBeneficiaries.length === 0 && (
+                                        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
+                                            <Users className="h-4 w-4" />
+                                            {isRTL
+                                                ? 'يمكنك إضافة مستفيدين جديد من تبويب المستفيدين.'
+                                                : 'You can add new beneficiaries from the Beneficiaries tab.'}
                                         </div>
                                     )}
-                                </div>
-                            </TabsContent>
-                        )}
 
+                                    {/* Sessions List */}
+                                    <div className="space-y-2">
+                                        {sessions.map((session, index) => {
+                                            const rate = getAttendanceRate(session);
+                                            const hasAttendance = session.attendees_count !== undefined && session.attendees_count > 0;
+                                            return (
+                                                <div
+                                                    key={session.id}
+                                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all hover:shadow-sm ${hasAttendance
+                                                        ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/10 hover:bg-green-50 dark:hover:bg-green-950/20'
+                                                        : 'hover:bg-muted/50'
+                                                        }`}
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`p-2 rounded-full ${hasAttendance ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary/10'}`}>
+                                                            <Calendar className={`h-4 w-4 ${hasAttendance ? 'text-green-600 dark:text-green-400' : 'text-primary'}`} />
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex flex-col">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-mono">
+                                                                        #{sessions.length - index}
+                                                                    </Badge>
+                                                                    <p className="font-medium text-xs sm:text-sm">
+                                                                        {format(new Date(session.session_date), 'EEEE, d MMMM', { locale: isRTL ? ar : enUS })}
+                                                                    </p>
+                                                                </div>
+                                                                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
+                                                                    {isRTL ? 'الحضور:' : 'Attendance:'} <span className={hasAttendance ? 'font-bold text-green-600 dark:text-green-400' : ''}>{session.attendees_count || 0}</span> / {detailsBeneficiaries.length}
+                                                                </p>
+                                                                {session.organizer_name && (
+                                                                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                                                                        <User className="h-3 w-3" />
+                                                                        {session.organizer_name}
+                                                                    </p>
+                                                                )}
+                                                                {session.notes && (
+                                                                    <div className="flex items-start gap-1 mt-2 text-[10px] sm:text-xs text-muted-foreground bg-muted/50 p-1.5 rounded w-full">
+                                                                        <span className="shrink-0 mt-0.5">📝</span>
+                                                                        <span className="break-words line-clamp-2">{session.notes}</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {rate !== null && hasAttendance && (
+                                                            <Badge variant="secondary" className={`text-xs ${rate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                                                rate >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                                                    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                                                }`}>
+                                                                <Percent className="h-3 w-3 ltr:mr-0.5 rtl:ml-0.5" />
+                                                                {rate}
+                                                            </Badge>
+                                                        )}
+                                                        <Badge variant={hasAttendance ? 'default' : 'outline'} className="text-[10px] sm:text-xs">
+                                                            <Users className="h-3 w-3 ltr:mr-1 rtl:ml-1" />
+                                                            {session.attendees_count || 0}
+                                                        </Badge>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setDeleteSessionId(session.id);
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+
+                                        {sessions.length === 0 && (
+                                            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                                                <div className="p-3 rounded-full bg-muted/50 mb-3">
+                                                    <Calendar className="h-8 w-8 opacity-30" />
+                                                </div>
+                                                <p className="font-medium">{isRTL ? 'لا توجد جلسات بعد' : 'No sessions yet'}</p>
+                                                <p className="text-sm mt-1">{isRTL ? 'أنشئ أول جلسة للبدء' : 'Create the first session to get started'}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </TabsContent>
+
+                                {/* Beneficiaries Tab */}
+                                <TabsContent value="beneficiaries" className="space-y-4 py-0 outline-none">
+                                    {/* Action Bar */}
+                                    <div className="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center">
+                                        <div className="relative flex-1">
+                                            <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                                            <Input
+                                                placeholder={isRTL ? 'بحث باسم الطالب أو الهاتف...' : 'Search student by name or phone...'}
+                                                value={sessionBeneficiarySearch}
+                                                onChange={e => setSessionBeneficiarySearch(e.target.value)}
+                                                className="rtl:pr-9 ltr:pl-9 h-9"
+                                            />
+                                        </div>
+                                        <Button
+                                            onClick={() => setIsAddingBeneficiary(!isAddingBeneficiary)}
+                                            size="sm"
+                                            className="gap-1.5 h-9 shrink-0"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            {isRTL ? 'إضافة مستفيد' : 'Add Beneficiary'}
+                                        </Button>
+                                    </div>
+
+                                    {/* Collapsible Add Form */}
+                                    {isAddingBeneficiary && (
+                                        <Card className="border border-primary/20 bg-primary/5 dark:bg-primary/10">
+                                            <CardHeader className="p-4 pb-2">
+                                                <CardTitle className="text-sm font-semibold">{isRTL ? 'بيانات المستفيد الجديد' : 'New Beneficiary Details'}</CardTitle>
+                                            </CardHeader>
+                                            <CardContent className="p-4 pt-0 space-y-3">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-medium text-muted-foreground">{isRTL ? 'الاسم (بالعربية) *' : 'Name (Arabic) *'}</label>
+                                                        <Input
+                                                            placeholder={isRTL ? 'الاسم الثنائي أو الثلاثي' : 'Full Name'}
+                                                            value={newBeneficiary.name_ar}
+                                                            onChange={(e) => setNewBeneficiary({ ...newBeneficiary, name_ar: e.target.value })}
+                                                            className="h-9 bg-background"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-medium text-muted-foreground">{isRTL ? 'رقم الهاتف' : 'Phone Number'}</label>
+                                                        <Input
+                                                            placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
+                                                            value={newBeneficiary.phone}
+                                                            onChange={(e) => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
+                                                            className="h-9 bg-background"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-medium text-muted-foreground">{isRTL ? 'الجنس' : 'Gender'}</label>
+                                                        <Select
+                                                            value={newBeneficiary.gender}
+                                                            onValueChange={(val: 'male' | 'female') => setNewBeneficiary({ ...newBeneficiary, gender: val })}
+                                                        >
+                                                            <SelectTrigger className="h-9 bg-background">
+                                                                <SelectValue placeholder={isRTL ? 'النوع' : 'Gender'} />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="male">{isRTL ? 'ذكر' : 'Male'}</SelectItem>
+                                                                <SelectItem value="female">{isRTL ? 'أنثى' : 'Female'}</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <label className="text-[10px] font-medium text-muted-foreground">{isRTL ? 'الفئة العمرية' : 'Age Group'}</label>
+                                                        <Select
+                                                            value={newBeneficiary.beneficiary_type}
+                                                            onValueChange={(val: 'adult' | 'child') => setNewBeneficiary({ ...newBeneficiary, beneficiary_type: val })}
+                                                        >
+                                                            <SelectTrigger className="h-9 bg-background">
+                                                                <SelectValue placeholder={isRTL ? 'نوع المستفيد' : 'Type'} />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="adult">{isRTL ? 'بالغ' : 'Adult'}</SelectItem>
+                                                                <SelectItem value="child">{isRTL ? 'طفل' : 'Child'}</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-end gap-2 pt-2">
+                                                    <Button size="sm" variant="ghost" onClick={() => setIsAddingBeneficiary(false)}>
+                                                        {isRTL ? 'إلغاء' : 'Cancel'}
+                                                    </Button>
+                                                    <Button size="sm" onClick={handleAddBeneficiary}>
+                                                        {isRTL ? 'إضافة الطالب' : 'Add Student'}
+                                                    </Button>
+                                                </div>
+                                            </CardContent>
+                                        </Card>
+                                    )}
+
+                                    {/* Desktop View (Table) */}
+                                    <div className="hidden sm:block border rounded-xl overflow-hidden bg-card">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'النوع' : 'Gender'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الفئة' : 'Type'}</TableHead>
+                                                    <TableHead className="whitespace-nowrap text-center">{isRTL ? 'نسبة الحضور' : 'Attendance Rate'}</TableHead>
+                                                    <TableHead className="w-24 whitespace-nowrap"></TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {filteredDetailsBeneficiaries.length === 0 ? (
+                                                    <TableRow>
+                                                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground whitespace-nowrap">
+                                                            {isRTL ? 'لا يوجد مستفيدين مطابقين للبحث' : 'No matching beneficiaries found'}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ) : (
+                                                    filteredDetailsBeneficiaries.map((b) => {
+                                                        const stats = getStudentStats(b.id);
+                                                        return (
+                                                            <TableRow key={b.id}>
+                                                                <TableCell className="font-medium whitespace-nowrap">
+                                                                    <div>
+                                                                        <div className="font-semibold">{b.name_ar}</div>
+                                                                        {b.name_en && <div className="text-xs text-muted-foreground">{b.name_en}</div>}
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="whitespace-nowrap">{b.phone || '-'}</TableCell>
+                                                                <TableCell className="whitespace-nowrap">
+                                                                    <span className={b.gender === 'male' ? 'text-blue-600' : 'text-pink-600'}>
+                                                                        {b.gender === 'male' ? (isRTL ? 'ذكر' : 'Male') : (isRTL ? 'أنثى' : 'Female')}
+                                                                    </span>
+                                                                </TableCell>
+                                                                <TableCell className="whitespace-nowrap">
+                                                                    <Badge variant="outline">
+                                                                        {b.beneficiary_type === 'adult' ? (isRTL ? 'بالغ' : 'Adult') : (isRTL ? 'طفل' : 'Child')}
+                                                                    </Badge>
+                                                                </TableCell>
+                                                                <TableCell className="whitespace-nowrap text-center">
+                                                                    <Badge variant="secondary" className={`font-semibold ${stats.rate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : stats.rate >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                                                                        {stats.rate}% ({stats.attended}/{sessions.length})
+                                                                    </Badge>
+                                                                </TableCell>
+                                                                <TableCell className="whitespace-nowrap">
+                                                                    <div className="flex gap-1 justify-end">
+                                                                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => {
+                                                                            setEditingBeneficiary(b);
+                                                                            setNewBeneficiary({
+                                                                                name_ar: b.name_ar,
+                                                                                name_en: b.name_en || '',
+                                                                                phone: b.phone || '',
+                                                                                gender: b.gender || 'male',
+                                                                                beneficiary_type: b.beneficiary_type || 'adult'
+                                                                            });
+                                                                            setIsEditStudentDialogOpen(true);
+                                                                        }}>
+                                                                            <Pencil className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                                                                        </Button>
+                                                                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => confirmUnenrollBeneficiary(b)}>
+                                                                            <UserMinus className="w-4 h-4" />
+                                                                        </Button>
+                                                                    </div>
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        );
+                                                    })
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+
+                                    {/* Mobile View (Cards) */}
+                                    <div className="block sm:hidden space-y-3">
+                                        {filteredDetailsBeneficiaries.length === 0 ? (
+                                            <div className="text-center py-8 text-muted-foreground text-xs border border-dashed rounded-xl">
+                                                {isRTL ? 'لا يوجد مستفيدين مطابقين للبحث' : 'No matching beneficiaries found'}
+                                            </div>
+                                        ) : (
+                                            filteredDetailsBeneficiaries.map((b) => {
+                                                const stats = getStudentStats(b.id);
+                                                return (
+                                                    <Card key={b.id} className="p-4 border bg-card">
+                                                        <div className="flex justify-between items-start">
+                                                            <div>
+                                                                <h4 className="font-semibold text-sm">{b.name_ar}</h4>
+                                                                <p className="text-xs text-muted-foreground mt-0.5">{b.phone || (isRTL ? 'لا يوجد هاتف' : 'No phone')}</p>
+                                                            </div>
+                                                            <div className="flex gap-1">
+                                                                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => {
+                                                                    setEditingBeneficiary(b);
+                                                                    setNewBeneficiary({
+                                                                        name_ar: b.name_ar,
+                                                                        name_en: b.name_en || '',
+                                                                        phone: b.phone || '',
+                                                                        gender: b.gender || 'male',
+                                                                        beneficiary_type: b.beneficiary_type || 'adult'
+                                                                    });
+                                                                    setIsEditStudentDialogOpen(true);
+                                                                }}>
+                                                                    <Pencil className="w-4 h-4 text-muted-foreground" />
+                                                                </Button>
+                                                                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => confirmUnenrollBeneficiary(b)}>
+                                                                    <UserMinus className="w-4 h-4" />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t text-xs">
+                                                            <span className={`px-2 py-0.5 rounded text-[10px] ${b.gender === 'male' ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/20 dark:text-blue-400' : 'bg-pink-50 text-pink-700 dark:bg-pink-950/20 dark:text-pink-400'}`}>
+                                                                {b.gender === 'male' ? (isRTL ? 'ذكر' : 'Male') : (isRTL ? 'أنثى' : 'Female')}
+                                                            </span>
+                                                            <span className="px-2 py-0.5 rounded text-[10px] bg-muted text-muted-foreground">
+                                                                {b.beneficiary_type === 'adult' ? (isRTL ? 'بالغ' : 'Adult') : (isRTL ? 'طفل' : 'Child')}
+                                                            </span>
+                                                            <Badge variant="secondary" className={`text-[10px] ltr:ml-auto rtl:mr-auto ${stats.rate >= 80 ? 'bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400' : stats.rate >= 50 ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400' : 'bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400'}`}>
+                                                                {isRTL ? 'الحضور: ' : 'Attended: '}{stats.rate}%
+                                                            </Badge>
+                                                        </div>
+                                                    </Card>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground pt-1">
+                                        {isRTL ? `إجمالي المستفيدين: ${filteredDetailsBeneficiaries.length}` : `Total beneficiaries: ${filteredDetailsBeneficiaries.length}`}
+                                    </div>
+                                </TabsContent>
+
+                                {/* Attendance Sheet Tab */}
+                                <TabsContent value="sheet" className="space-y-4 py-0 outline-none">
+                                    {/* Desktop View (Table) */}
+                                    <div className="hidden sm:block border rounded-xl overflow-x-auto max-h-[600px] bg-card">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="min-w-[200px] whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                    <TableHead className="min-w-[120px] whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                                    {sessions.map((s, idx) => (
+                                                        <TableHead key={s.id} className="text-center min-w-[80px] whitespace-nowrap">
+                                                            <div className="flex flex-col items-center">
+                                                                <span>{idx + 1}</span>
+                                                                <span className="text-[10px] font-normal text-muted-foreground">
+                                                                    {format(new Date(s.session_date), 'd/M')}
+                                                                </span>
+                                                            </div>
+                                                        </TableHead>
+                                                    ))}
+                                                    <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'حضر' : 'Attended'}</TableHead>
+                                                    <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'غاب' : 'Missed'}</TableHead>
+                                                    <TableHead className="text-center min-w-[80px] whitespace-nowrap">{isRTL ? 'نسبة' : '%'}</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {detailsBeneficiaries.map(beneficiary => {
+                                                    const studentAttendance = sessions.map(s =>
+                                                        attendanceData[s.id]?.find(a => a.beneficiary_id === beneficiary.id)
+                                                    );
+                                                    const attendedCount = studentAttendance.filter(Boolean).length;
+                                                    const missedCount = sessions.length - attendedCount;
+                                                    const attendanceRate = sessions.length > 0 ? Math.round((attendedCount / sessions.length) * 100) : 0;
+
+                                                    return (
+                                                        <TableRow key={beneficiary.id}>
+                                                            <TableCell className="font-medium sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">
+                                                                {beneficiary.name_ar}
+                                                            </TableCell>
+                                                            <TableCell className="text-sm text-muted-foreground">{beneficiary.phone || '-'}</TableCell>
+                                                            {sessions.map((session, idx) => {
+                                                                const attendanceRecord = attendanceData[session.id]?.find(a => a.beneficiary_id === beneficiary.id);
+                                                                const isPresent = !!attendanceRecord;
+
+                                                                return (
+                                                                    <TableCell key={session.id} className="text-center p-2">
+                                                                        <div className="flex flex-col items-center gap-1">
+                                                                            <Checkbox
+                                                                                checked={isPresent}
+                                                                                onCheckedChange={() => toggleCircleAttendance(session.id, beneficiary.id)}
+                                                                                className="mx-auto"
+                                                                            />
+                                                                            {isPresent && (
+                                                                                <select
+                                                                                    className="text-[10px] border rounded bg-transparent p-0.5 w-[50px] text-center"
+                                                                                    value={attendanceRecord?.attendance_type}
+                                                                                    onChange={(e) => updateSheetAttendanceType(session.id, beneficiary.id, e.target.value as any)}
+                                                                                    onClick={(e) => e.stopPropagation()}
+                                                                                >
+                                                                                    <option value="memorization">{isRTL ? 'حفظ' : 'Mem'}</option>
+                                                                                    <option value="revision">{isRTL ? 'مراجعة' : 'Rev'}</option>
+                                                                                </select>
+                                                                            )}
+                                                                        </div>
+                                                                    </TableCell>
+                                                                );
+                                                            })}
+                                                            <TableCell className="text-center font-bold text-green-600">{attendedCount}</TableCell>
+                                                            <TableCell className="text-center font-bold text-red-600">{missedCount}</TableCell>
+                                                            <TableCell className="text-center font-bold">
+                                                                <span className={`${attendanceRate >= 80 ? 'text-green-600' : attendanceRate >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+                                                                    {attendanceRate}%
+                                                                </span>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
+                                                {detailsBeneficiaries.length === 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={sessions.length + 5} className="text-center py-8 text-muted-foreground">
+                                                            {isRTL ? 'لا يوجد طلاب مسجلين' : 'No students enrolled'}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+
+                                    {/* Mobile View (Cards with history button) */}
+                                    <div className="block sm:hidden space-y-3">
+                                        {detailsBeneficiaries.length === 0 ? (
+                                            <div className="text-center py-8 text-muted-foreground text-xs border border-dashed rounded-xl">
+                                                {isRTL ? 'لا يوجد طلاب مسجلين' : 'No students enrolled'}
+                                            </div>
+                                        ) : (
+                                            detailsBeneficiaries.map((b) => {
+                                                const stats = getStudentStats(b.id);
+                                                return (
+                                                    <Card key={b.id} className="p-4 border bg-card">
+                                                        <div className="flex justify-between items-center">
+                                                            <div>
+                                                                <h4 className="font-semibold text-sm">{b.name_ar}</h4>
+                                                                <p className="text-xs text-muted-foreground mt-0.5">{b.phone || '-'}</p>
+                                                            </div>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => {
+                                                                    setHistoryStudent(b);
+                                                                    setIsHistoryDialogOpen(true);
+                                                                }}
+                                                                className="text-xs gap-1 h-8"
+                                                            >
+                                                                <History className="h-3.5 w-3.5" />
+                                                                {isRTL ? 'سجل الحضور' : 'History'}
+                                                            </Button>
+                                                        </div>
+                                                        <div className="flex justify-between items-center mt-3 pt-3 border-t text-xs">
+                                                            <div className="flex gap-2">
+                                                                <span className="text-green-600 dark:text-green-400 font-semibold">{isRTL ? `حضر: ${stats.attended}` : `Attended: ${stats.attended}`}</span>
+                                                                <span className="text-red-600 dark:text-red-400 font-semibold">{isRTL ? `غاب: ${stats.missed}` : `Missed: ${stats.missed}`}</span>
+                                                            </div>
+                                                            <Badge variant="secondary" className={`font-semibold ${stats.rate >= 80 ? 'bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400' : stats.rate >= 50 ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400' : 'bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400'}`}>
+                                                                {stats.rate}%
+                                                            </Badge>
+                                                        </div>
+                                                    </Card>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </TabsContent>
+
+                                {/* Organizers Tab */}
+                                {canManageOrganizers && (
+                                    <TabsContent value="organizers" className="space-y-4 py-0 outline-none">
+                                        <div className="flex justify-between items-center bg-card p-3 rounded-xl border">
+                                            <div>
+                                                <h3 className="font-semibold text-xs sm:text-sm">{isRTL ? 'المنظمين' : 'Organizers'}</h3>
+                                                <p className="text-[10px] sm:text-xs text-muted-foreground">
+                                                    {selectedCircle?.organizers?.length || 0} {isRTL ? 'منظم' : 'organizer'}
+                                                </p>
+                                            </div>
+                                            <Popover open={organizerPopoverOpen} onOpenChange={setOrganizerPopoverOpen}>
+                                                <PopoverTrigger asChild>
+                                                    <Button size="sm" className="h-8 text-xs">
+                                                        <UserPlus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'إضافة منظم' : 'Add Organizer'}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="p-0" align={isRTL ? "end" : "start"}>
+                                                    <Command>
+                                                        <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
+                                                        <CommandList className="max-h-[300px]">
+                                                            <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results found.'}</CommandEmpty>
+                                                            <CommandGroup>
+                                                                {volunteers.map(volunteer => (
+                                                                    <CommandItem
+                                                                        key={volunteer.id}
+                                                                        onSelect={() => {
+                                                                            handleAddOrganizerToCircle({
+                                                                                volunteer_id: volunteer.id,
+                                                                                name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
+                                                                                phone: volunteer.phone || ''
+                                                                            });
+                                                                            setOrganizerPopoverOpen(false);
+                                                                        }}
+                                                                    >
+                                                                        <div className="flex items-center gap-2">
+                                                                            <Avatar className="h-6 w-6">
+                                                                                <AvatarImage src={volunteer.avatar_url || undefined} />
+                                                                                <AvatarFallback>{volunteer.full_name.charAt(0)}</AvatarFallback>
+                                                                            </Avatar>
+                                                                            <div className="flex flex-col">
+                                                                                <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
+                                                                                {volunteer.phone && <span className="text-xs text-muted-foreground">{volunteer.phone}</span>}
+                                                                            </div>
+                                                                        </div>
+                                                                    </CommandItem>
+                                                                ))}
+                                                            </CommandGroup>
+                                                        </CommandList>
+                                                    </Command>
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {selectedCircle?.organizers?.map((organizer, index) => (
+                                                <div key={index} className="flex items-center justify-between p-3 rounded-lg border bg-card">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="p-2 rounded-full bg-primary/10 text-primary">
+                                                            <User className="h-4 w-4" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium text-xs sm:text-sm">{organizer.name}</p>
+                                                            {organizer.phone && <p className="text-[10px] sm:text-xs text-muted-foreground">{organizer.phone}</p>}
+                                                        </div>
+                                                    </div>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-muted-foreground hover:text-destructive h-8 w-8"
+                                                        onClick={() => handleRemoveOrganizerFromCircle(organizer)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                            {(!selectedCircle?.organizers || selectedCircle.organizers.length === 0) && (
+                                                <div className="text-center py-8 text-muted-foreground">
+                                                    <Users className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                                                    <p className="text-sm">{isRTL ? 'لا يوجد منظمين لهذه الحلقة' : 'No organizers for this circle'}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </TabsContent>
+                                )}
+                            </div>
+                        </div>
                     </Tabs>
                 </DialogContent>
             </Dialog >
@@ -2649,14 +2762,44 @@ export default function QuranCircles() {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
-                        <div className="space-y-2">
+                        <div className="space-y-2 flex flex-col">
                             <label className="text-sm font-medium">{isRTL ? 'التاريخ' : 'Date'}</label>
-                            <Input
-                                type="date"
-                                max={new Date().toISOString().split('T')[0]}
-                                value={sessionDate}
-                                onChange={e => setSessionDate(e.target.value)}
-                            />
+                            <Popover open={isSessionCalendarOpen} onOpenChange={setIsSessionCalendarOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="w-full justify-between text-start font-normal h-10 border hover:border-primary/50 transition-colors bg-background px-3"
+                                    >
+                                        <span>
+                                            {sessionDate ? (
+                                                format(getLocalDateObj(sessionDate)!, 'yyyy/MM/dd')
+                                            ) : (
+                                                <span className="text-muted-foreground">{isRTL ? 'اختر التاريخ' : 'Pick a date'}</span>
+                                            )}
+                                        </span>
+                                        <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                    <CalendarComponent
+                                        mode="single"
+                                        selected={getLocalDateObj(sessionDate)}
+                                        onSelect={(date) => {
+                                            if (date) {
+                                                setSessionDate(format(date, 'yyyy-MM-dd'));
+                                                setIsSessionCalendarOpen(false);
+                                            }
+                                        }}
+                                        disabled={(date) => {
+                                            const today = new Date();
+                                            today.setHours(23, 59, 59, 999);
+                                            return date > today;
+                                        }}
+                                        initialFocus
+                                    />
+                                </PopoverContent>
+                            </Popover>
                         </div>
                         {/* Organizer (Supervisor) Selection */}
                         {circleOrganizersForSession.length > 0 && (
@@ -3186,6 +3329,181 @@ export default function QuranCircles() {
                                 </div>
                             )}
                         </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Unenroll Beneficiary Confirmation AlertDialog */}
+            <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{isRTL ? 'إلغاء تسجيل طالب' : 'Unenroll Student'}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {isRTL
+                                ? `هل أنت متأكد من إلغاء تسجيل الطالب "${beneficiaryToDelete?.name_ar || ''}" من هذه الحلقة؟`
+                                : `Are you sure you want to unenroll student "${beneficiaryToDelete?.name_ar || ''}" from this circle?`}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setBeneficiaryToDelete(null)}>{isRTL ? 'تراجع' : 'Cancel'}</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleUnenrollBeneficiary} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            {isRTL ? 'إلغاء التسجيل' : 'Unenroll'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Edit Beneficiary Dialog */}
+            <Dialog open={isEditStudentDialogOpen} onOpenChange={setIsEditStudentDialogOpen}>
+                <DialogContent className="max-w-[95vw] sm:max-w-md rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle>{isRTL ? 'تعديل بيانات الطالب' : 'Edit Student Details'}</DialogTitle>
+                        <DialogDescription>
+                            {isRTL ? 'تعديل الاسم والهاتف والنوع وفئة الطالب.' : 'Update student name, phone, gender, and type.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="edit-name-ar">{isRTL ? 'الاسم (بالعربية) *' : 'Name (Arabic) *'}</Label>
+                            <Input
+                                id="edit-name-ar"
+                                placeholder={isRTL ? 'الاسم الثنائي أو الثلاثي' : 'Name'}
+                                value={newBeneficiary.name_ar}
+                                onChange={e => setNewBeneficiary({ ...newBeneficiary, name_ar: e.target.value })}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="edit-phone">{isRTL ? 'رقم الهاتف' : 'Phone Number'}</Label>
+                            <Input
+                                id="edit-phone"
+                                placeholder={isRTL ? 'رقم الهاتف' : 'Phone'}
+                                value={newBeneficiary.phone}
+                                onChange={e => setNewBeneficiary({ ...newBeneficiary, phone: e.target.value })}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label>{isRTL ? 'النوع' : 'Gender'}</Label>
+                                <Select
+                                    value={newBeneficiary.gender}
+                                    onValueChange={(val: 'male' | 'female') => setNewBeneficiary({ ...newBeneficiary, gender: val })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="male">{isRTL ? 'ذكر' : 'Male'}</SelectItem>
+                                        <SelectItem value="female">{isRTL ? 'أنثى' : 'Female'}</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label>{isRTL ? 'الفئة' : 'Type'}</Label>
+                                <Select
+                                    value={newBeneficiary.beneficiary_type}
+                                    onValueChange={(val: 'adult' | 'child') => setNewBeneficiary({ ...newBeneficiary, beneficiary_type: val })}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="adult">{isRTL ? 'بالغ' : 'Adult'}</SelectItem>
+                                        <SelectItem value="child">{isRTL ? 'طفل' : 'Child'}</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex justify-end gap-2 border-t pt-4">
+                        <Button variant="outline" onClick={() => {
+                            setIsEditStudentDialogOpen(false);
+                            setEditingBeneficiary(null);
+                        }}>
+                            {isRTL ? 'إلغاء' : 'Cancel'}
+                        </Button>
+                        <Button onClick={() => {
+                            handleAddBeneficiary();
+                            setIsEditStudentDialogOpen(false);
+                        }}>
+                            {isRTL ? 'حفظ التغييرات' : 'Save Changes'}
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Student Attendance History Timeline Dialog (Mobile) */}
+            <Dialog open={isHistoryDialogOpen} onOpenChange={setIsHistoryDialogOpen}>
+                <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl flex flex-col p-0">
+                    <DialogHeader className="p-4 sm:p-6 pb-2 shrink-0 border-b">
+                        <DialogTitle className="flex items-center gap-2">
+                            <History className="h-5 w-5 text-primary" />
+                            <span>{isRTL ? 'سجل حضور الطالب' : 'Student Attendance History'}</span>
+                        </DialogTitle>
+                        <p className="text-sm text-muted-foreground mt-1">
+                            {historyStudent?.name_ar}
+                        </p>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+                        <div className="relative border-r rtl:border-r-0 ltr:border-l rtl:border-l-0 border-muted ltr:ml-3 rtl:mr-3 pl-6 pr-6 space-y-6 py-2">
+                            {sessions.map((session, idx) => {
+                                const record = attendanceData[session.id]?.find(a => a.beneficiary_id === historyStudent?.id);
+                                const isPresent = !!record;
+
+                                return (
+                                    <div key={session.id} className="relative flex flex-col gap-2">
+                                        {/* Marker dot */}
+                                        <div className={`absolute -right-[31px] rtl:-right-[31px] ltr:-left-[31px] top-1.5 w-4 h-4 rounded-full border-2 bg-background transition-all ${isPresent ? 'border-green-500 bg-green-500' : 'border-muted-foreground'}`} />
+                                        
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <span className="text-[10px] font-mono text-muted-foreground">#{sessions.length - idx}</span>
+                                                <h5 className="font-semibold text-sm">
+                                                    {format(new Date(session.session_date), 'EEEE, d MMMM', { locale: isRTL ? ar : enUS })}
+                                                </h5>
+                                                {session.notes && <p className="text-xs text-muted-foreground mt-0.5">{session.notes}</p>}
+                                            </div>
+                                            <Switch
+                                                checked={isPresent}
+                                                onCheckedChange={() => toggleCircleAttendance(session.id, historyStudent!.id)}
+                                            />
+                                        </div>
+
+                                        {isPresent && (
+                                            <div className="flex gap-1 mt-1 bg-muted/40 p-1.5 rounded-lg w-fit">
+                                                <button
+                                                    onClick={() => updateSheetAttendanceType(session.id, historyStudent!.id, 'memorization')}
+                                                    className={`px-3 py-1 rounded text-xs transition-all ${record?.attendance_type === 'memorization'
+                                                        ? 'bg-green-600 text-white shadow-sm'
+                                                        : 'hover:bg-muted'
+                                                        }`}
+                                                >
+                                                    {isRTL ? 'حفظ جديد' : 'New Memorization'}
+                                                </button>
+                                                <button
+                                                    onClick={() => updateSheetAttendanceType(session.id, historyStudent!.id, 'revision')}
+                                                    className={`px-3 py-1 rounded text-xs transition-all ${record?.attendance_type === 'revision'
+                                                        ? 'bg-amber-50 text-white shadow-sm'
+                                                        : 'hover:bg-muted'
+                                                        }`}
+                                                >
+                                                    {isRTL ? 'مراجعة' : 'Revision'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                            {sessions.length === 0 && (
+                                <p className="text-center text-muted-foreground text-sm py-4">{isRTL ? 'لا توجد جلسات مسجلة بعد' : 'No recorded sessions yet'}</p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="p-4 border-t flex justify-end shrink-0">
+                        <Button onClick={() => setIsHistoryDialogOpen(false)}>
+                            {isRTL ? 'إغلاق' : 'Close'}
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>
