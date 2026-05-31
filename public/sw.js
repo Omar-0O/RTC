@@ -31,8 +31,14 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') {
+    console.log('[SW] skipWaiting received, activating new version immediately.');
+    self.skipWaiting();
+  }
 });
 
 // ─── Activate: clean old caches ─────────────────────────────────────

@@ -27,8 +27,10 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Plus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, Sparkles, Download, Pencil, Mic, UserPlus, Link as LinkIcon } from 'lucide-react';
+import { Plus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, Sparkles, Download, Pencil, Mic, UserPlus, Link as LinkIcon, Activity, FileText, X } from 'lucide-react';
 import { format } from 'date-fns';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
 interface Committee {
@@ -764,110 +766,163 @@ export default function EventManagement() {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-5">
                 <div>
-                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-                        <Sparkles className="h-7 w-7" />
-                        {isRTL ? 'إدارة الإيفينتات' : 'Event Management'}
+                    <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-2">
+                        <Sparkles className="h-7 w-7 text-primary" />
+                        <span>{isRTL ? 'إدارة الإيفينتات' : 'Event Management'}</span>
                         {!isAdmin && userCommitteeName && (
                             <span className="text-lg font-normal text-muted-foreground">
                                 - {isRTL ? committees.find(c => c.name === userCommitteeName)?.name_ar : userCommitteeName}
                             </span>
                         )}
                     </h1>
-                    <p className="text-muted-foreground">{isRTL ? 'إنشاء وإدارة الإيفينتات' : 'Create and manage events'}</p>
+                    <p className="text-sm text-muted-foreground">{isRTL ? 'إنشاء وإدارة الإيفينتات' : 'Create and manage events'}</p>
                 </div>
 
-                <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) resetForm(); }}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                            {isRTL ? 'إيفينت جديد' : 'New Event'}
-                        </Button>
-                    </DialogTrigger>
-
-                    <Button variant="outline" onClick={handleExportAllEvents}>
-                        <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                        {isRTL ? 'تصدير الكل' : 'Export All'}
-                    </Button>
-                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>{isEditMode ? (isRTL ? 'تعديل الإيفينت' : 'Edit Event') : (isRTL ? 'إنشاء إيفينت جديد' : 'Create New Event')}</DialogTitle>
-                            <DialogDescription>{isRTL ? 'أضف تفاصيل الإيفينت والمشاركين' : 'Add event details and participants'}</DialogDescription>
+                <div className="flex flex-row items-center gap-2 w-full sm:w-auto">
+                    <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) resetForm(); }}>
+                        <DialogTrigger asChild>
+                            <Button className="flex-1 sm:flex-initial">
+                                <Plus className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                {isRTL ? 'إيفينت جديد' : 'New Event'}
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl sm:rounded-3xl border border-border/40 shadow-2xl">
+                        <DialogHeader className="px-4 sm:px-6 py-5 border-b-2 border-border/50 dark:border-border/80 shrink-0 bg-muted/30 flex flex-col items-center text-center">
+                            <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center justify-center gap-2">
+                                <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                                {isEditMode ? (isRTL ? 'تعديل الإيفينت' : 'Edit Event') : (isRTL ? 'إنشاء إيفينت جديد' : 'Create New Event')}
+                            </DialogTitle>
+                            <DialogDescription className="text-center mt-1.5">{isRTL ? 'أضف تفاصيل الإيفينت والمشاركين' : 'Add event details and participants'}</DialogDescription>
                         </DialogHeader>
 
-                        <div className="grid gap-4 py-4">
+                        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6 space-y-6">
+                            {/* القسم الأول: البيانات الأساسية */}
+                            <h3 className="text-lg sm:text-xl font-bold border-b-2 border-primary/20 dark:border-primary/40 pb-2 flex items-center gap-2 text-foreground/90">
+                                <Sparkles className="h-5 w-5 text-primary" />
+                                {isRTL ? 'البيانات الأساسية' : 'Basic Info'}
+                            </h3>
+
                             {/* Event Name */}
-                            <div className="grid gap-2">
-                                <Label>{isRTL ? 'اسم الإيفينت' : 'Event Name'} *</Label>
+                            <div className="space-y-2 relative">
+                                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                    <Users className="h-3.5 w-3.5 text-primary" />
+                                    {isRTL ? 'اسم الإيفينت' : 'Event Name'} <span className="text-destructive">*</span>
+                                </Label>
                                 <Input
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    placeholder={isRTL ? 'اسم الإيفينت' : 'Event Name'}
+                                    className={`h-11 sm:h-12 ${!formData.name ? 'border-primary/20 hover:border-primary/50' : ''}`}
+                                    placeholder={isRTL ? 'مثال: ملتقى المتطوعين السنوي' : 'e.g., Annual Volunteer Meeting'}
                                 />
                             </div>
 
                             {/* Event Type - Free Text */}
-                            <div className="grid gap-2">
-                                <Label>{isRTL ? 'نوع الإيفينت' : 'Event Type'} *</Label>
+                            <div className="space-y-2 relative">
+                                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                    <Activity className="h-3.5 w-3.5 text-primary" />
+                                    {isRTL ? 'نوع الإيفينت' : 'Event Type'} <span className="text-destructive">*</span>
+                                </Label>
                                 <Input
                                     value={formData.type}
                                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                                    className={`h-11 sm:h-12 ${!formData.type ? 'border-primary/20 hover:border-primary/50' : ''}`}
                                     placeholder={isRTL ? 'مثال: ورشة عمل، محاضرة، مسابقة...' : 'e.g., Workshop, Lecture, Competition...'}
                                 />
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {/* Date */}
-                                <div className="grid gap-2">
-                                    <Label>{isRTL ? 'التاريخ' : 'Date'} *</Label>
-                                    <Input
-                                        type="date"
-                                        value={formData.date}
-                                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                    />
+                                <div className="space-y-2 relative">
+                                    <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                        <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                                        {isRTL ? 'التاريخ' : 'Date'} <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                className={cn(
+                                                    "w-full justify-start text-start font-normal h-11 sm:h-12 border-primary/20 hover:border-primary/50",
+                                                    !formData.date && "text-muted-foreground"
+                                                )}
+                                            >
+                                                <Calendar className="ltr:mr-2 rtl:ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                                                {formData.date ? (
+                                                    format(new Date(formData.date), "PPP", { locale: isRTL ? ar : undefined })
+                                                ) : (
+                                                    <span>{isRTL ? 'اختر التاريخ' : 'Pick a date'}</span>
+                                                )}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <CalendarComponent
+                                                mode="single"
+                                                selected={formData.date ? new Date(formData.date) : undefined}
+                                                onSelect={(date) => setFormData({ ...formData, date: date ? format(date, 'yyyy-MM-dd') : '' })}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
 
                                 {/* Time */}
-                                <div className="grid gap-2">
-                                    <Label>{isRTL ? 'الوقت' : 'Time'}</Label>
+                                <div className="space-y-2 relative">
+                                    <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                        {isRTL ? 'الوقت' : 'Time'}
+                                    </Label>
                                     <Input
                                         type="time"
                                         value={formData.time}
                                         onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+                                        className={`h-11 sm:h-12 ${!formData.time ? 'border-primary/20 hover:border-primary/50' : ''}`}
                                     />
                                 </div>
                             </div>
 
                             {/* Location */}
-                            <div className="grid gap-2">
-                                <Label>{isRTL ? 'المكان' : 'Location'} *</Label>
+                            <div className="space-y-2 relative">
+                                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                                    {isRTL ? 'المكان' : 'Location'} <span className="text-destructive">*</span>
+                                </Label>
                                 <Input
                                     value={formData.location}
                                     onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                    className={`h-11 sm:h-12 ${!formData.location ? 'border-primary/20 hover:border-primary/50' : ''}`}
                                     placeholder={isRTL ? 'مكان الإيفينت' : 'Event Location'}
                                 />
                             </div>
 
                             {/* Description */}
-                            <div className="grid gap-2">
-                                <Label>{isRTL ? 'الوصف' : 'Description'}</Label>
+                            <div className="space-y-2 relative">
+                                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                    <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                    {isRTL ? 'الوصف' : 'Description'}
+                                </Label>
                                 <Textarea
                                     value={formData.description}
                                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                    className={cn("text-sm", !formData.description ? "border-primary/20 hover:border-primary/50" : "")}
                                     placeholder={isRTL ? 'وصف الإيفينت (اختياري)' : 'Event description (optional)'}
                                     rows={3}
                                 />
                             </div>
 
                             {/* Committee Selector */}
-                            <div className="grid gap-2">
-                                <Label>{isRTL ? 'اللجنة' : 'Committee'}</Label>
+                            <div className="space-y-2 relative">
+                                <Label className="text-sm font-semibold flex items-center gap-1.5">
+                                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                                    {isRTL ? 'اللجنة' : 'Committee'}
+                                </Label>
                                 <Select
                                     value={formData.committee_id || 'general'}
                                     onValueChange={(val) => setFormData({ ...formData, committee_id: val })}
+                                    dir={isRTL ? 'rtl' : 'ltr'}
                                 >
-                                    <SelectTrigger>
+                                    <SelectTrigger className={cn("h-11 sm:h-12", !formData.committee_id ? "border-primary/20 hover:border-primary/50" : "")}>
                                         <SelectValue placeholder={isRTL ? 'اختر اللجنة' : 'Select committee'} />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -887,8 +942,8 @@ export default function EventManagement() {
 
                             {/* Speakers Section */}
                             <div className="border-t pt-4 mt-2">
-                                <h4 className="font-medium mb-3 flex items-center gap-2">
-                                    <Mic className="h-4 w-4" />
+                                <h4 className="font-semibold mb-3 flex items-center gap-1.5 text-sm">
+                                    <Mic className="h-3.5 w-3.5 text-primary" />
                                     {isRTL ? 'المتحدثون' : 'Speakers'}
                                 </h4>
                                 <div className="space-y-3">
@@ -897,21 +952,21 @@ export default function EventManagement() {
                                             placeholder={isRTL ? 'اسم المتحدث' : 'Speaker name'}
                                             value={newSpeaker.name}
                                             onChange={(e) => setNewSpeaker({ ...newSpeaker, name: e.target.value })}
-                                            className="flex-1"
+                                            className={cn("flex-1 h-11 sm:h-12", !newSpeaker.name ? "border-primary/20 hover:border-primary/50" : "")}
                                         />
                                         <Input
                                             placeholder={isRTL ? 'الهاتف' : 'Phone'}
                                             value={newSpeaker.phone}
                                             onChange={(e) => setNewSpeaker({ ...newSpeaker, phone: e.target.value })}
-                                            className="w-full sm:w-28"
+                                            className={cn("w-full sm:w-28 h-11 sm:h-12", !newSpeaker.phone ? "border-primary/20 hover:border-primary/50" : "")}
                                         />
                                         <Input
                                             placeholder={isRTL ? 'رابط التواصل' : 'Social link'}
                                             value={newSpeaker.social_media_link}
                                             onChange={(e) => setNewSpeaker({ ...newSpeaker, social_media_link: e.target.value })}
-                                            className="w-full sm:w-36"
+                                            className={cn("w-full sm:w-36 h-11 sm:h-12", !newSpeaker.social_media_link ? "border-primary/20 hover:border-primary/50" : "")}
                                         />
-                                        <Button type="button" variant="secondary" onClick={handleAddSpeaker} className="w-full sm:w-auto">
+                                        <Button type="button" variant="secondary" onClick={handleAddSpeaker} className="w-full sm:w-auto h-11 sm:h-12">
                                             <Plus className="h-4 w-4 sm:mr-0 rtl:ml-2 sm:rtl:ml-0" />
                                             <span className="sm:hidden">{isRTL ? 'إضافة' : 'Add'}</span>
                                         </Button>
@@ -942,29 +997,51 @@ export default function EventManagement() {
 
                             {/* Organizers Section */}
                             <div className="border-t pt-4 mt-2">
-                                <h4 className="font-medium mb-3 flex items-center gap-2">
-                                    <UserPlus className="h-4 w-4" />
+                                <h4 className="font-semibold mb-3 flex items-center gap-1.5 text-sm">
+                                    <UserPlus className="h-3.5 w-3.5 text-primary" />
                                     {isRTL ? 'المنظمون' : 'Organizers'}
                                 </h4>
                                 <Popover open={openOrgCombobox} onOpenChange={setOpenOrgCombobox}>
                                     <PopoverTrigger asChild>
-                                        <Button variant="outline" role="combobox" className="w-full justify-between">
+                                        <Button variant="outline" role="combobox" className={cn("w-full justify-between h-11 sm:h-12", organizers.length === 0 ? "border-primary/20 hover:border-primary/50" : "")}>
                                             {isRTL ? 'اختر منظم...' : 'Select organizer...'}
                                             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                                         </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-full p-0">
+                                    <PopoverContent className="w-[calc(100vw-2.5rem)] sm:w-[var(--radix-popover-trigger-width)] p-0" align="start">
                                         <Command>
-                                            <CommandInput placeholder={isRTL ? 'بحث...' : 'Search...'} />
-                                            <CommandList>
-                                                <CommandEmpty>{isRTL ? 'لا توجد نتائج' : 'No results'}</CommandEmpty>
+                                            <CommandInput placeholder={isRTL ? 'بحث عن متطوع أو رقم الهاتف...' : 'Search volunteer or phone...'} />
+                                            <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
+                                                <CommandEmpty>{isRTL ? 'لا توجد نتائج' : 'No results found'}</CommandEmpty>
                                                 <CommandGroup>
-                                                    {volunteers.map((v) => (
-                                                        <CommandItem key={v.id} value={v.full_name || v.id} onSelect={() => handleAddOrganizer(v.id)}>
-                                                            <Check className={cn("mr-2 h-4 w-4", organizers.some(o => o.volunteer_id === v.id) ? "opacity-100" : "opacity-0")} />
-                                                            {v.full_name}
-                                                        </CommandItem>
-                                                    ))}
+                                                    {volunteers.map((v) => {
+                                                        const isSelected = organizers.some(o => o.volunteer_id === v.id);
+                                                        return (
+                                                            <CommandItem
+                                                                key={v.id}
+                                                                value={`${v.full_name} ${v.phone || ''}`}
+                                                                onSelect={() => {
+                                                                    handleAddOrganizer(v.id);
+                                                                }}
+                                                            >
+                                                                <div className="flex items-center gap-2 w-full">
+                                                                    <Avatar className="h-8 w-8">
+                                                                        <AvatarImage src={v.avatar_url || undefined} />
+                                                                        <AvatarFallback>{(v.full_name?.[0] || '?').toUpperCase()}</AvatarFallback>
+                                                                    </Avatar>
+                                                                    <div className="flex flex-col flex-1">
+                                                                        <span className={isSelected ? 'text-muted-foreground' : ''}>
+                                                                            {v.full_name}
+                                                                        </span>
+                                                                        {v.phone && <span className="text-xs text-muted-foreground font-mono" dir="ltr" style={{ textAlign: isRTL ? 'right' : 'left' }}>{v.phone}</span>}
+                                                                    </div>
+                                                                    {isSelected && (
+                                                                        <Check className="h-4 w-4 text-green-600 shrink-0" />
+                                                                    )}
+                                                                </div>
+                                                            </CommandItem>
+                                                        );
+                                                    })}
                                                 </CommandGroup>
                                             </CommandList>
                                         </Command>
@@ -986,20 +1063,25 @@ export default function EventManagement() {
                                     </div>
                                 )}
                             </div>
-                            {/* Participants Section Removed as per user request (Redundant with Organizers) */}
                         </div>
 
-                        <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t-2 border-border/50 dark:border-border/80 bg-muted/10 shrink-0">
+                            <Button variant="outline" onClick={() => setIsCreateOpen(false)} className="h-11 sm:h-12 px-4 sm:px-8 w-full sm:w-auto text-sm font-medium">
                                 {isRTL ? 'إلغاء' : 'Cancel'}
                             </Button>
-                            <Button onClick={handleSave}>
+                            <Button onClick={handleSave} className="h-11 sm:h-12 px-4 sm:px-8 w-full sm:w-auto text-sm font-semibold shadow-sm">
                                 {isEditMode ? (isRTL ? 'حفظ التغييرات' : 'Save Changes') : (isRTL ? 'إنشاء الإيفينت' : 'Create Event')}
                             </Button>
-                        </DialogFooter>
+                        </div>
                     </DialogContent>
                 </Dialog>
+
+                <Button variant="outline" onClick={handleExportAllEvents} className="flex-1 sm:flex-initial">
+                    <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                    {isRTL ? 'تصدير الكل' : 'Export All'}
+                </Button>
             </div>
+        </div>
 
             {/* Filters */}
             <div className="flex gap-4 items-center">
@@ -1012,12 +1094,48 @@ export default function EventManagement() {
                         className="pl-9 rtl:pr-9 rtl:pl-4"
                     />
                 </div>
-                <Input
-                    type="date"
-                    value={filterDate}
-                    onChange={(e) => setFilterDate(e.target.value)}
-                    className="w-auto"
-                />
+                <div className="relative">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                className={cn(
+                                    "w-auto justify-start text-start font-normal bg-background h-10 border border-input",
+                                    filterDate ? (isRTL ? "pl-8" : "pr-8") : "",
+                                    !filterDate && "text-muted-foreground"
+                                )}
+                            >
+                                <Calendar className="ltr:mr-2 rtl:ml-2 h-4 w-4 shrink-0" />
+                                {filterDate ? (
+                                    format(new Date(filterDate), "PPP", { locale: isRTL ? ar : undefined })
+                                ) : (
+                                    <span>{isRTL ? 'تصفية بالتاريخ' : 'Filter by date'}</span>
+                                )}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                            <CalendarComponent
+                                mode="single"
+                                selected={filterDate ? new Date(filterDate) : undefined}
+                                onSelect={(date) => setFilterDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                                initialFocus
+                            />
+                        </PopoverContent>
+                    </Popover>
+                    {filterDate && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute ltr:right-2 rtl:left-2 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setFilterDate('');
+                            }}
+                        >
+                            <X className="w-3.5 h-3.5" />
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {/* Events Grid */}

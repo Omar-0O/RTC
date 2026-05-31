@@ -114,4 +114,99 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
 }
 Calendar.displayName = "Calendar";
 
-export { Calendar };
+// --- MonthPicker Component ---
+
+export interface MonthPickerProps {
+  /** Currently selected date (only year & month are used) */
+  selected?: Date;
+  /** Called when a month is clicked, with a Date set to the 1st of that month */
+  onSelect?: (date: Date) => void;
+  className?: string;
+}
+
+function MonthPicker({ selected, onSelect, className }: MonthPickerProps) {
+  const { language, isRTL } = useLanguage();
+  const locale = language === "ar" ? ar : undefined;
+
+  const [year, setYear] = React.useState<number>(
+    selected ? selected.getFullYear() : new Date().getFullYear()
+  );
+
+  const selectedMonth = selected ? selected.getMonth() : -1;
+  const selectedYear = selected ? selected.getFullYear() : -1;
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  // Build short month labels
+  const months = React.useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(year, i, 1);
+      // "LLL" gives abbreviated month name (e.g. Jan, فبر)
+      const label = new Intl.DateTimeFormat(language === "ar" ? "ar" : "en", { month: "short" }).format(d);
+      return label;
+    });
+  }, [year, language]);
+
+  const navBtnClass = cn(
+    buttonVariants({ variant: "outline" }),
+    "h-8 w-8 bg-muted/80 dark:bg-muted/30 text-foreground border border-border/80 rounded-md p-0 shadow-sm transition-all duration-200 hover:scale-105 hover:bg-primary hover:text-primary-foreground hover:border-primary cursor-pointer",
+  );
+
+  return (
+    <div
+      className={cn("p-3 bg-background rounded-md border border-border shadow-md", className)}
+      dir={isRTL ? "rtl" : "ltr"}
+    >
+      {/* Year navigation header */}
+      <div className="flex items-center justify-between mb-3">
+        <button
+          type="button"
+          className={navBtnClass}
+          onClick={() => setYear((y) => y - 1)}
+          aria-label={isRTL ? "السنة السابقة" : "Previous year"}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
+        <span className="text-sm font-medium">{year}</span>
+        <button
+          type="button"
+          className={navBtnClass}
+          onClick={() => setYear((y) => y + 1)}
+          aria-label={isRTL ? "السنة التالية" : "Next year"}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* 4×3 month grid */}
+      <div className="grid grid-cols-3 gap-1.5">
+        {months.map((label, i) => {
+          const isSelected = year === selectedYear && i === selectedMonth;
+          const isToday = year === currentYear && i === currentMonth;
+
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onSelect?.(new Date(year, i, 1))}
+              className={cn(
+                buttonVariants({ variant: "ghost" }),
+                "h-9 w-full p-0 text-sm font-normal cursor-pointer",
+                isSelected &&
+                  "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+                !isSelected && isToday && "bg-accent text-accent-foreground",
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+MonthPicker.displayName = "MonthPicker";
+
+export { Calendar, MonthPicker };

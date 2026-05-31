@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Building } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -121,20 +121,25 @@ export default function ManageRooms() {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{isRTL ? "إدارة القاعات" : "Manage Rooms"}</h1>
-          <p className="text-muted-foreground">{isRTL ? "إضافة وتعديل القاعات المتاحة للكورسات" : "Add and edit available rooms for courses"}</p>
+    <div className="space-y-6 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5">
+        <div className="space-y-1">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-2">
+            <Building className="w-6 h-6 sm:w-8 sm:h-8" />
+            <span>{isRTL ? "إدارة القاعات" : "Manage Rooms"}</span>
+          </h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            {isRTL ? "إضافة وتعديل القاعات المتاحة للكورسات" : "Add and edit available rooms for courses"}
+          </p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto shadow-sm transition-all duration-200 hover:shadow-md">
               <Plus className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
               {isRTL ? "إضافة قاعة" : "Add Room"}
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="w-[95vw] max-w-[450px] rounded-xl">
             <DialogHeader>
               <DialogTitle>{editingRoom ? (isRTL ? "تعديل القاعة" : "Edit Room") : (isRTL ? "إضافة قاعة جديدة" : "Add New Room")}</DialogTitle>
             </DialogHeader>
@@ -145,6 +150,7 @@ export default function ManageRooms() {
                   <Input
                     value={formData.id}
                     disabled
+                    className="bg-muted font-mono"
                   />
                   <p className="text-xs text-muted-foreground">{isRTL ? "لا يمكن تعديل الكود بعد الإنشاء" : "ID cannot be changed after creation"}</p>
                 </div>
@@ -167,21 +173,22 @@ export default function ManageRooms() {
                 />
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>{isRTL ? "إلغاء" : "Cancel"}</Button>
-              <Button onClick={handleSubmit}>{isRTL ? "حفظ" : "Save"}</Button>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="w-full sm:w-auto">{isRTL ? "إلغاء" : "Cancel"}</Button>
+              <Button onClick={handleSubmit} className="w-full sm:w-auto">{isRTL ? "حفظ" : "Save"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="border rounded-lg bg-card">
+      {/* Desktop Table View */}
+      <div className="hidden sm:block border rounded-lg bg-card overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>{isRTL ? "الكود" : "ID"}</TableHead>
-              <TableHead>{isRTL ? "الاسم (English)" : "Name (English)"}</TableHead>
-              <TableHead>{isRTL ? "الاسم (عربي)" : "Name (Arabic)"}</TableHead>
+            <TableRow className="bg-muted/50 hover:bg-muted/50">
+              <TableHead className={`font-semibold ${isRTL ? "text-right" : "text-left"}`}>{isRTL ? "الكود" : "ID"}</TableHead>
+              <TableHead className={`font-semibold ${isRTL ? "text-right" : "text-left"}`}>{isRTL ? "الاسم (English)" : "Name (English)"}</TableHead>
+              <TableHead className={`font-semibold ${isRTL ? "text-right" : "text-left"}`}>{isRTL ? "الاسم (عربي)" : "Name (Arabic)"}</TableHead>
               <TableHead className="w-[100px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -189,7 +196,7 @@ export default function ManageRooms() {
             {loading ? (
               <TableRow>
                 <TableCell colSpan={4} className="h-24 text-center">
-                  <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+                  <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
                 </TableCell>
               </TableRow>
             ) : rooms.length === 0 ? (
@@ -200,31 +207,31 @@ export default function ManageRooms() {
               </TableRow>
             ) : (
               rooms.map((room) => (
-                <TableRow key={room.id}>
-                  <TableCell className="font-mono text-sm">{room.id}</TableCell>
+                <TableRow key={room.id} className="hover:bg-muted/30 transition-colors">
+                  <TableCell className="font-mono text-sm font-medium text-primary">{room.id}</TableCell>
                   <TableCell>{room.name}</TableCell>
                   <TableCell className="font-arabic">{room.name_ar}</TableCell>
                   <TableCell>
                     <div className="flex gap-2 justify-end">
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(room)}>
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(room)} className="hover:bg-primary/10 hover:text-primary transition-colors">
                         <Pencil className="w-4 h-4" />
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                          <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 hover:text-destructive transition-colors">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </AlertDialogTrigger>
-                        <AlertDialogContent>
+                        <AlertDialogContent className="w-[90vw] max-w-[400px] rounded-xl">
                           <AlertDialogHeader>
                             <AlertDialogTitle>{isRTL ? "هل أنت متأكد؟" : "Are you sure?"}</AlertDialogTitle>
                             <AlertDialogDescription>
                               {isRTL ? "لا يمكن التراجع عن هذا الإجراء." : "This action cannot be undone."}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>{isRTL ? "إلغاء" : "Cancel"}</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(room.id)} className="bg-destructive hover:bg-destructive/90">
+                          <AlertDialogFooter className="gap-2 sm:gap-0 mt-4">
+                            <AlertDialogCancel className="w-full sm:w-auto">{isRTL ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(room.id)} className="w-full sm:w-auto bg-destructive hover:bg-destructive/90">
                               {isRTL ? "حذف" : "Delete"}
                             </AlertDialogAction>
                           </AlertDialogFooter>
@@ -237,6 +244,70 @@ export default function ManageRooms() {
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* Mobile Card View */}
+      <div className="block sm:hidden space-y-4">
+        {loading ? (
+          <div className="border rounded-xl bg-card p-8 flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : rooms.length === 0 ? (
+          <div className="border rounded-xl bg-card p-8 text-center text-muted-foreground">
+            {isRTL ? "لا توجد قاعات" : "No rooms found"}
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {rooms.map((room) => (
+              <div key={room.id} className="border rounded-xl bg-card p-4 shadow-sm space-y-3 transition-all duration-200 hover:shadow-md">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-secondary text-secondary-foreground border">
+                    {room.id}
+                  </span>
+                </div>
+                <div className="space-y-1.5 py-1">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground text-xs">{isRTL ? "الاسم (English)" : "Name (English)"}</span>
+                    <span className="font-medium">{room.name}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground text-xs">{isRTL ? "الاسم (عربي)" : "Name (Arabic)"}</span>
+                    <span className="font-medium font-arabic">{room.name_ar}</span>
+                  </div>
+                </div>
+                <div className="border-t pt-3 flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => openEdit(room)} className="h-9 px-3 text-xs flex-1">
+                    <Pencil className="w-3.5 h-3.5 ltr:mr-1.5 rtl:ml-1.5" />
+                    {isRTL ? "تعديل" : "Edit"}
+                  </Button>
+                  
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 px-3 text-xs text-destructive hover:bg-destructive/5 hover:text-destructive flex-1">
+                        <Trash2 className="w-3.5 h-3.5 ltr:mr-1.5 rtl:ml-1.5" />
+                        {isRTL ? "حذف" : "Delete"}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="w-[90vw] max-w-[400px] rounded-xl">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>{isRTL ? "هل أنت متأكد؟" : "Are you sure?"}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {isRTL ? "لا يمكن التراجع عن هذا الإجراء." : "This action cannot be undone."}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter className="gap-2 sm:gap-0 mt-4">
+                        <AlertDialogCancel className="w-full sm:w-auto">{isRTL ? "إلغاء" : "Cancel"}</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleDelete(room.id)} className="w-full sm:w-auto bg-destructive hover:bg-destructive/90">
+                          {isRTL ? "حذف" : "Delete"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

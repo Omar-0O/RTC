@@ -25,9 +25,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search, Megaphone, AlertTriangle, User, UserPlus, UserCheck, Table as TableIcon } from 'lucide-react';
-import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { Calendar as CalendarComponent, MonthPicker } from '@/components/ui/calendar';
 import { format, addDays, getDay, parseISO } from 'date-fns';
+import { ar } from 'date-fns/locale';
 import * as XLSX from 'xlsx';
+import { cn } from '@/lib/utils';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -41,6 +43,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
+import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import {
     Command,
     CommandEmpty,
@@ -183,6 +186,9 @@ export default function CourseManagement() {
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [attendanceData, setAttendanceData] = useState<Record<string, Attendance[]>>({});
     const [showPastCourses, setShowPastCourses] = useState(false);
+    const [filterSearch, setFilterSearch] = useState('');
+    const [filterDate, setFilterDate] = useState<string>('');
+    const [sortBy, setSortBy] = useState<string>('date-desc');
     const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
     const [organizerPopoverOpen, setOrganizerPopoverOpen] = useState(false);
     const [beneficiaries, setBeneficiaries] = useState<CourseBeneficiary[]>([]);
@@ -213,19 +219,108 @@ export default function CourseManagement() {
     const [historyStudent, setHistoryStudent] = useState<CourseBeneficiary | null>(null);
     const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
 
+    const formatTime = (timeStr: string | null | undefined) => {
+        if (!timeStr) return '';
+        try {
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            const date = new Date();
+            date.setHours(hours, minutes);
+            return format(date, 'h:mm a', { locale: isRTL ? ar : undefined });
+        } catch {
+            return timeStr || '';
+        }
+    };
+
     // roles and profile already destructured above
     const isRestricted = roles.includes('committee_leader') &&
         !roles.some(r => ['admin', 'supervisor', 'head_production', 'head_fourth_year', 'head_events', 'head_caravans', 'head_hr', 'head_marketing'].includes(r));
 
-    // Filter out ended courses unless showPastCourses is true
-    const activeCourses = courses.filter(course => {
+    // First: Filter by active/past status
+    const statusFilteredCourses = courses.filter(course => {
         if (showPastCourses) return true;
 
-        // Show if course has certificates (or has a status set) and they are NOT delivered yet
-        if ((course.has_certificates || course.certificate_status) && course.certificate_status !== 'delivered') return true;
+        const remainingLectures = Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0));
+        const isFinished = remainingLectures === 0;
 
-        if (!course.end_date) return true;
-        return new Date(course.end_date) >= new Date(new Date().toDateString());
+        if (isFinished) return false;
+
+        if (course.end_date && new Date(course.end_date) < new Date(new Date().toDateString())) {
+            return false;
+        }
+
+        return true;
+    });
+
+    // Second: Apply search text and month calendar filters
+    const filteredCoursesList = statusFilteredCourses.filter(course => {
+        // 1. Text Search Filter
+        if (filterSearch) {
+            const query = filterSearch.toLowerCase().trim();
+            const nameMatch = course.name.toLowerCase().includes(query);
+            
+            // Check multi-trainers
+            const trainerMatch = course.course_trainers && course.course_trainers.length > 0
+                ? course.course_trainers.some(ct => 
+                    ct.trainers?.name_ar?.toLowerCase().includes(query) || 
+                    ct.trainers?.name_en?.toLowerCase().includes(query)
+                  )
+                : course.trainer_name?.toLowerCase().includes(query);
+                
+            if (!nameMatch && !trainerMatch) return false;
+        }
+
+        // 2. Month Filter (using filterDate)
+        if (filterDate) {
+            const selDate = new Date(filterDate);
+            const selYear = selDate.getFullYear();
+            const selMonth = selDate.getMonth();
+            
+            const firstDay = new Date(selYear, selMonth, 1);
+            const lastDay = new Date(selYear, selMonth + 1, 0);
+            
+            const start = course.start_date ? new Date(course.start_date) : null;
+            const end = course.end_date ? new Date(course.end_date) : null;
+            
+            if (!start) return false;
+            
+            // Strip times for comparison
+            start.setHours(0, 0, 0, 0);
+            if (end) end.setHours(0, 0, 0, 0);
+            firstDay.setHours(0, 0, 0, 0);
+            lastDay.setHours(0, 0, 0, 0);
+            
+            const isOverlap = start <= lastDay && (!end || end >= firstDay);
+            if (!isOverlap) return false;
+        }
+
+        return true;
+    });
+
+    // Third: Sort the filtered courses list
+    const activeCourses = [...filteredCoursesList].sort((a, b) => {
+        if (sortBy === 'name-asc') {
+            return a.name.localeCompare(b.name, isRTL ? 'ar' : 'en');
+        }
+        if (sortBy === 'name-desc') {
+            return b.name.localeCompare(a.name, isRTL ? 'ar' : 'en');
+        }
+        if (sortBy === 'date-asc') {
+            return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+        }
+        if (sortBy === 'date-desc') {
+            return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
+        }
+        if (sortBy === 'lectures-desc') {
+            const remA = Math.max(0, a.total_lectures - (a.course_lectures?.filter(l => l.status === 'completed').length || 0));
+            const remB = Math.max(0, b.total_lectures - (b.course_lectures?.filter(l => l.status === 'completed').length || 0));
+            return remB - remA;
+        }
+        if (sortBy === 'lectures-asc') {
+            const remA = Math.max(0, a.total_lectures - (a.course_lectures?.filter(l => l.status === 'completed').length || 0));
+            const remB = Math.max(0, b.total_lectures - (b.course_lectures?.filter(l => l.status === 'completed').length || 0));
+            return remA - remB;
+        }
+        return 0;
     });
 
     // Form State
@@ -2131,13 +2226,19 @@ export default function CourseManagement() {
                     <p className="text-muted-foreground">{isRTL ? 'إدارة الكورسات والمحاضرات' : 'Manage courses and lectures'}</p>
                 </div>
                 <div className="flex flex-col sm:items-end gap-3 w-full sm:w-auto">
-                    <label className="flex items-center gap-2 cursor-pointer text-sm px-1">
+                    <div className="flex items-center gap-2 cursor-pointer text-sm px-1">
                         <Checkbox
+                            id="show-past-courses"
                             checked={showPastCourses}
                             onCheckedChange={(checked) => setShowPastCourses(!!checked)}
                         />
-                        <span className="text-muted-foreground">{isRTL ? 'عرض الكورسات المنتهية' : 'Show ended courses'}</span>
-                    </label>
+                        <Label
+                            htmlFor="show-past-courses"
+                            className="text-muted-foreground cursor-pointer text-sm font-normal"
+                        >
+                            {isRTL ? 'عرض الكورسات المنتهية' : 'Show ended courses'}
+                        </Label>
+                    </div>
                     <div className="flex gap-2 w-full sm:w-auto">
                         <Button variant="outline" onClick={exportAllCourses} className="flex-1 sm:flex-none">
                             <FileSpreadsheet className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
@@ -2571,25 +2672,123 @@ export default function CourseManagement() {
                 </div>
             </div>
 
+            {/* Search, Filter, and Sort Bar */}
+            <div className="flex flex-col md:flex-row items-center gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-sm mb-6">
+                {/* Text Search Input */}
+                <div className="relative w-full md:flex-1">
+                    <Search className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder={isRTL ? 'بحث عن كورس أو اسم المدرب...' : 'Search course or trainer name...'}
+                        value={filterSearch}
+                        onChange={e => setFilterSearch(e.target.value)}
+                        className="ltr:pl-9 ltr:pr-9 rtl:pr-9 rtl:pl-9 h-10 bg-background"
+                    />
+                    {filterSearch && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute ltr:right-1.5 rtl:left-1.5 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                            onClick={() => setFilterSearch('')}
+                        >
+                            <X className="w-4 h-4" />
+                        </Button>
+                    )}
+                </div>
+
+                {/* Date Popover (Month Picker) */}
+                <div className="relative w-full md:w-auto">
+                    <Popover>
+                        <PopoverTrigger asChild>
+                            <Button
+                                variant="outline"
+                                className={cn(
+                                    "w-full md:w-[220px] justify-start text-start font-normal h-10 bg-background border border-input",
+                                    filterDate ? (isRTL ? "pl-9" : "pr-9") : "",
+                                    !filterDate && "text-muted-foreground"
+                                )}
+                            >
+                                <Calendar className="ltr:mr-2 rtl:ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                                {filterDate ? (
+                                    format(new Date(filterDate), "LLLL yyyy", { locale: isRTL ? ar : undefined })
+                                ) : (
+                                    <span>{isRTL ? 'تصفية بالشهر' : 'Filter by month'}</span>
+                                )}
+                            </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                            <MonthPicker
+                                selected={filterDate ? new Date(filterDate) : undefined}
+                                onSelect={(date) => {
+                                    setFilterDate(format(date, 'yyyy-MM-dd'));
+                                }}
+                            />
+                        </PopoverContent>
+                    </Popover>
+                    {filterDate && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute ltr:right-1.5 rtl:left-1.5 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setFilterDate('');
+                            }}
+                        >
+                            <X className="w-4 h-4" />
+                        </Button>
+                    )}
+                </div>
+
+                {/* Sorting Select */}
+                <div className="w-full md:w-[220px]">
+                    <Select value={sortBy} onValueChange={setSortBy}>
+                        <SelectTrigger className="h-10 bg-background border border-input">
+                            <SelectValue placeholder={isRTL ? 'ترتيب حسب' : 'Sort by'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="date-desc">{isRTL ? 'الأحدث تاريخاً' : 'Newest'}</SelectItem>
+                            <SelectItem value="date-asc">{isRTL ? 'الأقدم تاريخاً' : 'Oldest'}</SelectItem>
+                            <SelectItem value="name-asc">{isRTL ? 'الاسم (أ-ي)' : 'Name (A-Z)'}</SelectItem>
+                            <SelectItem value="name-desc">{isRTL ? 'الاسم (ي-أ)' : 'Name (Z-A)'}</SelectItem>
+                            <SelectItem value="lectures-desc">{isRTL ? 'الأكثر محاضرات متبقية' : 'Most lectures remaining'}</SelectItem>
+                            <SelectItem value="lectures-asc">{isRTL ? 'الأقل محاضرات متبقية' : 'Least lectures remaining'}</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
             {/* Course Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {activeCourses.map(course => {
-                    const isFinished = course.end_date && new Date(course.end_date) < new Date();
+                    const remainingLectures = Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0));
+                    const isFinished = remainingLectures === 0;
                     return (
                         <Card
                             key={course.id}
-                            className={`transition-all ${isFinished ? 'opacity-60 hover:opacity-100 bg-muted/20' : ''}`}
+                            className={`transition-all ${isFinished ? 'opacity-80 hover:opacity-100 bg-muted/10' : ''}`}
                         >
                             <CardHeader className="pb-3">
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <CardTitle className="text-lg">{course.name}</CardTitle>
+                                            {isFinished && (
+                                                <Badge variant="secondary" className="bg-muted-foreground/15 text-muted-foreground border-none text-[10px] h-5">
+                                                    {isRTL ? 'منتهي' : 'Ended'}
+                                                </Badge>
+                                            )}
                                             {/* No Organizers Warning */}
                                             {(!course.course_organizers || course.course_organizers.length === 0) && (
-                                                <div title={isRTL ? 'لا يوجد منظمين' : 'No organizers'}>
-                                                    <AlertTriangle className="w-4 h-4 text-amber-500" />
-                                                </div>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <div className="cursor-help">
+                                                            <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                                        </div>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>{isRTL ? 'لا يوجد منظمين لهذا الكورس' : 'No organizers assigned'}</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
                                             )}
                                             {course.has_certificates && (() => {
                                                 // Check if all lectures are completed
@@ -2674,7 +2873,7 @@ export default function CourseManagement() {
                                     </div>
                                     <div className="flex items-center gap-2 text-muted-foreground">
                                         <Clock className="w-4 h-4" />
-                                        <span>{course.schedule_time}</span>
+                                        <span>{formatTime(course.schedule_time)}</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-muted-foreground">
                                         <BookOpen className="w-4 h-4" />
@@ -2692,6 +2891,15 @@ export default function CourseManagement() {
                         </Card>
                     );
                 })}
+                {activeCourses.length === 0 && courses.length > 0 && !loading && (
+                    <div className="col-span-full flex flex-col items-center justify-center p-8 border rounded-lg border-dashed text-muted-foreground">
+                        <Search className="w-12 h-12 mb-2 opacity-20" />
+                        <p className="font-medium">{isRTL ? 'لا توجد كورسات تطابق الفلتر' : 'No courses match your filter'}</p>
+                        <p className="text-sm mt-1 opacity-70">
+                            {isRTL ? 'جرب تغيير الشهر أو كلمة البحث' : 'Try changing the month or search term'}
+                        </p>
+                    </div>
+                )}
                 {courses.length === 0 && !loading && (
                     <div className="col-span-full flex flex-col items-center justify-center p-8 border rounded-lg border-dashed text-muted-foreground">
                         <BookOpen className="w-12 h-12 mb-2 opacity-20" />

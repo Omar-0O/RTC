@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Cake } from 'lucide-react';
 
 interface Committee {
   id: string;
@@ -109,40 +109,44 @@ export default function Birthdays() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="space-y-6 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-5">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
-            {language === 'ar' ? 'أعياد ميلاد هذا الشهر' : 'Birthdays of the Month'}
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-2">
+            <Cake className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
+            <span>
+              {language === 'ar' ? 'أيام ميلاد هذا الشهر' : 'Birthdays of the Month'}
+            </span>
             <span className="text-primary ltr:ml-2 rtl:mr-2">({getMonthName()})</span>
           </h1>
         </div>
       </div>
 
-      <Card>
-        <CardContent>
-          <div className="rounded-md border overflow-x-auto">
+      {/* Desktop Table View */}
+      <Card className="hidden sm:block">
+        <CardContent className="p-0">
+          <div className="rounded-md border overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="text-start whitespace-nowrap">{language === 'ar' ? 'يوم الميلاد' : 'Birthday'}</TableHead>
-                  <TableHead className="text-start whitespace-nowrap">{t('users.fullName')}</TableHead>
-                  <TableHead className="text-start whitespace-nowrap">{t('users.committee')}</TableHead>
-                  <TableHead className="text-start whitespace-nowrap">{t('users.level')}</TableHead>
+                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                  <TableHead className={`whitespace-nowrap font-semibold ${isRTL ? "text-right" : "text-left"}`}>{language === 'ar' ? 'يوم الميلاد' : 'Birthday'}</TableHead>
+                  <TableHead className={`whitespace-nowrap font-semibold ${isRTL ? "text-right" : "text-left"}`}>{t('users.fullName')}</TableHead>
+                  <TableHead className={`whitespace-nowrap font-semibold ${isRTL ? "text-right" : "text-left"}`}>{t('users.committee')}</TableHead>
+                  <TableHead className={`whitespace-nowrap font-semibold ${isRTL ? "text-right" : "text-left"}`}>{t('users.level')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {users.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                      {language === 'ar' ? 'لا توجد أعياد ميلاد هذا الشهر' : 'No birthdays this month'}
+                      {language === 'ar' ? 'لا توجد أيام ميلاد هذا الشهر' : 'No birthdays this month'}
                     </TableCell>
                   </TableRow>
                 ) : (
                   users.map((user) => (
-                    <TableRow key={user.id}>
+                    <TableRow key={user.id} className="hover:bg-muted/30 transition-colors">
                       <TableCell>
-                        <div className="flex items-center justify-center bg-primary/10 text-primary font-bold rounded-full h-10 w-10">
+                        <div className="flex items-center justify-center bg-primary/10 text-primary border border-primary/20 font-bold rounded-full h-10 w-10">
                           {getDayOfMonth(user.birth_date)}
                         </div>
                       </TableCell>
@@ -176,6 +180,55 @@ export default function Birthdays() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Mobile Card View */}
+      <div className="block sm:hidden space-y-4">
+        {users.length === 0 ? (
+          <div className="border rounded-xl bg-card p-8 text-center text-muted-foreground">
+            {language === 'ar' ? 'لا توجد أيام ميلاد هذا الشهر' : 'No birthdays this month'}
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {users.map((user) => (
+              <div key={user.id} className="border rounded-xl bg-card p-4 shadow-sm space-y-3 transition-all duration-200 hover:shadow-md">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar className="h-10 w-10 shrink-0">
+                      <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
+                      <AvatarFallback className="bg-primary/20 text-primary font-semibold">
+                        {user.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm sm:text-base truncate">{user.full_name || 'No name'}</p>
+                      {user.full_name_ar && (
+                        <p className="text-xs text-muted-foreground font-arabic truncate">{user.full_name_ar}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center justify-center bg-primary/10 text-primary border border-primary/20 rounded-lg py-1 px-2.5 min-w-[50px] shrink-0">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">{language === 'ar' ? 'يوم' : 'Day'}</span>
+                    <span className="text-base font-bold leading-none mt-0.5">{getDayOfMonth(user.birth_date)}</span>
+                  </div>
+                </div>
+                
+                <div className="border-t pt-3 grid grid-cols-2 gap-4 text-xs">
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground block">{t('users.committee')}</span>
+                    <span className="font-medium truncate block">{user.committee_name || '—'}</span>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-muted-foreground block">{t('users.level')}</span>
+                    <div className="inline-block">
+                      <LevelBadge level={user.level} size="sm" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
