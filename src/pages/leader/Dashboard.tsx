@@ -85,7 +85,7 @@ interface CommitteeLeaderDashboardProps {
 }
 
 export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId, committeeIds: propCommitteeIds }: CommitteeLeaderDashboardProps) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { t, language } = useLanguage();
   const isRTL = language === 'ar';
 
@@ -146,9 +146,11 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
 
   const committeeId = propCommitteeId || profile?.committee_id;
 
-  const fetchData = async () => {
+  const fetchData = async (hasCache = false) => {
     if (effectiveCommitteeIds.length === 0) return;
-    setIsLoading(true);
+    if (!hasCache) {
+      setIsLoading(true);
+    }
 
     try {
       // Fetch committee info (using primary)
@@ -228,7 +230,20 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
         throw error;
       }
 
-      setSubmissions(submissionsData as unknown as Submission[] || []);
+      const finalSubmissions = submissionsData as unknown as Submission[] || [];
+      setSubmissions(finalSubmissions);
+
+      // Save to cache
+      if (user?.id) {
+        const cacheKey = `rtc_leader_dashboard_data_${user.id}_${JSON.stringify(effectiveCommitteeIds)}_${selectedMonth}`;
+        localStorage.setItem(cacheKey, JSON.stringify({
+          committee: committeeData || committee || null,
+          submissions: finalSubmissions,
+          committeeMembers: membersData || committeeMembers || [],
+          trainersMap: tMap || trainersMap || {},
+          cachedAt: Date.now()
+        }));
+      }
     } catch (error: any) {
       console.error('Error fetching data:', error);
       toast.error(isRTL ? 'فشل في تحميل البيانات' : 'Failed to load data');
@@ -238,8 +253,23 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
   };
 
   useEffect(() => {
-    fetchData();
-  }, [JSON.stringify(effectiveCommitteeIds), selectedMonth]); // Deep compare IDs array
+    if (!user?.id || effectiveCommitteeIds.length === 0) return;
+    const cacheKey = `rtc_leader_dashboard_data_${user.id}_${JSON.stringify(effectiveCommitteeIds)}_${selectedMonth}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setCommittee(parsed.committee || null);
+        setSubmissions(parsed.submissions || []);
+        setCommitteeMembers(parsed.committeeMembers || []);
+        setTrainersMap(parsed.trainersMap || {});
+        setIsLoading(false);
+      } catch (e) {
+        console.error('Error parsing cached leader dashboard data:', e);
+      }
+    }
+    fetchData(!!cached);
+  }, [user?.id, JSON.stringify(effectiveCommitteeIds), selectedMonth]); // Deep compare IDs array
 
   // Filter submissions based on all filters
   const filteredSubmissions = useMemo(() => {

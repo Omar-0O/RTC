@@ -73,7 +73,7 @@ const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
 const HEAD_ROLES = ['admin', 'supervisor', 'head_production', 'head_fourth_year', 'head_events', 'head_caravans', 'committee_leader'];
 
 export default function CourseSchedule() {
-    const { primaryRole } = useAuth();
+    const { primaryRole, user } = useAuth();
     const { isRTL, language } = useLanguage();
     const { activeBranch, canViewAllBranches } = useBranch();
     const [courses, setCourses] = useState<Course[]>([]);
@@ -89,12 +89,50 @@ export default function CourseSchedule() {
     const locale = language === 'ar' ? ar : enUS;
 
     useEffect(() => {
-        fetchCourses();
-        fetchCircles();
-    }, [activeBranch?.id]);
+        if (!user?.id) return;
+        const cacheKey = `rtc_course_schedule_${user.id}_${activeBranch?.id || 'all'}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                setCourses(parsed.courses || []);
+                setCircles(parsed.circles || []);
+                setLoading(false);
+            } catch (e) {
+                console.error('Error parsing cached course schedule:', e);
+            }
+        }
+        fetchData(!!cached);
+    }, [user?.id, activeBranch?.id]);
 
-    const fetchCourses = async () => {
-        setLoading(true);
+    const fetchData = async (hasCache = false) => {
+        if (!hasCache) {
+            setLoading(true);
+        }
+        try {
+            const [coursesList, circlesList] = await Promise.all([
+                fetchCoursesList(),
+                fetchCirclesList()
+            ]);
+
+            setCourses(coursesList);
+            setCircles(circlesList);
+
+            if (user?.id) {
+                const cacheKey = `rtc_course_schedule_${user.id}_${activeBranch?.id || 'all'}`;
+                localStorage.setItem(cacheKey, JSON.stringify({
+                    courses: coursesList,
+                    circles: circlesList
+                }));
+            }
+        } catch (e) {
+            console.error('Error fetching course schedule data:', e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchCoursesList = async (): Promise<Course[]> => {
         try {
             let q = supabase
                 .from('courses')
@@ -104,19 +142,16 @@ export default function CourseSchedule() {
             if (canViewAllBranches && activeBranch?.id) q = (q as any).eq('branch_id', activeBranch.id);
 
             const { data, error } = await q;
-
             if (error) throw error;
-            setCourses(data || []);
+            return data || [];
         } catch (error) {
             console.error('Error fetching courses:', error);
-        } finally {
-            setLoading(false);
+            return [];
         }
     };
 
-    const fetchCircles = async () => {
+    const fetchCirclesList = async (): Promise<QuranCircle[]> => {
         try {
-            // Fetch circles
             let circlesQuery = supabase
                 .from('quran_circles')
                 .select('id, schedule, is_active, teacher_id')
@@ -125,20 +160,16 @@ export default function CourseSchedule() {
             if (canViewAllBranches && activeBranch?.id) circlesQuery = (circlesQuery as any).eq('branch_id', activeBranch.id);
 
             const { data: circlesData, error: circlesError } = await circlesQuery;
-
             if (circlesError) throw circlesError;
 
-            // Fetch teachers
             const { data: teachersData, error: teachersError } = await supabase
                 .from('quran_teachers')
                 .select('id, name, target_gender');
-
             if (teachersError) throw teachersError;
 
-            // Create a map of teachers for easy lookup
             const teachersMap = new Map(teachersData?.map(t => [t.id, t]) || []);
 
-            setCircles(circlesData?.map((c: any) => {
+            return circlesData?.map((c: any) => {
                 const teacher = teachersMap.get(c.teacher_id);
                 return {
                     id: c.id,
@@ -147,9 +178,10 @@ export default function CourseSchedule() {
                     schedule: c.schedule || [],
                     is_active: c.is_active
                 };
-            }) || []);
+            }) || [];
         } catch (error) {
             console.error('Error fetching circles:', error);
+            return [];
         }
     };
 

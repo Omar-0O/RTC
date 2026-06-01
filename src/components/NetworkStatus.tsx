@@ -28,23 +28,22 @@ export function NetworkStatus() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleUpdate = () => {
-    // Clear caches
-    if ('caches' in window) {
-      caches.keys().then(names => {
-        names.forEach(name => caches.delete(name));
-      });
-    }
-    // Unregister service workers
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(registrations => {
-        registrations.forEach(registration => registration.unregister());
-      });
-    }
-    // Reload after a short timeout
-    setTimeout(() => {
+  const handleUpdate = async () => {
+    try {
+      // Send SKIP_WAITING to the waiting service worker to activate it
+      const registration = await navigator.serviceWorker?.getRegistration();
+      if (registration?.waiting) {
+        registration.waiting.postMessage('SKIP_WAITING');
+        // Safety timeout — reload anyway after 2 seconds if controllerchange doesn't fire
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        // No waiting worker — just reload (the new SW will be fetched on next load)
+        window.location.reload();
+      }
+    } catch {
+      // Fallback: just reload
       window.location.reload();
-    }, 300);
+    }
   };
 
   // Listen for SW updates

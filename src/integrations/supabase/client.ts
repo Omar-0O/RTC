@@ -1,49 +1,70 @@
 import { createClient } from '@supabase/supabase-js';
-import Cookies from 'js-cookie';
 import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// High-performance dynamic storage manager
-const customStorage = {
-  getItem: (key: string) => {
-    // 1. Try to read from fast client-side web storage first
-    let val = localStorage.getItem(key) || sessionStorage.getItem(key);
-    
-    // 2. If not found, check if there is an active session in cookies (migration fallback)
+/**
+ * Unified auth storage — ALWAYS uses localStorage.
+ *
+ * Previous versions split tokens between localStorage / sessionStorage
+ * based on a `rememberMe` flag, which caused sessions to silently vanish
+ * when the flag was cleared or storage was evicted. This unified approach
+ * eliminates the split-brain problem entirely.
+ *
+ * One-time migration: pulls any existing session from sessionStorage or
+ * cookies into localStorage so existing users aren't logged out.
+ */
+const unifiedStorage = {
+  getItem: (key: string): string | null => {
+    // 1. Primary source — always localStorage
+    let val = localStorage.getItem(key);
+
+    // 2. One-time migration from sessionStorage (legacy rememberMe=false)
     if (!val) {
-      val = Cookies.get(key) || null;
+      val = sessionStorage.getItem(key) || null;
       if (val) {
-        // Migrate to standard web storage immediately to bypass the 4KB cookie limit
-        const rememberMe = localStorage.getItem('rememberMe') !== 'false';
-        if (rememberMe) {
-          localStorage.setItem(key, val);
-        } else {
-          sessionStorage.setItem(key, val);
-        }
-        // Clean up the cookie to prevent sending heavy auth payloads in request headers
-        Cookies.remove(key);
+        localStorage.setItem(key, val);
+        sessionStorage.removeItem(key);
+        console.log('[Auth Storage] Migrated token from sessionStorage → localStorage');
       }
     }
+
+    // 3. One-time migration from cookies (very old sessions)
+    if (!val) {
+      try {
+        // Read cookie without js-cookie dependency
+        const match = document.cookie.match(new RegExp(`(?:^|; )${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]*)`));
+        val = match ? decodeURIComponent(match[1]) : null;
+        if (val) {
+          localStorage.setItem(key, val);
+          // Clear the cookie
+          document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+          console.log('[Auth Storage] Migrated token from cookie → localStorage');
+        }
+      } catch {
+        // Cookie parsing failed — not critical
+      }
+    }
+
     return val;
   },
-  setItem: (key: string, value: string) => {
-    const rememberMe = localStorage.getItem('rememberMe') !== 'false';
-    if (rememberMe) {
-      localStorage.setItem(key, value);
-      sessionStorage.removeItem(key); // Ensure clean separation
-    } else {
-      sessionStorage.setItem(key, value);
-      localStorage.removeItem(key); // Ensure clean separation
-    }
-    // Always clean up cookies to prevent duplicate state or header size warnings
-    Cookies.remove(key);
+
+  setItem: (key: string, value: string): void => {
+    localStorage.setItem(key, value);
+    // Clean up any legacy storage to prevent stale duplicates
+    sessionStorage.removeItem(key);
   },
-  removeItem: (key: string) => {
+
+  removeItem: (key: string): void => {
     localStorage.removeItem(key);
     sessionStorage.removeItem(key);
-    Cookies.remove(key);
+    // Clean up any legacy cookie
+    try {
+      document.cookie = `${key}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+    } catch {
+      // Not critical
+    }
   },
 };
 
@@ -52,7 +73,7 @@ const customStorage = {
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: customStorage,
+    storage: unifiedStorage,
     persistSession: true,
     autoRefreshToken: true,
   }

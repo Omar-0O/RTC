@@ -388,7 +388,24 @@ export default function CourseManagement() {
 
     useEffect(() => {
         if (isLoading) return; // Wait for auth
-        fetchCourses();
+
+        const cacheKey = `rtc_courses_${user?.id}_${profile?.committee_id || 'all'}`;
+        const cached = localStorage.getItem(cacheKey);
+        let hasCache = false;
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed)) {
+                    setCourses(parsed);
+                    setLoading(false);
+                    hasCache = true;
+                }
+            } catch (e) {
+                console.error('Error parsing cached courses:', e);
+            }
+        }
+
+        fetchCourses(hasCache);
         fetchVolunteers();
         fetchTrainers();
         fetchCommittees();
@@ -512,8 +529,10 @@ export default function CourseManagement() {
         }
     };
 
-    const fetchCourses = async () => {
-        setLoading(true);
+    const fetchCourses = async (hasCache = false) => {
+        if (!hasCache) {
+            setLoading(true);
+        }
         try {
             let query: any = supabase
                 .from('courses')
@@ -527,7 +546,11 @@ export default function CourseManagement() {
             const { data, error } = await query;
 
             if (error) throw error;
-            setCourses((data as Course[]) || []);
+            const coursesData = (data as Course[]) || [];
+            setCourses(coursesData);
+
+            const cacheKey = `rtc_courses_${user?.id}_${profile?.committee_id || 'all'}`;
+            localStorage.setItem(cacheKey, JSON.stringify(coursesData));
         } catch (error) {
             console.error('Error fetching courses:', error);
             toast.error(isRTL ? 'فشل في تحميل الكورسات' : 'Failed to fetch courses');

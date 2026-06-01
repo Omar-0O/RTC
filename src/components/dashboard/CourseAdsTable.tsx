@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -62,6 +63,7 @@ import { Users } from 'lucide-react';
 export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
     const { isRTL, language } = useLanguage();
     const { activeBranch, canViewAllBranches } = useBranch();
+    const { user } = useAuth();
     const locale = language === 'ar' ? ar : enUS;
     const [ads, setAds] = useState<CourseAd[]>(propAds || []);
     const [loading, setLoading] = useState(!propAds);
@@ -118,12 +120,25 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
         if (propAds) {
             setAds(propAds);
             setLoading(false);
-        } else {
-            fetchAds();
+        } else if (user?.id) {
+            const cacheKey = `rtc_course_ads_${user.id}_${activeBranch?.id || 'all'}`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                try {
+                    setAds(JSON.parse(cached));
+                    setLoading(false);
+                } catch (e) {
+                    console.error('Error parsing cached course ads:', e);
+                }
+            }
+            fetchAds(!!cached);
         }
-    }, [propAds, activeBranch?.id]);
+    }, [propAds, user?.id, activeBranch?.id]);
 
-    const fetchAds = async () => {
+    const fetchAds = async (hasCache = false) => {
+        if (!hasCache) {
+            setLoading(true);
+        }
         try {
             // Fetch course ads
             let courseAdsQuery = supabase
@@ -203,6 +218,11 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
                 .sort((a, b) => a.ad_date.localeCompare(b.ad_date));
 
             setAds(allAds);
+
+            if (user?.id) {
+                const cacheKey = `rtc_course_ads_${user.id}_${activeBranch?.id || 'all'}`;
+                localStorage.setItem(cacheKey, JSON.stringify(allAds));
+            }
         } catch (error) {
             console.error('Error fetching ads:', error);
         } finally {

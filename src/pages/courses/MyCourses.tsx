@@ -140,7 +140,25 @@ export default function MyCourses() {
 
     useEffect(() => {
         if (user) {
-            fetchMyCourses();
+            const cacheKey = `rtc_my_courses_data_${user.id}`;
+            const cached = localStorage.getItem(cacheKey);
+            let hasCache = false;
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (parsed && Array.isArray(parsed.courses)) {
+                        setCourses(parsed.courses);
+                        setOrganizerCourseIds(new Set(parsed.organizerCourseIds || []));
+                        setMarketerCourseIds(new Set(parsed.marketerCourseIds || []));
+                        setLoading(false);
+                        hasCache = true;
+                    }
+                } catch (e) {
+                    console.error('Error parsing cached my courses:', e);
+                }
+            }
+
+            fetchMyCourses(hasCache);
             fetchRooms();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -169,8 +187,10 @@ export default function MyCourses() {
         }
     };
 
-    const fetchMyCourses = async () => {
-        setLoading(true);
+    const fetchMyCourses = async (hasCache = false) => {
+        if (!hasCache) {
+            setLoading(true);
+        }
         try {
             // Get courses where current user is an organizer
             const { data: organizerData, error: orgError } = await supabase
@@ -215,12 +235,22 @@ export default function MyCourses() {
 
             const organizerIds = organizerData?.map(o => o.course_id) || [];
             const marketerIds = marketerData?.map(m => m.course_id) || [];
-            setOrganizerCourseIds(new Set([...organizerIds, ...trainerCourseIds])); // trainers can manage lectures
-            setMarketerCourseIds(new Set(marketerIds));
+            const orgIdsSet = new Set([...organizerIds, ...trainerCourseIds]);
+            const mktIdsSet = new Set(marketerIds);
+            setOrganizerCourseIds(orgIdsSet); // trainers can manage lectures
+            setMarketerCourseIds(mktIdsSet);
             const allCourseIds = Array.from(new Set([...organizerIds, ...marketerIds, ...trainerCourseIds]));
 
             if (allCourseIds.length === 0) {
                 setCourses([]);
+                
+                const cacheKey = `rtc_my_courses_data_${user?.id}`;
+                localStorage.setItem(cacheKey, JSON.stringify({
+                    courses: [],
+                    organizerCourseIds: [],
+                    marketerCourseIds: []
+                }));
+
                 setLoading(false);
                 return;
             }
@@ -232,7 +262,15 @@ export default function MyCourses() {
                 .order('start_date', { ascending: false });
 
             if (error) throw error;
-            setCourses(data || []);
+            const coursesData = data || [];
+            setCourses(coursesData);
+
+            const cacheKey = `rtc_my_courses_data_${user?.id}`;
+            localStorage.setItem(cacheKey, JSON.stringify({
+                courses: coursesData,
+                organizerCourseIds: Array.from(orgIdsSet),
+                marketerCourseIds: Array.from(mktIdsSet)
+            }));
         } catch (error) {
             console.error('Error fetching courses:', error);
             toast.error(isRTL ? 'فشل في تحميل الكورسات' : 'Failed to fetch courses');

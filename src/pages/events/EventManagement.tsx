@@ -151,10 +151,26 @@ export default function EventManagement() {
 
     useEffect(() => {
         const loadData = async () => {
+            const cacheKey = `rtc_events_data_${user?.id}_${activeBranch?.id || 'all'}`;
+            const cached = localStorage.getItem(cacheKey);
+            let hasCache = false;
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) {
+                        setEvents(parsed);
+                        setLoading(false);
+                        hasCache = true;
+                    }
+                } catch (e) {
+                    console.error('Error parsing cached events:', e);
+                }
+            }
+
             fetchVolunteers();
             fetchEventsCommittee();
             const committeesData = await fetchCommittees();
-            fetchEvents(committeesData);
+            fetchEvents(committeesData, hasCache);
         };
         loadData();
     }, [activeBranch?.id]);
@@ -191,7 +207,10 @@ export default function EventManagement() {
         return [];
     };
 
-    const fetchEvents = async (committeesList?: Committee[]) => {
+    const fetchEvents = async (committeesList?: Committee[], hasCache = false) => {
+        if (!hasCache) {
+            setLoading(true);
+        }
         try {
             let query = supabase
                 .from('events')
@@ -226,6 +245,9 @@ export default function EventManagement() {
             })) || [];
 
             setEvents(eventsData);
+
+            const cacheKey = `rtc_events_data_${user?.id}_${activeBranch?.id || 'all'}`;
+            localStorage.setItem(cacheKey, JSON.stringify(eventsData));
         } catch (error) {
             console.error('Error fetching events:', error);
             toast.error(isRTL ? 'فشل تحميل الإيفينتات' : 'Failed to load events');

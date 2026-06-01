@@ -374,14 +374,32 @@ export default function CaravanManagement() {
     });
 
     useEffect(() => {
-        fetchCaravans();
+        const cacheKey = `rtc_caravans_data_${user?.id}`;
+        const cached = localStorage.getItem(cacheKey);
+        let hasCache = false;
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed)) {
+                    setCaravans(parsed);
+                    setLoading(false);
+                    hasCache = true;
+                }
+            } catch (e) {
+                console.error('Error parsing cached caravans:', e);
+            }
+        }
+
+        fetchCaravans(hasCache);
         fetchVolunteers();
         fetchCaravansCommittee();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [user]);
 
-    const fetchCaravans = async () => {
-        setLoading(true);
+    const fetchCaravans = async (hasCache = false) => {
+        if (!hasCache) {
+            setLoading(true);
+        }
         try {
             const { data, error } = await supabase
                 .from('caravans')
@@ -390,10 +408,14 @@ export default function CaravanManagement() {
 
             if (error) throw error;
 
-            setCaravans((data || []).map((c: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            const caravansData = (data || []).map((c: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
                 ...c,
                 participants_count: c.participants_count?.[0]?.count || 0
-            } as Caravan))); // Cast to Caravan to ensure type safety downstream
+            } as Caravan));
+            setCaravans(caravansData);
+
+            const cacheKey = `rtc_caravans_data_${user?.id}`;
+            localStorage.setItem(cacheKey, JSON.stringify(caravansData));
         } catch (error) {
             console.error('Error fetching caravans:', error);
             toast.error(isRTL ? 'فشل في تحميل القوافل' : 'Failed to fetch caravans');
