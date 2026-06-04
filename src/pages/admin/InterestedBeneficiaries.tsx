@@ -93,15 +93,20 @@ export default function InterestedBeneficiaries() {
     const fetchBeneficiaries = useCallback(async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            let query: any = (supabase as any)
                 .from('interested_beneficiaries')
                 .select(`
                     *,
                     source_course:source_course_id(name),
                     source_circle:source_circle_id(name, organizer:organizer_id(full_name, full_name_ar)),
                     creator:created_by(full_name, full_name_ar)
-                `)
-                .order('created_at', { ascending: false });
+                `);
+
+            if (activeBranch?.id) {
+                query = query.eq('branch_id', activeBranch.id);
+            }
+
+            const { data, error } = await query.order('created_at', { ascending: false });
             if (error) throw error;
             setBeneficiaries((data as unknown as InterestedBeneficiary[]) || []);
         } catch (err) {
@@ -110,7 +115,7 @@ export default function InterestedBeneficiaries() {
         } finally {
             setLoading(false);
         }
-    }, [isRTL]);
+    }, [isRTL, activeBranch?.id]);
 
     const fetchCommittees = useCallback(async () => {
         const { data } = await supabase
@@ -121,12 +126,17 @@ export default function InterestedBeneficiaries() {
     }, []);
 
     const fetchCourses = useCallback(async () => {
-        const { data } = await supabase
+        let query: any = supabase
             .from('courses')
-            .select('id, name')
-            .order('start_date', { ascending: false });
+            .select('id, name');
+
+        if (activeBranch?.id) {
+            query = query.eq('branch_id', activeBranch.id);
+        }
+
+        const { data } = await query.order('start_date', { ascending: false });
         setCourses((data as Course[]) || []);
-    }, []);
+    }, [activeBranch?.id]);
 
     useEffect(() => {
         fetchBeneficiaries();
@@ -197,7 +207,7 @@ export default function InterestedBeneficiaries() {
         }
         setAddSaving(true);
         try {
-            const { error } = await supabase.from('interested_beneficiaries').insert({
+            const { error } = await (supabase as any).from('interested_beneficiaries').insert({
                 name: addForm.name.trim(),
                 phone: addForm.phone.trim(),
                 notes: addForm.notes.trim() || null,
@@ -206,6 +216,7 @@ export default function InterestedBeneficiaries() {
                 production_committee_id: (activeCommittee === 'production' || activeCommittee === 'fourth_year') && addForm.production_committee_id
                     ? addForm.production_committee_id : null,
                 created_by: user?.id,
+                branch_id: activeBranch?.id || null,
             });
             if (error) {
                 if (error.code === '23505') {
@@ -231,7 +242,7 @@ export default function InterestedBeneficiaries() {
         if (!deleteId) return;
         setDeleting(true);
         try {
-            const { error } = await supabase.from('interested_beneficiaries').delete().eq('id', deleteId);
+            const { error } = await (supabase as any).from('interested_beneficiaries').delete().eq('id', deleteId);
             if (error) throw error;
             toast.success(isRTL ? 'تم الحذف' : 'Deleted');
             setDeleteId(null);

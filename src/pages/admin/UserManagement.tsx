@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useCallback } from 'react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download, Eye, EyeOff, UserPlus } from 'lucide-react';
+import { Calendar as CalendarIcon, Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download, Eye, EyeOff, UserPlus, Settings } from 'lucide-react';
 
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -87,6 +87,67 @@ import Cropper from 'react-easy-crop';
 import { Slider } from '@/components/ui/slider';
 import { getCroppedImg } from '@/utils/imageCrop';
 
+const ALL_FEATURES = [
+  { id: 'user_management', label: 'إدارة الأعضاء', labelEn: 'User Management' },
+  { id: 'courses_management', label: 'إدارة الكورسات والمدربين', labelEn: 'Courses & Trainers Management' },
+  { id: 'quran_circles_management', label: 'إدارة حلقات القرآن والمحفظين', labelEn: 'Quran Circles & Teachers Management' },
+  { id: 'caravans_management', label: 'إدارة القوافل', labelEn: 'Caravans Management' },
+  { id: 'events_management', label: 'إدارة الايفنتات', labelEn: 'Events Management' },
+  { id: 'ashbal_management', label: 'إدارة الأشبال', labelEn: 'Ashbal Management' },
+  { id: 'ethics_management', label: 'إدارة الأخلاقيات والمكالمات', labelEn: 'Ethics & Calls Management' },
+  { id: 'fines_management', label: 'إدارة الغرامات', labelEn: 'Fines Management' },
+  { id: 'hr_management', label: 'إدارة المشاركات (HR)', labelEn: 'Submission Management (HR)' },
+  { id: 'reports_view', label: 'عرض التقارير', labelEn: 'Reports View' },
+  { id: 'followup_management', label: 'شيت المتابعة', labelEn: 'Follow-Up Sheet' },
+  { id: 'rooms_management', label: 'إدارة القاعات', labelEn: 'Rooms Management' },
+];
+
+const getRoleDefaultFeatures = (role: UserRole): string[] => {
+  switch (role) {
+    case 'admin':
+    case 'branch_admin':
+      return [
+        'courses_management',
+        'quran_circles_management',
+        'caravans_management',
+        'events_management',
+        'ashbal_management',
+        'ethics_management',
+        'fines_management',
+        'hr_management',
+        'user_management',
+        'reports_view',
+        'followup_management',
+        'rooms_management',
+      ];
+    case 'supervisor':
+      return ['user_management', 'reports_view', 'courses_management', 'followup_management'];
+    case 'committee_leader':
+      return ['courses_management', 'events_management'];
+    case 'hr':
+      return ['hr_management', 'user_management', 'reports_view'];
+    case 'head_hr':
+      return ['hr_management', 'user_management', 'reports_view', 'followup_management'];
+    case 'head_caravans':
+      return ['caravans_management', 'events_management'];
+    case 'head_events':
+      return ['events_management', 'reports_view'];
+    case 'head_production':
+    case 'head_fourth_year':
+      return ['events_management', 'reports_view'];
+    case 'head_ethics':
+      return ['ethics_management', 'events_management'];
+    case 'head_quran':
+      return ['quran_circles_management', 'events_management'];
+    case 'head_ashbal':
+      return ['ashbal_management', 'events_management'];
+    case 'head_marketing':
+      return ['courses_management', 'events_management', 'quran_circles_management'];
+    default:
+      return [];
+  }
+};
+
 export default function UserManagement() {
   const { t, language, isRTL } = useLanguage();
   const { activeBranch, branches, canViewAllBranches } = useBranch();
@@ -130,6 +191,12 @@ export default function UserManagement() {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Custom features states
+  const [isCustomizeFeaturesDialogOpen, setIsCustomizeFeaturesDialogOpen] = useState(false);
+  const [featuresSelectedUser, setFeaturesSelectedUser] = useState<UserWithDetails | null>(null);
+  const [selectedUserFeatures, setSelectedUserFeatures] = useState<string[]>([]);
+  const [isSavingFeatures, setIsSavingFeatures] = useState(false);
+
   // Form states
   const [formName, setFormName] = useState('');
   const [formNameAr, setFormNameAr] = useState('');
@@ -171,6 +238,58 @@ export default function UserManagement() {
       );
     } catch (err: any) {
       toast.error(err.message || (isRTL ? 'فشل في تغيير الحالة' : 'Failed to change status'));
+    }
+  };
+
+  const openCustomizeFeatures = async (user: UserWithDetails) => {
+    setFeaturesSelectedUser(user);
+    setIsCustomizeFeaturesDialogOpen(true);
+    setSelectedUserFeatures([]);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('user_features')
+        .select('feature')
+        .eq('user_id', user.id);
+      
+      if (!error && data) {
+        setSelectedUserFeatures(data.map((f: any) => f.feature));
+      }
+    } catch (err) {
+      console.error('Error fetching user features:', err);
+    }
+  };
+
+  const handleSaveFeatures = async () => {
+    if (!featuresSelectedUser) return;
+    setIsSavingFeatures(true);
+    try {
+      const { error: deleteErr } = await (supabase as any)
+        .from('user_features')
+        .delete()
+        .eq('user_id', featuresSelectedUser.id);
+      
+      if (deleteErr) throw deleteErr;
+
+      if (selectedUserFeatures.length > 0) {
+        const rows = selectedUserFeatures.map(f => ({
+          user_id: featuresSelectedUser.id,
+          feature: f
+        }));
+        
+        const { error: insertErr } = await (supabase as any)
+          .from('user_features')
+          .insert(rows);
+          
+        if (insertErr) throw insertErr;
+      }
+
+      toast.success(isRTL ? 'تم حفظ المميزات بنجاح' : 'Features saved successfully');
+      setIsCustomizeFeaturesDialogOpen(false);
+    } catch (err: any) {
+      console.error('Error saving features:', err);
+      toast.error(err.message || (isRTL ? 'فشل في حفظ المميزات' : 'Failed to save features'));
+    } finally {
+      setIsSavingFeatures(false);
     }
   };
 
@@ -615,7 +734,6 @@ export default function UserManagement() {
       case 'head_quran':
       case 'head_marketing':
       case 'head_ashbal':
-      case 'head_production':
       case 'head_fourth_year':
       case 'marketing_member':
         return 'bg-blue-100 text-blue-700';
@@ -716,7 +834,7 @@ export default function UserManagement() {
         }
       }
 
-      const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role]) || []);
+      const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role as string]) || []);
 
       const exportData = profilesData
         .filter(u => u.full_name !== 'RTC Admin')
@@ -778,7 +896,7 @@ export default function UserManagement() {
           setIsAddDialogOpen(open);
           if (!open) resetForm();
         }}>
-          {['admin', 'head_hr'].includes(primaryRole) && (
+          {['admin', 'head_hr', 'branch_admin'].includes(primaryRole) && (
             <div className="flex flex-col xs:flex-row gap-2 w-full sm:w-auto">
               <Button variant="outline" onClick={handleExportUsers} className="w-full xs:w-auto">
                 <Download className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
@@ -938,7 +1056,7 @@ export default function UserManagement() {
                 </div>
                 <div className="grid gap-2">
                   <Label>{language === 'ar' ? 'الفرع' : 'Branch'} *</Label>
-                  <Select value={formBranchId || 'none'} onValueChange={(val) => setFormBranchId(val === 'none' ? '' : val)}>
+                  <Select value={formBranchId || 'none'} onValueChange={(val) => setFormBranchId(val === 'none' ? '' : val)} disabled={!canViewAllBranches}>
                     <SelectTrigger>
                       <SelectValue placeholder={language === 'ar' ? 'اختر الفرع' : 'Select Branch'} />
                     </SelectTrigger>
@@ -1302,7 +1420,7 @@ export default function UserManagement() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="edit-role">{t('users.role')}</Label>
-                  <Select value={formRole} onValueChange={(value) => setFormRole(value as UserRole)} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
+                  <Select value={formRole} onValueChange={(value) => setFormRole(value as UserRole)} disabled={!['admin', 'head_hr', 'branch_admin'].includes(primaryRole)}>
                     <SelectTrigger>
                       <SelectValue placeholder={t('users.role')} />
                     </SelectTrigger>
@@ -1328,7 +1446,7 @@ export default function UserManagement() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-level">{t('users.level')}</Label>
-                  <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
+                  <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr', 'branch_admin'].includes(primaryRole)}>
                     <SelectTrigger>
                       <SelectValue placeholder={t('users.level')} />
                     </SelectTrigger>
@@ -1358,7 +1476,7 @@ export default function UserManagement() {
               </div>
               <div className="grid gap-2">
                 <Label>{language === 'ar' ? 'الفرع' : 'Branch'}</Label>
-                <Select value={formBranchId || 'none'} onValueChange={(val) => setFormBranchId(val === 'none' ? '' : val)}>
+                <Select value={formBranchId || 'none'} onValueChange={(val) => setFormBranchId(val === 'none' ? '' : val)} disabled={!canViewAllBranches}>
                   <SelectTrigger>
                     <SelectValue placeholder={language === 'ar' ? 'اختر الفرع' : 'Select Branch'} />
                   </SelectTrigger>
@@ -1608,7 +1726,7 @@ export default function UserManagement() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                             <DropdownMenuSeparator />
-                            {['admin', 'head_hr'].includes(primaryRole) && (
+                            {['admin', 'head_hr', 'branch_admin'].includes(primaryRole) && (
                               <DropdownMenuItem onClick={() => openEditDialog(user)}>
                                 <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                 {t('common.edit')}
@@ -1618,6 +1736,12 @@ export default function UserManagement() {
                               <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                               {t('users.viewProfile')}
                             </DropdownMenuItem>
+                            {['admin', 'branch_admin'].includes(primaryRole) && (
+                              <DropdownMenuItem onClick={() => openCustomizeFeatures(user)}>
+                                <Settings className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                {isRTL ? 'تخصيص المميزات' : 'Customize Features'}
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={() => {
                                 if (user.phone) {
@@ -1630,7 +1754,7 @@ export default function UserManagement() {
                               <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                               {t('users.sendWhatsapp')}
                             </DropdownMenuItem>
-                            {['admin', 'head_hr'].includes(primaryRole) && (
+                            {['admin', 'head_hr', 'branch_admin'].includes(primaryRole) && (
                               <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
@@ -1771,6 +1895,83 @@ export default function UserManagement() {
           {viewProfileUser && <Profile userId={viewProfileUser.id} />}
         </DialogContent>
       </Dialog >
+
+      {/* Customize Features Dialog */}
+      <Dialog open={isCustomizeFeaturesDialogOpen} onOpenChange={setIsCustomizeFeaturesDialogOpen}>
+        <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl sm:rounded-3xl border border-border/40 shadow-2xl" dir={isRTL ? 'rtl' : 'ltr'}>
+          <DialogHeader className="px-4 sm:px-6 py-5 border-b border-border/50 dark:border-border/80 shrink-0 bg-muted/30 flex flex-col items-center text-center">
+            <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center justify-center gap-2">
+              <Settings className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+              {isRTL ? 'تخصيص المميزات والخصائص' : 'Customize Features'}
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground mt-1">
+              {isRTL 
+                ? `تعديل المميزات المتاحة لـ ${featuresSelectedUser?.full_name_ar || featuresSelectedUser?.full_name}`
+                : `Modify available features for ${featuresSelectedUser?.full_name || featuresSelectedUser?.full_name_ar}`
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-xl p-4 text-xs text-yellow-800 dark:text-yellow-400">
+              <p className="font-semibold mb-1">
+                {isRTL ? '💡 ملاحظة حول الصلاحيات:' : '💡 Permissions Note:'}
+              </p>
+              <p>
+                {isRTL 
+                  ? 'المميزات الموسومة بـ (أساسي للدور) يتم تفعيلها تلقائياً بناءً على الدور الحالي للمتطوع ولا يمكن إيقافها من هنا.'
+                  : 'Features marked as (Role default) are active by default for the user\'s role and cannot be turned off here.'
+                }
+              </p>
+            </div>
+
+            <div className="grid gap-3 pt-2">
+              {ALL_FEATURES.map((feat) => {
+                const isDefault = featuresSelectedUser 
+                  ? getRoleDefaultFeatures(featuresSelectedUser.role).includes(feat.id)
+                  : false;
+                const isChecked = isDefault || selectedUserFeatures.includes(feat.id);
+
+                return (
+                  <div key={feat.id} className="flex items-start justify-between rounded-xl border border-border/50 p-4 transition-all hover:bg-muted/20">
+                    <div className="space-y-1 ltr:pr-4 rtl:pl-4">
+                      <Label htmlFor={`feat-${feat.id}`} className="font-semibold text-sm cursor-pointer select-none">
+                        {isRTL ? feat.label : feat.labelEn}
+                      </Label>
+                      {isDefault && (
+                        <p className="text-[10px] text-primary font-medium">
+                          {isRTL ? '(أساسي للدور)' : '(Role default)'}
+                        </p>
+                      )}
+                    </div>
+                    <Switch
+                      id={`feat-${feat.id}`}
+                      disabled={isDefault || isSavingFeatures}
+                      checked={isChecked}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedUserFeatures(prev => [...prev, feat.id]);
+                        } else {
+                          setSelectedUserFeatures(prev => prev.filter(f => f !== feat.id));
+                        }
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t border-border/50 dark:border-border/80 bg-muted/10 shrink-0">
+            <Button type="button" variant="outline" disabled={isSavingFeatures} onClick={() => setIsCustomizeFeaturesDialogOpen(false)} className="w-full sm:w-auto h-11 px-6 text-sm font-medium">
+              {t('common.cancel')}
+            </Button>
+            <Button type="button" disabled={isSavingFeatures} onClick={handleSaveFeatures} className="w-full sm:w-auto h-11 px-6 text-sm font-semibold shadow-sm">
+              {isSavingFeatures ? (isRTL ? 'جاري الحفظ...' : 'Saving...') : t('common.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div >
   );
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useBranch } from '@/contexts/BranchContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -173,6 +174,7 @@ const DAYS = [
 export default function CourseManagement() {
     const { user, hasRole, roles, profile, isLoading } = useAuth(); // Add isLoading
     const { t, language, isRTL } = useLanguage();
+    const { activeBranch } = useBranch();
 
     const [courses, setCourses] = useState<Course[]>([]);
     const [rooms, setRooms] = useState<{ value: string, label: { en: string, ar: string } }[]>([]);
@@ -298,14 +300,20 @@ export default function CourseManagement() {
         fetchTrainers();
         fetchCommittees();
         fetchRooms();
-    }, [isLoading, isRestricted, profile?.committee_id]);
+    }, [isLoading, isRestricted, profile?.committee_id, activeBranch?.id]);
 
     const fetchRooms = async () => {
         try {
-            const { data, error } = await (supabase as any)
+            let query = (supabase as any)
                 .from('rooms')
                 .select('id, name, name_ar')
                 .order('created_at');
+
+            if (activeBranch) {
+                query = query.eq('branch_id', activeBranch.id);
+            }
+
+            const { data, error } = await query;
 
             if (error) {
                 console.error('Error fetching rooms:', error);
@@ -313,7 +321,7 @@ export default function CourseManagement() {
             }
 
             if (data && data.length > 0) {
-                const mapped = data.map(r => ({
+                const mapped = data.map((r: any) => ({
                     value: r.id,
                     label: { en: r.name, ar: r.name_ar }
                 }));
@@ -323,6 +331,8 @@ export default function CourseManagement() {
                     const isValidRoom = mapped.some(r => r.value === prev.room);
                     return isValidRoom ? prev : { ...prev, room: mapped[0].value };
                 });
+            } else {
+                setRooms([]);
             }
         } catch (error) {
             console.error('Error fetching rooms:', error);
@@ -386,11 +396,17 @@ export default function CourseManagement() {
 
     const fetchVolunteers = async () => {
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('profiles')
                 .select('id, full_name, full_name_ar, phone, avatar_url, committee_id')
                 .neq('full_name', 'RTC Admin')
                 .order('full_name');
+
+            if (activeBranch) {
+                query = query.eq('branch_id', activeBranch.id);
+            }
+
+            const { data, error } = await query;
             if (error) throw error;
             setVolunteers(data || []);
         } catch (error) {
@@ -407,6 +423,10 @@ export default function CourseManagement() {
 
             if (isRestricted && profile?.committee_id) {
                 query = query.eq('committee_id', profile.committee_id);
+            }
+
+            if (activeBranch) {
+                query = query.eq('branch_id', activeBranch.id);
             }
 
             const { data, error } = await query;
@@ -427,6 +447,10 @@ export default function CourseManagement() {
 
             if (isRestricted && profile?.committee_id) {
                 query = query.eq('committee_id', profile.committee_id);
+            }
+
+            if (activeBranch) {
+                query = query.eq('branch_id', activeBranch.id);
             }
 
             const { data, error } = await query;
@@ -756,7 +780,8 @@ export default function CourseManagement() {
                 has_certificates: formData.has_certificates,
                 certificate_status: 'pending',
                 created_by: user?.id,
-                committee_id: formData.committee_id === 'null' ? null : formData.committee_id
+                committee_id: formData.committee_id === 'null' ? null : formData.committee_id,
+                branch_id: activeBranch?.id || null
             };
 
             // Create course

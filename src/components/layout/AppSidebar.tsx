@@ -58,7 +58,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
 
 export function AppSidebar() {
-  const { user, profile, signOut, primaryRole } = useAuth();
+  const { user, profile, signOut, primaryRole, features = [] } = useAuth();
   const { t, language, setLanguage, isRTL } = useLanguage();
   const { activeBranch, branches, setActiveBranch } = useBranch();
   const { setTheme } = useTheme();
@@ -340,12 +340,104 @@ export function AppSidebar() {
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },
         ];
+      case 'branch_admin':
+        return [
+          { title: t('nav.dashboard'), url: '/admin', icon: Home },
+          { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
+          { title: t('nav.committees'), url: '/admin/committees', icon: Settings },
+          { title: isRTL ? 'إدارة القاعات' : 'Manage Rooms', url: '/admin/rooms', icon: Building2 },
+          { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
+          { title: t('nav.caravans'), url: '/caravans', icon: Bus },
+          { title: t('nav.courses'), url: '/courses', icon: Activity },
+          { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
+          { title: t('nav.events'), url: '/events', icon: Calendar },
+          { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
+          { title: isRTL ? 'إدارة المحفظين' : 'Quran Teachers', url: '/admin/quran-teachers', icon: Users },
+          { title: isRTL ? 'إدارة الغرامات' : 'Fines Management', url: '/admin/fines', icon: FileCheck },
+          { title: isRTL ? 'شيت المتابعة' : 'Follow-Up Sheet', url: '/admin/followup', icon: UserCheck },
+          { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
+          { title: isRTL ? 'أعياد الميلاد' : 'Birthdays', url: '/birthdays', icon: Cake },
+          { title: t('nav.logActivity'), url: '/activity', icon: ClipboardCheck },
+          { title: t('nav.profile'), url: '/profile', icon: User },
+        ];
       default:
         return volunteerNavItems;
     }
   };
 
   let navItems = getNavItems();
+
+  // Dynamically add navigation items based on custom features
+  if (features && features.length > 0) {
+    const featureItems = [
+      {
+        feature: 'courses_management',
+        item: { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity }
+      },
+      {
+        feature: 'courses_management',
+        item: { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck }
+      },
+      {
+        feature: 'quran_circles_management',
+        item: { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users }
+      },
+      {
+        feature: 'quran_circles_management',
+        item: { title: isRTL ? 'إدارة المحفظين' : 'Quran Teachers', url: '/admin/quran-teachers', icon: Users }
+      },
+      {
+        feature: 'caravans_management',
+        item: { title: t('nav.caravans'), url: '/caravans', icon: Bus }
+      },
+      {
+        feature: 'events_management',
+        item: { title: t('nav.events'), url: '/events', icon: Calendar }
+      },
+      {
+        feature: 'ashbal_management',
+        item: { title: isRTL ? 'إدارة الأشبال' : 'Ashbal Management', url: '/ashbal/management', icon: Users }
+      },
+      {
+        feature: 'ethics_management',
+        item: { title: t('ethics.competition'), url: '/ethics/competition', icon: Award }
+      },
+      {
+        feature: 'ethics_management',
+        item: { title: t('ethics.calls'), url: '/ethics/calls', icon: PhoneCall }
+      },
+      {
+        feature: 'fines_management',
+        item: { title: isRTL ? 'إدارة الغرامات' : 'Fines Management', url: '/admin/fines', icon: FileCheck }
+      },
+      {
+        feature: 'hr_management',
+        item: { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck }
+      },
+      {
+        feature: 'reports_view',
+        item: { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 }
+      },
+      {
+        feature: 'followup_management',
+        item: { title: isRTL ? 'شيت المتابعة' : 'Follow-Up Sheet', url: '/admin/followup', icon: UserCheck }
+      },
+      {
+        feature: 'rooms_management',
+        item: { title: isRTL ? 'إدارة القاعات' : 'Manage Rooms', url: '/admin/rooms', icon: Building2 }
+      },
+      {
+        feature: 'user_management',
+        item: { title: t('nav.userManagement'), url: '/admin/users', icon: Users }
+      }
+    ];
+
+    featureItems.forEach(({ feature, item }) => {
+      if (features.includes(feature) && !navItems.some(i => i.url === item.url)) {
+        navItems = [...navItems, item];
+      }
+    });
+  }
 
   // Ensure organizers always see their management pages regardless of role
   if (isCourseAccess && !navItems.some(i => i.url === '/my-courses')) {

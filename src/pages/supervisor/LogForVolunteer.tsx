@@ -62,6 +62,7 @@ interface TargetVolunteer {
   full_name_ar: string | null;
   avatar_url: string | null;
   committee_id: string | null;
+  branch_id: string | null;
 }
 
 export default function LogForVolunteer() {
@@ -112,7 +113,7 @@ export default function LogForVolunteer() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, full_name_ar, avatar_url, committee_id')
+        .select('id, full_name, full_name_ar, avatar_url, committee_id, branch_id')
         .eq('id', volunteerId!)
         .single();
       if (error) throw error;
@@ -188,6 +189,7 @@ export default function LogForVolunteer() {
         proof_url: null,
         submitted_at: new Date(yr, mo - 1, dy, 12, 0, 0).toISOString(),
         participants_count: 1,
+        branch_id: targetVolunteer?.branch_id || null,
       });
       if (error) throw error;
       setIsSubmitted(true);

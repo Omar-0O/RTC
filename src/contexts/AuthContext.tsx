@@ -13,6 +13,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   roles: AppRole[];
+  features: string[];
   isAuthenticated: boolean;
   isLoading: boolean;
   signOut: () => Promise<void>;
@@ -28,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
+  const [features, setFeatures] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchProfile = useCallback(async (userId: string) => {
@@ -54,13 +56,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (rolesError) {
         console.error('Error fetching roles:', rolesError);
-        return;
-      }
-
-      if (rolesData && rolesData.length > 0) {
+        // Don't return — still set default role so auth doesn't hang
+        setRoles(['volunteer']);
+      } else if (rolesData && rolesData.length > 0) {
         setRoles(rolesData.map(r => r.role as AppRole));
       } else {
         setRoles(['volunteer']);
+      }
+
+      // Fetch custom user features — completely independent, non-blocking.
+      // If this fails (e.g., table doesn't exist), it must NOT affect authentication.
+      try {
+        const { data: featuresData, error: featuresError } = await (supabase as any)
+          .from('user_features')
+          .select('feature')
+          .eq('user_id', userId);
+
+        if (!featuresError && featuresData) {
+          setFeatures(featuresData.map((f: any) => f.feature));
+        } else {
+          setFeatures([]);
+        }
+      } catch {
+        // Silently ignore — user_features table may not exist yet
+        setFeatures([]);
       }
     } catch (error) {
       console.error('Error in fetchProfile:', error);
@@ -123,6 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setProfile(null);
           setRoles([]);
+          setFeatures([]);
           setIsLoading(false);
         } else if (event === 'TOKEN_REFRESH_ERROR') {
           console.error('Token refresh error occurred');
@@ -176,6 +196,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setSession(null);
     setProfile(null);
     setRoles([]);
+    setFeatures([]);
   }, []);
 
   const hasRole = useCallback((role: AppRole) => {
@@ -209,13 +230,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     session,
     profile,
     roles,
+    features,
     isAuthenticated: !!user,
     isLoading,
     signOut,
     refreshProfile,
     hasRole,
     primaryRole,
-  }), [user, session, profile, roles, isLoading, signOut, refreshProfile, hasRole, primaryRole]);
+  }), [user, session, profile, roles, features, isLoading, signOut, refreshProfile, hasRole, primaryRole]);
 
   return (
     <AuthContext.Provider value={contextValue}>

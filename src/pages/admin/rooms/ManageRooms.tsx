@@ -19,21 +19,29 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { useBranch } from "@/contexts/BranchContext";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Room {
   id: string;
   name: string;
   name_ar: string;
   created_at: string;
+  branch_id: string;
+  branches?: {
+    name: string;
+    name_ar: string;
+  } | null;
 }
 
 export default function ManageRooms() {
   const { isRTL } = useLanguage();
+  const { activeBranch, branches, canViewAllBranches } = useBranch();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRoom, setEditingRoom] = useState<Room | null>(null);
-  const [formData, setFormData] = useState({ id: "", name: "", name_ar: "" });
+  const [formData, setFormData] = useState({ id: "", name: "", name_ar: "", branch_id: "" });
 
   useEffect(() => {
     fetchRooms();
@@ -41,12 +49,15 @@ export default function ManageRooms() {
 
   const fetchRooms = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("rooms").select("*").order("created_at", { ascending: true });
+    const { data, error } = await supabase
+      .from("rooms")
+      .select("*, branches(name, name_ar)")
+      .order("created_at", { ascending: true });
     if (error) {
       console.error("Error fetching rooms:", error);
       toast.error(isRTL ? "فشل تحميل القاعات" : "Failed to fetch rooms");
     } else {
-      setRooms(data || []);
+      setRooms((data as any) || []);
     }
     setLoading(false);
   };
@@ -70,12 +81,18 @@ export default function ManageRooms() {
       return;
     }
 
+    const branchToSave = formData.branch_id || activeBranch?.id;
+    if (!branchToSave) {
+      toast.error(isRTL ? "يرجى تحديد فرع" : "Please select a branch");
+      return;
+    }
+
     try {
       if (editingRoom) {
         // Update
         const { error } = await supabase
           .from("rooms")
-          .update({ name: formData.name, name_ar: formData.name_ar })
+          .update({ name: formData.name, name_ar: formData.name_ar, branch_id: branchToSave })
           .eq("id", editingRoom.id);
 
         if (error) throw error;
@@ -83,7 +100,7 @@ export default function ManageRooms() {
       } else {
         // Create
         const newId = generateId(formData.name);
-        const newRoom = { ...formData, id: newId };
+        const newRoom = { id: newId, name: formData.name, name_ar: formData.name_ar, branch_id: branchToSave };
         const { error } = await supabase.from("rooms").insert([newRoom]);
         if (error) throw error;
         toast.success(isRTL ? "تم إضافة القاعة" : "Room added");
@@ -110,15 +127,22 @@ export default function ManageRooms() {
   };
 
   const resetForm = () => {
-    setFormData({ id: "", name: "", name_ar: "" });
+    setFormData({ id: "", name: "", name_ar: "", branch_id: activeBranch?.id || "" });
     setEditingRoom(null);
   };
 
   const openEdit = (room: Room) => {
     setEditingRoom(room);
-    setFormData({ id: room.id, name: room.name, name_ar: room.name_ar });
+    setFormData({ id: room.id, name: room.name, name_ar: room.name_ar, branch_id: room.branch_id });
     setIsDialogOpen(true);
   };
+
+  const filteredRooms = rooms.filter(room => {
+    if (canViewAllBranches && activeBranch) {
+      return room.branch_id === activeBranch.id;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-6 p-6">
@@ -166,6 +190,26 @@ export default function ManageRooms() {
                   dir="rtl"
                 />
               </div>
+              {canViewAllBranches && (
+                <div className="space-y-2">
+                  <Label>{isRTL ? "الفرع" : "Branch"}</Label>
+                  <Select
+                    value={formData.branch_id}
+                    onValueChange={(val) => setFormData({ ...formData, branch_id: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={isRTL ? "اختر الفرع" : "Select Branch"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((b) => (
+                        <SelectItem key={b.id} value={b.id}>
+                          {isRTL ? b.name_ar : b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>{isRTL ? "إلغاء" : "Cancel"}</Button>
@@ -182,28 +226,34 @@ export default function ManageRooms() {
               <TableHead>{isRTL ? "الكود" : "ID"}</TableHead>
               <TableHead>{isRTL ? "الاسم (English)" : "Name (English)"}</TableHead>
               <TableHead>{isRTL ? "الاسم (عربي)" : "Name (Arabic)"}</TableHead>
+              {canViewAllBranches && <TableHead>{isRTL ? "الفرع" : "Branch"}</TableHead>}
               <TableHead className="w-[100px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
+                <TableCell colSpan={canViewAllBranches ? 5 : 4} className="h-24 text-center">
                   <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                 </TableCell>
               </TableRow>
-            ) : rooms.length === 0 ? (
+            ) : filteredRooms.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={canViewAllBranches ? 5 : 4} className="h-24 text-center text-muted-foreground">
                   {isRTL ? "لا توجد قاعات" : "No rooms found"}
                 </TableCell>
               </TableRow>
             ) : (
-              rooms.map((room) => (
+              filteredRooms.map((room) => (
                 <TableRow key={room.id}>
                   <TableCell className="font-mono text-sm">{room.id}</TableCell>
                   <TableCell>{room.name}</TableCell>
                   <TableCell className="font-arabic">{room.name_ar}</TableCell>
+                  {canViewAllBranches && (
+                    <TableCell>
+                      {isRTL ? room.branches?.name_ar : room.branches?.name || '—'}
+                    </TableCell>
+                  )}
                   <TableCell>
                     <div className="flex gap-2 justify-end">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(room)}>

@@ -231,10 +231,11 @@ export default function AshbalManagement() {
                         </TableBody>
                     </Table>
                 </div>
+            </div>
 
-                {/* Mobile View */}
-                <div className="grid gap-4 lg:hidden p-4">
-                    {loading ? (
+            {/* Mobile View */}
+            <div className="grid gap-4 lg:hidden p-4">
+                {loading ? (
                         <div className="text-center py-8">
                             <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                         </div>
@@ -322,7 +323,6 @@ export default function AshbalManagement() {
                         ))
                     )}
                 </div>
-            </div>
         </div>
     );
 

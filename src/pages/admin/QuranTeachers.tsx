@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -72,6 +73,7 @@ interface Profile {
 
 export default function QuranTeachers() {
     const { isRTL } = useLanguage();
+    const { branches, canViewAllBranches, activeBranch } = useBranch();
     const [teachers, setTeachers] = useState<QuranTeacher[]>([]);
     const [profiles, setProfiles] = useState<Profile[]>([]);
     const [loading, setLoading] = useState(true);
@@ -88,19 +90,25 @@ export default function QuranTeachers() {
         teaching_mode: 'both',
         target_gender: 'men',
         specialization: '',
+        branch_id: '',
     });
 
     useEffect(() => {
         fetchTeachers();
         fetchProfiles();
-    }, []);
+    }, [activeBranch?.id]);
 
     const fetchProfiles = async () => {
         try {
-            const { data } = await supabase
+            let query = supabase
                 .from('profiles')
-                .select('id, full_name, full_name_ar, email')
-                .order('full_name');
+                .select('id, full_name, full_name_ar, email');
+
+            if (activeBranch?.id) {
+                query = query.eq('branch_id', activeBranch.id);
+            }
+
+            const { data } = await query.order('full_name');
             setProfiles(data || []);
         } catch (error) {
             console.error('Error fetching profiles:', error);
@@ -110,10 +118,15 @@ export default function QuranTeachers() {
     const fetchTeachers = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            let query = supabase
                 .from('quran_teachers')
-                .select('*, profiles!quran_teachers_user_id_fkey(full_name, full_name_ar, email)')
-                .order('name');
+                .select('*, profiles!quran_teachers_user_id_fkey(full_name, full_name_ar, email)');
+
+            if (activeBranch?.id) {
+                query = query.eq('branch_id', activeBranch.id);
+            }
+
+            const { data, error } = await query.order('name');
 
             if (error) throw error;
 
@@ -179,7 +192,8 @@ export default function QuranTeachers() {
                 user_id: formData.volunteer_id === 'none' ? null : formData.volunteer_id,
                 teaching_mode: formData.teaching_mode,
                 target_gender: formData.target_gender,
-                specialization: formData.specialization
+                specialization: formData.specialization,
+                branch_id: formData.branch_id && formData.branch_id !== 'none' ? formData.branch_id : (activeBranch?.id || null)
             };
 
             if (isEditMode && selectedId) {
@@ -240,6 +254,7 @@ export default function QuranTeachers() {
             teaching_mode: 'both',
             target_gender: 'men',
             specialization: '',
+            branch_id: activeBranch?.id || '',
         });
         setIsEditMode(false);
         setSelectedId(null);
@@ -253,6 +268,7 @@ export default function QuranTeachers() {
             teaching_mode: t.teaching_mode || 'both',
             target_gender: t.target_gender || 'men',
             specialization: t.specialization || '',
+            branch_id: (t as any).branch_id || '',
         });
         setSelectedId(t.id);
         setIsEditMode(true);
@@ -502,6 +518,27 @@ export default function QuranTeachers() {
                                 </div>
 
                                 <div className="space-y-2">
+                                    <Label>{isRTL ? 'الفرع' : 'Branch'}</Label>
+                                    <Select
+                                        value={formData.branch_id || 'none'}
+                                        disabled={!canViewAllBranches}
+                                        onValueChange={(val) => setFormData({ ...formData, branch_id: val })}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={isRTL ? 'اختر الفرع...' : 'Select branch...'} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="none">{isRTL ? '-- بدون فرع --' : '-- No Branch --'}</SelectItem>
+                                            {branches.map(b => (
+                                                <SelectItem key={b.id} value={b.id}>
+                                                    {isRTL ? b.name_ar : b.name}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="space-y-2">
                                     <Label>{isRTL ? 'ربط بحساب متطوع (اختياري)' : 'Link to Volunteer Account (Optional)'}</Label>
                                     <Select
                                         value={formData.volunteer_id}
@@ -619,6 +656,11 @@ export default function QuranTeachers() {
                                             <span className="bg-secondary text-secondary-foreground px-1.5 py-0.5 rounded text-xs border border-secondary/20">
                                                 {t.target_gender === 'men' ? (isRTL ? 'رجال' : 'Men') : (isRTL ? 'نساء' : 'Women')}
                                             </span>
+                                            {canViewAllBranches && (
+                                                <span className="bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 px-1.5 py-0.5 rounded text-xs border border-orange-200 dark:border-orange-900">
+                                                    {branches.find(b => b.id === (t as any).branch_id)?.[isRTL ? 'name_ar' : 'name'] || (isRTL ? 'بدون فرع' : 'No Branch')}
+                                                </span>
+                                            )}
                                         </div>
 
                                         {t.specialization && (

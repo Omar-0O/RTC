@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -111,6 +112,7 @@ const DAYS_SHORT_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export default function MyQuranCircles() {
     const { user } = useAuth();
     const { isRTL } = useLanguage();
+    const { activeBranch } = useBranch();
     const locale = isRTL ? ar : enUS;
     const [searchParams, setSearchParams] = useSearchParams();
 
@@ -480,7 +482,8 @@ export default function MyQuranCircles() {
                         name_ar: g.name,
                         phone: g.phone,
                         gender: 'male',
-                        beneficiary_type: 'adult'
+                        beneficiary_type: 'adult',
+                        branch_id: activeBranch?.id || null
                     }));
 
                     const { data: createdBens, error: createError } = await supabase
@@ -730,7 +733,8 @@ export default function MyQuranCircles() {
                             name_en: newBeneficiary.name_en || null,
                             phone: newBeneficiary.phone || null,
                             gender: newBeneficiary.gender,
-                            beneficiary_type: newBeneficiary.beneficiary_type
+                            beneficiary_type: newBeneficiary.beneficiary_type,
+                            branch_id: activeBranch?.id || null
                         })
                         .select('id')
                         .single();

@@ -1,22 +1,9 @@
 /**
- * Service Worker registration + update detection.
+ * Service Worker registration — silent auto-update.
  *
- * Features:
- *  • Registers SW with proper scope
- *  • Detects new versions and notifies the app
- *  • Listens for SW messages (version broadcasts)
+ * When a new SW version is detected, it automatically activates
+ * and reloads the page without any user-facing popup.
  */
-
-type UpdateCallback = (version: string) => void;
-
-let updateCallbacks: UpdateCallback[] = [];
-
-export function onServiceWorkerUpdate(callback: UpdateCallback): () => void {
-  updateCallbacks.push(callback);
-  return () => {
-    updateCallbacks = updateCallbacks.filter(cb => cb !== callback);
-  };
-}
 
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) {
@@ -36,26 +23,27 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
       registration.update();
     }, 30 * 60 * 1000);
 
-    // Listen for new SW waiting to activate
+    // Listen for new SW waiting to activate → auto-activate silently
     registration.addEventListener('updatefound', () => {
       const newWorker = registration.installing;
       if (!newWorker) return;
 
       newWorker.addEventListener('statechange', () => {
         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          // New version available — notify the app
-          console.log('[SW] New version available');
-          updateCallbacks.forEach(cb => cb('new'));
+          // New version ready — tell it to activate immediately (no popup)
+          console.log('[SW] New version installed, activating silently...');
+          newWorker.postMessage({ type: 'SKIP_WAITING' });
         }
       });
     });
 
-    // Listen for version broadcast from SW
-    navigator.serviceWorker.addEventListener('message', (event) => {
-      if (event.data?.type === 'SW_UPDATED') {
-        console.log('[SW] Updated to version:', event.data.version);
-        updateCallbacks.forEach(cb => cb(event.data.version));
-      }
+    // When the new SW takes over, reload the page seamlessly
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      console.log('[SW] Controller changed, reloading page...');
+      window.location.reload();
     });
 
     return registration;

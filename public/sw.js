@@ -6,15 +6,20 @@
  *  • Static Assets (JS, CSS, fonts)  → Cache First (versioned)
  *  • Images/Media                    → Cache First (long TTL)
  *  • API requests (Supabase)         → Network First, cache fallback for GETs
+ *  • Auth endpoints                  → Network Only (NEVER cache)
  *  • Edge Functions                  → Network Only (mutations)
  *
  * Cache versioning: bump CACHE_VERSION to invalidate all caches.
  */
 
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `rtc-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `rtc-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `rtc-api-${CACHE_VERSION}`;
+
+// Maximum entries per cache to prevent unbounded growth
+const MAX_API_CACHE_ENTRIES = 100;
+const MAX_DYNAMIC_CACHE_ENTRIES = 200;
 
 // Pre-cache these during install (app shell)
 const APP_SHELL = [
@@ -24,7 +29,7 @@ const APP_SHELL = [
   '/favicon.png',
 ];
 
-// ─── Install: pre-cache app shell ───────────────────────────────────
+// ─── Install: pre-cache app shell & auto-activate ───────────────────
 
 self.addEventListener('install', (event) => {
   console.log('[SW] Installing version:', CACHE_VERSION);
@@ -35,7 +40,14 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// ─── Activate: clean old caches ─────────────────────────────────────
+// Listen for explicit skip-waiting messages from the registration code
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// ─── Activate: clean old caches & claim clients immediately ─────────
 
 self.addEventListener('activate', (event) => {
   console.log('[SW] Activating version:', CACHE_VERSION);
@@ -53,7 +65,14 @@ self.addEventListener('activate', (event) => {
             })
         );
       }),
-    ])
+    ]).then(() => {
+      // Silently notify all clients of the update (no popup needed)
+      self.clients.matchAll().then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION });
+        });
+      });
+    })
   );
 });
 
@@ -67,7 +86,17 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   // Skip cross-origin requests (except CDN fonts/images)
-  if (url.origin !== self.location.origin && !isTrustedCDN(url)) return;
+  if (url.origin !== self.location.origin && !isTrustedCDN(url)) {
+    // EXCEPT: Supabase REST API (non-auth) should be handled
+    if (!url.hostname.includes('supabase')) return;
+  }
+
+  // ─── NEVER cache auth endpoints ───
+  // Auth token requests, session refreshes, user info — always network only.
+  // Caching these causes stale session tokens → infinite login loops.
+  if (url.pathname.includes('/auth/v1/') || url.pathname.includes('/auth/v2/')) {
+    return; // Let the browser handle it normally (network only)
+  }
 
   // Supabase Edge Functions → Network Only (never cache)
   if (url.pathname.includes('/functions/v1/')) return;
@@ -129,6 +158,8 @@ async function networkFirstWithCache(request, cacheName) {
     if (response.ok) {
       const cache = await caches.open(cacheName);
       cache.put(request, response.clone());
+      // Trim cache if it gets too large
+      trimCache(cacheName, MAX_API_CACHE_ENTRIES);
     }
     return response;
   } catch (err) {
@@ -184,6 +215,19 @@ function isTrustedCDN(url) {
          url.hostname.includes('cdn.jsdelivr.net');
 }
 
+/** Trim a cache to at most maxEntries */
+async function trimCache(cacheName, maxEntries) {
+  const cache = await caches.open(cacheName);
+  const keys = await cache.keys();
+  if (keys.length > maxEntries) {
+    // Delete oldest entries first (FIFO)
+    const deleteCount = keys.length - maxEntries;
+    for (let i = 0; i < deleteCount; i++) {
+      await cache.delete(keys[i]);
+    }
+  }
+}
+
 // ─── Push Notifications (preserved from original) ───────────────────
 
 self.addEventListener('push', (event) => {
@@ -215,15 +259,4 @@ self.addEventListener('notificationclick', (event) => {
       return clients.openWindow(event.notification.data || '/');
     })
   );
-});
-
-// ─── Version Broadcast ──────────────────────────────────────────────
-
-// Notify clients when a new SW version activates
-self.addEventListener('activate', () => {
-  self.clients.matchAll().then((clients) => {
-    clients.forEach((client) => {
-      client.postMessage({ type: 'SW_UPDATED', version: CACHE_VERSION });
-    });
-  });
 });

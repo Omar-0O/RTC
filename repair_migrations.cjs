@@ -10,7 +10,7 @@ console.log(`Found ${files.length} migration files.`);
 // Sort files to be sure
 files.sort();
 
-const cutoff = '20260214000000';
+const cutoff = '20260604200000';
 
 const toRepair = files.filter(f => {
     const version = f.split('_')[0];

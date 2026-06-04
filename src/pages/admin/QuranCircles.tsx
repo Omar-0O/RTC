@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -173,6 +174,7 @@ const getLocalDateObj = (dateStr: string) => {
 
 export default function QuranCircles() {
     const { isRTL, language } = useLanguage();
+    const { activeBranch } = useBranch();
     const navigate = useNavigate();
     const { hasRole } = useAuth();
     const canManageOrganizers = hasRole('admin') || hasRole('head_quran');
@@ -284,18 +286,23 @@ export default function QuranCircles() {
         fetchCircles();
         fetchTeachers();
         fetchVolunteers();
-    }, []);
+    }, [activeBranch?.id]);
 
     const fetchCircles = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            let query: any = supabase
                 .from('quran_circles')
                 .select(`
                     *,
                     quran_circle_organizers(volunteer_id, name, phone)
-                `)
-                .order('created_at', { ascending: false });
+                `);
+
+            if (activeBranch?.id) {
+                query = query.eq('branch_id', activeBranch.id);
+            }
+
+            const { data, error } = await query.order('created_at', { ascending: false });
 
             if (error) throw error;
 
@@ -348,10 +355,15 @@ export default function QuranCircles() {
 
     const fetchTeachers = async () => {
         try {
-            const { data: teachersData, error } = await supabase
+            let query: any = supabase
                 .from('quran_teachers')
-                .select('*')
-                .order('name');
+                .select('*');
+
+            if (activeBranch?.id) {
+                query = query.eq('branch_id', activeBranch.id);
+            }
+
+            const { data: teachersData, error } = await query.order('name');
 
             if (error) throw error;
 
@@ -371,11 +383,16 @@ export default function QuranCircles() {
 
     const fetchVolunteers = async () => {
         try {
-            const { data, error } = await supabase
+            let query: any = supabase
                 .from('profiles')
                 .select('id, full_name, full_name_ar, phone, avatar_url')
-                .neq('full_name', 'RTC Admin')
-                .order('full_name');
+                .neq('full_name', 'RTC Admin');
+
+            if (activeBranch?.id) {
+                query = query.eq('branch_id', activeBranch.id);
+            }
+
+            const { data, error } = await query.order('full_name');
             if (error) throw error;
             setVolunteers(data || []);
         } catch (error) {
@@ -536,7 +553,8 @@ export default function QuranCircles() {
                 date: new Date().toISOString().split('T')[0], // Legacy
                 description: formData.description,
                 target_group: formData.target_group,
-                beneficiary_gender: formData.beneficiary_gender
+                beneficiary_gender: formData.beneficiary_gender,
+                branch_id: activeBranch?.id || null
             };
 
             let circleId = selectedId;
@@ -692,10 +710,15 @@ export default function QuranCircles() {
     // Enrollment functions
     const fetchAllBeneficiaries = async () => {
         try {
-            const { data, error } = await supabase
+            let query: any = supabase
                 .from('quran_beneficiaries')
-                .select('id, name_ar, name_en, image_url, gender, beneficiary_type, phone')
-                .order('name_ar');
+                .select('id, name_ar, name_en, image_url, gender, beneficiary_type, phone');
+
+            if (activeBranch?.id) {
+                query = query.eq('branch_id', activeBranch.id);
+            }
+
+            const { data, error } = await query.order('name_ar');
             if (error) throw error;
             setAllBeneficiaries((data as unknown as Beneficiary[]) || []);
         } catch (error) {
@@ -1414,7 +1437,8 @@ export default function QuranCircles() {
                             name_en: newBeneficiary.name_en || null,
                             phone: newBeneficiary.phone || null,
                             gender: newBeneficiary.gender,
-                            beneficiary_type: newBeneficiary.beneficiary_type
+                            beneficiary_type: newBeneficiary.beneficiary_type,
+                            branch_id: activeBranch?.id || null
                         })
                         .select('id')
                         .single();

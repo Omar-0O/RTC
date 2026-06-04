@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -81,6 +82,7 @@ const CARAVANS_COMMITTEE_NAME = 'Caravans'; // Must match DB migration name
 export default function CaravanManagement() {
     const { user, profile: userProfile } = useAuth();
     const { t, language, isRTL } = useLanguage();
+    const { activeBranch } = useBranch();
 
     const [caravans, setCaravans] = useState<Caravan[]>([]);
     const [timeFilter, setTimeFilter] = useState('all');
@@ -378,15 +380,20 @@ export default function CaravanManagement() {
         fetchVolunteers();
         fetchCaravansCommittee();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [activeBranch?.id]);
 
     const fetchCaravans = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            let query: any = supabase
                 .from('caravans')
-                .select('*, participants_count:caravan_participants(count)')
-                .order('date', { ascending: false });
+                .select('*, participants_count:caravan_participants(count)');
+
+            if (activeBranch?.id) {
+                query = query.eq('branch_id', activeBranch.id);
+            }
+
+            const { data, error } = await query.order('date', { ascending: false });
 
             if (error) throw error;
 
@@ -403,11 +410,16 @@ export default function CaravanManagement() {
     };
 
     const fetchVolunteers = async () => {
-        const { data } = await (supabase as any)
+        let query: any = (supabase as any)
             .from('profiles')
             .select('id, full_name, phone, committee_id, avatar_url')
-            .neq('full_name', 'RTC Admin')
-            .order('full_name');
+            .neq('full_name', 'RTC Admin');
+
+        if (activeBranch?.id) {
+            query = query.eq('branch_id', activeBranch.id);
+        }
+
+        const { data } = await query.order('full_name');
         if (data) setVolunteers(data);
     };
 
@@ -571,6 +583,7 @@ export default function CaravanManagement() {
                 bus_arrival_time: formData.bus_arrival_time || null,
                 return_time: formData.return_time || null,
                 created_by: user?.id,
+                branch_id: activeBranch?.id || null,
                 target_meals: formData.type === 'food_distribution' ? (formData.target_meals ? Number(formData.target_meals) : null) : null,
                 actual_meals: formData.type === 'food_distribution' ? (formData.actual_meals ? Number(formData.actual_meals) : null) : null,
                 total_bags: formData.type === 'charity_market' ? (formData.total_bags ? Number(formData.total_bags) : null) : null,

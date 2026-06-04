@@ -168,7 +168,7 @@ export default function SubmissionManagement() {
         if (isHeadHR) {
             fetchGuestParticipations();
         }
-    }, [selectedMonth, selectedLevel, selectedType, selectedVolunteer, isHeadHR]);
+    }, [selectedMonth, selectedLevel, selectedType, selectedVolunteer, isHeadHR, activeBranch?.id]);
 
     const fetchVolunteers = async () => {
         try {
@@ -180,10 +180,15 @@ export default function SubmissionManagement() {
 
             const adminIds = adminRoles?.map(r => r.user_id) || [];
 
-            const { data, error } = await (supabase as any)
+            let profilesQuery: any = supabase
                 .from('profiles')
-                .select('id, full_name, full_name_ar, level, avatar_url, phone')
-                .order('full_name', { ascending: true });
+                .select('id, full_name, full_name_ar, level, avatar_url, phone');
+
+            if (activeBranch?.id) {
+                profilesQuery = profilesQuery.eq('branch_id', activeBranch.id);
+            }
+
+            const { data, error } = await (profilesQuery as any).order('full_name', { ascending: true });
 
             if (error) throw error;
 
@@ -199,9 +204,15 @@ export default function SubmissionManagement() {
 
     const fetchTrainers = async () => {
         try {
-            const { data, error } = await supabase
+            let trainersQuery: any = supabase
                 .from('trainers')
                 .select('id, user_id, name_ar, name_en, phone, image_url');
+
+            if (activeBranch?.id) {
+                trainersQuery = trainersQuery.eq('branch_id', activeBranch.id);
+            }
+
+            const { data, error } = await trainersQuery;
 
             if (error) throw error;
             console.log('Fetched trainers map data:', data);
@@ -226,7 +237,7 @@ export default function SubmissionManagement() {
             const startDate = startOfMonth(monthDate);
             const endDate = endOfMonth(monthDate);
 
-            let query = supabase
+            let query: any = supabase
                 .from('activity_submissions')
                 .select(`
                     id,
@@ -249,8 +260,13 @@ export default function SubmissionManagement() {
                     committees (name, name_ar)
                 `)
                 .gte('submitted_at', startDate.toISOString())
-                .lte('submitted_at', endDate.toISOString())
-                .order('created_at', { ascending: false });
+                .lte('submitted_at', endDate.toISOString());
+
+            if (activeBranch?.id) {
+                query = query.eq('branch_id', activeBranch.id);
+            }
+
+            query = query.order('created_at', { ascending: false });
 
             // Fetch all submissions for the month
             const { data, error } = await query;
@@ -340,18 +356,24 @@ export default function SubmissionManagement() {
             const guestData: GuestParticipation[] = [];
 
             // Fetch event participants (guests)
-            const { data: eventParticipants } = await supabase
+            let eventQuery: any = supabase
                 .from('event_participants')
                 .select(`
                     id,
                     name,
                     phone,
                     is_volunteer,
-                    events (name, date)
+                    events!inner (name, date, branch_id)
                 `)
                 .eq('is_volunteer', false)
                 .gte('events.date', startDate.toISOString().split('T')[0])
                 .lte('events.date', endDate.toISOString().split('T')[0]);
+
+            if (activeBranch?.id) {
+                eventQuery = eventQuery.eq('events.branch_id', activeBranch.id);
+            }
+
+            const { data: eventParticipants } = await eventQuery;
 
             if (eventParticipants) {
                 eventParticipants.forEach((p: any) => {
@@ -370,18 +392,24 @@ export default function SubmissionManagement() {
             }
 
             // Fetch caravan participants (guests)
-            const { data: caravanParticipants } = await supabase
+            let caravanQuery: any = supabase
                 .from('caravan_participants')
                 .select(`
                     id,
                     name,
                     phone,
                     is_volunteer,
-                    caravans (name, date)
+                    caravans!inner (name, date, branch_id)
                 `)
                 .eq('is_volunteer', false)
                 .gte('caravans.date', startDate.toISOString().split('T')[0])
                 .lte('caravans.date', endDate.toISOString().split('T')[0]);
+
+            if (activeBranch?.id) {
+                caravanQuery = caravanQuery.eq('caravans.branch_id', activeBranch.id);
+            }
+
+            const { data: caravanParticipants } = await caravanQuery;
 
             if (caravanParticipants) {
                 caravanParticipants.forEach((p: any) => {
@@ -400,29 +428,35 @@ export default function SubmissionManagement() {
             }
 
             // Fetch call participants (guests)
-            const { data: callParticipants } = await supabase
-                .from('call_participants' as any)
+            let callQuery: any = supabase
+                .from('ethics_calls_participants')
                 .select(`
                     id,
                     name,
                     phone,
                     is_volunteer,
-                    calls (name, date)
+                    ethics_calls!inner (name, date, branch_id)
                 `)
                 .eq('is_volunteer', false)
-                .gte('calls.date', startDate.toISOString().split('T')[0])
-                .lte('calls.date', endDate.toISOString().split('T')[0]);
+                .gte('ethics_calls.date', startDate.toISOString().split('T')[0])
+                .lte('ethics_calls.date', endDate.toISOString().split('T')[0]);
+
+            if (activeBranch?.id) {
+                callQuery = callQuery.eq('ethics_calls.branch_id', activeBranch.id);
+            }
+
+            const { data: callParticipants } = await callQuery;
 
             if (callParticipants) {
                 callParticipants.forEach((p: any) => {
-                    if (p.calls) {
+                    if (p.ethics_calls) {
                         guestData.push({
                             id: p.id,
                             name: p.name || '',
                             phone: p.phone,
                             source: 'call',
-                            source_name: p.calls.name || '',
-                            date: p.calls.date || '',
+                            source_name: p.ethics_calls.name || '',
+                            date: p.ethics_calls.date || '',
                             type: 'guest'
                         });
                     }

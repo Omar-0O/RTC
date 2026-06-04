@@ -645,7 +645,7 @@ export default function FollowUpManagement() {
     setFormName('');
     setFormPhone1('');
     setFormPhone2('');
-    setFormBranch('');
+    setFormBranch(activeBranch?.id || '');
   };
 
   const openAdd = () => { resetForm(); setIsAddOpen(true); };
@@ -1462,6 +1462,9 @@ export default function FollowUpManagement() {
                     <TableHead className="text-center">{ar('الاسم الكامل', 'Full Name')}</TableHead>
                     <TableHead className="text-center">{ar('الهاتف الأول', 'Phone 1')}</TableHead>
                     <TableHead className="text-center">{ar('الهاتف الثاني', 'Phone 2')}</TableHead>
+                    {canViewAllBranches && (
+                      <TableHead className="text-center">{ar('الفرع', 'Branch')}</TableHead>
+                    )}
                     <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -1489,6 +1492,13 @@ export default function FollowUpManagement() {
                       <TableCell className="text-center font-mono text-sm text-muted-foreground whitespace-nowrap">
                         {user.phone_2 || '—'}
                       </TableCell>
+                      {canViewAllBranches && (
+                        <TableCell className="text-center whitespace-nowrap">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground border">
+                            {getBranchName(user.branch_id, user.branch)}
+                          </span>
+                        </TableCell>
+                      )}
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -1613,7 +1623,8 @@ export default function FollowUpManagement() {
                 <select
                   value={formBranch}
                   onChange={e => setFormBranch(e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  disabled={!canViewAllBranches}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
                 >
                   <option value="">{ar('-- بدون فرع --', '-- No Branch --')}</option>
                   {branches.map(b => (
@@ -1681,7 +1692,8 @@ export default function FollowUpManagement() {
                 <select
                   value={formBranch}
                   onChange={e => setFormBranch(e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  disabled={!canViewAllBranches}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
                 >
                   <option value="">{ar('-- بدون فرع --', '-- No Branch --')}</option>
                   {branches.map(b => (

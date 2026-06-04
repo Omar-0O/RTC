@@ -136,6 +136,9 @@ export default function MyCourses() {
     const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
     const [beneficiaryToDelete, setBeneficiaryToDelete] = useState<CourseBeneficiary | null>(null);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+    const [leaveCourseId, setLeaveCourseId] = useState<string | null>(null);
+    const [leaveType, setLeaveType] = useState<'organizer' | 'marketer' | null>(null);
+    const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
 
 
     useEffect(() => {
@@ -307,22 +310,31 @@ export default function MyCourses() {
         }
     };
 
-    const handleLeaveCourse = async (courseId: string) => {
-        if (!user) return;
-        if (!confirm(isRTL ? 'هل أنت متأكد من إزالة نفسك كمنظم من هذا الكورس؟' : 'Are you sure you want to remove yourself as an organizer from this course?')) return;
+    const handleLeaveCourse = (courseId: string, type: 'organizer' | 'marketer') => {
+        setLeaveCourseId(courseId);
+        setLeaveType(type);
+        setIsLeaveConfirmOpen(true);
+    };
+
+    const confirmLeaveCourse = async () => {
+        if (!user || !leaveCourseId || !leaveType) return;
+        const table = leaveType === 'organizer' ? 'course_organizers' : 'course_marketers';
         
         try {
             const { error } = await supabase
-                .from('course_organizers')
+                .from(table)
                 .delete()
-                .match({ course_id: courseId, volunteer_id: user.id });
+                .match({ course_id: leaveCourseId, volunteer_id: user.id });
 
             if (error) throw error;
-            toast.success(isRTL ? 'تم إزالة الكورس بنجاح' : 'Course removed successfully');
+            toast.success(isRTL ? 'تمت الإزالة بنجاح' : 'Removed successfully');
+            setIsLeaveConfirmOpen(false);
+            setLeaveCourseId(null);
+            setLeaveType(null);
             fetchMyCourses();
         } catch (error: any) {
             console.error('Error leaving course:', error);
-            toast.error(isRTL ? 'حدث خطأ أثناء الإزالة' : 'Error removing organizer');
+            toast.error(isRTL ? 'حدث خطأ أثناء الإزالة' : 'Error removing role');
         }
     };
 
@@ -856,17 +868,24 @@ export default function MyCourses() {
                                                         {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
                                                     </DropdownMenuItem>
                                                     <DropdownMenuSeparator />
-                                                    <DropdownMenuItem onClick={() => handleLeaveCourse(course.id)} className="text-destructive focus:bg-destructive/10">
+                                                    <DropdownMenuItem onClick={() => handleLeaveCourse(course.id, 'organizer')} className="text-destructive focus:bg-destructive/10">
                                                         <Trash2 className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                                         {isRTL ? 'إزالة نفسي كمنظم' : 'Leave as Organizer'}
                                                     </DropdownMenuItem>
                                                 </>
                                             )}
                                             {marketerCourseIds.has(course.id) && (
-                                                <DropdownMenuItem onClick={() => openCourseDetails(course, 'marketing')}>
-                                                    <Megaphone className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                    {isRTL ? 'إدارة التسويق' : 'Marketing Management'}
-                                                </DropdownMenuItem>
+                                                <>
+                                                    <DropdownMenuItem onClick={() => openCourseDetails(course, 'marketing')}>
+                                                        <Megaphone className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'إدارة التسويق' : 'Marketing Management'}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={() => handleLeaveCourse(course.id, 'marketer')} className="text-destructive focus:bg-destructive/10">
+                                                        <Trash2 className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                        {isRTL ? 'إزالة نفسي كمسوق' : 'Leave as Marketer'}
+                                                    </DropdownMenuItem>
+                                                </>
                                             )}
                                             <DropdownMenuItem onClick={() => exportCourseToExcel(course)}>
                                                 <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
@@ -1710,6 +1729,35 @@ export default function MyCourses() {
                         >
                             <Trash2 className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
                             {isRTL ? 'حذف' : 'Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Leave Course Confirmation */}
+            <AlertDialog open={isLeaveConfirmOpen} onOpenChange={setIsLeaveConfirmOpen}>
+                <AlertDialogContent className="max-w-sm w-[calc(100%-2rem)] rounded-xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                            <X className="w-5 h-5" />
+                            {isRTL ? 'تأكيد الإزالة' : 'Confirm Removal'}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm">
+                            {isRTL
+                                ? `هل أنت متأكد من إزالة نفسك ك${leaveType === 'organizer' ? 'منظم' : 'مسوق'} من هذا الكورس؟`
+                                : `Are you sure you want to remove yourself as a ${leaveType === 'organizer' ? 'organizer' : 'marketer'} from this course?`
+                            }
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2">
+                        <AlertDialogCancel className="flex-1 sm:flex-none">
+                            {isRTL ? 'إلغاء' : 'Cancel'}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmLeaveCourse}
+                            className="flex-1 sm:flex-none bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                        >
+                            {isRTL ? 'تأكيد' : 'Confirm'}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,6 +54,7 @@ const getGradient = (id: string) => {
 
 export default function UnderFollowUp() {
   const { isRTL } = useLanguage();
+  const { activeBranch } = useBranch();
   const navigate = useNavigate();
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,18 +64,23 @@ export default function UnderFollowUp() {
 
   useEffect(() => {
     fetchVolunteers();
-  }, []);
+  }, [activeBranch?.id]);
 
   const fetchVolunteers = async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      const { data: profiles, error } = await (supabase as any)
+      let query = (supabase as any)
         .from('profiles')
         .select('id, full_name, full_name_ar, avatar_url, phone, committee_id')
         .eq('level', 'under_follow_up')
-        .neq('full_name', 'RTC Admin')
-        .order('full_name');
+        .neq('full_name', 'RTC Admin');
+
+      if (activeBranch?.id) {
+        query = query.eq('branch_id', activeBranch.id);
+      }
+
+      const { data: profiles, error } = await query.order('full_name');
 
       if (error) throw error;
 

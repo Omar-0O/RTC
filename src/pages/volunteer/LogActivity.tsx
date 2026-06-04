@@ -123,10 +123,15 @@ export default function LogActivity() {
   const fetchVolunteers = async () => {
     try {
       // First, get all volunteers
-      const { data: profilesData, error: profilesError } = await supabase
+      let query = supabase
         .from('profiles')
-        .select('id, full_name, phone, avatar_url')
-        .order('full_name');
+        .select('id, full_name, phone, avatar_url');
+
+      if (profile?.branch_id) {
+        query = query.eq('branch_id', profile.branch_id);
+      }
+
+      const { data: profilesData, error: profilesError } = await query.order('full_name');
 
       if (profilesError) throw profilesError;
 
@@ -376,6 +381,7 @@ export default function LogActivity() {
         reviewed_by: (isLeader ? user.id : null),
         proof_url: proofUrl,
         submitted_at: submissionTimestamp,
+        branch_id: profile?.branch_id || null
       };
 
       if (isGroupSubmission) {
@@ -431,7 +437,8 @@ export default function LogActivity() {
             committee_id: committeeId,
             guest_participants: guests.length > 0 ? guests : null,
             excel_sheet_url: excelUrl,
-            submitted_at: submissionTimestamp
+            submitted_at: submissionTimestamp,
+            branch_id: profile?.branch_id || null
           })
           .select()
           .single();
