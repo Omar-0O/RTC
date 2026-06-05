@@ -11,7 +11,8 @@ import { shouldRetry } from '@/services/api';
 // Re-export types
 export type {
   FollowUpUser, FetchFollowUpOptions, AddFollowUpPayload,
-  EditFollowUpPayload, SyncFollowUpOptions,
+  EditFollowUpPayload, SyncFollowUpOptions, LinkFollowUpPayload,
+  ImportReplaceOptions, SyncResult, ParticipationItem,
 } from '@/services/followup.service';
 
 // ─── Cache Timing ───────────────────────────────────────────────────
@@ -72,6 +73,22 @@ export function useSyncFollowUp() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: followupService.syncFollowUp,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.followUp.all }); },
+  });
+}
+
+export function useLinkFollowUp() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: followupService.linkToAnother,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.followUp.all }); },
+  });
+}
+
+export function useImportReplace() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: followupService.importReplace,
     onSuccess: () => { qc.invalidateQueries({ queryKey: queryKeys.followUp.all }); },
   });
 }

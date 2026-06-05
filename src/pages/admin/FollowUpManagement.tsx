@@ -155,7 +155,7 @@ export default function FollowUpManagement() {
                 if (p.startsWith('+20')) variants.add('0' + p.slice(3)); // 01...
                 if (p.startsWith('201')) variants.add('0' + p.slice(2)); // 01...
               });
-              const orFilter = [...variants].map(v => `guest_phone.ilike.%${v}%`).join(',');
+              const orFilter = [...variants].map(v => `guest_phone.eq.${v}`).join(',');
               return (supabase as any)
                 .from('activity_submissions')
                 .select('id, date, submitted_at, created_at, activity_types(name, name_ar)')
@@ -269,25 +269,41 @@ export default function FollowUpManagement() {
         approvedPromises.push(q);
       }
 
-      // ── Pending records: NO branch filter — they can come from any branch ──
-      // This ensures duplicates from submissions across branches are always visible
-      const { count: pendingCount, error: countError2 } = await (supabase as any)
-        .from('users_followup')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
+      // ── Pending records: ALSO branch-scoped to prevent cross-branch data leak ──
+      const pendingQuery = () => {
+        let q = (supabase as any)
+          .from('users_followup')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'pending');
+        if (activeBranch?.id) {
+          if (canViewAllBranches) {
+            q = q.or(`branch_id.eq.${activeBranch.id},branch_id.is.null`);
+          } else {
+            q = q.eq('branch_id', activeBranch.id);
+          }
+        }
+        return q;
+      };
+      const { count: pendingCount, error: countError2 } = await pendingQuery();
       if (countError2) throw countError2;
 
       const pendingPromises = [];
       for (let from = 0; from < (pendingCount ?? 0); from += pageSize) {
         const to = Math.min(from + pageSize - 1, (pendingCount ?? 0) - 1);
-        pendingPromises.push(
-          (supabase as any)
+        let pq = (supabase as any)
             .from('users_followup')
             .select('*')
             .eq('status', 'pending')
             .order('id', { ascending: true })
-            .range(from, to)
-        );
+            .range(from, to);
+        if (activeBranch?.id) {
+          if (canViewAllBranches) {
+            pq = pq.or(`branch_id.eq.${activeBranch.id},branch_id.is.null`);
+          } else {
+            pq = pq.eq('branch_id', activeBranch.id);
+          }
+        }
+        pendingPromises.push(pq);
       }
 
       const results = await Promise.all([...approvedPromises, ...pendingPromises]);
@@ -1239,8 +1255,9 @@ export default function FollowUpManagement() {
         return;
       }
 
-      // 1. Soft-delete existing approved users FOR THIS BRANCH AND ANY ORPHANED NULL BRANCHES
-      console.log(`[Import] Wiping branch_id=${targetBranchId} and null branches...`);
+      // 1. Soft-delete existing approved users FOR THIS BRANCH ONLY
+      // BUG FIX: No longer deletes NULL-branch records — they may belong to other branches
+      console.log(`[Import] Wiping branch_id=${targetBranchId} only...`);
       
       const { error: deleteError1 } = await (supabase as any)
         .from('users_followup')
@@ -1248,14 +1265,7 @@ export default function FollowUpManagement() {
         .eq('status', 'approved')
         .eq('branch_id', targetBranchId);
 
-      const { error: deleteError2 } = await (supabase as any)
-        .from('users_followup')
-        .update({ status: 'rejected' })
-        .eq('status', 'approved')
-        .is('branch_id', null);
-
       if (deleteError1) throw deleteError1;
-      if (deleteError2) throw deleteError2;
 
       // 2. Extract linked_to row references and mapped records
       const linkedToRows: (number | null)[] = pendingImportRecords.map(r => r._linkedToRow ?? null);
@@ -1718,11 +1728,11 @@ export default function FollowUpManagement() {
       <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader className="text-start sm:text-start rtl:text-right ltr:text-left">
-            <AlertDialogTitle>{ar('تأكيد الحذف', 'Confirm Deletion')}</AlertDialogTitle>
+            <AlertDialogTitle>{ar('تأكيد الإزالة', 'Confirm Removal')}</AlertDialogTitle>
             <AlertDialogDescription>
               {ar(
-                `هل أنت متأكد من حذف "${selected?.full_name}" من قائمة المتابعة؟ لا يمكن التراجع.`,
-                `Are you sure you want to remove "${selected?.full_name}" from the follow-up list? This cannot be undone.`
+                `هل أنت متأكد من إزالة "${selected?.full_name}" من الشيت؟ سيتم نقله لقائمة المرفوضين ولن يظهر في الشيت.`,
+                `Are you sure you want to remove "${selected?.full_name}" from the sheet? They will be moved to rejected and hidden from the sheet.`
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
