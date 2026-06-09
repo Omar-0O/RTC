@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import CourseSchedule from '@/components/courses/CourseSchedule';
@@ -48,6 +49,7 @@ type CommitteeStat = {
 export default function AdminDashboard() {
   const { t, isRTL } = useLanguage();
   const { activeBranch, canViewAllBranches } = useBranch();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats>({
     totalVolunteers: 0,
@@ -60,12 +62,34 @@ export default function AdminDashboard() {
   const [committeeStats, setCommitteeStats] = useState<CommitteeStat[]>([]);
 
   useEffect(() => {
-    fetchDashboardData();
+    if (!user?.id) return;
+    const cacheKey = `rtc_admin_dashboard_data_${user.id}_${activeBranch?.id || 'all'}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setStats(parsed.stats || {
+          totalVolunteers: 0,
+          totalParticipations: 0,
+          totalPointsAwarded: 0,
+          activeCommittees: 0,
+        });
+        setRecentSubmissions(parsed.recentSubmissions || []);
+        setTopVolunteers(parsed.topVolunteers || []);
+        setCommitteeStats(parsed.committeeStats || []);
+        setLoading(false);
+      } catch (e) {
+        console.error('Error parsing cached admin dashboard data:', e);
+      }
+    }
+    fetchDashboardData(!!cached);
     // Re-fetch when branch changes (admin switching active branch)
-  }, [activeBranch?.id]);
+  }, [user?.id, activeBranch?.id]);
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
+  const fetchDashboardData = async (hasCache = false) => {
+    if (!hasCache) {
+      setLoading(true);
+    }
     try {
       // Fetch all data in parallel
       const [
@@ -120,15 +144,17 @@ export default function AdminDashboard() {
 
       const totalPoints = participations.reduce((sum, a) => sum + (a.points_awarded || 0), 0);
 
-      setStats({
+      const updatedStats = {
         totalVolunteers: profiles.length,
         totalParticipations: participations.length,
         totalPointsAwarded: totalPoints,
         activeCommittees: committees.length,
-      });
+      };
+      setStats(updatedStats);
 
       // Top volunteers (of the month)
       // RPC function defined in types.ts as existing in Database definition
+      let processedTopVolunteers = topVolunteers;
       const { data: topVolunteersData } = await supabase.rpc('get_leaderboard', {
         period_type: 'month',
         target_date: new Date().toISOString(),
@@ -139,13 +165,14 @@ export default function AdminDashboard() {
         const validProfileIds = new Set(profiles.map(p => p.id));
         const filteredTopVolunteers = topVolunteersData.filter((v: any) => validProfileIds.has(v.volunteer_id));
 
-        setTopVolunteers(filteredTopVolunteers.slice(0, 5).map((v: any) => ({
+        processedTopVolunteers = filteredTopVolunteers.slice(0, 5).map((v: any) => ({
           id: v.volunteer_id,
           full_name: isRTL ? (v.full_name_ar || v.full_name || '') : v.full_name || '',
           avatar_url: v.avatar_url,
           total_points: v.total_points,
           level: v.level || 'under_follow_up'
-        })));
+        }));
+        setTopVolunteers(processedTopVolunteers);
       }
 
       // Recent submissions
@@ -200,6 +227,17 @@ export default function AdminDashboard() {
       }).sort((a, b) => b.total_points - a.total_points).slice(0, 5);
       setCommitteeStats(committeeStatsData);
 
+      // Save to cache
+      if (user?.id) {
+        const cacheKey = `rtc_admin_dashboard_data_${user.id}_${activeBranch?.id || 'all'}`;
+        localStorage.setItem(cacheKey, JSON.stringify({
+          stats: updatedStats,
+          recentSubmissions: submissions,
+          topVolunteers: processedTopVolunteers,
+          committeeStats: committeeStatsData,
+          cachedAt: Date.now()
+        }));
+      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {

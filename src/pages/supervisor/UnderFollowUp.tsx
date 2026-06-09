@@ -175,31 +175,29 @@ export default function UnderFollowUp() {
     <div className="space-y-5" dir={isRTL ? 'rtl' : 'ltr'}>
 
       {/* ── Hero Header ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500/15 via-orange-400/8 to-yellow-500/15 border border-amber-400/25 p-6 md:p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-amber-500/10 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 p-6 md:p-8 shadow-sm">
         {/* Background decoration */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-16 -right-16 h-48 w-48 rounded-full bg-amber-400/10 blur-3xl" />
-          <div className="absolute -bottom-12 -left-12 h-36 w-36 rounded-full bg-orange-400/10 blur-3xl" />
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-400/40 to-transparent" />
+          <div className="absolute -top-12 -right-12 h-48 w-48 rounded-full bg-amber-500/10 dark:bg-amber-400/5 blur-2xl" />
         </div>
 
-        <div className="relative flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="relative flex flex-col sm:flex-row sm:items-center gap-6">
           <div className="flex items-center gap-4 flex-1">
             {/* Icon */}
             <div className="relative shrink-0">
-              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-xl shadow-amber-500/30">
+              <div className="h-16 w-16 rounded-2xl bg-amber-500 dark:bg-gradient-to-br dark:from-amber-400 dark:to-orange-500 flex items-center justify-center shadow-md shadow-amber-500/10 dark:shadow-amber-500/20 border border-white/10">
                 <UserCheck className="h-8 w-8 text-white" />
               </div>
-              <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center">
-                <span className="text-white text-[9px] font-bold">{volunteers.length}</span>
+              <div className="absolute -bottom-1 -right-1 h-5.5 w-5.5 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center shadow-sm">
+                <span className="text-white text-[10px] font-bold">{volunteers.length}</span>
               </div>
             </div>
 
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-amber-950 dark:text-amber-50">
                 {isRTL ? 'تحت المتابعة' : 'Under Follow-Up'}
               </h1>
-              <p className="text-sm text-muted-foreground mt-0.5">
+              <p className="text-sm text-amber-800/80 dark:text-amber-400/70 mt-1 font-medium">
                 {isRTL
                   ? `${volunteers.length} متطوع في مرحلة المتابعة`
                   : `${volunteers.length} volunteers in follow-up stage`}
@@ -213,7 +211,7 @@ export default function UnderFollowUp() {
             size="sm"
             onClick={() => fetchVolunteers(true)}
             disabled={refreshing}
-            className="gap-2 border-amber-400/30 hover:bg-amber-50 hover:border-amber-400 self-start sm:self-auto"
+            className="gap-2 bg-background/50 dark:bg-amber-500/5 text-amber-900 dark:text-amber-400 border-amber-200 dark:border-amber-900/30 hover:bg-amber-100/50 dark:hover:bg-amber-500/10 hover:text-amber-950 dark:hover:text-amber-300 self-start sm:self-auto transition-all shadow-sm"
           >
             <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
             {isRTL ? 'تحديث' : 'Refresh'}
@@ -223,17 +221,17 @@ export default function UnderFollowUp() {
 
       {/* ── Search Bar ── */}
       <div className="relative group">
-        <Search className="pointer-events-none absolute top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground transition-colors group-focus-within:text-primary ltr:left-3.5 rtl:right-3.5" />
+        <Search className="pointer-events-none absolute z-10 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/70 transition-colors group-focus-within:text-amber-600 dark:group-focus-within:text-amber-400 ltr:left-4 rtl:right-4" />
         <Input
           placeholder={isRTL ? 'ابحث بالاسم أو اللجنة أو الهاتف...' : 'Search by name, committee or phone...'}
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="h-12 ltr:pl-10 rtl:pr-10 border-2 focus:border-primary/50 bg-card/70 backdrop-blur-sm text-sm"
+          className="h-12 ltr:pl-11 rtl:pr-11 border-2 focus:border-amber-500/50 dark:focus:border-amber-500/30 bg-card/70 backdrop-blur-sm text-sm"
         />
         {search && (
           <button
             onClick={() => setSearch('')}
-            className="absolute top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-muted hover:bg-muted-foreground/20 flex items-center justify-center transition-colors ltr:right-3 rtl:left-3"
+            className="absolute z-10 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-muted hover:bg-muted-foreground/20 flex items-center justify-center transition-colors ltr:right-3 rtl:left-3"
           >
             <span className="text-xs text-muted-foreground">✕</span>
           </button>

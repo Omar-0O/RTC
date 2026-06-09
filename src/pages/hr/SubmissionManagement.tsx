@@ -27,7 +27,9 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Search, FileSpreadsheet, Calendar, Award, Check, ChevronsUpDown, Trash2, AlertTriangle } from 'lucide-react';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
-import { cn } from "@/lib/utils"
+import { ar } from 'date-fns/locale';
+import { MonthPicker } from '@/components/ui/calendar';
+import { cn } from "@/lib/utils";
 import {
     Command,
     CommandEmpty,
@@ -718,13 +720,30 @@ export default function SubmissionManagement() {
                     <CardTitle>{isRTL ? 'الفلاتر' : 'Filters'}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <div className="space-y-2">
+                    <div className="space-y-2 flex flex-col justify-end">
                         <Label>{isRTL ? 'الشهر' : 'Month'}</Label>
-                        <Input
-                            type="month"
-                            value={selectedMonth}
-                            onChange={(e) => setSelectedMonth(e.target.value)}
-                        />
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className="w-full justify-start text-start font-normal h-10 bg-background border border-input"
+                                >
+                                    <Calendar className="ltr:mr-2 rtl:ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                                    <span>
+                                        {format(new Date(selectedMonth + '-02'), "LLLL yyyy", { locale: isRTL ? ar : undefined })}
+                                    </span>
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <MonthPicker
+                                    className="w-72"
+                                    selected={new Date(selectedMonth + '-02')}
+                                    onSelect={(date) => {
+                                        setSelectedMonth(format(date, 'yyyy-MM'));
+                                    }}
+                                />
+                            </PopoverContent>
+                        </Popover>
                     </div>
                     <div className="space-y-2">
                         <Label>{isRTL ? 'الدرجة التطوعية' : 'Volunteer Degree'}</Label>
@@ -1003,7 +1022,7 @@ export default function SubmissionManagement() {
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <div className="text-xs text-muted-foreground whitespace-nowrap">
-                                                        {format(new Date(submission.submitted_at), 'PPP')}
+                                                        {format(new Date(submission.submitted_at), 'PPP', { locale: isRTL ? ar : undefined })}
                                                     </div>
                                                     <Button
                                                         variant="ghost"

@@ -48,15 +48,36 @@ export default function Leaderboard() {
   const [committees, setCommittees] = useState<Committee[]>([]);
 
   useEffect(() => {
-    fetchData();
-  }, [timeFilter, selectedCommittee, activeBranch?.id]);
+    if (!user?.id) return;
+    const cacheKey = `rtc_leaderboard_data_${user.id}_${timeFilter}_${selectedCommittee}_${activeBranch?.id || 'all'}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setLeaderboard(parsed.leaderboard || []);
+        setCommittees(parsed.committees || []);
+        setLoading(false);
+      } catch (e) {
+        console.error('Error parsing cached leaderboard:', e);
+      }
+    }
+    fetchData(!!cached);
+  }, [user?.id, timeFilter, selectedCommittee, activeBranch?.id]);
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (hasCache = false) => {
+    if (!hasCache) {
+      setLoading(true);
+    }
     try {
-      if (committees.length === 0) {
+      let currentCommittees = committees;
+      const cachedKey = user?.id ? `rtc_leaderboard_data_${user.id}_${timeFilter}_${selectedCommittee}_${activeBranch?.id || 'all'}` : null;
+
+      if (currentCommittees.length === 0) {
         const { data } = await supabase.from('committees').select('id, name, name_ar').order('name');
-        if (data) setCommittees(data);
+        if (data) {
+          setCommittees(data);
+          currentCommittees = data;
+        }
       }
 
       const committeeId = selectedCommittee === 'all' ? null : selectedCommittee;
@@ -68,7 +89,16 @@ export default function Leaderboard() {
       });
 
       if (error) throw error;
-      setLeaderboard((data as LeaderboardEntry[]) || []);
+      const finalLeaderboard = (data as LeaderboardEntry[]) || [];
+      setLeaderboard(finalLeaderboard);
+
+      if (cachedKey) {
+        localStorage.setItem(cachedKey, JSON.stringify({
+          leaderboard: finalLeaderboard,
+          committees: currentCommittees,
+          cachedAt: Date.now()
+        }));
+      }
 
     } catch (error) {
       console.error('Error fetching leaderboard:', error);

@@ -12,12 +12,14 @@ interface State {
     error?: Error;
     errorInfo?: ErrorInfo;
     retryCount: number;
+    isOfflineError?: boolean;
 }
 
 class ErrorBoundary extends Component<Props, State> {
     public state: State = {
         hasError: false,
-        retryCount: 0
+        retryCount: 0,
+        isOfflineError: false
     };
 
     public static getDerivedStateFromError(error: Error): Partial<State> {
@@ -36,19 +38,33 @@ class ErrorBoundary extends Component<Props, State> {
             error.message.includes('Importing a module script failed') ||
             error.name === 'ChunkLoadError'
         ) {
-            console.log('Chunk loading error detected, attempting auto-recovery...');
-
-            // Clear any stale cache and reload
-            if ('caches' in window) {
-                caches.keys().then(names => {
-                    names.forEach(name => caches.delete(name));
-                });
+            // Check if offline to prevent destroying cache and page bricking
+            if (!navigator.onLine) {
+                console.warn('Chunk loading error caught while offline. Rendering fallback without auto-reload.');
+                this.setState({ isOfflineError: true });
+                return;
             }
 
-            // Auto-reload after a short delay
-            setTimeout(() => {
+            console.log('Chunk loading error detected, attempting auto-recovery...');
+
+            // Build cleanup tasks and await them before reloading
+            const cleanupTasks: Promise<unknown>[] = [];
+
+            if ('caches' in window) {
+                cleanupTasks.push(
+                    caches.keys().then(names =>
+                        Promise.all(names.map(name => caches.delete(name)))
+                    )
+                );
+            }
+
+            // Wait for cleanup (max 3 seconds), then reload
+            Promise.race([
+                Promise.allSettled(cleanupTasks),
+                new Promise(resolve => setTimeout(resolve, 3000)),
+            ]).then(() => {
                 window.location.reload();
-            }, 1000);
+            });
             return;
         }
 
@@ -73,7 +89,7 @@ class ErrorBoundary extends Component<Props, State> {
     }
 
     private handleRetry = () => {
-        this.setState({ hasError: false, error: undefined, errorInfo: undefined });
+        this.setState({ hasError: false, error: undefined, errorInfo: undefined, isOfflineError: false, retryCount: 0 });
     };
 
     private handleGoHome = () => {
@@ -86,23 +102,28 @@ class ErrorBoundary extends Component<Props, State> {
                 return this.props.fallback;
             }
 
-            const isChunkError = this.state.error?.message.includes('Loading chunk') ||
-                this.state.error?.message.includes('Failed to fetch dynamically imported module');
+            const isOffline = this.state.isOfflineError;
+            const isChunkError = (this.state.error?.message.includes('Loading chunk') ||
+                this.state.error?.message.includes('Failed to fetch dynamically imported module')) && !isOffline;
 
             return (
                 <div className="min-h-screen flex flex-col items-center justify-center p-4 gap-4 bg-background">
-                    <AlertTriangle className="h-12 w-12 text-destructive" />
-                    <h2 className="text-xl font-semibold text-center">ايرور او Update ايهمَ اقرب 3:</h2>
+                    <AlertTriangle className="h-12 w-12 text-destructive animate-pulse" />
+                    <h2 className="text-xl font-semibold text-center">
+                        {isOffline ? 'أنت أوفلاين 📡' : 'ايرور او Update ايهمَ اقرب 3:'}
+                    </h2>
                     <p className="text-muted-foreground text-center text-sm max-w-md">
-                        {isChunkError
-                            ? 'تم تحديث التطبيق. جاري إعادة التحميل تلقائياً...'
-                            : 'ممكن تعمل ريفرش لوسمحت 🤍😇'}
+                        {isOffline
+                            ? 'مش قادرين نحمل الجزء ده من التطبيق عشان مفيش إنترنت. اتأكد من الاتصال وحاول تاني 🤍'
+                            : (isChunkError
+                                ? 'تم تحديث التطبيق. جاري إعادة التحميل تلقائياً...'
+                                : 'ممكن تعمل ريفرش لوسمحت 🤍😇')}
                     </p>
                     {!isChunkError && (
                         <div className="flex gap-2 mt-2">
-                            <Button onClick={() => window.location.reload()}>
+                            <Button onClick={isOffline ? this.handleRetry : () => window.location.reload()}>
                                 <RefreshCw className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                ريفرش
+                                {isOffline ? 'إعادة المحاولة' : 'ريفرش'}
                             </Button>
                             <Button onClick={this.handleGoHome} variant="outline">
                                 <Home className="h-4 w-4 ltr:mr-2 rtl:ml-2" />

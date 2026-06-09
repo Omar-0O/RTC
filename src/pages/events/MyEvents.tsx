@@ -55,10 +55,30 @@ export default function MyEvents() {
     const [eventSpeakers, setEventSpeakers] = useState<Speaker[]>([]);
 
     useEffect(() => {
-        if (user) fetchMyEvents();
+        if (user) {
+            const cacheKey = `rtc_my_events_data_${user.id}`;
+            const cached = localStorage.getItem(cacheKey);
+            let hasCache = false;
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) {
+                        setEvents(parsed);
+                        setLoading(false);
+                        hasCache = true;
+                    }
+                } catch (e) {
+                    console.error('Error parsing cached my events:', e);
+                }
+            }
+            fetchMyEvents(hasCache);
+        }
     }, [user]);
 
-    const fetchMyEvents = async () => {
+    const fetchMyEvents = async (hasCache = false) => {
+        if (!hasCache) {
+            setLoading(true);
+        }
         try {
             const { data: orgData, error: orgError } = await supabase
                 .from('event_organizers')
@@ -68,6 +88,8 @@ export default function MyEvents() {
             if (orgError) throw orgError;
             if (!orgData || orgData.length === 0) {
                 setEvents([]);
+                const cacheKey = `rtc_my_events_data_${user?.id}`;
+                localStorage.setItem(cacheKey, JSON.stringify([]));
                 setLoading(false);
                 return;
             }
@@ -81,10 +103,14 @@ export default function MyEvents() {
 
             if (error) throw error;
 
-            setEvents((data || []).map((e: any) => ({
+            const eventsData = (data || []).map((e: any) => ({
                 ...e,
                 committee_name: e.committees?.name_ar || e.committees?.name || ''
-            })));
+            }));
+            setEvents(eventsData);
+
+            const cacheKey = `rtc_my_events_data_${user?.id}`;
+            localStorage.setItem(cacheKey, JSON.stringify(eventsData));
         } catch (error) {
             console.error('Error fetching my events:', error);
             toast.error(isRTL ? 'فشل تحميل إيفينتاتي' : 'Failed to load my events');

@@ -315,7 +315,7 @@ export default function InterestedBeneficiaries() {
         return (
             <>
                 {/* ── Mobile: card list ── */}
-                <div className="md:hidden space-y-3">
+                <div className="md:hidden space-y-4">
                     {rows.map((b, i) => (
                         <div key={b.id} className="border rounded-xl p-4 shadow-sm bg-card transition-all hover:shadow-md space-y-3">
                             <div className="flex items-start justify-between gap-2">
@@ -353,17 +353,17 @@ export default function InterestedBeneficiaries() {
 
                 {/* ── Desktop: table ── */}
                 <div className="hidden md:block">
-                    <div className="rounded-md border overflow-x-auto">
+                    <div className="rounded-md border overflow-x-auto" dir={isRTL ? 'rtl' : 'ltr'}>
                         <Table>
                             <TableHeader>
                                 <TableRow>
                                     <TableHead className="whitespace-nowrap w-16 text-center">#</TableHead>
-                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                    <TableHead className="whitespace-nowrap">{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
-                                    <TableHead className="whitespace-nowrap">{isRTL ? 'المصدر' : 'Source'}</TableHead>
-                                    <TableHead className="whitespace-nowrap">{isRTL ? 'تاريخ الإضافة' : 'Added At'}</TableHead>
-                                    <TableHead className="whitespace-nowrap">{isRTL ? 'أضافه' : 'Added By'}</TableHead>
-                                    <TableHead className="whitespace-nowrap">{isRTL ? 'ملاحظات' : 'Notes'}</TableHead>
+                                    <TableHead className={`whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                    <TableHead className={`whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>{isRTL ? 'الهاتف' : 'Phone'}</TableHead>
+                                    <TableHead className={`whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>{isRTL ? 'المصدر' : 'Source'}</TableHead>
+                                    <TableHead className={`whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>{isRTL ? 'تاريخ الإضافة' : 'Added At'}</TableHead>
+                                    <TableHead className={`whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>{isRTL ? 'أضافه' : 'Added By'}</TableHead>
+                                    <TableHead className={`whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>{isRTL ? 'ملاحظات' : 'Notes'}</TableHead>
                                     <TableHead className="w-16" />
                                 </TableRow>
                             </TableHeader>
@@ -371,19 +371,19 @@ export default function InterestedBeneficiaries() {
                                 {rows.map((b, i) => (
                                     <TableRow key={b.id} className="hover:bg-muted/50 transition-colors">
                                         <TableCell className="text-muted-foreground font-mono text-center">{(i + 1).toString().padStart(2, '0')}</TableCell>
-                                        <TableCell className="font-semibold">{b.name}</TableCell>
+                                        <TableCell className={`font-semibold ${isRTL ? 'text-right' : 'text-left'}`}>{b.name}</TableCell>
                                         <TableCell dir="ltr" className={isRTL ? 'text-right font-mono' : 'font-mono'}>{b.phone}</TableCell>
-                                        <TableCell><SourceBadge b={b} /></TableCell>
-                                        <TableCell className="text-muted-foreground text-sm whitespace-nowrap">{format(new Date(b.created_at), 'yyyy MMM dd')}</TableCell>
-                                        <TableCell className="text-sm">
-                                            <div className="flex items-center gap-2">
+                                        <TableCell className={isRTL ? 'text-right' : 'text-left'}><SourceBadge b={b} /></TableCell>
+                                        <TableCell className={`text-muted-foreground text-sm whitespace-nowrap ${isRTL ? 'text-right' : 'text-left'}`}>{format(new Date(b.created_at), 'yyyy MMM dd')}</TableCell>
+                                        <TableCell className={`text-sm ${isRTL ? 'text-right' : 'text-left'}`}>
+                                            <div className={`flex items-center gap-2 ${isRTL ? 'justify-start' : ''}`}>
                                                 <div className="h-6 w-6 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center text-[10px] font-bold">
                                                     {creatorName(b).charAt(0)}
                                                 </div>
                                                 {creatorName(b)}
                                             </div>
                                         </TableCell>
-                                        <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate" title={b.notes || ''}>
+                                        <TableCell className={`text-muted-foreground text-sm max-w-[200px] truncate ${isRTL ? 'text-right' : 'text-left'}`} title={b.notes || ''}>
                                             {b.notes ? <span className="bg-primary/10 text-primary/80 px-2 py-1 rounded text-xs">{b.notes}</span> : <span className="text-muted-foreground/30">—</span>}
                                         </TableCell>
                                         <TableCell>
@@ -417,7 +417,7 @@ export default function InterestedBeneficiaries() {
                     </Badge>
                 </CardTitle>
             </CardHeader>
-            <CardContent className="p-0 md:p-6 md:pt-4"><BeneficiaryTable rows={rows} /></CardContent>
+            <CardContent className="p-4 md:p-6 md:pt-4"><BeneficiaryTable rows={rows} /></CardContent>
         </Card>
     );
 
@@ -454,27 +454,27 @@ export default function InterestedBeneficiaries() {
             </div>
 
             {/* Main Tabs */}
-            <Tabs value={activeCommittee} onValueChange={v => setActiveCommittee(v as CommitteeCategory)}>
+            <Tabs value={activeCommittee} onValueChange={v => setActiveCommittee(v as CommitteeCategory)} dir={isRTL ? 'rtl' : 'ltr'}>
                 <div className="overflow-x-auto pb-2">
                     <TabsList className="w-max min-w-full justify-start h-auto p-1 bg-muted/50 rounded-xl">
-                        <TabsTrigger value="production" className="gap-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg py-2">
+                        <TabsTrigger value="production" className="gap-2 whitespace-nowrap data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm rounded-lg py-2">
                             {isRTL ? 'لجنة إنتاجية' : 'Production Committee'}
-                            <Badge variant={activeCommittee === 'production' ? 'default' : 'secondary'} className="ml-1 rounded-full px-2" >{productionAll.length}</Badge>
+                            <Badge variant={activeCommittee === 'production' ? 'outline' : 'secondary'} className={`ml-1 rounded-full px-2 ${activeCommittee === 'production' ? 'bg-primary-foreground/15 text-primary-foreground border-transparent' : ''}`} >{productionAll.length}</Badge>
                         </TabsTrigger>
-                        <TabsTrigger value="fourth_year" className="gap-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg py-2">
+                        <TabsTrigger value="fourth_year" className="gap-2 whitespace-nowrap data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm rounded-lg py-2">
                             {isRTL ? 'لجنة سنة رابعة' : 'Fourth Year'}
-                            <Badge variant={activeCommittee === 'fourth_year' ? 'default' : 'secondary'} className="ml-1 rounded-full px-2">{fourthYearAll.length}</Badge>
+                            <Badge variant={activeCommittee === 'fourth_year' ? 'outline' : 'secondary'} className={`ml-1 rounded-full px-2 ${activeCommittee === 'fourth_year' ? 'bg-primary-foreground/15 text-primary-foreground border-transparent' : ''}`}>{fourthYearAll.length}</Badge>
                         </TabsTrigger>
-                        <TabsTrigger value="quran" className="gap-2 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg py-2">
+                        <TabsTrigger value="quran" className="gap-2 whitespace-nowrap data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm rounded-lg py-2">
                             {isRTL ? 'لجنة أهل القرآن' : 'Quran Committee'}
-                            <Badge variant={activeCommittee === 'quran' ? 'default' : 'secondary'} className="ml-1 rounded-full px-2">{quranAll.length}</Badge>
+                            <Badge variant={activeCommittee === 'quran' ? 'outline' : 'secondary'} className={`ml-1 rounded-full px-2 ${activeCommittee === 'quran' ? 'bg-primary-foreground/15 text-primary-foreground border-transparent' : ''}`}>{quranAll.length}</Badge>
                         </TabsTrigger>
                     </TabsList>
                 </div>
 
                 {/* ── Production: عام + per-committee sub-tabs ── */}
                 <TabsContent value="production" className="mt-6">
-                    <Tabs value={activeProdCommitteeId} onValueChange={setActiveProdCommitteeId}>
+                    <Tabs value={activeProdCommitteeId} onValueChange={setActiveProdCommitteeId} dir={isRTL ? 'rtl' : 'ltr'}>
                         <div className="overflow-x-auto pb-2 mb-4">
                             <TabsList className="w-max min-w-full justify-start h-auto p-1 bg-transparent border-b rounded-none gap-6">
                                 {/* عام */}
@@ -520,7 +520,7 @@ export default function InterestedBeneficiaries() {
 
                 {/* ── Fourth Year: عام + per-committee sub-tabs ── */}
                 <TabsContent value="fourth_year" className="mt-6">
-                    <Tabs value={activeFourthYearCommitteeId} onValueChange={setActiveFourthYearCommitteeId}>
+                    <Tabs value={activeFourthYearCommitteeId} onValueChange={setActiveFourthYearCommitteeId} dir={isRTL ? 'rtl' : 'ltr'}>
                         <div className="overflow-x-auto pb-2 mb-4">
                             <TabsList className="w-max min-w-full justify-start h-auto p-1 bg-transparent border-b rounded-none gap-6">
                                 {/* عام */}
@@ -566,7 +566,7 @@ export default function InterestedBeneficiaries() {
 
                 {/* ── Quran: عام + group sub-tabs ── */}
                 <TabsContent value="quran" className="mt-6">
-                    <Tabs value={activeQuranGroup} onValueChange={v => setActiveQuranGroup(v as QuranGroup)}>
+                    <Tabs value={activeQuranGroup} onValueChange={v => setActiveQuranGroup(v as QuranGroup)} dir={isRTL ? 'rtl' : 'ltr'}>
                         <div className="overflow-x-auto pb-2 mb-4">
                             <TabsList className="w-max min-w-full justify-start h-auto p-1 bg-transparent border-b rounded-none gap-6">
                                 {QURAN_GROUPS.map(g => {

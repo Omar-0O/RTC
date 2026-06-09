@@ -36,8 +36,22 @@ export default function VolunteerDashboard() {
 
   useEffect(() => {
     if (user?.id) {
+      const cacheKey = `rtc_dashboard_data_${user.id}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setRecentSubmissions(parsed.recentSubmissions || []);
+          setImpact(parsed.impact || 0);
+          setMonthlyActivities(parsed.monthlyActivities || 0);
+          setLoading(false);
+        } catch (e) {
+          console.error('Error parsing cached dashboard data:', e);
+        }
+      }
+
       refreshProfile();
-      fetchData();
+      fetchData(!!cached);
     }
   }, [user?.id]);
 
@@ -76,9 +90,11 @@ export default function VolunteerDashboard() {
     }
   }, [user, primaryRole, profile?.committee_id]);
 
-  const fetchData = async () => {
+  const fetchData = async (hasCache = false) => {
     if (!user?.id) return;
-    setLoading(true);
+    if (!hasCache) {
+      setLoading(true);
+    }
     try {
       console.log('Fetching dashboard data for user:', user.id);
       const now = new Date();
@@ -108,20 +124,24 @@ export default function VolunteerDashboard() {
           .is('fine_type_id', null) // Exclude fines (ALL TIME)
       ]);
 
+      let updatedRecentSubmissions = recentSubmissions;
       if (submissionsRes.data) {
-        setRecentSubmissions(submissionsRes.data.map((s: any) => ({
+        updatedRecentSubmissions = submissionsRes.data.map((s: any) => ({
           id: s.id,
           activity_name: isRTL ? (s.activity?.name_ar || s.activity?.name) : s.activity?.name,
           points: s.points_awarded || 0,
           status: s.status,
           submitted_at: s.submitted_at,
-        })));
+        }));
+        setRecentSubmissions(updatedRecentSubmissions);
       }
 
       // Calculate monthly impact and activities
+      let monthlyImpactSum = impact;
+      let monthlyCount = monthlyActivities;
       if (allActivitiesRes.data) {
-        let monthlyImpactSum = 0;
-        let monthlyCount = 0;
+        monthlyImpactSum = 0;
+        monthlyCount = 0;
 
         allActivitiesRes.data.forEach(item => {
           // Parse the date using Javascript Date which handles ISO strings correctly
@@ -139,7 +159,17 @@ export default function VolunteerDashboard() {
       } else {
         setImpact(0);
         setMonthlyActivities(0);
+        monthlyImpactSum = 0;
+        monthlyCount = 0;
       }
+
+      // Save to cache
+      localStorage.setItem(`rtc_dashboard_data_${user.id}`, JSON.stringify({
+        recentSubmissions: updatedRecentSubmissions,
+        impact: monthlyImpactSum,
+        monthlyActivities: monthlyCount,
+        cachedAt: Date.now()
+      }));
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
