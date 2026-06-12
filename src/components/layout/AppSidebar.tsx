@@ -218,6 +218,7 @@ export function AppSidebar() {
     { title: t('nav.courses'), url: '/courses', icon: Activity },
     { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
     { title: t('nav.events'), url: '/events', icon: Calendar },
+    { title: t('nav.recentSubmissions'), url: '/admin/submissions', icon: FileCheck },
 
     { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/admin/quran-circles', icon: Users },
     { title: isRTL ? 'إدارة المحفظين' : 'Quran Teachers', url: '/admin/quran-teachers', icon: Users },

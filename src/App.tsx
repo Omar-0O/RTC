@@ -243,6 +243,7 @@ function AppRoutes() {
         <Route path="/admin/reports" element={<Reports />} />
         <Route path="/admin/reports" element={<Reports />} />
         <Route path="/admin/badges" element={<BadgeManagement />} />
+        <Route path="/admin/submissions" element={<SubmissionManagement />} />
 
         <Route path="/admin/quran-dashboard" element={<QuranDashboard />} />
         <Route path="/admin/quran/participations" element={<QuranParticipations />} />
