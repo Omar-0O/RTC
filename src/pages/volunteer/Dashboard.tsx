@@ -216,40 +216,49 @@ export default function VolunteerDashboard() {
             <h1 className="text-xl sm:text-2xl font-bold truncate flex items-center gap-2">
               {t('dashboard.welcome')}, {(isRTL ? (profile?.full_name_ar || profile?.full_name) : profile?.full_name)?.split(' ')[0] || (isRTL ? 'متطوع' : 'Volunteer')}! 👋
             </h1>
-            <div className="mt-2 mb-2 inline-flex items-center gap-1.5 sm:gap-3 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground px-3.5 py-1.5 sm:px-5 sm:py-2.5 rounded-2xl shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-transform duration-300 border border-primary-foreground/10 max-w-full">
-              <span className="text-lg sm:text-xl md:text-2xl shrink-0">🌱</span>
-              <p 
-                className="text-[15px] sm:text-base md:text-lg lg:text-xl font-medium leading-normal font-amiri tracking-wide select-none"
-                dir="rtl"
-              >
-                {t('dashboard.verse')}
-              </p>
-              <div className="flex gap-0.5 sm:gap-1 text-lg sm:text-xl md:text-2xl shrink-0">
-                <span>⭐</span>
-                <span>🤍</span>
-              </div>
+          </div>
+        </div>
+        <div>
+          <div className="mt-2 mb-2 inline-flex items-center gap-1.5 sm:gap-3 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground px-3.5 py-1.5 sm:px-5 sm:py-2.5 rounded-2xl shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-transform duration-300 border border-primary-foreground/10 max-w-full">
+            <span className="text-lg sm:text-xl md:text-2xl shrink-0">🌱</span>
+            <p 
+              className="text-[15px] sm:text-base md:text-lg lg:text-xl font-medium leading-normal font-amiri tracking-wide select-none"
+              dir="rtl"
+            >
+              {t('dashboard.verse')}
+            </p>
+            <div className="flex gap-0.5 sm:gap-1 text-lg sm:text-xl md:text-2xl shrink-0">
+              <span>⭐</span>
+              <span>🤍</span>
             </div>
           </div>
         </div>
-        <Button asChild className="w-full sm:w-auto sm:self-start">
-          <Link to="/activity">
-            <Activity className={isRTL ? "ml-2 h-4 w-4" : "mr-2 h-4 w-4"} />
-            {t('dashboard.logNewActivity')}
+        <Button 
+          asChild 
+          className="w-full sm:w-auto sm:self-start h-12 px-6 sm:px-8 text-[15px] sm:text-base font-bold rounded-2xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/95 hover:to-primary/75 text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5 transition-all duration-300 border border-primary/10 cursor-pointer"
+        >
+          <Link to="/activity" className="flex items-center justify-center gap-2">
+            <Activity className="h-5 w-5 shrink-0" />
+            <span>{t('dashboard.logNewActivity')}</span>
           </Link>
         </Button>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 max-w-2xl">
         <StatsCard
           title={t('dashboard.totalPoints')}
           value={impact}
           icon={Star}
+          description={isRTL ? 'نقطة أثر' : 'Impact points'}
+          variant="admin"
         />
         <StatsCard
-          title={isRTL ? 'إجمالي مشاركاتك خلال الشهر' : 'Activities This Month'}
+          title={isRTL ? 'مشاركاتك هذا الشهر' : 'Activities This Month'}
           value={monthlyActivities}
           icon={Activity}
+          description={isRTL ? 'مشاركة مسجلة' : 'logged activities'}
+          variant="admin"
         />
       </div>
 

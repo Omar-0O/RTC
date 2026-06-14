@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo } from 'react';
+import Profile from '@/pages/volunteer/Profile';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
@@ -25,7 +27,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Search, FileSpreadsheet, Calendar, Award, Check, ChevronsUpDown, Trash2, AlertTriangle } from 'lucide-react';
+import { Search, FileSpreadsheet, Calendar, Award, Check, ChevronsUpDown, Trash2, AlertTriangle, Building2, Activity, Copy, MessageCircle, User } from 'lucide-react';
+import { waPhoneLink } from '@/utils/phoneUtils';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { MonthPicker } from '@/components/ui/calendar';
@@ -145,6 +148,7 @@ export default function SubmissionManagement() {
     const [showLowParticipationDialog, setShowLowParticipationDialog] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [submissionToDelete, setSubmissionToDelete] = useState<string | null>(null);
+    const [viewProfileUserId, setViewProfileUserId] = useState<string | null>(null);
 
     // Trainers Map
     const [trainersMap, setTrainersMap] = useState<Record<string, { ar: string, en: string, phone: string, image_url: string | null }>>({});
@@ -163,6 +167,7 @@ export default function SubmissionManagement() {
     useEffect(() => {
         fetchVolunteers();
         fetchTrainers();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeBranch?.id]);
 
     useEffect(() => {
@@ -170,6 +175,7 @@ export default function SubmissionManagement() {
         if (isHeadHR) {
             fetchGuestParticipations();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedMonth, selectedLevel, selectedType, selectedVolunteer, isHeadHR, activeBranch?.id]);
 
     const fetchVolunteers = async () => {
@@ -930,9 +936,9 @@ export default function SubmissionManagement() {
             </Card>
 
             {/* Submissions List */}
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {submissions.length === 0 ? (
-                    <Card>
+                    <Card className="col-span-full">
                         <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                             <Award className="h-12 w-12 mb-4 opacity-20" />
                             <p>{isRTL ? 'لا توجد مشاركات' : 'No submissions found'}</p>
@@ -944,6 +950,7 @@ export default function SubmissionManagement() {
                         const isGuest = !submission.profiles || submission.participant_type === 'guest';
                         // Determine if this is a trainer submission (by type or committee)
                         const isTrainer = submission.participant_type === 'trainer' || submission.committees?.name === 'Trainer';
+                        const profileId = submission.profiles?.id;
 
                         let displayName = isGuest
                             ? submission.guest_name
@@ -973,61 +980,91 @@ export default function SubmissionManagement() {
                         }
 
                         return (
-                            <Card key={submission.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                                <CardContent className="p-4 sm:p-6">
-                                    <div className="flex items-start gap-4">
-                                        {/* Avatar */}
-                                        <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border-2 border-primary/10">
-                                            {isTrainer && trainerAvatarUrl ? (
-                                                <AvatarImage src={trainerAvatarUrl} />
-                                            ) : isTrainer && submission.profiles?.avatar_url ? (
-                                                // Trainer linked as volunteer — use their profile pic
-                                                <AvatarImage src={submission.profiles.avatar_url} />
-                                            ) : !isGuest && submission.profiles?.avatar_url ? (
-                                                <AvatarImage src={submission.profiles.avatar_url} />
-                                            ) : null}
-                                            <AvatarFallback className="text-lg">
-                                                {isGuest && !isTrainer ? '👤' : (displayName?.substring(0, 2) || "U")}
-                                            </AvatarFallback>
-                                        </Avatar>
+                            <Card key={submission.id} className="overflow-hidden hover:shadow-lg hover:-translate-y-1 hover:border-primary/30 transition-all duration-300 flex flex-col h-full bg-card shadow-sm border border-border/80 relative">
+                                <CardContent className="p-5 flex-1 flex flex-col justify-between">
+                                    {/* Left Accent indicator line based on status (uses start-0 for RTL safety) */}
+                                    <div className={cn(
+                                        "absolute top-0 bottom-0 start-0 w-1.5",
+                                        submission.status === 'approved' ? 'bg-emerald-500' :
+                                        submission.status === 'rejected' ? 'bg-rose-500' : 'bg-amber-500'
+                                    )} />
 
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0 grid gap-1">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <div className="flex items-center gap-2 min-w-0">
-                                                    <h3 className="font-semibold text-base sm:text-lg truncate">
-                                                        {displayName || (isRTL ? 'ضيف' : 'Guest')}
-                                                    </h3>
-                                                    {isTrainer ? (
-                                                        <Badge variant="outline" className="text-xs sm:text-xs shrink-0 text-indigo-600 border-indigo-200 bg-indigo-50">
-                                                            {isRTL ? 'مدرب' : 'Trainer'}
-                                                        </Badge>
-                                                    ) : isGuest ? (
-                                                        <Badge variant="outline" className="text-xs sm:text-xs shrink-0 text-emerald-600 border-emerald-200 bg-emerald-50">
-                                                            {isRTL ? 'ضيف' : 'Guest'}
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="outline" className={cn(
-                                                            "text-xs sm:text-xs shrink-0",
-                                                            (submission.profiles?.level === 'under_follow_up' || submission.profiles?.level === 'bronze') && 'text-orange-500 border-orange-200 bg-orange-50',
-                                                            submission.profiles?.level === 'responsible' && 'text-blue-500 border-blue-200 bg-blue-50',
-                                                            submission.profiles?.level === 'project_responsible' && 'text-purple-500 border-purple-200 bg-purple-50',
-                                                            submission.profiles?.level === 'silver' && 'text-slate-500 border-slate-200 bg-slate-50',
-                                                            submission.profiles?.level === 'gold' && 'text-yellow-600 border-yellow-200 bg-yellow-50',
-                                                            submission.profiles?.level === 'platinum' && 'text-cyan-600 border-cyan-200 bg-cyan-50'
-                                                        )}>
-                                                            {getLevelLabel(submission.profiles?.level || '')}
-                                                        </Badge>
+                                    <div className="ps-3 space-y-4 flex-1 flex flex-col justify-between">
+                                        <div className="space-y-4">
+                                            {/* Header Area */}
+                                            <div className="flex justify-between items-start gap-2 border-b border-border/40 pb-3">
+                                                <div 
+                                                    className={cn(
+                                                        "flex items-center gap-3 min-w-0 select-none",
+                                                        profileId && "cursor-pointer hover:opacity-80 transition-opacity"
                                                     )}
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="text-xs text-muted-foreground whitespace-nowrap">
-                                                        {format(new Date(submission.submitted_at), 'PPP', { locale: isRTL ? ar : undefined })}
+                                                    onClick={() => {
+                                                        if (profileId) {
+                                                            setViewProfileUserId(profileId);
+                                                        }
+                                                    }}
+                                                >
+                                                    <Avatar className="h-10 w-10 sm:h-11 sm:w-11 border-2 border-primary/10 shrink-0">
+                                                        {isTrainer && trainerAvatarUrl ? (
+                                                            <AvatarImage src={trainerAvatarUrl} />
+                                                        ) : isTrainer && submission.profiles?.avatar_url ? (
+                                                            <AvatarImage src={submission.profiles.avatar_url} />
+                                                        ) : !isGuest && submission.profiles?.avatar_url ? (
+                                                            <AvatarImage src={submission.profiles.avatar_url} />
+                                                        ) : null}
+                                                        <AvatarFallback className="text-sm">
+                                                            {isGuest && !isTrainer ? '👤' : (displayName?.substring(0, 2) || "U")}
+                                                        </AvatarFallback>
+                                                    </Avatar>
+                                                    <div className="min-w-0 space-y-1">
+                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                            <h3 className="font-semibold text-base sm:text-lg text-foreground leading-tight truncate max-w-[150px] sm:max-w-[180px]">
+                                                                {displayName || (isRTL ? 'ضيف' : 'Guest')}
+                                                            </h3>
+                                                            {isTrainer ? (
+                                                                <Badge variant="outline" className="text-[10px] shrink-0 text-indigo-600 border-indigo-200 bg-indigo-50 px-1.5 py-0">
+                                                                    {isRTL ? 'مدرب' : 'Trainer'}
+                                                                </Badge>
+                                                            ) : isGuest ? (
+                                                                <Badge variant="outline" className="text-[10px] shrink-0 text-emerald-600 border-emerald-200 bg-emerald-50 px-1.5 py-0">
+                                                                    {isRTL ? 'ضيف' : 'Guest'}
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge variant="outline" className={cn(
+                                                                    "text-[10px] shrink-0 px-1.5 py-0",
+                                                                    (submission.profiles?.level === 'under_follow_up' || submission.profiles?.level === 'bronze') && 'text-orange-500 border-orange-200 bg-orange-50',
+                                                                    submission.profiles?.level === 'responsible' && 'text-blue-500 border-blue-200 bg-blue-50',
+                                                                    submission.profiles?.level === 'project_responsible' && 'text-purple-500 border-purple-200 bg-purple-50',
+                                                                    submission.profiles?.level === 'silver' && 'text-slate-500 border-slate-200 bg-slate-50',
+                                                                    submission.profiles?.level === 'gold' && 'text-yellow-600 border-yellow-200 bg-yellow-50',
+                                                                    submission.profiles?.level === 'platinum' && 'text-cyan-600 border-cyan-200 bg-cyan-50'
+                                                                )}>
+                                                                    {getLevelLabel(submission.profiles?.level || '')}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-xs sm:text-sm text-muted-foreground leading-none">
+                                                            {format(new Date(submission.submitted_at), 'PPP', { locale: isRTL ? ar : undefined })}
+                                                        </p>
                                                     </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    {profileId && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-full"
+                                                            onClick={() => setViewProfileUserId(profileId)}
+                                                            title={isRTL ? 'عرض الملف الشخصي' : 'View Profile'}
+                                                        >
+                                                            <User className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                        className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-full"
                                                         onClick={() => handleDelete(submission.id)}
                                                     >
                                                         <Trash2 className="h-4 w-4" />
@@ -1035,48 +1072,98 @@ export default function SubmissionManagement() {
                                                 </div>
                                             </div>
 
-                                            <div className="flex items-center gap-2 text-sm text-foreground/80">
-                                                <span className="font-medium">
-                                                    {isRTL ? submission.activity_types?.name_ar : submission.activity_types?.name}
-                                                </span>
-                                                <span className="text-muted-foreground">•</span>
-                                                <span className="text-muted-foreground">
-                                                    {isRTL ? submission.committees?.name_ar : submission.committees?.name}
-                                                </span>
-                                                {displayPhone && (
-                                                    <>
-                                                        <span className="text-muted-foreground">•</span>
-                                                        <span className="text-muted-foreground text-xs">{displayPhone}</span>
-                                                    </>
+                                            {/* Details Area */}
+                                            <div className="space-y-2.5">
+                                                <div className="flex flex-wrap items-center gap-1.5 text-sm">
+                                                    <span className="inline-flex items-center gap-1 bg-muted px-2 py-0.5 rounded text-foreground font-semibold">
+                                                        <Activity className="h-4 w-4 text-primary shrink-0" />
+                                                        <span>{isRTL ? submission.activity_types?.name_ar : submission.activity_types?.name}</span>
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1 bg-muted/60 px-2 py-0.5 rounded text-muted-foreground">
+                                                        <Building2 className="h-3.5 w-3.5 shrink-0" />
+                                                        <span>{isRTL ? submission.committees?.name_ar : submission.committees?.name}</span>
+                                                    </span>
+                                                    {displayPhone && (
+                                                        <div className="inline-flex items-center gap-1 bg-muted/40 px-1.5 py-0.5 rounded shrink-0 select-none" dir="ltr">
+                                                            <span className="text-muted-foreground text-xs font-mono">
+                                                                {displayPhone}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                                                                title={isRTL ? 'نسخ الرقم' : 'Copy Number'}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    navigator.clipboard.writeText(displayPhone);
+                                                                    toast.success(isRTL ? 'تم نسخ رقم الهاتف' : 'Phone number copied');
+                                                                }}
+                                                            >
+                                                                <Copy className="h-3 w-3" />
+                                                            </button>
+                                                            {(() => {
+                                                                const waUrl = waPhoneLink(displayPhone);
+                                                                return waUrl ? (
+                                                                    <a
+                                                                        href={waUrl}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="p-0.5 rounded text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors"
+                                                                        title={isRTL ? 'إرسال رسالة واتساب' : 'Send WhatsApp Message'}
+                                                                        onClick={(e) => e.stopPropagation()}
+                                                                    >
+                                                                        <MessageCircle className="h-3 w-3" />
+                                                                    </a>
+                                                                ) : null;
+                                                            })()}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Description */}
+                                                {submission.description && (
+                                                    <div className="text-sm sm:text-base text-foreground/80 bg-muted/30 p-3 rounded-lg border border-border/50 break-words whitespace-pre-wrap leading-relaxed">
+                                                        {submission.description}
+                                                    </div>
+                                                )}
+
+                                                {/* Proof Image */}
+                                                {submission.proof_url && (
+                                                    <div className="mt-2">
+                                                        <ImagePreview src={submission.proof_url} alt={isRTL ? 'إثبات المشاركة' : 'Submission Proof'}>
+                                                            <div className="relative group max-w-[150px] rounded-lg overflow-hidden border shadow-sm cursor-pointer">
+                                                                <img
+                                                                    src={submission.proof_url}
+                                                                    alt={isRTL ? 'إثبات المشاركة' : 'Submission Proof'}
+                                                                    className="h-20 w-auto object-cover transition-transform duration-300 group-hover:scale-105"
+                                                                />
+                                                                <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                    <span className="text-[10px] text-white bg-black/60 px-2 py-0.5 rounded-full font-medium">
+                                                                        {isRTL ? 'معاينة' : 'Preview'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </ImagePreview>
+                                                    </div>
                                                 )}
                                             </div>
+                                        </div>
 
-                                            {/* Description (Course/Lecture Info) */}
-                                            {submission.description && (
-                                                <div className="text-sm text-muted-foreground mt-1 break-words">
-                                                    {submission.description}
-                                                </div>
-                                            )}
-
-                                            {/* Proof Image */}
-                                            {submission.proof_url && (
-                                                <div className="mt-2">
-                                                    <ImagePreview src={submission.proof_url} alt={isRTL ? 'إثبات المشاركة' : 'Submission Proof'}>
-                                                        <img
-                                                            src={submission.proof_url}
-                                                            alt={isRTL ? 'إثبات المشاركة' : 'Submission Proof'}
-                                                            className="h-24 w-auto object-cover rounded-md border hover:opacity-90 transition-opacity"
-                                                        />
-                                                    </ImagePreview>
-                                                </div>
-                                            )}
-
-                                            {/* Status & Points */}
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <Badge variant={submission.status === 'approved' ? 'default' : 'secondary'} className="h-6">
-                                                    {submission.points_awarded} {isRTL ? 'أثر' : 'Impact'}
-                                                </Badge>
-                                            </div>
+                                        {/* Status & Points Area */}
+                                        <div className="flex items-center justify-between pt-3 border-t border-border/30 mt-auto">
+                                            <span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-sm font-bold shadow-sm border border-primary/5" dir="ltr">
+                                                +{submission.points_awarded} {isRTL ? 'أثر' : 'Impact'}
+                                            </span>
+                                            
+                                            <span className={cn(
+                                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs sm:text-sm font-semibold shadow-sm border",
+                                                submission.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                                submission.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                                'bg-amber-50 text-amber-700 border-amber-200'
+                                            )}>
+                                                {submission.status === 'approved' ? (isRTL ? 'مقبول' : 'Approved') :
+                                                 submission.status === 'rejected' ? (isRTL ? 'مرفوض' : 'Rejected') :
+                                                 (isRTL ? 'قيد المراجعة' : 'Pending')}
+                                            </span>
                                         </div>
                                     </div>
                                 </CardContent>
@@ -1105,6 +1192,19 @@ export default function SubmissionManagement() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Profile View Dialog */}
+            <Dialog open={!!viewProfileUserId} onOpenChange={(open) => !open && setViewProfileUserId(null)}>
+                <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto p-0 rounded-2xl sm:rounded-3xl gap-0 border-none bg-background">
+                    <DialogHeader className="sr-only">
+                        <DialogTitle>{isRTL ? 'الملف الشخصي للمتطوع' : 'Volunteer Profile'}</DialogTitle>
+                        <DialogDescription>
+                            {isRTL ? 'عرض تفاصيل الملف الشخصي' : 'View profile details'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    {viewProfileUserId && <Profile userId={viewProfileUserId} />}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

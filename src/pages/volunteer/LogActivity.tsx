@@ -649,7 +649,7 @@ export default function LogActivity() {
   }
 
   return (
-    <div className="space-y-6 animate-slide-up">
+    <div className="max-w-6xl mx-auto space-y-6 animate-slide-up">
       {/* Header Section */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-accent/5 to-success/10 p-6 border border-primary/10">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />
@@ -1335,43 +1335,58 @@ export default function LogActivity() {
                 </div>
               </div>
             ) : (
-              <div className="divide-y divide-border/50">
+              <div className="grid gap-4 p-4 sm:p-6 grid-cols-1">
                 {submissions.map((submission) => (
                   <div
                     key={submission.id}
-                    className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors group"
+                    className="relative overflow-hidden rounded-xl border border-border bg-card hover:bg-muted/10 p-4 transition-all duration-300 hover:shadow-md hover:border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
                   >
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                    {/* Status accent bar on the leading edge (uses start-0 which adapts to LTR/RTL) */}
+                    <div className={cn(
+                      "absolute top-0 bottom-0 start-0 w-1.5",
+                      submission.status === 'approved' ? 'bg-success' :
+                      submission.status === 'rejected' ? 'bg-destructive' : 'bg-warning'
+                    )} />
+
+                    <div className="flex items-start gap-3 flex-1 min-w-0 ps-3">
                       {submission.proof_url ? (
-                        <ImagePreview src={submission.proof_url} alt="Proof" className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border/50">
+                        <ImagePreview src={submission.proof_url} alt="Proof" className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-border/50 shadow-sm">
                           <img
                             src={submission.proof_url}
                             alt="Proof"
-                            className="h-full w-full object-cover transition-transform group-hover:scale-110"
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                           />
                         </ImagePreview>
                       ) : (
-                        <div className="h-12 w-12 shrink-0 rounded-lg bg-primary/5 flex items-center justify-center border border-primary/10">
-                          <Activity className="h-6 w-6 text-primary/40" />
+                        <div className="h-11 w-11 shrink-0 rounded-lg bg-primary/5 flex items-center justify-center border border-primary/10 shadow-sm">
+                          <Activity className="h-5.5 w-5.5 text-primary/60" />
                         </div>
                       )}
-                      <div className="space-y-1 flex-1 min-w-0">
-                        <p className="font-semibold text-sm truncate text-foreground group-hover:text-primary transition-colors">
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors leading-snug break-words">
                           {submission.activity_name}
                         </p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Building2 className="h-3 w-3" />
-                            {submission.committee_name}
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1 shrink-0 bg-muted/80 text-muted-foreground px-2 py-0.5 rounded-md font-medium">
+                            <Building2 className="h-3.5 w-3.5 shrink-0" />
+                            <span>{submission.committee_name}</span>
                           </span>
-                          <span>•</span>
-                          <span>{formatDate(submission.submitted_at)}</span>
+                          <span className="text-muted-foreground/30">•</span>
+                          <span className="shrink-0">{formatDate(submission.submitted_at)}</span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-col items-end gap-2 shrink-0 pl-2">
-                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary" dir="ltr">
+                    <div className="flex flex-row sm:flex-col sm:items-end justify-between sm:justify-center items-center gap-2 pt-2.5 sm:pt-0 border-t sm:border-0 border-border/40 min-w-[90px] ps-3 sm:ps-0">
+                      <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary shadow-sm border border-primary/5" dir="ltr">
                         +{submission.points}
+                      </span>
+                      <span className={cn(
+                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] sm:text-xs font-semibold shadow-sm border",
+                        submission.status === 'approved' ? 'bg-success/10 text-success border-success/20' :
+                        submission.status === 'rejected' ? 'bg-destructive/10 text-destructive border-destructive/20' :
+                        'bg-warning/10 text-warning border-warning/20'
+                      )}>
+                        {getStatusText(submission.status)}
                       </span>
                     </div>
                   </div>
@@ -1458,30 +1473,35 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
   }
 
   return (
-    <div className="divide-y divide-border/50">
+    <div className="grid gap-4 p-4 sm:p-6 grid-cols-1">
       {submissions.map((sub) => (
-        <div key={sub.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 gap-4 hover:bg-muted/30 transition-colors">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
-            <div className="h-10 w-10 rounded-lg bg-accent/10 flex shrink-0 items-center justify-center border border-accent/20">
-              <ClipboardList className="h-5 w-5 text-accent" />
+        <div 
+          key={sub.id} 
+          className="relative overflow-hidden rounded-xl border border-border bg-card hover:bg-muted/10 p-4 transition-all duration-300 hover:shadow-md hover:border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+        >
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <div className="h-11 w-11 rounded-lg bg-accent/10 flex shrink-0 items-center justify-center border border-accent/20 shadow-sm">
+              <ClipboardList className="h-5.5 w-5.5 text-accent" />
             </div>
-            <div className="space-y-1 flex-1 min-w-0">
-              <p className="font-semibold text-sm text-foreground truncate">
+            
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <p className="font-semibold text-sm text-foreground break-words leading-snug">
                 {isRTL ? sub.activity?.name_ar : sub.activity?.name}
               </p>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span className="shrink-0">{new Date(sub.submitted_at).toLocaleDateString()}</span>
-                <span className="shrink-0">•</span>
-                <span className="flex items-center gap-1 truncate max-w-[120px]">
-                  <Building2 className="h-3 w-3 shrink-0" />
+              
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                <span className="shrink-0">{new Date(sub.submitted_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US')}</span>
+                <span className="text-muted-foreground/30">•</span>
+                <span className="flex items-center gap-1 bg-muted/80 text-muted-foreground px-2 py-0.5 rounded-md font-medium max-w-[150px] sm:max-w-none">
+                  <Building2 className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{isRTL ? sub.committee?.name_ar : sub.committee?.name}</span>
                 </span>
                 {Array.isArray(sub.guest_participants) && sub.guest_participants.length > 0 && (
                   <>
-                    <span className="shrink-0">•</span>
-                    <span className="flex items-center gap-1 shrink-0">
-                      <Users className="h-3 w-3" />
-                      {sub.guest_participants.length} {isRTL ? 'ضيوف' : 'Guests'}
+                    <span className="text-muted-foreground/30">•</span>
+                    <span className="flex items-center gap-1 bg-accent/10 text-accent px-2 py-0.5 rounded-md font-medium shrink-0">
+                      <Users className="h-3.5 w-3.5" />
+                      <span>{sub.guest_participants.length} {isRTL ? 'ضيوف' : 'Guests'}</span>
                     </span>
                   </>
                 )}
@@ -1490,7 +1510,7 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
           </div>
 
           {sub.excel_sheet_url && (
-            <Button variant="outline" size="sm" asChild className="w-full sm:w-auto shrink-0 hover:bg-primary hover:text-white transition-colors">
+            <Button variant="outline" size="sm" asChild className="w-full sm:w-auto shrink-0 hover:bg-primary hover:text-white transition-colors border border-primary/20 shadow-sm h-9">
               <a href={sub.excel_sheet_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2">
                 <Upload className="h-4 w-4 rotate-180" />
                 {isRTL ? 'تحميل التقرير' : 'Download Report'}

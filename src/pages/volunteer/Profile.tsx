@@ -10,7 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
 import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
-import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X, MessageSquare, Plus, AlertCircle, Pencil, Trash2, Star, Trophy, Medal, Crown, Heart, Zap, Target, Copy } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X, MessageSquare, Plus, AlertCircle, Pencil, Trash2, Star, Trophy, Medal, Crown, Heart, Zap, Target, Copy, Phone, MapPin, Users, Cake, MessageCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -223,10 +224,10 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const [viewedProfile, setViewedProfile] = useState<any>(null);
   const [viewedAvatarUrl, setViewedAvatarUrl] = useState<string | null>(null);
 
-  // Use either the fetched profile (for view mode) or auth profile (for own profile)
-  const displayProfile = isViewOnly ? viewedProfile : authProfile;
-  const displayAvatar = isViewOnly ? viewedAvatarUrl : (authProfile?.avatar_url || null);
-  const displayCover = isViewOnly ? viewedProfile?.cover_url : authProfile?.cover_url;
+  // Use the fetched profile if available. If viewing another user, do not fallback to authProfile (logged-in user)
+  const displayProfile = isViewOnly ? viewedProfile : (viewedProfile || authProfile);
+  const displayAvatar = isViewOnly ? viewedAvatarUrl : (viewedAvatarUrl || (authProfile?.avatar_url || null));
+  const displayCover = isViewOnly ? viewedProfile?.cover_url : (viewedProfile?.cover_url || authProfile?.cover_url);
   const isAshbal = displayProfile?.is_ashbal;
 
 
@@ -278,6 +279,12 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
   useEffect(() => {
     if (targetUserId) {
+      setViewedProfile(null);
+      setViewedAvatarUrl(null);
+      setBadges([]);
+      setActivities([]);
+      setFeedbacks([]);
+      setFines([]);
       fetchData();
     }
   }, [targetUserId]);
@@ -293,18 +300,16 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     if (!targetUserId) return;
     setLoading(true);
     try {
-      // If viewing another user, fetch their profile first
-      if (isViewOnly) {
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', targetUserId)
-          .single();
+      // Fetch profile details with joined branch and committee names
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*, branch:branches(name, name_ar), committee:committees(name, name_ar)')
+        .eq('id', targetUserId)
+        .single();
 
-        if (profileData) {
-          setViewedProfile(profileData);
-          setViewedAvatarUrl(profileData.avatar_url);
-        }
+      if (profileData) {
+        setViewedProfile(profileData);
+        setViewedAvatarUrl(profileData.avatar_url);
       }
 
       // If viewing own profile, calculate monthly points
@@ -721,13 +726,82 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
 
 
+  if (loading && isViewOnly && !viewedProfile) {
+    return (
+      <div className="space-y-4 sm:space-y-6 animate-pulse overflow-x-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
+        {/* Profile Header Skeleton */}
+        <Card className="overflow-hidden border-none shadow-md rounded-2xl">
+          {/* Cover Skeleton */}
+          <Skeleton className="h-44 sm:h-64 w-full rounded-none" />
+          <CardContent className="relative pt-0 px-4 sm:px-6 pb-6">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 mb-6">
+              {/* Avatar Circle Skeleton */}
+              <Skeleton className="h-24 w-24 sm:h-32 sm:w-32 rounded-full border-4 border-background shadow-xl shrink-0 -mt-16 sm:-mt-20 bg-muted/80" />
+
+              {/* Profile Details Skeleton */}
+              <div className="flex-1 text-center sm:text-start space-y-3 mb-2 pt-2 sm:pt-4 min-w-0 flex flex-col items-center sm:items-start">
+                {/* Name Skeleton */}
+                <Skeleton className="h-8 w-48 sm:w-64" />
+                
+                {/* Badges Skeleton */}
+                <div className="flex gap-2 justify-center sm:justify-start">
+                  <Skeleton className="h-6 w-20 rounded-lg" />
+                  <Skeleton className="h-6 w-24 rounded-lg" />
+                </div>
+
+                {/* Email / Phone Stack Skeleton */}
+                <div className="flex flex-col items-center sm:items-start gap-2 pt-1 w-full max-w-[280px] sm:max-w-none">
+                  <Skeleton className="h-4 w-52 sm:w-60" />
+                  <Skeleton className="h-4 w-40 sm:w-48" />
+                </div>
+
+                {/* Dates Row Skeleton */}
+                <div className="flex gap-2 justify-center sm:justify-start w-full pt-1">
+                  <Skeleton className="h-7 w-28 rounded-xl" />
+                  <Skeleton className="h-7 w-32 rounded-xl" />
+                </div>
+              </div>
+
+              {/* Stats Block Skeleton */}
+              <div className="flex gap-2 sm:gap-3 items-center shrink-0 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0 pt-2 sm:pt-4">
+                <Skeleton className="h-16 w-20 sm:w-24 rounded-xl" />
+                <Skeleton className="h-16 w-20 sm:w-24 rounded-xl" />
+                <Skeleton className="h-16 w-20 sm:w-24 rounded-xl" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tab Buttons Skeleton */}
+        <div className="flex gap-2 border-b pb-2 px-3 sm:px-0">
+          <Skeleton className="h-9 w-24 rounded-lg" />
+          <Skeleton className="h-9 w-24 rounded-lg" />
+          <Skeleton className="h-9 w-24 rounded-lg" />
+          <Skeleton className="h-9 w-24 rounded-lg" />
+        </div>
+
+        {/* Content Area Skeleton */}
+        <Card className="p-6 rounded-2xl">
+          <div className="space-y-4">
+            <Skeleton className="h-6 w-40 mb-4" />
+            <div className="space-y-3">
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+              <Skeleton className="h-16 w-full rounded-xl" />
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   // Get cover image - use saved cover or default based on user ID
   const coverImage = displayCover || getDefaultCover(targetUserId || 'default');
 
   return (
     <div className="space-y-4 sm:space-y-6 animate-slide-up overflow-x-hidden" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Profile Header */}
-      <Card className="overflow-hidden border-none shadow-md rounded-none sm:rounded-xl">
+      <Card className="overflow-hidden border-none shadow-md rounded-2xl">
         <div className="h-44 sm:h-64 relative group/cover">
           {/* Cover Image */}
           <img
@@ -809,7 +883,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
               )}
             </div>
 
-            <div className="flex-1 text-center sm:text-start space-y-2 mb-2 pt-2 sm:pt-4 min-w-0">
+            <div className="flex-1 text-center sm:text-start space-y-3 mb-2 pt-2 sm:pt-4 min-w-0">
               <div className="flex flex-col sm:flex-row items-center sm:items-end gap-2 sm:gap-3 justify-center sm:justify-start">
                 <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
                   {isRTL ? (displayProfile?.full_name_ar || displayProfile?.full_name) : displayProfile?.full_name}
@@ -824,9 +898,33 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 </div>
               </div>
 
-              <div className="flex flex-wrap justify-center sm:justify-start gap-x-4 sm:gap-x-6 gap-y-2 text-xs sm:text-sm text-muted-foreground">
-                <span className="flex items-center gap-1.5 transition-colors hover:text-foreground truncate max-w-full group/email">
-                  <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
+              {/* Subtitle with Committee & Branch badges */}
+              {((displayProfile as any)?.committee || (displayProfile as any)?.branch) && (
+                <div className="flex flex-wrap gap-2 justify-center sm:justify-start text-xs font-medium">
+                  {(displayProfile as any)?.committee && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20">
+                      <Users className="h-3.5 w-3.5" />
+                      {isRTL 
+                        ? ((displayProfile as any).committee.name_ar || (displayProfile as any).committee.name) 
+                        : (displayProfile as any).committee.name}
+                    </span>
+                  )}
+                  {(displayProfile as any)?.branch && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-secondary text-secondary-foreground border border-muted">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {isRTL 
+                        ? ((displayProfile as any).branch.name_ar || (displayProfile as any).branch.name) 
+                        : (displayProfile as any).branch.name}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Personal Info Grid */}
+              <div className="flex flex-col items-start gap-y-2 text-sm text-muted-foreground pt-1 w-fit mx-auto sm:mx-0 rtl:-translate-x-3 sm:rtl:translate-x-0">
+                {/* Email */}
+                <span className="flex items-center gap-2 justify-start transition-colors hover:text-foreground group/email">
+                  <Mail className="h-4 w-4 shrink-0 text-muted-foreground/80" />
                   <span className="truncate">{displayProfile?.email}</span>
                   <button
                     onClick={handleCopyEmail}
@@ -840,24 +938,88 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                     )}
                   </button>
                 </span>
-                <span className="flex items-center gap-1.5 transition-colors hover:text-foreground">
-                  <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />
-                  {isRTL ? 'ضمن العائلة من' : 'Family Member Since'} {formatDate(displayProfile?.join_date || new Date().toISOString())} 🤍😇
-                </span>
+
+                {/* Phone */}
+                {displayProfile?.phone && (
+                  <div className="flex items-center gap-2 justify-start transition-colors hover:text-foreground group/phone whitespace-nowrap min-w-0 max-w-full">
+                    <Phone className="h-4 w-4 shrink-0 text-muted-foreground/80" />
+                    <span dir="ltr" className="select-all font-mono text-sm tracking-wide whitespace-nowrap">
+                      {displayProfile.phone}
+                    </span>
+                    <div className="flex items-center gap-1 opacity-60 group-hover/phone:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+                      <button
+                        onClick={() => {
+                          if (displayProfile?.phone) {
+                            navigator.clipboard.writeText(displayProfile.phone);
+                            toast.success(isRTL ? 'تم نسخ رقم الهاتف' : 'Phone number copied');
+                          }
+                        }}
+                        className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                        title={isRTL ? 'نسخ الرقم' : 'Copy number'}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                      <a
+                        href={(() => {
+                          const clean = displayProfile.phone.replace(/[^0-9]/g, '');
+                          const num = clean.startsWith('0') ? '2' + clean : clean;
+                          return `https://wa.me/${num}`;
+                        })()}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 rounded-md hover:bg-green-500/10 hover:text-green-500 transition-colors text-muted-foreground hover:text-green-500"
+                        title={isRTL ? 'إرسال واتساب' : 'Send WhatsApp'}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Dates Row (Join Date & Birth Date) */}
+              <div className="flex flex-row gap-1.5 justify-center sm:justify-start w-full pt-1.5 flex-nowrap overflow-x-auto no-scrollbar">
+                {/* Join Date */}
+                <div className="bg-muted/40 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-muted-foreground/10 flex items-center gap-1.5 text-xs text-muted-foreground shadow-sm shrink-0 whitespace-nowrap">
+                  <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+                  <span>
+                    {isRTL ? 'انضم:' : 'Joined:'} {formatDate(displayProfile?.join_date || new Date().toISOString())}
+                  </span>
+                </div>
+
+                {/* Birth Date */}
+                {displayProfile?.birth_date && (
+                  <div className="bg-muted/40 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-muted-foreground/10 flex items-center gap-1.5 text-xs text-muted-foreground shadow-sm shrink-0 whitespace-nowrap">
+                    <Cake className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+                    <span>
+                      {isRTL ? 'ميلاد:' : 'Born:'} {formatDate(displayProfile.birth_date)}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex gap-3 sm:gap-4 items-center shrink-0 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0 pt-2 sm:pt-4">
-              <div className="flex flex-col items-center bg-muted/30 p-2.5 sm:p-3 rounded-xl min-w-[90px] sm:min-w-[100px] border">
-                <span className="text-xl sm:text-2xl font-bold text-primary">{points}</span>
-                <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider font-medium text-center leading-tight">
-                  {!isViewOnly ? (isRTL ? 'أثر هذا الشهر' : 'Monthly Impact') : (isRTL ? 'إجمالي الأثر' : 'Total Impact')}
+            {/* 3-Card Stats Block */}
+            <div className="flex gap-2 sm:gap-3 items-center shrink-0 w-full sm:w-auto justify-center sm:justify-end mt-2 sm:mt-0 pt-2 sm:pt-4 flex-wrap sm:flex-nowrap">
+              {/* Monthly Impact */}
+              <div className="flex flex-col items-center bg-muted/30 p-2 sm:p-2.5 rounded-xl min-w-[85px] sm:min-w-[95px] border">
+                <span className="text-lg sm:text-xl font-bold text-primary">{points}</span>
+                <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider font-medium text-center leading-tight">
+                  {isRTL ? 'أثر هذا الشهر' : 'Monthly Impact'}
                 </span>
               </div>
-              <div className="flex flex-col items-center bg-muted/30 p-2.5 sm:p-3 rounded-xl min-w-[90px] sm:min-w-[100px] border">
-                <span className="text-xl sm:text-2xl font-bold text-primary">{currentMonthActivities.length}</span>
-                <span className="text-[10px] sm:text-xs text-muted-foreground uppercase tracking-wider font-medium text-center leading-tight">
-                  {isRTL ? 'مشاركات هذا الشهر' : 'Monthly Participations'}
+              {/* Total Impact */}
+              <div className="flex flex-col items-center bg-primary/5 p-2 sm:p-2.5 rounded-xl min-w-[85px] sm:min-w-[95px] border border-primary/10">
+                <span className="text-lg sm:text-xl font-bold text-primary">{displayProfile?.total_points || 0}</span>
+                <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider font-medium text-center leading-tight">
+                  {isRTL ? 'الأثر الكلي' : 'Total Impact'}
+                </span>
+              </div>
+              {/* Monthly Participations */}
+              <div className="flex flex-col items-center bg-muted/30 p-2 sm:p-2.5 rounded-xl min-w-[85px] sm:min-w-[95px] border">
+                <span className="text-lg sm:text-xl font-bold text-primary">{currentMonthActivities.length}</span>
+                <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider font-medium text-center leading-tight">
+                  {isRTL ? 'مشاركات الشهر' : 'Monthly Participations'}
                 </span>
               </div>
             </div>

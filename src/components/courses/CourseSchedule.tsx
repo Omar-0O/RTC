@@ -390,7 +390,7 @@ export default function CourseSchedule() {
                 <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4">
                     <div>
                         <CardTitle className="flex items-center gap-2 text-xl">
-                            <BookOpen className="h-6 w-6" />
+                            <BookOpen className="h-6 w-6 text-primary" />
                             {isRTL ? 'جدول الكورسات الشهري' : 'Monthly Course Calendar'}
                         </CardTitle>
                         <CardDescription>{format(currentMonth, 'MMMM yyyy', { locale })}</CardDescription>
