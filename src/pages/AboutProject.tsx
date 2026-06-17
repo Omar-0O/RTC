@@ -13,34 +13,15 @@ import {
   ExternalLink,
   Terminal,
   BookOpen,
-  Star,
   Sparkles,
   Globe,
+  ImageIcon,
+  Building2,
 } from 'lucide-react';
 import logo from '@/assets/logo.png';
 
 const YOUTUBE_VIDEO_URL = 'https://www.youtube.com/watch?v=REPLACE_WITH_VIDEO_ID';
 const GITHUB_REPO_URL = 'https://github.com/Omar-0O/RTC';
-
-const creators = [
-  {
-    name_ar: 'عمر',
-    name_en: 'Omar',
-    role_ar: 'المطور الرئيسي',
-    role_en: 'Lead Developer',
-    github: 'Omar-0O',
-  },
-];
-
-const contributors: { name_ar: string; name_en: string; role_ar: string; role_en: string }[] = [
-  // أضف أسماء المساهمين هنا
-  // { name_ar: 'اسم المساهم', name_en: 'Contributor Name', role_ar: 'الدور', role_en: 'Role' },
-];
-
-const supervisors: { name_ar: string; name_en: string; title_ar: string; title_en: string }[] = [
-  // أضف أسماء المشرفين هنا
-  // { name_ar: 'اسم المشرف', name_en: 'Supervisor Name', title_ar: 'اللقب', title_en: 'Title' },
-];
 
 const migrationSteps = [
   {
@@ -96,16 +77,30 @@ const techStack = [
   { name: 'Edge Functions', desc_ar: 'دوال الخادم', desc_en: 'Server Functions', color: 'from-teal-500 to-green-600' },
 ];
 
+// Photo placeholder component
+function PhotoPlaceholder({ label, className = '' }: { label: string; className?: string }) {
+  return (
+    <div
+      className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/30 bg-muted/30 text-muted-foreground/50 ${className}`}
+    >
+      <ImageIcon className="h-8 w-8" />
+      <span className="text-xs font-medium">{label}</span>
+    </div>
+  );
+}
+
 export default function AboutProject() {
   const { language, isRTL } = useLanguage();
   const isAr = language === 'ar';
 
   return (
     <div className="min-h-screen bg-background" dir={isRTL ? 'rtl' : 'ltr'}>
-      {/* Hero Section */}
+      {/* Hero */}
       <div className="relative overflow-hidden bg-gradient-to-br from-primary/10 via-primary/5 to-background border-b">
-        <div className="absolute inset-0 opacity-5"
-          style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)', backgroundSize: '24px 24px' }} />
+        <div
+          className="absolute inset-0 opacity-5"
+          style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)', backgroundSize: '24px 24px' }}
+        />
         <div className="relative max-w-5xl mx-auto px-6 py-14 text-center">
           <div className="flex justify-center mb-5">
             <div className="relative">
@@ -156,103 +151,175 @@ export default function AboutProject() {
             </TabsTrigger>
           </TabsList>
 
-          {/* ── TAB 1: Team ── */}
+          {/* ══════════════════════════════════════
+              TAB 1 — TEAM
+          ══════════════════════════════════════ */}
           <TabsContent value="team" className="space-y-10 mt-0">
 
-            {/* Creators */}
+            {/* Project Story */}
             <section>
               <div className="flex items-center gap-3 mb-5">
                 <div className="p-2 rounded-lg bg-primary/10">
-                  <Code2 className="h-5 w-5 text-primary" />
+                  <Heart className="h-5 w-5 text-primary" />
                 </div>
-                <h2 className="text-xl font-bold">{isAr ? 'من صنع هذا المشروع؟' : 'Who Built This?'}</h2>
+                <h2 className="text-xl font-bold">{isAr ? 'قصة المشروع' : 'Project Story'}</h2>
               </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {creators.map((c, i) => (
-                  <Card key={i} className="border-primary/20 hover:border-primary/50 transition-colors hover:shadow-md">
-                    <CardContent className="pt-6 text-center">
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center mx-auto mb-3 text-primary-foreground font-bold text-xl">
-                        {(isAr ? c.name_ar : c.name_en)[0]}
-                      </div>
-                      <p className="font-semibold text-foreground">{isAr ? c.name_ar : c.name_en}</p>
-                      <p className="text-sm text-muted-foreground mb-3">{isAr ? c.role_ar : c.role_en}</p>
-                      {c.github && (
+
+              <Card className="border-primary/10">
+                <CardContent className="pt-6 space-y-6 text-[15px] leading-loose text-foreground/90" dir="rtl">
+
+                  <p>
+                    تم إنشاء هذا المشروع لخدمة نشاط <span className="font-semibold text-primary">RTC</span> الخيري التابع لجمعية رسالة،
+                    بهدف تنظيم وتسهيل إدارة شؤون المتطوعين والعمليات الداخلية بدل الاعتماد على الطرق العشوائية أو المتابعة اليدوية.
+                  </p>
+
+                  {/* Image placeholder #1 */}
+                  <PhotoPlaceholder label="صورة توضيحية — النشاط" className="w-full h-48" />
+
+                  <p>
+                    جاءت فكرة المشروع من الحاجة إلى نظام واضح ومنظم يساعد فريق العمل على:
+                  </p>
+                  <ul className="list-disc list-inside space-y-1 text-foreground/80 pr-4">
+                    <li>جمع البيانات بشكل أدق</li>
+                    <li>تسهيل إدارة المتطوعين</li>
+                    <li>تقليل الوقت والمجهود المبذول في المتابعة</li>
+                    <li>التركيز أكثر على الهدف الأساسي وهو خدمة الناس وصناعة أثر حقيقي</li>
+                  </ul>
+
+                  {/* Image placeholder #2 */}
+                  <PhotoPlaceholder label="صورة — لقطة من واجهة المنصة" className="w-full h-52" />
+
+                  <p>
+                    هذا المشروع لم يتم إنشاؤه كمجرد تدريب تقني أو إضافة للسيرة الذاتية،
+                    بل بُنيَ بنية أن يكون <span className="font-semibold">صدقة جارية</span>، يستمر نفعها مع الوقت،
+                    ويساهم ولو بجزء بسيط في دعم العمل الخيري وتنظيمه وتطويره.
+                  </p>
+
+                  <p>
+                    كل سطر كود في هذا المشروع كُتب على أمل أن يكون سببًا في تسهيل الخير،
+                    ومساعدة من يعملون لأجل الناس دون مقابل.
+                  </p>
+
+                  <blockquote className="border-r-4 border-primary/60 pr-4 py-2 bg-primary/5 rounded-lg text-right italic font-medium text-primary">
+                    ﴿وَمَا تُقَدِّمُوا لِأَنفُسِكُم مِّنْ خَيْرٍ تَجِدُوهُ عِندَ اللَّهِ﴾ 🤍
+                  </blockquote>
+
+                  <p>
+                    ولا يفوتني في هذا المقام أن أتقدم بخالص الشكر والتقدير لزميلي وصديقي،
+                    <span className="font-semibold text-primary"> خير الصديق إياد جابر سعد الدين جابر</span>،
+                    على دعمه ومساندته الحقيقية طوال فترة العمل على المشروع،
+                    فلولاه – بعد فضل الله – ما كان لهذا المشروع أن يخرج إلى النور.
+                  </p>
+
+                </CardContent>
+              </Card>
+            </section>
+
+            {/* Developers */}
+            <section>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="p-2 rounded-lg bg-indigo-500/10">
+                  <Code2 className="h-5 w-5 text-indigo-500" />
+                </div>
+                <h2 className="text-xl font-bold">{isAr ? 'فريق التطوير' : 'Development Team'}</h2>
+              </div>
+
+              <Card className="border-indigo-500/20">
+                <CardContent className="pt-6">
+                  <div className="grid sm:grid-cols-2 gap-8">
+                    {/* Developer 1 — Omar */}
+                    <div className="flex flex-col items-center gap-4 text-center">
+                      <PhotoPlaceholder label="صورة — عمر" className="w-36 h-36 rounded-full" />
+                      <div>
+                        <p className="font-bold text-lg">عمر</p>
+                        <p className="text-sm text-muted-foreground mb-2">مطوّر البرمجيات</p>
                         <a
-                          href={`https://github.com/${c.github}`}
+                          href="https://github.com/Omar-0O"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
                         >
                           <Github className="h-3 w-3" />
-                          @{c.github}
+                          @Omar-0O
                         </a>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      </div>
+                    </div>
+
+                    {/* Developer 2 — Eyad */}
+                    <div className="flex flex-col items-center gap-4 text-center">
+                      <PhotoPlaceholder label="صورة — إياد" className="w-36 h-36 rounded-full" />
+                      <div>
+                        <p className="font-bold text-lg">إياد جابر</p>
+                        <p className="text-sm text-muted-foreground mb-2">مطوّر البرمجيات</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Team photo placeholder */}
+                  <div className="mt-8">
+                    <PhotoPlaceholder label="صورة جماعية — فريق التطوير" className="w-full h-52" />
+                  </div>
+                </CardContent>
+              </Card>
             </section>
 
-            {/* Contributors */}
-            {contributors.length > 0 && (
-              <section>
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="p-2 rounded-lg bg-amber-500/10">
-                    <Star className="h-5 w-5 text-amber-500" />
-                  </div>
-                  <h2 className="text-xl font-bold">{isAr ? 'المساهمون' : 'Contributors'}</h2>
+            {/* RTC Mohandseen Branch — Supporters */}
+            <section>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="p-2 rounded-lg bg-emerald-500/10">
+                  <Building2 className="h-5 w-5 text-emerald-500" />
                 </div>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {contributors.map((c, i) => (
-                    <Card key={i} className="hover:shadow-md transition-shadow">
-                      <CardContent className="pt-6 text-center">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center mx-auto mb-3 text-white font-bold text-lg">
-                          {(isAr ? c.name_ar : c.name_en)[0]}
-                        </div>
-                        <p className="font-semibold">{isAr ? c.name_ar : c.name_en}</p>
-                        <p className="text-sm text-muted-foreground">{isAr ? c.role_ar : c.role_en}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Supervisors */}
-            {supervisors.length > 0 && (
-              <section>
-                <div className="flex items-center gap-3 mb-5">
-                  <div className="p-2 rounded-lg bg-blue-500/10">
-                    <Users className="h-5 w-5 text-blue-500" />
-                  </div>
-                  <h2 className="text-xl font-bold">{isAr ? 'المشرفون' : 'Supervisors'}</h2>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {supervisors.map((s, i) => (
-                    <Card key={i} className="hover:shadow-md transition-shadow">
-                      <CardContent className="pt-6 text-center">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center mx-auto mb-3 text-white font-bold text-lg">
-                          {(isAr ? s.name_ar : s.name_en)[0]}
-                        </div>
-                        <p className="font-semibold">{isAr ? s.name_ar : s.name_en}</p>
-                        <p className="text-sm text-muted-foreground">{isAr ? s.title_ar : s.title_en}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Empty state if no contributors/supervisors */}
-            {contributors.length === 0 && supervisors.length === 0 && (
-              <div className="text-center py-10 text-muted-foreground text-sm">
-                <Heart className="h-8 w-8 mx-auto mb-3 text-red-400 fill-red-400" />
-                {isAr ? 'صُنع بـ ❤️ لخدمة العمل التطوعي' : 'Made with ❤️ for volunteering'}
+                <h2 className="text-xl font-bold">{isAr ? 'نشاط RTC المهندسين' : 'RTC Mohandseen Branch'}</h2>
               </div>
-            )}
+
+              <Card className="border-emerald-500/20">
+                <CardContent className="pt-6 space-y-6 text-[15px] leading-loose text-foreground/90" dir="rtl">
+
+                  <p>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">نشاط RTC المهندسين</span> هو النشاط
+                    الذي احتضن هذا المشروع وأعطاه سبب وجوده. وقد كان لفريق النشاط دور محوري في دعم فكرة المشروع
+                    منذ بداياتها الأولى.
+                  </p>
+
+                  {/* Image placeholder — Branch */}
+                  <PhotoPlaceholder label="صورة — نشاط RTC المهندسين" className="w-full h-52" />
+
+                  <p>
+                    أصحاب الفضل من فريق النشاط الذين آمنوا بالفكرة، وصبروا على فريق التطوير طوال مراحل البناء
+                    والاختبار والتعديل، ولم يبخلوا يومًا بملاحظة أو فكرة أو تشجيع.
+                  </p>
+
+                  {/* Supporters placeholder grid — يمكن استبدالها بأسماء حقيقية */}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                    {[
+                      { label: 'صورة + اسم — الداعم الأول' },
+                      { label: 'صورة + اسم — الداعم الثاني' },
+                      { label: 'صورة + اسم — الداعم الثالث' },
+                    ].map((item, i) => (
+                      <div key={i} className="flex flex-col items-center gap-3">
+                        <PhotoPlaceholder label={item.label} className="w-24 h-24 rounded-full" />
+                        <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                        <div className="h-3 w-20 rounded bg-muted/70 animate-pulse" />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Second image placeholder */}
+                  <PhotoPlaceholder label="صورة — لقطة من النشاط" className="w-full h-48" />
+
+                  <p className="text-muted-foreground text-sm text-center pt-2">
+                    جزاكم الله خيرًا على كل لحظة دعم وصبر 🤍
+                  </p>
+
+                </CardContent>
+              </Card>
+            </section>
+
           </TabsContent>
 
-          {/* ── TAB 2: Usage ── */}
+          {/* ══════════════════════════════════════
+              TAB 2 — HOW TO USE
+          ══════════════════════════════════════ */}
           <TabsContent value="usage" className="space-y-8 mt-0">
 
             {/* Video */}
@@ -354,7 +421,9 @@ export default function AboutProject() {
             </section>
           </TabsContent>
 
-          {/* ── TAB 3: Tech Stack ── */}
+          {/* ══════════════════════════════════════
+              TAB 3 — TECH STACK
+          ══════════════════════════════════════ */}
           <TabsContent value="tech" className="mt-0">
             <div className="flex items-center gap-3 mb-5">
               <div className="p-2 rounded-lg bg-purple-500/10">
@@ -364,7 +433,10 @@ export default function AboutProject() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {techStack.map((tech, i) => (
-                <div key={i} className="flex items-center gap-3 p-3.5 rounded-lg border hover:shadow-sm transition-all hover:border-primary/30">
+                <div
+                  key={i}
+                  className="flex items-center gap-3 p-3.5 rounded-lg border hover:shadow-sm transition-all hover:border-primary/30"
+                >
                   <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${tech.color} flex-shrink-0 shadow-sm`} />
                   <div>
                     <p className="font-medium text-sm">{tech.name}</p>
@@ -375,15 +447,6 @@ export default function AboutProject() {
             </div>
           </TabsContent>
         </Tabs>
-
-        {/* Footer */}
-        <div className="text-center py-8 mt-4 border-t">
-          <p className="text-muted-foreground text-sm flex items-center justify-center gap-1.5">
-            {isAr ? 'صُنع بـ' : 'Made with'}
-            <Heart className="h-4 w-4 text-red-500 fill-red-500" />
-            {isAr ? 'لخدمة العمل التطوعي' : 'for volunteering'}
-          </p>
-        </div>
       </div>
     </div>
   );
