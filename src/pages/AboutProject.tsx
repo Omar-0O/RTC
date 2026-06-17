@@ -399,6 +399,29 @@ export default function AboutProject() {
                 </h2>
               </div>
 
+              {/* YouTube link */}
+              <Card className="mb-5 border-red-500/20 bg-red-500/5 hover:border-red-500/40 transition-colors">
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                      <Youtube className="h-5 w-5 text-red-500" />
+                    </div>
+                    <div className="flex-1 min-w-0" dir="rtl">
+                      <p className="font-medium text-sm mb-0.5">فيديو شرح كيفية النسخ والإعداد</p>
+                      <p className="text-xs text-muted-foreground">شاهد الفيديو لفهم الخطوات بشكل تفصيلي قبل البدء</p>
+                    </div>
+                    <Button asChild size="sm" className="gap-2 bg-red-500 hover:bg-red-600 text-white flex-shrink-0">
+                      <a href={YOUTUBE_VIDEO_URL} target="_blank" rel="noopener noreferrer">
+                        <Youtube className="h-3.5 w-3.5" />
+                        {isAr ? 'مشاهدة' : 'Watch'}
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+
               <div className="space-y-4">
                 {migrationSteps.map((s) => (
                   <Card key={s.step} className="hover:shadow-md transition-shadow">
