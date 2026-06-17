@@ -68,6 +68,7 @@ const LogForVolunteer = lazy(() => import("./pages/supervisor/LogForVolunteer"))
 const VolunteerPortal = lazy(() => import("./pages/VolunteerPortal"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ExecutiveDashboard = lazy(() => import("./pages/executive/Dashboard"));
+const AboutProject = lazy(() => import("./pages/AboutProject"));
 
 // Production-hardened QueryClient configuration
 const queryClient = new QueryClient({
@@ -265,6 +266,9 @@ function AppRoutes() {
 
         {/* Ashbal Routes */}
         <Route path="/ashbal/management" element={<AshbalManagement />} />
+
+        {/* About Project */}
+        <Route path="/about" element={<AboutProject />} />
       </Route>
 
       {/* Public Volunteer Portal — no auth required */}
