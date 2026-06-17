@@ -146,8 +146,8 @@ export default function AboutProject() {
               {isAr ? 'كيفية الاستخدام' : 'How to Use'}
             </TabsTrigger>
             <TabsTrigger value="tech" className="gap-2 text-sm">
-              <Code2 className="h-4 w-4" />
-              {isAr ? 'التقنيات' : 'Tech Stack'}
+              <Heart className="h-4 w-4" />
+              {isAr ? 'في حالة توفاني الله' : 'If I\'m Gone'}
             </TabsTrigger>
           </TabsList>
 
@@ -358,6 +358,36 @@ export default function AboutProject() {
               </Card>
             </section>
 
+
+          </TabsContent>
+
+          {/* ══════════════════════════════════════
+              TAB 3 — في حالة توفاني الله
+          ══════════════════════════════════════ */}
+          <TabsContent value="tech" className="space-y-10 mt-0">
+
+            {/* Intro */}
+            <Card className="border-rose-500/20 bg-rose-500/5">
+              <CardContent className="pt-6 pb-6 space-y-4 text-[15px] leading-loose" dir="rtl">
+                <div className="flex items-center gap-3 mb-2">
+                  <Heart className="h-5 w-5 text-rose-500 fill-rose-500 flex-shrink-0" />
+                  <h2 className="text-lg font-bold text-rose-600 dark:text-rose-400">في حالة توفاني الله</h2>
+                </div>
+                <p className="text-foreground/90">
+                  هذه الصفحة موجّهة لأي مطوّر يرغب في الاستمرار بتشغيل هذا المشروع أو الانطلاق منه لبناء نظام مشابه.
+                  الهدف الأساسي هو ضمان استمرار هذه الصدقة الجارية وعدم توقّفها بتوقّف أصحابها.
+                </p>
+                <p className="text-foreground/80">
+                  جميع ما تحتاجه موجود في هذا الريبو:
+                  قاعدة البيانات كاملة عبر الـ <span className="font-semibold">Migrations</span>،
+                  وكود الواجهة، والـ Edge Functions، والإعدادات — لا شيء مفقود.
+                </p>
+                <blockquote className="border-r-4 border-rose-400 pr-4 py-1 italic font-medium text-rose-700 dark:text-rose-300">
+                  ﴿وَمَا تُقَدِّمُوا لِأَنفُسِكُم مِّنْ خَيْرٍ تَجِدُوهُ عِندَ اللَّهِ﴾ 🤍
+                </blockquote>
+              </CardContent>
+            </Card>
+
             {/* Fork & Setup Guide */}
             <section>
               <div className="flex items-center gap-3 mb-5">
@@ -365,22 +395,9 @@ export default function AboutProject() {
                   <Terminal className="h-5 w-5 text-green-500" />
                 </div>
                 <h2 className="text-xl font-bold">
-                  {isAr ? 'كيفية نسخ المشروع وإعداد داتابيز جديدة' : 'Fork & Setup a New Database'}
+                  {isAr ? 'خطوات نسخ المشروع وإعداد داتابيز جديدة' : 'Fork & Setup a New Database'}
                 </h2>
               </div>
-
-              <Card className="mb-5 border-amber-500/20 bg-amber-500/5">
-                <CardContent className="pt-4 pb-4">
-                  <div className="flex gap-2 items-start">
-                    <Heart className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                    <p className="text-sm text-muted-foreground">
-                      {isAr
-                        ? 'هذه التعليمات موجودة حتى يتمكن أي شخص من الاستمرار في تشغيل المشروع وتطويره في أي وقت. جميع الـ migrations موجودة في مجلد supabase/migrations داخل الريبو.'
-                        : 'These instructions exist so anyone can continue running and developing the project at any time. All migrations are located in the supabase/migrations folder within the repo.'}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
 
               <div className="space-y-4">
                 {migrationSteps.map((s) => (
@@ -419,32 +436,34 @@ export default function AboutProject() {
                 </Button>
               </div>
             </section>
-          </TabsContent>
 
-          {/* ══════════════════════════════════════
-              TAB 3 — TECH STACK
-          ══════════════════════════════════════ */}
-          <TabsContent value="tech" className="mt-0">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="p-2 rounded-lg bg-purple-500/10">
-                <BookOpen className="h-5 w-5 text-purple-500" />
-              </div>
-              <h2 className="text-xl font-bold">{isAr ? 'التقنيات المستخدمة' : 'Tech Stack'}</h2>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {techStack.map((tech, i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 p-3.5 rounded-lg border hover:shadow-sm transition-all hover:border-primary/30"
-                >
-                  <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${tech.color} flex-shrink-0 shadow-sm`} />
-                  <div>
-                    <p className="font-medium text-sm">{tech.name}</p>
-                    <p className="text-xs text-muted-foreground">{isAr ? tech.desc_ar : tech.desc_en}</p>
-                  </div>
+            {/* Tech Stack */}
+            <section>
+              <div className="flex items-center gap-3 mb-5">
+                <div className="p-2 rounded-lg bg-purple-500/10">
+                  <BookOpen className="h-5 w-5 text-purple-500" />
                 </div>
-              ))}
-            </div>
+                <h2 className="text-xl font-bold">{isAr ? 'التقنيات المستخدمة في المشروع' : 'Tech Stack'}</h2>
+              </div>
+              <p className="text-sm text-muted-foreground mb-5" dir="rtl">
+                إليك قائمة بكل التقنيات المستخدمة لتساعدك على فهم البنية التقنية للمشروع قبل البدء.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {techStack.map((tech, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 p-3.5 rounded-lg border hover:shadow-sm transition-all hover:border-primary/30"
+                  >
+                    <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${tech.color} flex-shrink-0 shadow-sm`} />
+                    <div>
+                      <p className="font-medium text-sm">{tech.name}</p>
+                      <p className="text-xs text-muted-foreground">{isAr ? tech.desc_ar : tech.desc_en}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
           </TabsContent>
         </Tabs>
       </div>
