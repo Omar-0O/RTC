@@ -121,6 +121,9 @@ export default function MyQuranCircles() {
     const [loading, setLoading] = useState(true);
     const [marketerCircleIds, setMarketerCircleIds] = useState<Set<string>>(new Set());
     const [organizerCircleIds, setOrganizerCircleIds] = useState<Set<string>>(new Set());
+    const [leaveCircleId, setLeaveCircleId] = useState<string | null>(null);
+    const [leaveType, setLeaveType] = useState<'organizer' | 'marketer' | null>(null);
+    const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
 
     // Circle Ads state
     interface CircleAd {
@@ -635,6 +638,34 @@ export default function MyQuranCircles() {
         }
     };
 
+    const handleLeaveCircle = (circleId: string, type: 'organizer' | 'marketer') => {
+        setLeaveCircleId(circleId);
+        setLeaveType(type);
+        setIsLeaveConfirmOpen(true);
+    };
+
+    const confirmLeaveCircle = async () => {
+        if (!user || !leaveCircleId || !leaveType) return;
+        const table = leaveType === 'organizer' ? 'quran_circle_organizers' : 'quran_circle_marketers';
+        
+        try {
+            const { error } = await supabase
+                .from(table)
+                .delete()
+                .match({ circle_id: leaveCircleId, volunteer_id: user.id });
+
+            if (error) throw error;
+            toast.success(isRTL ? 'تمت الإزالة بنجاح' : 'Removed successfully');
+            setIsLeaveConfirmOpen(false);
+            setLeaveCircleId(null);
+            setLeaveType(null);
+            fetchMyCircles();
+        } catch (error: any) {
+            console.error('Error leaving circle:', error);
+            toast.error(isRTL ? 'حدث خطأ أثناء الإزالة' : 'Error removing role');
+        }
+    };
+
     const markAllPresent = () => {
         setAttendance(beneficiaries.map(b => ({
             beneficiary_id: b.id,
@@ -1043,6 +1074,18 @@ export default function MyQuranCircles() {
                                                 <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
                                             </DropdownMenuItem>
+                                            {organizerCircleIds.has(circle.id) && (
+                                                <DropdownMenuItem onClick={() => handleLeaveCircle(circle.id, 'organizer')} className="text-destructive focus:bg-destructive/10">
+                                                    <Trash2 className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                    {isRTL ? 'إزالة نفسي كمنظم' : 'Leave as Organizer'}
+                                                </DropdownMenuItem>
+                                            )}
+                                            {marketerCircleIds.has(circle.id) && (
+                                                <DropdownMenuItem onClick={() => handleLeaveCircle(circle.id, 'marketer')} className="text-destructive focus:bg-destructive/10">
+                                                    <Trash2 className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                    {isRTL ? 'إزالة نفسي كمسوق' : 'Leave as Marketer'}
+                                                </DropdownMenuItem>
+                                            )}
                                             <DropdownMenuItem onClick={() => exportCircleToExcel(circle)}>
                                                 <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'تصدير Excel' : 'Export Excel'}
@@ -2314,6 +2357,35 @@ export default function MyQuranCircles() {
                         >
                             <UserMinus className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
                             {isRTL ? 'إزالة' : 'Remove'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Leave Circle Confirmation */}
+            <AlertDialog open={isLeaveConfirmOpen} onOpenChange={setIsLeaveConfirmOpen}>
+                <AlertDialogContent className="max-w-sm w-[calc(100%-2rem)] rounded-xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                            <Trash2 className="w-5 h-5" />
+                            {isRTL ? 'تأكيد المغادرة' : 'Confirm Departure'}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm">
+                            {isRTL
+                                ? `هل أنت متأكد من إزالة نفسك ك${leaveType === 'organizer' ? 'منظم' : 'مسوق'} من هذه الحلقة؟`
+                                : `Are you sure you want to remove yourself as a ${leaveType === 'organizer' ? 'organizer' : 'marketer'} from this circle?`
+                            }
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2">
+                        <AlertDialogCancel className="flex-1 sm:flex-none">
+                            {isRTL ? 'إلغاء' : 'Cancel'}
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmLeaveCircle}
+                            className="flex-1 sm:flex-none bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                        >
+                            {isRTL ? 'مغادرة' : 'Leave'}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

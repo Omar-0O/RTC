@@ -1022,7 +1022,7 @@ export default function UserManagement() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="level">{t('users.level')}</Label>
-                    <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr', 'supervisor'].includes(primaryRole)}>
+                    <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr', 'supervisor', 'branch_admin'].includes(primaryRole)}>
                       <SelectTrigger>
                         <SelectValue placeholder={t('users.level')} />
                       </SelectTrigger>
@@ -1039,7 +1039,7 @@ export default function UserManagement() {
                   <Select
                     value={formCommitteeId || 'none'}
                     onValueChange={(val) => setFormCommitteeId(val === 'none' ? '' : val)}
-                    disabled={!['admin', 'head_hr', 'hr', 'supervisor'].includes(primaryRole)}
+                    disabled={!['admin', 'head_hr', 'hr', 'supervisor', 'branch_admin'].includes(primaryRole)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder={t('users.committee')} />
@@ -1772,7 +1772,7 @@ export default function UserManagement() {
                                 </DropdownMenuItem>
                               </>
                             )}
-                            {primaryRole === 'admin' && (
+                            {['admin', 'branch_admin'].includes(primaryRole) && (
                               <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem

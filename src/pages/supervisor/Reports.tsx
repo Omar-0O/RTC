@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Download, Calendar, TrendingUp, Users, Activity, Award } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,11 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
+
+const ARABIC_MONTHS = [
+  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+];
 
 interface Profile {
   id: string;
@@ -107,6 +113,7 @@ async function fetchAllRows(table: 'activity_submissions', pageSize = 500) {
 
 export default function Reports() {
   const { t, language } = useLanguage();
+  const navigate = useNavigate();
   const [dateRange, setDateRange] = useState('month');
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
@@ -321,6 +328,55 @@ export default function Reports() {
     };
   }).filter(a => a.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
 
+  // Supervisor average participations in selected date range (capped at 8 per supervisor)
+  const supervisorAverageSelectedRange = (() => {
+    const supervisors = profiles.filter(p => ['responsible', 'platinum', 'diamond'].includes(p.level || 'under_follow_up'));
+    if (supervisors.length === 0) return 0;
+
+    let totalCapped = 0;
+    supervisors.forEach(sup => {
+      const supSubmissionsCount = filteredSubmissions.filter(s => s.volunteer_id === sup.id).length;
+      totalCapped += Math.min(supSubmissionsCount, 8);
+    });
+
+    return parseFloat((totalCapped / supervisors.length).toFixed(2));
+  })();
+
+  // Monthly average supervisor participations over last 6 months (capped at 8 per supervisor)
+  const supervisorAverageTrend = Array.from({ length: 6 }, (_, i) => {
+    const date = subMonths(new Date(), 5 - i);
+    const monthStart = startOfMonth(date);
+    const monthEnd = endOfMonth(date);
+
+    const monthSubmissions = submissions.filter(s => {
+      const submittedDate = new Date(s.submitted_at);
+      return submittedDate >= monthStart && submittedDate <= monthEnd;
+    });
+
+    const supervisors = profiles.filter(p => ['responsible', 'platinum', 'diamond'].includes(p.level || 'under_follow_up'));
+    
+    let totalCapped = 0;
+    let totalUncapped = 0;
+    if (supervisors.length > 0) {
+      supervisors.forEach(sup => {
+        const supSubmissionsCount = monthSubmissions.filter(s => s.volunteer_id === sup.id).length;
+        totalCapped += Math.min(supSubmissionsCount, 8);
+        totalUncapped += supSubmissionsCount;
+      });
+    }
+
+    const average = supervisors.length > 0 ? parseFloat((totalCapped / supervisors.length).toFixed(2)) : 0;
+
+    return {
+      month: language === 'ar' ? ARABIC_MONTHS[date.getMonth()] : format(date, 'MMM'),
+      average: average,
+      supervisorsCount: supervisors.length,
+      totalCappedParticipations: totalCapped,
+      totalUncappedParticipations: totalUncapped,
+      monthKey: format(date, 'yyyy-MM')
+    };
+  });
+
   // CSV Export functions
   const downloadCSV = (data: any[], filename: string) => {
     if (data.length === 0) {
@@ -500,7 +556,7 @@ export default function Reports() {
       </div>
 
       {/* Summary Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
@@ -536,6 +592,21 @@ export default function Reports() {
               <div>
                 <p className="text-sm text-muted-foreground">{language === 'ar' ? 'إجمالي المشاركات' : 'Total Submissions'}</p>
                 <p className="text-2xl font-bold">{totalSubmissions.toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="rounded-full bg-purple-100 dark:bg-purple-900/20 p-3">
+                <TrendingUp className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  {language === 'ar' ? 'متوسط مشاركات المسؤولين' : 'Supervisors Avg. Participations'}
+                </p>
+                <p className="text-2xl font-bold">{supervisorAverageSelectedRange}</p>
               </div>
             </div>
           </CardContent>
@@ -712,6 +783,78 @@ export default function Reports() {
                   </div>
                 ))
               )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Supervisor Average Participations Trend Chart */}
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {language === 'ar' ? 'معدل متوسط مشاركات المسؤولين' : 'Supervisors Average Participations Trend'}
+            </CardTitle>
+            <CardDescription>
+              {language === 'ar'
+                ? 'متوسط مشاركات درجة مسئول شهرياً (بحد أقصى 8 مشاركات للمسؤول الواحد)'
+                : 'Monthly average participations for supervisor level (capped at 8 per supervisor)'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={supervisorAverageTrend}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="month" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip
+                    content={({ active, payload }: any) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="rounded-lg border bg-card p-3 shadow-md space-y-1 text-sm">
+                            <p className="font-semibold">{data.month}</p>
+                            <p className="text-purple-600 dark:text-purple-400 font-medium">
+                              {language === 'ar' ? 'متوسط المشاركات: ' : 'Average: '}
+                              {data.average}
+                            </p>
+                            <p className="text-muted-foreground">
+                              {language === 'ar' ? 'عدد المسئولين: ' : 'Supervisors: '}
+                              {data.supervisorsCount}
+                            </p>
+                            <p className="text-muted-foreground">
+                              {language === 'ar' ? 'إجمالي المشاركات (المحددة بـ 8): ' : 'Total Capped Participations: '}
+                              {data.totalCappedParticipations}
+                            </p>
+                            <p className="text-muted-foreground">
+                              {language === 'ar' ? 'إجمالي المشاركات الفعلي: ' : 'Total Actual Participations: '}
+                              {data.totalUncappedParticipations}
+                            </p>
+                            <div className="pt-1 border-t mt-1 text-[11px] text-primary font-medium animate-pulse">
+                              {language === 'ar'
+                                ? 'اضغط على العمود للانتقال والتصفية'
+                                : 'Click column to view & filter'}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend />
+                  <Bar
+                    dataKey="average"
+                    fill="#9333ea"
+                    radius={[4, 4, 0, 0]}
+                    name={language === 'ar' ? 'متوسط المشاركات' : 'Average Participations'}
+                    onClick={(data) => {
+                      if (data && data.monthKey) {
+                        navigate(`/hr/submissions?level=responsible&month=${data.monthKey}`);
+                      }
+                    }}
+                    className="cursor-pointer"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>

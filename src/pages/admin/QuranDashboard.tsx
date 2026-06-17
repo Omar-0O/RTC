@@ -58,17 +58,17 @@ const CommitteeDashboard = () => {
                 sessionsRes,
             ] = await Promise.all([
                 (() => {
-                    let q = supabase.from('quran_circles').select('*');
+                    let q: any = supabase.from('quran_circles').select('*');
                     if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
                     return q;
                 })(),
                 (() => {
-                    let q = supabase.from('quran_beneficiaries').select('id', { count: 'exact' });
+                    let q: any = supabase.from('quran_beneficiaries').select('id', { count: 'exact' });
                     if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
                     return q;
                 })(),
                 (() => {
-                    let q = supabase.from('quran_teachers').select('id', { count: 'exact' });
+                    let q: any = supabase.from('quran_teachers').select('id', { count: 'exact' });
                     if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
                     return q;
                 })(),

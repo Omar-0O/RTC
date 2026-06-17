@@ -25,7 +25,7 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search, Megaphone, AlertTriangle, User, UserPlus, UserCheck, Table as TableIcon } from 'lucide-react';
+import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileSpreadsheet, Check, X, MoreHorizontal, Pencil, Search, Megaphone, AlertTriangle, User, UserPlus, UserCheck, Table as TableIcon, MessageSquare } from 'lucide-react';
 import { Calendar as CalendarComponent, MonthPicker } from '@/components/ui/calendar';
 import { format, addDays, getDay, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -1668,7 +1668,7 @@ export default function CourseManagement() {
             };
 
             // --- Collect trainers list (name, phone, potential profile) ---
-            interface TrainerEntry { name: string; phone: string | null; volunteerId: string | null; }
+            interface TrainerEntry { name: string; phone: string | null; volunteerId: string | null; hasTrainerId: boolean; }
             const trainers: TrainerEntry[] = [];
 
             // Case A: Trainers from trainers table
@@ -1683,7 +1683,7 @@ export default function CourseManagement() {
                 if (!td) continue;
                 let vid: string | null = td.user_id || null;
                 if (!vid && td.phone) vid = await findProfileByPhone(td.phone);
-                trainers.push({ name: td.name_ar || td.name_en || 'مدرب', phone: td.phone, volunteerId: vid });
+                trainers.push({ name: td.name_ar || td.name_en || 'مدرب', phone: td.phone, volunteerId: vid, hasTrainerId: true });
             }
 
             // Case B: External trainer (name + phone directly on course, no trainer_id)
@@ -1693,7 +1693,7 @@ export default function CourseManagement() {
                     : [null];
                 for (const phone of phones) {
                     const vid = phone ? await findProfileByPhone(phone) : null;
-                    trainers.push({ name: course.trainer_name, phone: phone || course.trainer_phone || null, volunteerId: vid });
+                    trainers.push({ name: course.trainer_name, phone: phone || course.trainer_phone || null, volunteerId: vid, hasTrainerId: false });
                 }
             }
 
@@ -1729,8 +1729,9 @@ export default function CourseManagement() {
                 await logTrainerRecord(trainer.name, trainer.phone, trainer.volunteerId);
                 console.log(`📋 تم تسجيل مشاركة "${trainer.name}" في محاضرة ${lectureNum}`);
 
-                // 2. If has profile + committee + activity type → also log points
-                if (trainer.volunteerId && committeeId && activityTypeId) {
+                // 2. If has profile + committee + activity type AND is external → also log points
+                // Internal trainers with trainer_id are logged automatically by the database trigger
+                if (trainer.volunteerId && committeeId && activityTypeId && !trainer.hasTrainerId) {
                     await logActivitySubmission(trainer.volunteerId, committeeId, activityTypeId, activityPoints, lectureNum);
                 }
             }
@@ -3817,7 +3818,22 @@ export default function CourseManagement() {
                                                     return (
                                                         <TableRow key={beneficiary.id}>
                                                             <TableCell className="font-medium whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{beneficiary.name}</TableCell>
-                                                            <TableCell className="whitespace-nowrap">{beneficiary.phone}</TableCell>
+                                                            <TableCell className="whitespace-nowrap font-mono" dir="ltr">
+                                                                <div className="flex items-center gap-1">
+                                                                    <span>{beneficiary.phone}</span>
+                                                                    {beneficiary.phone && (
+                                                                        <a
+                                                                            href={`https://wa.me/${beneficiary.phone.replace(/\D/g, '')}`}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="text-green-500 hover:text-green-600 transition-colors p-1"
+                                                                            title={isRTL ? 'مراسلة عبر واتساب' : 'Chat on WhatsApp'}
+                                                                        >
+                                                                            <MessageSquare className="w-4 h-4" />
+                                                                        </a>
+                                                                    )}
+                                                                </div>
+                                                            </TableCell>
                                                             {lectures.map((lecture, idx) => {
                                                                 const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone && a.status === 'present');
                                                                 const isCancelled = lecture.status === 'cancelled';
@@ -3879,7 +3895,20 @@ export default function CourseManagement() {
                                                             </Avatar>
                                                             <div>
                                                                 <div className="font-semibold text-xs text-foreground">{beneficiary.name}</div>
-                                                                <div className="text-[10px] text-muted-foreground font-mono">{beneficiary.phone || '-'}</div>
+                                                                <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-1" dir="ltr">
+                                                                    <span>{beneficiary.phone || '-'}</span>
+                                                                    {beneficiary.phone && (
+                                                                        <a
+                                                                            href={`https://wa.me/${beneficiary.phone.replace(/\D/g, '')}`}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="text-green-500 hover:text-green-600 transition-colors p-0.5"
+                                                                            title={isRTL ? 'مراسلة عبر واتساب' : 'Chat on WhatsApp'}
+                                                                        >
+                                                                            <MessageSquare className="w-3.5 h-3.5" />
+                                                                        </a>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                         <Badge variant="outline" className={`text-xs px-2 py-0.5 rounded-full ${stats.rate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : stats.rate >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>

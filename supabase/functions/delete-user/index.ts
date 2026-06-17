@@ -75,11 +75,32 @@ Deno.serve(async (req: Request) => {
         }
 
         const roles = requesterRoles?.map(r => r.role) || []
-        const isAuthorized = roles.includes('admin') || roles.includes('head_hr') || roles.includes('supervisor')
+        const isAuthorized = roles.includes('admin') || roles.includes('head_hr') || roles.includes('supervisor') || roles.includes('branch_admin')
+        const isAdmin = roles.includes('admin') || roles.includes('executive')
 
         if (!isAuthorized) {
             console.log(`User ${requester.id} attempted to delete user but has roles: ${roles.join(', ')}`)
-            throw new Error(`Unauthorized: Admin or HR access required. User roles are: ${roles.join(', ') || 'none'}`)
+            throw new Error(`Unauthorized: Admin, HR, or Branch Admin access required. User roles are: ${roles.join(', ') || 'none'}`)
+        }
+
+        if (!isAdmin) {
+            // Fetch requester profile's branch_id
+            const { data: requesterProfile, error: reqProfileError } = await supabaseAdmin
+                .from('profiles')
+                .select('branch_id')
+                .eq('id', requester.id)
+                .single()
+
+            // Fetch target profile's branch_id
+            const { data: targetProfile, error: targetProfileError } = await supabaseAdmin
+                .from('profiles')
+                .select('branch_id')
+                .eq('id', userId)
+                .single()
+
+            if (reqProfileError || targetProfileError || requesterProfile?.branch_id !== targetProfile?.branch_id) {
+                throw new Error('Unauthorized: You can only delete users in your own branch')
+            }
         }
 
         // Check if target user exists

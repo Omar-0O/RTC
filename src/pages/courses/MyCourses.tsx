@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 import { BookOpen, Calendar, Clock, MapPin, Users, Check, X, Loader2, GraduationCap, Search, UserPlus, Table as TableIcon } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
-import { Plus, Trash2, Pencil, MoreHorizontal, Download, Megaphone, Image, FileText } from 'lucide-react';
+import { Plus, Trash2, Pencil, MoreHorizontal, Download, Megaphone, Image, FileText, MessageSquare } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -484,7 +484,7 @@ export default function MyCourses() {
                 });
             };
 
-            interface TrainerEntry { name: string; phone: string | null; volunteerId: string | null; }
+            interface TrainerEntry { name: string; phone: string | null; volunteerId: string | null; hasTrainerId: boolean; }
             const trainers: TrainerEntry[] = [];
 
             // Case A: Trainers from trainers table (trainer_id + course_trainers from DB)
@@ -500,7 +500,7 @@ export default function MyCourses() {
                 if (!td) continue;
                 let vid: string | null = td.user_id || null;
                 if (!vid && td.phone) vid = await findProfileByPhone(td.phone);
-                trainers.push({ name: td.name_ar || td.name_en || 'مدرب', phone: td.phone, volunteerId: vid });
+                trainers.push({ name: td.name_ar || td.name_en || 'مدرب', phone: td.phone, volunteerId: vid, hasTrainerId: true });
             }
 
             // Case B: External trainer (name + phone on course, no trainer_id)
@@ -510,7 +510,7 @@ export default function MyCourses() {
                     : [null];
                 for (const phone of phones) {
                     const vid = phone ? await findProfileByPhone(phone) : null;
-                    trainers.push({ name: course.trainer_name, phone: phone || course.trainer_phone || null, volunteerId: vid });
+                    trainers.push({ name: course.trainer_name, phone: phone || course.trainer_phone || null, volunteerId: vid, hasTrainerId: false });
                 }
             }
 
@@ -546,8 +546,9 @@ export default function MyCourses() {
                 await logTrainerRecord(trainer.name, trainer.phone, trainer.volunteerId);
                 console.log(`📋 تم تسجيل مشاركة "${trainer.name}" في محاضرة ${lectureNum}`);
 
-                // 2. If has profile + committee + activity → also record points
-                if (trainer.volunteerId && committeeId && activityTypeId) {
+                // 2. If has profile + committee + activity AND is external → also record points
+                // Internal trainers with trainer_id are logged automatically by the database trigger
+                if (trainer.volunteerId && committeeId && activityTypeId && !trainer.hasTrainerId) {
                     const { error } = await supabase.from('activity_submissions').insert({
                         volunteer_id: trainer.volunteerId,
                         activity_type_id: activityTypeId,
@@ -1409,7 +1410,22 @@ export default function MyCourses() {
                                                                     return (
                                                                         <TableRow key={beneficiary.id}>
                                                                             <TableCell className="font-medium whitespace-nowrap">{beneficiary.name}</TableCell>
-                                                                            <TableCell className="whitespace-nowrap font-mono" dir="ltr">{beneficiary.phone}</TableCell>
+                                                                            <TableCell className="whitespace-nowrap font-mono" dir="ltr">
+                                                                                <div className="flex items-center gap-1">
+                                                                                    <span>{beneficiary.phone}</span>
+                                                                                    {beneficiary.phone && (
+                                                                                        <a
+                                                                                            href={`https://wa.me/${beneficiary.phone.replace(/\D/g, '')}`}
+                                                                                            target="_blank"
+                                                                                            rel="noopener noreferrer"
+                                                                                            className="text-green-500 hover:text-green-600 transition-colors p-1"
+                                                                                            title={isRTL ? 'مراسلة عبر واتساب' : 'Chat on WhatsApp'}
+                                                                                        >
+                                                                                            <MessageSquare className="w-4 h-4" />
+                                                                                        </a>
+                                                                                    )}
+                                                                                </div>
+                                                                            </TableCell>
                                                                             {lectures.map((lecture, idx) => {
                                                                                 const isPresent = attendanceData[lecture.id]?.some(a => a.student_phone === beneficiary.phone && a.status === 'present');
                                                                                 const isCancelled = lecture.status === 'cancelled';
@@ -1474,7 +1490,20 @@ export default function MyCourses() {
                                                                                 </Avatar>
                                                                                 <div>
                                                                                     <div className="font-semibold text-xs text-foreground">{beneficiary.name}</div>
-                                                                                    <div className="text-[10px] text-muted-foreground font-mono" dir="ltr">{beneficiary.phone || '-'}</div>
+                                                                                    <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-1" dir="ltr">
+                                                                                        <span>{beneficiary.phone || '-'}</span>
+                                                                                        {beneficiary.phone && (
+                                                                                            <a
+                                                                                                href={`https://wa.me/${beneficiary.phone.replace(/\D/g, '')}`}
+                                                                                                target="_blank"
+                                                                                                rel="noopener noreferrer"
+                                                                                                className="text-green-500 hover:text-green-600 transition-colors p-0.5"
+                                                                                                title={isRTL ? 'مراسلة عبر واتساب' : 'Chat on WhatsApp'}
+                                                                                            >
+                                                                                                <MessageSquare className="w-3.5 h-3.5" />
+                                                                                            </a>
+                                                                                        )}
+                                                                                    </div>
                                                                                 </div>
                                                                             </div>
                                                                             <Badge variant="outline" className={`text-xs px-2 py-0.5 rounded-full ${stats.rate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : stats.rate >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>

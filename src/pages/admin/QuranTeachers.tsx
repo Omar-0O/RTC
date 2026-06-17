@@ -100,7 +100,7 @@ export default function QuranTeachers() {
 
     const fetchProfiles = async () => {
         try {
-            let query = supabase
+            let query: any = supabase
                 .from('profiles')
                 .select('id, full_name, full_name_ar, email');
 
@@ -118,7 +118,7 @@ export default function QuranTeachers() {
     const fetchTeachers = async () => {
         setLoading(true);
         try {
-            let query = supabase
+            let query: any = supabase
                 .from('quran_teachers')
                 .select('*, profiles!quran_teachers_user_id_fkey(full_name, full_name_ar, email)');
 

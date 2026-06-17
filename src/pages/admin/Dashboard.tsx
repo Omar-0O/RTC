@@ -100,17 +100,17 @@ export default function AdminDashboard() {
       ] = await Promise.all([
         // RLS auto-filters for non-admin; admin can scope via activeBranch
         (() => {
-          let q = supabase.from('profiles').select('id, full_name, full_name_ar, total_points, level, committee_id');
+          let q: any = supabase.from('profiles').select('id, full_name, full_name_ar, total_points, level, committee_id');
           if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
           return q;
         })(),
         (() => {
-          let q = supabase.from('activity_submissions').select('points_awarded');
+          let q: any = supabase.from('activity_submissions').select('points_awarded');
           if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
           return q;
         })(),
         (() => {
-          let q = supabase.from('committees').select('id, name, name_ar');
+          let q: any = supabase.from('committees').select('id, name, name_ar');
           if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
           return q;
         })(),

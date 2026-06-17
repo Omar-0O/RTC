@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useMemo } from 'react';
 import Profile from '@/pages/volunteer/Profile';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
@@ -136,15 +137,24 @@ export default function SubmissionManagement() {
     const isRTL = language === 'ar';
     const isHeadHR = primaryRole === 'head_hr';
 
+    const [searchParams] = useSearchParams();
+    const queryMonth = searchParams.get('month');
+    const queryLevel = searchParams.get('level');
+
     const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
     const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [guestParticipations, setGuestParticipations] = useState<GuestParticipation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Filters
-    const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
-    const [selectedLevel, setSelectedLevel] = useState('all');
+    const [selectedMonth, setSelectedMonth] = useState(queryMonth || format(new Date(), 'yyyy-MM'));
+    const [selectedLevel, setSelectedLevel] = useState(queryLevel || 'all');
     const [selectedType, setSelectedType] = useState('all');
+
+    useEffect(() => {
+        if (queryMonth) setSelectedMonth(queryMonth);
+        if (queryLevel) setSelectedLevel(queryLevel);
+    }, [queryMonth, queryLevel]);
     const [showLowParticipationDialog, setShowLowParticipationDialog] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [submissionToDelete, setSubmissionToDelete] = useState<string | null>(null);
