@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { useBranch } from '@/contexts/BranchContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -29,7 +30,6 @@ import { Plus, Download, BookOpen, Calendar, Clock, MapPin, Users, Trash2, FileS
 import { Calendar as CalendarComponent, MonthPicker } from '@/components/ui/calendar';
 import { format, addDays, getDay, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import * as XLSX from 'xlsx';
 import { cn } from '@/lib/utils';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -55,6 +55,8 @@ import {
 } from '@/components/ui/command';
 import { Switch } from '@/components/ui/switch';
 
+type CertificateStatus = 'pending' | 'printing' | 'ready' | 'delivered';
+
 interface Course {
     id: string;
     name: string;
@@ -76,7 +78,7 @@ interface Course {
     course_organizers?: { id: string }[];
     course_trainers?: { trainer_id: string; trainers?: { name_ar: string; name_en: string } }[];
     has_certificates: boolean;
-    certificate_status: 'pending' | 'printing' | 'ready' | 'delivered';
+    certificate_status: CertificateStatus;
 }
 
 interface CourseOrganizer {
@@ -163,6 +165,31 @@ interface CourseMarketer {
     name: string;
     phone: string;
 }
+
+type Tables = Database['public']['Tables'];
+type CourseOrganizerInsert = Tables['course_organizers']['Insert'];
+type CourseMarketerInsert = Tables['course_marketers']['Insert'];
+type CourseTrainerInsert = Tables['course_trainers']['Insert'];
+type CourseAdInsert = Tables['course_ads']['Insert'];
+
+interface ProfileSummary {
+    full_name: string | null;
+    full_name_ar: string | null;
+    phone: string | null;
+}
+
+interface CourseMarketerWithProfile {
+    id: string;
+    course_id: string;
+    volunteer_id: string | null;
+    profiles: ProfileSummary | null;
+}
+
+const getErrorMessage = (error: unknown, fallback = 'Error occurred') =>
+    error instanceof Error ? error.message : fallback;
+
+const getErrorCode = (error: unknown) =>
+    typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : '';
 
 const DAYS = [
     { value: 'saturday', label: { en: 'Saturday', ar: 'السبت' } },
@@ -350,6 +377,8 @@ export default function CourseManagement() {
 
     const [allAds, setAllAds] = useState<CourseAd[]>([]);
     const [hasAdsPermission, setHasAdsPermission] = useState(false);
+    const activeCourseIds = useMemo(() => activeCourses.map(course => course.id), [activeCourses]);
+    const activeCourseIdsKey = activeCourseIds.join(',');
 
     useEffect(() => {
         const fetchAllAds = async () => {
@@ -360,13 +389,13 @@ export default function CourseManagement() {
 
             setHasAdsPermission(canView);
 
-            if (activeCourses.length === 0) return;
+            const courseIds = activeCourseIdsKey ? activeCourseIdsKey.split(',') : [];
+            if (courseIds.length === 0) return;
 
-            const activeIds = activeCourses.map(c => c.id);
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from('course_ads')
                 .select('*, updater:updated_by(full_name, full_name_ar), course:courses(name, start_date, interview_date, has_interview)')
-                .in('course_id', activeIds)
+                .in('course_id', courseIds)
                 .order('ad_date', { ascending: true });
 
             if (error) {
@@ -380,7 +409,7 @@ export default function CourseManagement() {
         };
 
         fetchAllAds();
-    }, [activeCourses.map(c => c.id).join(','), roles, profile, committees]);
+    }, [activeCourseIdsKey, roles, profile, committees]);
 
     useEffect(() => {
         if (isRestricted && profile?.committee_id) {
@@ -416,7 +445,7 @@ export default function CourseManagement() {
 
     const fetchRooms = async () => {
         try {
-            let query = (supabase as any)
+            let query = supabase
                 .from('rooms')
                 .select('id, name, name_ar')
                 .order('created_at');
@@ -433,9 +462,9 @@ export default function CourseManagement() {
             }
 
             if (data && data.length > 0) {
-                const mapped = data.map((r: any) => ({
-                    value: r.id,
-                    label: { en: r.name, ar: r.name_ar }
+                const mapped = data.map((room) => ({
+                    value: room.id,
+                    label: { en: room.name, ar: room.name_ar }
                 }));
                 setRooms(mapped);
                 // Auto-set the default room to the first valid room UUID if not already set to a valid one
@@ -528,7 +557,7 @@ export default function CourseManagement() {
 
     const fetchTrainers = async () => {
         try {
-            let query: any = supabase
+            let query = supabase
                 .from('trainers')
                 .select('id, name_en, name_ar, phone, image_url, committee_id, user_id')
                 .order('name_ar');
@@ -554,7 +583,7 @@ export default function CourseManagement() {
             setLoading(true);
         }
         try {
-            let query: any = supabase
+            let query = supabase
                 .from('courses')
                 .select('*, course_lectures(status), course_organizers(id), course_trainers(trainer_id, trainers(name_ar, name_en))')
                 .order('start_date', { ascending: false });
@@ -585,7 +614,7 @@ export default function CourseManagement() {
 
     const fetchCourseAds = async (courseId: string) => {
         try {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from('course_ads')
                 .select('*, updater:updated_by(full_name, full_name_ar)')
                 .eq('course_id', courseId)
@@ -604,7 +633,7 @@ export default function CourseManagement() {
         fetchCourseAds(course.id);
 
         // Fetch existing marketers for this course
-        const { data: mktData } = await (supabase as any)
+        const { data: mktData } = await supabase
             .from('course_marketers')
             .select('id, volunteer_id, name, phone')
             .eq('course_id', course.id);
@@ -618,11 +647,13 @@ export default function CourseManagement() {
         if (detailsMarketers.some(m => m.volunteer_id === volunteer.id)) return;
 
         try {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from('course_marketers')
                 .insert({
                     course_id: selectedMarketingCourse.id,
-                    volunteer_id: volunteer.id
+                    volunteer_id: volunteer.id,
+                    name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
+                    phone: volunteer.phone || null,
                 })
                 .select()
                 .single();
@@ -642,7 +673,7 @@ export default function CourseManagement() {
 
     const handleRemoveMarketerFromDetails = async (marketerId: string) => {
         try {
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('course_marketers')
                 .delete()
                 .eq('id', marketerId);
@@ -744,7 +775,7 @@ export default function CourseManagement() {
     ): Promise<boolean> => {
         try {
             // First try the RPC
-            const { data, error } = await (supabase.rpc as any)('check_room_conflict', {
+            const { data, error } = await supabase.rpc('check_room_conflict', {
                 p_room: room,
                 p_schedule_days: scheduleDays,
                 p_schedule_time: scheduleTime,
@@ -790,7 +821,7 @@ export default function CourseManagement() {
                 if (!timeStr) return '23:59';
                 const parts = timeStr.split(':');
                 if (parts.length < 2) return timeStr;
-                let h = parseInt(parts[0], 10) + 1;
+                const h = parseInt(parts[0], 10) + 1;
                 return `${h.toString().padStart(2, '0')}:${parts[1]}`;
             };
             
@@ -844,7 +875,7 @@ export default function CourseManagement() {
             // Smart Date Calculation
             const start = parseISO(formData.start_date);
             let current = start;
-            let lectureDates: Date[] = [];
+            const lectureDates: Date[] = [];
             const targetLectures = formData.total_lectures;
 
             // Map day names to 0-6 (Sunday=0)
@@ -913,26 +944,30 @@ export default function CourseManagement() {
 
             // Add organizers
             if (organizers.length > 0) {
-                const { error: orgError } = await (supabase as any)
+                const organizerRows: CourseOrganizerInsert[] = organizers.map(o => ({
+                    course_id: course.id,
+                    volunteer_id: o.volunteer_id || null,
+                    name: o.name,
+                    phone: o.phone
+                }));
+                const { error: orgError } = await supabase
                     .from('course_organizers')
-                    .insert(organizers.map(o => ({
-                        course_id: course.id,
-                        volunteer_id: o.volunteer_id || null,
-                        name: o.name,
-                        phone: o.phone
-                    })));
+                    .insert(organizerRows);
 
                 if (orgError) throw orgError;
             }
 
             // Add marketers
             if (marketers.length > 0) {
-                const { error: mktError } = await (supabase as any)
+                const marketerRows: CourseMarketerInsert[] = marketers.map(m => ({
+                    course_id: course.id,
+                    volunteer_id: m.volunteer_id || null,
+                    name: m.name,
+                    phone: m.phone
+                }));
+                const { error: mktError } = await supabase
                     .from('course_marketers')
-                    .insert(marketers.map(m => ({
-                        course_id: course.id,
-                        volunteer_id: m.volunteer_id
-                    })));
+                    .insert(marketerRows);
 
                 if (mktError) {
                     console.error('Error adding marketers:', mktError);
@@ -941,25 +976,26 @@ export default function CourseManagement() {
 
             // Add course trainers (multi-trainer)
             if (courseTrainers.length > 0) {
-                const { error: ctError } = await (supabase as any)
+                const courseTrainerRows: CourseTrainerInsert[] = courseTrainers.map(ct => ({
+                    course_id: course.id,
+                    trainer_id: ct.trainer_id
+                }));
+                const { error: ctError } = await supabase
                     .from('course_trainers')
-                    .insert(courseTrainers.map(ct => ({
-                        course_id: course.id,
-                        trainer_id: ct.trainer_id
-                    })));
+                    .insert(courseTrainerRows);
                 if (ctError) console.error('Error adding course trainers:', ctError);
             }
 
             // Add Planned Ads
             if (plannedAds.length > 0) {
-                const adEntries = plannedAds.map((date, index) => ({
+                const adEntries: CourseAdInsert[] = plannedAds.map((date, index) => ({
                     course_id: course.id,
                     ad_number: index + 1,
                     ad_date: date,
-                    created_by: user?.id
+                    created_by: user?.id || null
                 }));
 
-                const { error: adsError } = await (supabase as any)
+                const { error: adsError } = await supabase
                     .from('course_ads')
                     .insert(adEntries);
 
@@ -1014,7 +1050,7 @@ export default function CourseManagement() {
 
         // Fetch organizers for this course
         const fetchCourseOrganizers = async () => {
-            const { data } = await (supabase as any)
+            const { data } = await supabase
                 .from('course_organizers')
                 .select('*')
                 .eq('course_id', course.id);
@@ -1027,7 +1063,7 @@ export default function CourseManagement() {
 
         // Fetch marketers for this course
         const fetchCourseMarketers = async () => {
-            const { data: marketersData } = await (supabase as any)
+            const { data: marketersData } = await supabase
                 .from('course_marketers')
                 .select(`
                     id,
@@ -1042,10 +1078,10 @@ export default function CourseManagement() {
                 .eq('course_id', course.id);
 
             if (marketersData) {
-                const formattedMarketers = marketersData.map((m: any) => ({
+                const formattedMarketers = (marketersData as unknown as CourseMarketerWithProfile[]).map((m) => ({
                     id: m.id,
                     course_id: m.course_id,
-                    volunteer_id: m.volunteer_id,
+                    volunteer_id: m.volunteer_id || undefined,
                     name: isRTL && m.profiles?.full_name_ar ? m.profiles.full_name_ar : m.profiles?.full_name || '',
                     phone: m.profiles?.phone || ''
                 }));
@@ -1056,13 +1092,13 @@ export default function CourseManagement() {
 
         // Fetch course trainers (multi-trainer)
         const fetchCourseTrainersForEdit = async () => {
-            const { data: ctData } = await (supabase as any)
+            const { data: ctData } = await supabase
                 .from('course_trainers')
                 .select('id, course_id, trainer_id')
                 .eq('course_id', course.id);
 
             if (ctData && ctData.length > 0) {
-                const enriched = ctData.map((ct: any) => ({
+                const enriched = ctData.map((ct) => ({
                     id: ct.id,
                     course_id: ct.course_id,
                     trainer_id: ct.trainer_id,
@@ -1096,7 +1132,7 @@ export default function CourseManagement() {
             // Smart Date Calculation (Same as create)
             const start = parseISO(formData.start_date);
             let current = start;
-            let lectureDates: Date[] = [];
+            const lectureDates: Date[] = [];
             const targetLectures = formData.total_lectures;
 
             const dayMap: { [key: string]: number } = {
@@ -1157,37 +1193,42 @@ export default function CourseManagement() {
             await supabase.from('course_organizers').delete().eq('course_id', editingCourseId);
 
             if (organizers.length > 0) {
-                await (supabase as any)
+                const organizerRows: CourseOrganizerInsert[] = organizers.map(o => ({
+                    course_id: editingCourseId,
+                    volunteer_id: o.volunteer_id || null,
+                    name: o.name,
+                    phone: o.phone
+                }));
+                await supabase
                     .from('course_organizers')
-                    .insert(organizers.map(o => ({
-                        course_id: editingCourseId,
-                        volunteer_id: o.volunteer_id || null,
-                        name: o.name,
-                        phone: o.phone
-                    })));
+                    .insert(organizerRows);
             }
 
             // Update marketers - delete all and re-insert
             await supabase.from('course_marketers').delete().eq('course_id', editingCourseId);
 
             if (marketers.length > 0) {
-                await (supabase as any)
+                const marketerRows: CourseMarketerInsert[] = marketers.map(m => ({
+                    course_id: editingCourseId,
+                    volunteer_id: m.volunteer_id || null,
+                    name: m.name,
+                    phone: m.phone
+                }));
+                await supabase
                     .from('course_marketers')
-                    .insert(marketers.map(m => ({
-                        course_id: editingCourseId,
-                        volunteer_id: m.volunteer_id
-                    })));
+                    .insert(marketerRows);
             }
 
             // Update course trainers - delete all and re-insert
-            await (supabase as any).from('course_trainers').delete().eq('course_id', editingCourseId);
+            await supabase.from('course_trainers').delete().eq('course_id', editingCourseId);
             if (courseTrainers.length > 0) {
-                await (supabase as any)
+                const courseTrainerRows: CourseTrainerInsert[] = courseTrainers.map(ct => ({
+                    course_id: editingCourseId,
+                    trainer_id: ct.trainer_id
+                }));
+                await supabase
                     .from('course_trainers')
-                    .insert(courseTrainers.map(ct => ({
-                        course_id: editingCourseId,
-                        trainer_id: ct.trainer_id
-                    })));
+                    .insert(courseTrainerRows);
             }
 
             // Fetch existing lectures
@@ -1229,7 +1270,7 @@ export default function CourseManagement() {
 
             // 3. Delete excess lectures if total decreased
             if (existing.length > lectureDates.length) {
-                const idsToDelete = existing.slice(lectureDates.length).map((l: any) => l.id);
+                const idsToDelete = existing.slice(lectureDates.length).map((lecture) => lecture.id);
                 const { error: delError } = await supabase
                     .from('course_lectures')
                     .delete()
@@ -1267,16 +1308,16 @@ export default function CourseManagement() {
                 defaultDate = new Date(maxDateStr);
             }
 
-            const newAdData = {
+            const newAdData: CourseAdInsert = {
                 course_id: selectedCourse.id,
                 ad_number: nextAdNumber,
                 ad_date: format(defaultDate, 'yyyy-MM-dd'),
-                created_by: user?.id,
+                created_by: user?.id || null,
                 poster_done: false,
                 content_done: false
             };
 
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from('course_ads')
                 .insert(newAdData)
                 .select()
@@ -1348,7 +1389,7 @@ export default function CourseManagement() {
 
     const handleUpdateAd = async (adId: string, updates: Partial<CourseAd>) => {
         try {
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('course_ads')
                 .update({ ...updates, updated_by: user?.id, updated_at: new Date().toISOString() })
                 .eq('id', adId);
@@ -1387,7 +1428,7 @@ export default function CourseManagement() {
 
     const handleDeleteAd = async (adId: string) => {
         try {
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('course_ads')
                 .delete()
                 .eq('id', adId);
@@ -1408,9 +1449,7 @@ export default function CourseManagement() {
     const handleUpdateAdDate = async (adId: string, newDate: string) => {
         // Find ad to get course details if selectedMarketingCourse is null
         const targetAd = courseAds.find(a => a.id === adId) || allAds.find(a => a.id === adId);
-        // Cast because course in AllAds has dates, but interface says optional. 
-        // We know fetching includes them.
-        const courseData = selectedMarketingCourse || (targetAd?.course as any);
+        const courseData = selectedMarketingCourse || targetAd?.course;
 
         // Validate date
         if (courseData) {
@@ -1425,7 +1464,7 @@ export default function CourseManagement() {
         }
 
         try {
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('course_ads')
                 .update({ ad_date: newDate })
                 .eq('id', adId);
@@ -1456,16 +1495,16 @@ export default function CourseManagement() {
                 defaultDate = new Date(maxDateStr);
             }
 
-            const newAdData = {
+            const newAdData: CourseAdInsert = {
                 course_id: selectedMarketingCourse.id,
                 ad_number: nextAdNumber,
                 ad_date: format(defaultDate, 'yyyy-MM-dd'),
-                created_by: user?.id,
+                created_by: user?.id || null,
                 poster_done: false,
                 content_done: false
             };
 
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from('course_ads')
                 .insert(newAdData)
                 .select('*, updater:updated_by(full_name, full_name_ar), course:courses(name, start_date, interview_date, has_interview)')
@@ -1501,7 +1540,7 @@ export default function CourseManagement() {
                 .order('lecture_number');
 
             // Fetch course ads
-            const { data: adsData } = await (supabase as any)
+            const { data: adsData } = await supabase
                 .from('course_ads')
                 .select(`
                     *,
@@ -1511,7 +1550,7 @@ export default function CourseManagement() {
                 .order('ad_number');
 
             if (adsData) {
-                setCourseAds(adsData as any);
+                setCourseAds(adsData as unknown as CourseAd[]);
             }
 
             // Fetch beneficiaries
@@ -1547,7 +1586,7 @@ export default function CourseManagement() {
                 }
             }
             // Fetch organizers
-            const { data: organizersData } = await (supabase as any)
+            const { data: organizersData } = await supabase
                 .from('course_organizers')
                 .select('*')
                 .eq('course_id', course.id);
@@ -1557,7 +1596,7 @@ export default function CourseManagement() {
             }
 
             // Fetch course marketers
-            const { data: marketersData } = await (supabase as any)
+            const { data: marketersData } = await supabase
                 .from('course_marketers')
                 .select(`
                     id,
@@ -1572,10 +1611,10 @@ export default function CourseManagement() {
                 .eq('course_id', course.id);
 
             if (marketersData) {
-                const formattedMarketers = marketersData.map((m: any) => ({
+                const formattedMarketers = (marketersData as unknown as CourseMarketerWithProfile[]).map((m) => ({
                     id: m.id,
                     course_id: m.course_id,
-                    volunteer_id: m.volunteer_id,
+                    volunteer_id: m.volunteer_id || undefined,
                     name: isRTL && m.profiles?.full_name_ar ? m.profiles.full_name_ar : m.profiles?.full_name || '',
                     phone: m.profiles?.phone || ''
                 }));
@@ -1625,7 +1664,7 @@ export default function CourseManagement() {
 
             // Helper: find profile ID by phone (returns null if not found)
             const findProfileByPhone = async (phone: string): Promise<string | null> => {
-                const cleanPhone = phone.replace(/[\s\-]/g, '');
+                const cleanPhone = phone.replace(/[\s-]/g, '');
                 const { data } = await supabase
                     .from('profiles').select('id')
                     .or(`phone.eq.${cleanPhone},phone.eq.${phone}`)
@@ -1635,7 +1674,7 @@ export default function CourseManagement() {
 
             // Helper: insert into trainer_lecture_records (always, no profile needed)
             const logTrainerRecord = async (name: string, phone: string | null, volunteerId: string | null) => {
-                await (supabase as any).from('trainer_lecture_records').insert({
+                await supabase.from('trainer_lecture_records').insert({
                     course_id: course.id,
                     lecture_id: lectureId,
                     trainer_name: name,
@@ -1678,7 +1717,7 @@ export default function CourseManagement() {
                 course.course_trainers.forEach(ct => trainerIds.add(ct.trainer_id));
             }
             for (const tId of trainerIds) {
-                const { data: td } = await (supabase as any)
+                const { data: td } = await supabase
                     .from('trainers').select('user_id, phone, name_ar, name_en').eq('id', tId).single();
                 if (!td) continue;
                 let vid: string | null = td.user_id || null;
@@ -1742,8 +1781,10 @@ export default function CourseManagement() {
 
     const exportCourseToExcel = async (course: Course) => {
         try {
+            const XLSX = await import('xlsx');
+
             // Fetch organizers
-            const { data: orgs } = await (supabase as any)
+            const { data: orgs } = await supabase
                 .from('course_organizers')
                 .select('*')
                 .eq('course_id', course.id);
@@ -1811,7 +1852,8 @@ export default function CourseManagement() {
 
             // Create attendance lookup
             const attendanceByLecture: Record<string, Record<string, string>> = {};
-            (attendance || []).forEach((att: any) => {
+            (attendance || []).forEach((att) => {
+                if (!att.lecture_id) return;
                 if (!attendanceByLecture[att.lecture_id]) {
                     attendanceByLecture[att.lecture_id] = {};
                 }
@@ -1820,7 +1862,7 @@ export default function CourseManagement() {
 
             // Create attendance sheet from beneficiaries
             const attendanceSheetValues = (beneficiariesData || []).map(beneficiary => {
-                const row: any = {
+                const row: Record<string, string | number> = {
                     [isRTL ? 'الاسم' : 'Name']: beneficiary.name,
                     [isRTL ? 'الرقم' : 'Phone']: beneficiary.phone
                 };
@@ -1863,6 +1905,8 @@ export default function CourseManagement() {
 
     const exportAllCourses = async () => {
         try {
+            const XLSX = await import('xlsx');
+
             const allData = courses.map(c => ({
                 [isRTL ? 'اسم الكورس' : 'Course Name']: c.name,
                 [isRTL ? 'المدرب' : 'Trainer']: c.trainer_name,
@@ -1987,9 +2031,9 @@ export default function CourseManagement() {
             setBeneficiaries([...beneficiaries, data]);
             setNewBeneficiary({ name: '', phone: '', national_id: '' });
             toast.success(isRTL ? 'تم إضافة المستفيد' : 'Beneficiary added');
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error adding beneficiary:', error);
-            if (error.code === '23505') {
+            if (getErrorCode(error) === '23505') {
                 toast.error(isRTL ? 'هذا الرقم مسجل بالفعل' : 'This phone is already registered');
             } else {
                 toast.error(isRTL ? 'فشل إضافة المستفيد' : 'Failed to add beneficiary');
@@ -2109,15 +2153,15 @@ export default function CourseManagement() {
             setIsDeleteDialogOpen(false);
             setCourseToDelete(null);
             fetchCourses();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error deleting course:', error);
-            toast.error(error.message || (isRTL ? 'فشل حذف الكورس' : 'Failed to delete course'));
+            toast.error(getErrorMessage(error, isRTL ? 'فشل حذف الكورس' : 'Failed to delete course'));
         } finally {
             setIsDeleting(false);
         }
     };
 
-    const updateCertificateStatus = async (courseId: string, status: string) => {
+    const updateCertificateStatus = async (courseId: string, status: CertificateStatus) => {
         try {
             const { error } = await supabase
                 .from('courses')
@@ -2131,9 +2175,9 @@ export default function CourseManagement() {
                 await calculateCertificateEligibility(courseId);
             }
 
-            setCourses(courses.map(c => c.id === courseId ? { ...c, certificate_status: status as any } : c));
+            setCourses(courses.map(c => c.id === courseId ? { ...c, certificate_status: status } : c));
             if (selectedCourse?.id === courseId) {
-                setSelectedCourse({ ...selectedCourse, certificate_status: status as any });
+                setSelectedCourse({ ...selectedCourse, certificate_status: status });
             }
             toast.success(isRTL ? 'تم تحديث حالة الشهادات' : 'Certificates status updated');
         } catch (error) {
@@ -2173,7 +2217,7 @@ export default function CourseManagement() {
 
             // Count attendance per student
             const attendanceCount: Record<string, number> = {};
-            (allAttendance || []).forEach((att: any) => {
+            (allAttendance || []).forEach((att) => {
                 attendanceCount[att.student_phone] = (attendanceCount[att.student_phone] || 0) + 1;
             });
 
@@ -2191,7 +2235,7 @@ export default function CourseManagement() {
                     .update({
                         attendance_percentage: Math.round(percentage * 100) / 100,
                         certificate_eligible: isEligible
-                    } as any)
+                    })
                     .eq('id', beneficiary.id);
             }
 
@@ -2216,14 +2260,14 @@ export default function CourseManagement() {
         }
 
         try {
-            const newOrganizer = {
+            const newOrganizer: CourseOrganizerInsert = {
                 course_id: selectedCourse.id,
                 volunteer_id: volunteer.id,
                 name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
                 phone: volunteer.phone || ''
             };
 
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from('course_organizers')
                 .insert(newOrganizer)
                 .select()
@@ -2243,7 +2287,7 @@ export default function CourseManagement() {
         if (!organizerId) return;
 
         try {
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('course_organizers')
                 .delete()
                 .eq('id', organizerId);
@@ -2843,7 +2887,7 @@ export default function CourseManagement() {
                                                 // Check if all lectures are completed
                                                 const lectureStatuses = course.course_lectures || [];
                                                 const allCompleted = lectureStatuses.length > 0 &&
-                                                    lectureStatuses.every((l: any) => l.status === 'completed' || l.status === 'cancelled');
+                                                    lectureStatuses.every((lecture) => lecture.status === 'completed' || lecture.status === 'cancelled');
 
                                                 // Only show if all lectures are done
                                                 if (!allCompleted) return null;
@@ -4358,8 +4402,8 @@ export default function CourseManagement() {
                                     toast.success(isRTL ? 'تم التعديل بنجاح' : 'Updated successfully');
                                     setBeneficiaries(prev => prev.map(b => b.id === editingBeneficiary.id ? editingBeneficiary : b));
                                     setIsEditStudentDialogOpen(false);
-                                } catch (err: any) {
-                                    toast.error(err.message);
+                                } catch (error: unknown) {
+                                    toast.error(getErrorMessage(error));
                                 }
                             }}
                             className="h-10 px-4"

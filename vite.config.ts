@@ -44,7 +44,40 @@ export default defineConfig(({ mode }) => ({
   build: {
     rollupOptions: {
       output: {
-        // Letting Vite handle chunking automatically to avoid linking issues
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+
+          if (
+            id.includes("/node_modules/react/") ||
+            id.includes("/node_modules/react-dom/") ||
+            id.includes("/node_modules/react-router/") ||
+            id.includes("/node_modules/react-router-dom/")
+          ) {
+            return "react-vendor";
+          }
+
+          if (id.includes("@supabase")) {
+            return "supabase";
+          }
+
+          if (id.includes("xlsx") || id.includes("exceljs")) {
+            return "spreadsheet";
+          }
+
+          if (id.includes("recharts") || id.includes("d3-")) {
+            return "charts";
+          }
+
+          if (id.includes("@radix-ui")) {
+            return "radix-ui";
+          }
+
+          if (id.includes("date-fns")) {
+            return "date-fns";
+          }
+
+          return undefined;
+        },
       },
     },
   },

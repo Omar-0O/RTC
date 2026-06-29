@@ -4,9 +4,91 @@
  * Pure service: no React, no hooks, no toast.
  */
 import { supabase } from '@/integrations/supabase/client';
-import type { Json } from '@/integrations/supabase/types';
+import type { Database, Json } from '@/integrations/supabase/types';
 
 // ─── Types ──────────────────────────────────────────────────────────
+
+type Tables = Database['public']['Tables'];
+type QuranBeneficiaryRow = Tables['quran_beneficiaries']['Row'];
+type QuranBeneficiaryInsert = Tables['quran_beneficiaries']['Insert'];
+type QuranCircleRow = Tables['quran_circles']['Row'];
+type QuranCircleInsert = Tables['quran_circles']['Insert'];
+type QuranCircleOrganizerRow = Tables['quran_circle_organizers']['Row'];
+type QuranCircleOrganizerInsert = Tables['quran_circle_organizers']['Insert'];
+type QuranCircleMarketerInsert = Tables['quran_circle_marketers']['Insert'];
+type QuranCircleSessionRow = Tables['quran_circle_sessions']['Row'];
+type QuranCircleSessionInsert = Tables['quran_circle_sessions']['Insert'];
+type QuranCircleBeneficiaryRow = Tables['quran_circle_beneficiaries']['Row'];
+type QuranCircleBeneficiaryInsert = Tables['quran_circle_beneficiaries']['Insert'];
+type QuranEnrollmentRow = Tables['quran_enrollments']['Row'];
+type QuranEnrollmentInsert = Tables['quran_enrollments']['Insert'];
+type QuranTeacherRow = Tables['quran_teachers']['Row'];
+type QuranCircleAdRow = Tables['quran_circle_ads']['Row'];
+type ProfileVolunteerRow = Pick<Tables['profiles']['Row'], 'id' | 'full_name' | 'full_name_ar' | 'phone' | 'avatar_url'>;
+
+type TeacherGender = 'men' | 'women';
+type TeachingMode = 'online' | 'offline' | 'both';
+type BeneficiaryGender = 'male' | 'female';
+type BeneficiaryType = 'child' | 'adult';
+type AttendanceType = 'memorization' | 'revision';
+
+interface CircleWithOrganizers extends QuranCircleRow {
+  quran_circle_organizers?: Pick<QuranCircleOrganizerRow, 'volunteer_id' | 'name' | 'phone'>[] | null;
+}
+
+interface EnrollmentWithBeneficiary {
+  beneficiary_id: string;
+  quran_beneficiaries: QuranBeneficiaryRow;
+}
+
+interface SessionWithCounts extends QuranCircleSessionRow {
+  quran_circle_beneficiaries?: { count: number }[] | null;
+  quran_circle_organizers?: Pick<QuranCircleOrganizerRow, 'name'> | null;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const asTeacherGender = (value: string | null | undefined): TeacherGender =>
+  value === 'women' ? 'women' : 'men';
+
+const asTeachingMode = (value: string | null | undefined): TeachingMode => {
+  if (value === 'online' || value === 'offline' || value === 'both') return value;
+  return 'both';
+};
+
+const asBeneficiaryGender = (value: string | null | undefined): BeneficiaryGender | null => {
+  if (value === 'male' || value === 'female') return value;
+  return null;
+};
+
+const asBeneficiaryType = (value: string | null | undefined): BeneficiaryType => {
+  return value === 'child' ? 'child' : 'adult';
+};
+
+const asAttendanceType = (value: string | null | undefined): AttendanceType => {
+  return value === 'revision' ? 'revision' : 'memorization';
+};
+
+const toSchedule = (value: Json | null): ScheduleItem[] => {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const day = item.day;
+    const time = item.time;
+    return typeof day === 'number' && typeof time === 'string' ? [{ day, time }] : [];
+  });
+};
+
+const toBeneficiary = (row: QuranBeneficiaryRow): Beneficiary => ({
+  id: row.id,
+  name_ar: row.name_ar,
+  name_en: row.name_en,
+  image_url: row.image_url,
+  gender: asBeneficiaryGender(row.gender),
+  beneficiary_type: asBeneficiaryType(row.beneficiary_type),
+  phone: row.phone,
+});
 
 export interface Teacher {
   id: string;
@@ -122,88 +204,117 @@ export interface SaveAttendancePayload {
 
 // ─── Queries ────────────────────────────────────────────────────────
 
-export async function getCircles(): Promise<QuranCircle[]> {
-  const { data, error } = await supabase
+export async function getCircles(branchId?: string): Promise<QuranCircle[]> {
+  let query = supabase
     .from('quran_circles')
-    .select(`*, quran_circle_organizers(volunteer_id, name, phone)`)
-    .order('created_at', { ascending: false });
+    .select(`*, quran_circle_organizers(volunteer_id, name, phone)`);
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) throw error;
 
-  const circleIds = (data || []).map((c: any) => c.id);
+  const circleRows = (data ?? []) as unknown as CircleWithOrganizers[];
+  const circleIds = circleRows.map((circle) => circle.id);
   const { data: enrollments } = circleIds.length > 0
-    ? await (supabase as any).from('quran_enrollments').select('circle_id').in('circle_id', circleIds).eq('status', 'active')
+    ? await supabase.from('quran_enrollments').select('circle_id').in('circle_id', circleIds).eq('status', 'active')
     : { data: [] };
 
   const enrollmentCounts: Record<string, number> = {};
-  (enrollments || []).forEach((e: any) => {
-    enrollmentCounts[e.circle_id] = (enrollmentCounts[e.circle_id] || 0) + 1;
+  ((enrollments ?? []) as Pick<QuranEnrollmentRow, 'circle_id'>[]).forEach((enrollment) => {
+    enrollmentCounts[enrollment.circle_id] = (enrollmentCounts[enrollment.circle_id] || 0) + 1;
   });
 
   const { data: teachersData } = await supabase.from('quran_teachers').select('id, name, target_gender, teaching_mode');
-  const teachersMap = new Map(teachersData?.map((t: any) => [t.id, t]) || []);
+  const teachersMap = new Map((teachersData ?? []).map((teacher) => [teacher.id, teacher]));
 
-  return (data || []).map((circle: any) => {
+  return circleRows.map((circle) => {
     const teacher = teachersMap.get(circle.teacher_id);
     return {
       id: circle.id,
       teacher_id: circle.teacher_id,
       teacher_name: teacher?.name,
-      teacher_gender: teacher?.target_gender,
-      teaching_mode: teacher?.teaching_mode,
-      schedule: circle.schedule || [],
+      teacher_gender: teacher ? asTeacherGender(teacher.target_gender) : undefined,
+      teaching_mode: teacher ? asTeachingMode(teacher.teaching_mode) : undefined,
+      schedule: toSchedule(circle.schedule),
       is_active: circle.is_active ?? true,
-      organizers: circle.quran_circle_organizers || [],
+      organizers: (circle.quran_circle_organizers ?? []).map((organizer) => ({
+        volunteer_id: organizer.volunteer_id ?? undefined,
+        name: organizer.name,
+        phone: organizer.phone ?? '',
+      })),
       enrolled_count: enrollmentCounts[circle.id] || 0,
-      description: circle.description,
-      target_group: circle.target_group,
-      beneficiary_gender: circle.beneficiary_gender,
+      description: circle.description ?? undefined,
+      target_group: circle.target_group ?? undefined,
+      beneficiary_gender: asBeneficiaryGender(circle.beneficiary_gender) ?? undefined,
     };
   });
 }
 
-export async function getTeachers(): Promise<Teacher[]> {
-  const { data, error } = await supabase.from('quran_teachers').select('*').order('name');
+export async function getTeachers(branchId?: string): Promise<Teacher[]> {
+  let query = supabase.from('quran_teachers').select('*');
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data, error } = await query.order('name');
   if (error) throw error;
-  return (data || []).map((t: any) => ({
-    id: t.id, name: t.name, target_gender: t.target_gender, teaching_mode: t.teaching_mode,
+  return ((data ?? []) as QuranTeacherRow[]).map((teacher) => ({
+    id: teacher.id,
+    name: teacher.name,
+    target_gender: asTeacherGender(teacher.target_gender),
+    teaching_mode: asTeachingMode(teacher.teaching_mode),
   }));
 }
 
-export async function getVolunteers(): Promise<Volunteer[]> {
-  const { data, error } = await (supabase
+export async function getVolunteers(branchId?: string): Promise<Volunteer[]> {
+  let query = supabase
     .from('profiles')
     .select('id, full_name, full_name_ar, phone, avatar_url')
-    .neq('full_name', 'RTC Admin') as any)
-    .order('full_name');
+    .neq('full_name', 'RTC Admin');
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data, error } = await query.order('full_name');
   if (error) throw error;
-  return data || [];
+  return ((data ?? []) as ProfileVolunteerRow[]).map((profile) => ({
+    id: profile.id,
+    full_name: profile.full_name,
+    full_name_ar: profile.full_name_ar,
+    phone: profile.phone,
+    avatar_url: profile.avatar_url,
+  }));
 }
 
-export async function getAllBeneficiaries(): Promise<Beneficiary[]> {
-  const { data, error } = await supabase.from('quran_beneficiaries')
-    .select('id, name_ar, name_en, image_url, gender, beneficiary_type, phone')
-    .order('name_ar');
+export async function getAllBeneficiaries(branchId?: string): Promise<Beneficiary[]> {
+  let query = supabase.from('quran_beneficiaries')
+    .select('id, name_ar, name_en, image_url, gender, beneficiary_type, phone');
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data, error } = await query.order('name_ar');
   if (error) throw error;
-  return (data as unknown as Beneficiary[]) || [];
+  return ((data ?? []) as QuranBeneficiaryRow[]).map(toBeneficiary);
 }
 
 export async function getCircleEnrollments(circleId: string): Promise<Beneficiary[]> {
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('quran_enrollments')
     .select(`beneficiary_id, quran_beneficiaries!inner(id, name_ar, name_en, image_url, gender, beneficiary_type, phone)`)
     .eq('circle_id', circleId)
     .eq('status', 'active');
   if (error) throw error;
-  return (data || []).map((e: any) => ({
-    id: e.quran_beneficiaries.id,
-    name_ar: e.quran_beneficiaries.name_ar,
-    name_en: e.quran_beneficiaries.name_en,
-    image_url: e.quran_beneficiaries.image_url,
-    gender: e.quran_beneficiaries.gender,
-    beneficiary_type: e.quran_beneficiaries.beneficiary_type,
-    phone: e.quran_beneficiaries.phone,
-  }));
+  return ((data ?? []) as unknown as EnrollmentWithBeneficiary[]).map((enrollment) =>
+    toBeneficiary(enrollment.quran_beneficiaries)
+  );
 }
 
 export async function getCircleSessions(circleId: string): Promise<Session[]> {
@@ -212,10 +323,14 @@ export async function getCircleSessions(circleId: string): Promise<Session[]> {
     .eq('circle_id', circleId)
     .order('session_date', { ascending: false })
     .limit(50);
-  return (data || []).map((s: any) => ({
-    ...s,
-    attendees_count: s.quran_circle_beneficiaries?.[0]?.count || 0,
-    organizer_name: s.quran_circle_organizers?.name || null,
+  return ((data ?? []) as unknown as SessionWithCounts[]).map((session) => ({
+    id: session.id,
+    circle_id: session.circle_id,
+    session_date: session.session_date,
+    notes: session.notes,
+    organizer_id: session.organizer_id,
+    attendees_count: session.quran_circle_beneficiaries?.[0]?.count || 0,
+    organizer_name: session.quran_circle_organizers?.name || null,
   }));
 }
 
@@ -226,22 +341,32 @@ export async function getCircleAttendance(sessionIds: string[]): Promise<Record<
     .in('session_id', sessionIds);
 
   const attMap: Record<string, Attendance[]> = {};
-  (data || []).forEach((a: any) => {
-    if (!attMap[a.session_id]) attMap[a.session_id] = [];
-    attMap[a.session_id].push({ beneficiary_id: a.beneficiary_id, attendance_type: a.attendance_type || 'memorization' });
+  ((data ?? []) as Pick<QuranCircleBeneficiaryRow, 'session_id' | 'beneficiary_id' | 'attendance_type'>[]).forEach((attendance) => {
+    if (!attMap[attendance.session_id]) attMap[attendance.session_id] = [];
+    attMap[attendance.session_id].push({
+      beneficiary_id: attendance.beneficiary_id,
+      attendance_type: asAttendanceType(attendance.attendance_type),
+    });
   });
   return attMap;
 }
 
 export async function getCircleAds(circleId: string): Promise<CircleAd[]> {
-  const { data } = await (supabase as any).from('quran_circle_ads').select('*').eq('circle_id', circleId).order('ad_number');
-  return data || [];
+  const { data } = await supabase.from('quran_circle_ads').select('*').eq('circle_id', circleId).order('ad_number');
+  return ((data ?? []) as QuranCircleAdRow[]).map((ad) => ({
+    id: ad.id,
+    circle_id: ad.circle_id,
+    ad_number: ad.ad_number,
+    ad_date: ad.ad_date,
+    poster_done: ad.poster_done,
+    content_done: ad.content_done,
+  }));
 }
 
 // ─── Mutations ──────────────────────────────────────────────────────
 
 export async function saveCircle(payload: SaveCirclePayload): Promise<string | undefined> {
-  const dataToSave = {
+  const dataToSave: QuranCircleInsert = {
     teacher_id: payload.teacherId,
     schedule: payload.schedule as unknown as Json,
     is_active: payload.isActive,
@@ -255,26 +380,35 @@ export async function saveCircle(payload: SaveCirclePayload): Promise<string | u
   let circleId = payload.circleId;
 
   if (payload.isEditMode && circleId) {
-    const { error } = await supabase.from('quran_circles').update(dataToSave as any).eq('id', circleId);
+    const { error } = await supabase.from('quran_circles').update(dataToSave).eq('id', circleId);
     if (error) throw error;
   } else {
-    const { data, error } = await supabase.from('quran_circles').insert(dataToSave as any).select().single();
+    const { data, error } = await supabase.from('quran_circles').insert(dataToSave).select().single();
     if (error) throw error;
-    circleId = (data as any).id;
+    circleId = data.id;
   }
 
   if (circleId) {
     await supabase.from('quran_circle_organizers').delete().eq('circle_id', circleId);
     if (payload.organizers.length > 0) {
+      const organizerRows: QuranCircleOrganizerInsert[] = payload.organizers.map((organizer) => ({
+        circle_id: circleId,
+        volunteer_id: organizer.volunteer_id || null,
+        name: organizer.name,
+        phone: organizer.phone,
+      }));
       await supabase.from('quran_circle_organizers').insert(
-        payload.organizers.map(o => ({ circle_id: circleId, volunteer_id: o.volunteer_id || null, name: o.name, phone: o.phone }))
+        organizerRows
       );
     }
-    await (supabase as any).from('quran_circle_marketers').delete().eq('circle_id', circleId);
+    await supabase.from('quran_circle_marketers').delete().eq('circle_id', circleId);
     if (payload.marketers.length > 0) {
-      await (supabase as any).from('quran_circle_marketers').insert(
-        payload.marketers.map(m => ({ circle_id: circleId, volunteer_id: m.volunteer_id }))
+      const marketerRows: QuranCircleMarketerInsert[] = payload.marketers.flatMap((marketer) =>
+        marketer.volunteer_id ? [{ circle_id: circleId, volunteer_id: marketer.volunteer_id }] : []
       );
+      if (marketerRows.length > 0) {
+        await supabase.from('quran_circle_marketers').insert(marketerRows);
+      }
     }
   }
 
@@ -287,30 +421,42 @@ export async function deleteCircle(circleId: string): Promise<void> {
 }
 
 export async function enrollBeneficiary(circleId: string, beneficiaryId: string): Promise<void> {
-  const { error } = await (supabase as any).from('quran_enrollments')
-    .insert({ circle_id: circleId, beneficiary_id: beneficiaryId, status: 'active' });
+  const enrollment: QuranEnrollmentInsert = { circle_id: circleId, beneficiary_id: beneficiaryId, status: 'active' };
+  const { error } = await supabase.from('quran_enrollments').insert(enrollment);
   if (error) throw error;
 }
 
 export async function unenrollBeneficiary(circleId: string, beneficiaryId: string): Promise<void> {
-  const { error } = await (supabase as any).from('quran_enrollments').delete().eq('circle_id', circleId).eq('beneficiary_id', beneficiaryId);
+  const { error } = await supabase.from('quran_enrollments').delete().eq('circle_id', circleId).eq('beneficiary_id', beneficiaryId);
   if (error) throw error;
 }
 
 export async function createSession(params: {
   circleId: string; sessionDate: string; notes: string | null; organizerVolunteerId?: string;
-}): Promise<any> {
+}): Promise<Session> {
   let resolvedOrganizerId: string | null = null;
   if (params.organizerVolunteerId && params.organizerVolunteerId !== 'none') {
     const { data: orgRow } = await supabase.from('quran_circle_organizers')
       .select('id').eq('circle_id', params.circleId).eq('volunteer_id', params.organizerVolunteerId).single();
     resolvedOrganizerId = orgRow?.id ?? null;
   }
+  const sessionToCreate: QuranCircleSessionInsert = {
+    circle_id: params.circleId,
+    session_date: params.sessionDate,
+    notes: params.notes,
+    organizer_id: resolvedOrganizerId,
+  };
   const { data, error } = await supabase.from('quran_circle_sessions')
-    .insert({ circle_id: params.circleId, session_date: params.sessionDate, notes: params.notes, organizer_id: resolvedOrganizerId })
+    .insert(sessionToCreate)
     .select().single();
   if (error) throw error;
-  return data;
+  return {
+    id: data.id,
+    circle_id: data.circle_id,
+    session_date: data.session_date,
+    notes: data.notes,
+    organizer_id: data.organizer_id,
+  };
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
@@ -327,24 +473,25 @@ export async function saveAttendance(payload: SaveAttendancePayload): Promise<vo
 
   if (guestPhones.length > 0) {
     const { data: existing } = await supabase.from('quran_beneficiaries').select('id, phone').in('phone', guestPhones);
-    existing?.forEach((b: any) => guestMap.set(b.phone, b.id));
+    existing?.forEach((beneficiary) => guestMap.set(beneficiary.phone, beneficiary.id));
 
     const uniqueNew = new Map<string, Guest>();
     payload.guests.filter(g => g.phone && !guestMap.has(g.phone)).forEach(g => uniqueNew.set(g.phone, g));
 
     if (uniqueNew.size > 0) {
-      const toInsert = Array.from(uniqueNew.values()).map(g => ({
-        name_ar: g.name, phone: g.phone,
+      const toInsert: QuranBeneficiaryInsert[] = Array.from(uniqueNew.values()).map(g => ({
+        name_ar: g.name,
+        phone: g.phone,
         gender: payload.circleGender === 'female' || payload.circleGender === 'women' ? 'female' : 'male',
         beneficiary_type: payload.circleTargetGroup === 'children' ? 'child' : 'adult',
       }));
       const { data: created, error } = await supabase.from('quran_beneficiaries').insert(toInsert).select('id, phone');
       if (error) throw error;
-      created?.forEach((b: any) => guestMap.set(b.phone, b.id));
+      created?.forEach((beneficiary) => guestMap.set(beneficiary.phone, beneficiary.id));
     }
   }
 
-  const allRecords: any[] = [];
+  const allRecords: QuranCircleBeneficiaryInsert[] = [];
   payload.attendance.forEach(a => {
     allRecords.push({ session_id: payload.sessionId, circle_id: payload.circleId, beneficiary_id: a.beneficiary_id, attendance_type: a.attendance_type });
   });

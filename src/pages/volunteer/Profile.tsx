@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ImagePreview } from '@/components/ui/image-preview';
+import { ProofImagePreview } from '@/components/ProofImagePreview';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -35,31 +35,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
-type UserBadge = {
-  id: string;
-  earned_at: string;
-  badge: {
-    id: string;
-    name: string;
-    name_ar: string;
-    description: string | null;
-    description_ar: string | null;
-    icon: string;
-    color: string;
-  };
-};
-
-type ActivitySubmission = {
-  id: string;
-  activity_name: string;
-  committee_name: string;
-  points: number;
-  status: string;
-  submitted_at: string;
-  proof_url: string | null;
-  is_paid?: boolean; // Added is_paid
-};
+import {
+  useVolunteerProfile,
+  type VolunteerFeedback,
+  type VolunteerProfileView,
+} from './hooks/useVolunteerProfile';
 
 const BADGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   award: Award,
@@ -77,28 +57,6 @@ const getBadgeIcon = (iconName: string) => {
   return <IconComponent className="h-8 w-8" />;
 };
 
-
-type VolunteerFeedback = {
-  id: string;
-  content: string;
-  created_at: string;
-  author: {
-    full_name: string | null;
-    avatar_url: string | null;
-  };
-};
-
-type Fine = {
-  source_type: string;
-  source_id: string;
-  source_name: string;
-  source_name_ar: string;
-  created_at: string;
-  amount: number;
-  is_paid: boolean;
-  reviewed_by_name: string | null;
-  reviewed_by_name_ar: string | null;
-};
 
 interface ProfileProps {
   userId?: string;
@@ -170,6 +128,15 @@ const getDefaultCover = (uid: string) => {
   return COVER_IMAGES[index];
 };
 
+type CreatedByRelation = { created_by: string | null } | { created_by: string | null }[] | null | undefined;
+
+const getCreatedByFromRelation = (relation: CreatedByRelation) => {
+  if (Array.isArray(relation)) {
+    return relation[0]?.created_by ?? null;
+  }
+  return relation?.created_by ?? null;
+};
+
 export default function Profile({ userId: propUserId }: ProfileProps) {
   const { id: paramUserId } = useParams();
   const userId = propUserId || paramUserId;
@@ -178,16 +145,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
   const { t, isRTL } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
-  const [badges, setBadges] = useState<UserBadge[]>([]);
-  const [activities, setActivities] = useState<ActivitySubmission[]>([]);
-  const [feedbacks, setFeedbacks] = useState<any[]>([]);
-  const [fines, setFines] = useState<Fine[]>([]);
-  const [manualFines, setManualFines] = useState<ActivitySubmission[]>([]);
-  const [activityTypes, setActivityTypes] = useState<{ id: string; name: string; name_ar: string }[]>([]);
-  const [fineTypes, setFineTypes] = useState<{ id: string; name: string; name_ar: string; amount: number }[]>([]);
 
   const [isFeedbackDialogOpen, setIsFeedbackDialogOpen] = useState(false);
   const [isFineDialogOpen, setIsFineDialogOpen] = useState(false);
@@ -200,8 +159,6 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const [editFeedbackId, setEditFeedbackId] = useState<string | null>(null);
   const [editFeedbackContent, setEditFeedbackContent] = useState('');
   const [itemToDelete, setItemToDelete] = useState<{ type: 'fine' | 'feedback', id: string, fineSourceType?: string } | null>(null);
-
-  const [monthlyPoints, setMonthlyPoints] = useState(0);
 
   const [showUnauthorizedDialog, setShowUnauthorizedDialog] = useState(false);
 
@@ -221,11 +178,24 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const isViewOnly = userId && userId !== user?.id;
   const targetUserId = userId || user?.id;
 
-  const [viewedProfile, setViewedProfile] = useState<any>(null);
-  const [viewedAvatarUrl, setViewedAvatarUrl] = useState<string | null>(null);
+  const {
+    loading,
+    profile: viewedProfile,
+    avatarUrl: viewedAvatarUrl,
+    badges,
+    activities,
+    feedbacks,
+    fines,
+    fineTypes,
+    refetch: fetchData,
+    setAvatarUrl: setViewedAvatarUrl,
+    setFeedbacks,
+  } = useVolunteerProfile(targetUserId, isRTL);
+
+  const authProfileView = authProfile as VolunteerProfileView | null | undefined;
 
   // Use the fetched profile if available. If viewing another user, do not fallback to authProfile (logged-in user)
-  const displayProfile = isViewOnly ? viewedProfile : (viewedProfile || authProfile);
+  const displayProfile = isViewOnly ? viewedProfile : (viewedProfile || authProfileView);
   const displayAvatar = isViewOnly ? viewedAvatarUrl : (viewedAvatarUrl || (authProfile?.avatar_url || null));
   const displayCover = isViewOnly ? viewedProfile?.cover_url : (viewedProfile?.cover_url || authProfile?.cover_url);
   const isAshbal = displayProfile?.is_ashbal;
@@ -262,13 +232,16 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     }
   };
 
-  const currentMonthActivities = activities.filter(a => {
+  const currentMonthActivities = useMemo(() => activities.filter(a => {
     const activityDate = new Date(a.submitted_at);
     const now = new Date();
     return activityDate.getMonth() === now.getMonth() && activityDate.getFullYear() === now.getFullYear();
-  });
+  }), [activities]);
 
-  const monthlyImpactCalculated = currentMonthActivities.reduce((sum, a) => sum + Math.max(0, a.points), 0);
+  const monthlyImpactCalculated = useMemo(
+    () => currentMonthActivities.reduce((sum, a) => sum + Math.max(0, a.points), 0),
+    [currentMonthActivities]
+  );
 
   // Show monthly points consistently
   const points = monthlyImpactCalculated;
@@ -278,145 +251,11 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   const userInitials = displayProfile?.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U';
 
   useEffect(() => {
-    if (targetUserId) {
-      setViewedProfile(null);
-      setViewedAvatarUrl(null);
-      setBadges([]);
-      setActivities([]);
-      setFeedbacks([]);
-      setFines([]);
-      fetchData();
-    }
-  }, [targetUserId]);
-
-  useEffect(() => {
     if (!isViewOnly) {
       setViewedAvatarUrl(authProfile?.avatar_url || null);
       refreshProfile();
     }
-  }, [authProfile?.avatar_url, isViewOnly, refreshProfile]);
-
-  const fetchData = async () => {
-    if (!targetUserId) return;
-    setLoading(true);
-    try {
-      // Fetch profile details with joined branch and committee names
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*, branch:branches(name, name_ar), committee:committees(name, name_ar)')
-        .eq('id', targetUserId)
-        .single();
-
-      if (profileData) {
-        setViewedProfile(profileData);
-        setViewedAvatarUrl(profileData.avatar_url);
-      }
-
-      // If viewing own profile, calculate monthly points
-      // We will do this from activitiesRes below to avoid UTC timezone cutoff issues
-
-      // Fetch badges and activities in parallel
-      // Explicitly type to avoid deep type instantiation errors
-      const badgesQuery = supabase
-        .from('user_badges')
-        .select('id, earned_at, badge:badges(id, name, name_ar, description, description_ar, icon, color)')
-        .eq('user_id', targetUserId)
-        .order('earned_at', { ascending: false });
-
-      const activitiesQuery = supabase
-        .from('activity_submissions')
-        .select('id, points_awarded, status, submitted_at, proof_url, is_paid, fine_type_id, activity:activity_types(name, name_ar), committee:committees(name, name_ar)')
-        .eq('volunteer_id', targetUserId)
-        .is('fine_type_id', null) // Exclude fines from activities
-        .order('submitted_at', { ascending: false });
-
-      const feedbacksQuery = supabase
-        .from('volunteer_feedbacks')
-        .select('id, content, created_at, author_id, author:profiles!volunteer_feedbacks_author_id_fkey(full_name, avatar_url)')
-        .eq('volunteer_id', targetUserId)
-        .order('created_at', { ascending: false });
-
-      const finesQuery = supabase
-        .from('volunteer_fines_view')
-        .select('*')
-        .eq('volunteer_id', targetUserId)
-        .eq('source_type', 'manual')
-        .order('created_at', { ascending: false });
-
-      const [badgesRes, activitiesRes, feedbacksRes, finesRes, typesRes, fineTypesRes]: [any, any, any, any, any, any] = await Promise.all([
-        badgesQuery,
-        activitiesQuery,
-        feedbacksQuery,
-        finesQuery,
-        supabase.from('activity_types').select('id, name, name_ar').order('name'),
-        supabase.from('fine_types').select('id, name, name_ar, amount').order('name'),
-      ]);
-
-      if (badgesRes.data) {
-        setBadges(badgesRes.data.map((b: any) => ({
-          id: b.id,
-          earned_at: b.earned_at,
-          badge: b.badge,
-        })));
-      }
-
-      if (activitiesRes.data) {
-        console.log('Activities fetched:', activitiesRes.data.length, 'Total points:', activitiesRes.data.reduce((sum: number, a: any) => sum + (a.points_awarded || 0), 0));
-        // Since the query already filters out fines, we can directly set activities
-        setActivities(activitiesRes.data.map((a: any) => ({
-          id: a.id,
-          activity_name: isRTL ? (a.activity?.name_ar || a.activity?.name) : a.activity?.name,
-          committee_name: isRTL ? (a.committee?.name_ar || a.committee?.name) : a.committee?.name,
-          points: a.points_awarded || 0,
-          status: a.status,
-          submitted_at: a.submitted_at,
-          proof_url: a.proof_url,
-          is_paid: a.is_paid,
-        })));
-        // Note: manualFines is no longer used - all fines come from the View
-      } else if (activitiesRes.error) {
-        console.error('Error fetching activities:', activitiesRes.error);
-      }
-
-      if (typesRes.data) {
-        setActivityTypes(typesRes.data);
-      }
-
-      // The 6th element in Promise.all result is fineTypes (index 5)
-      if (fineTypesRes.data) {
-        setFineTypes(fineTypesRes.data);
-      }
-
-
-      if (feedbacksRes.data) {
-        setFeedbacks(feedbacksRes.data.map((f: any) => ({
-          id: f.id,
-          content: f.content,
-          created_at: f.created_at,
-          author: f.author,
-          author_id: f.author_id,
-        })));
-      }
-
-      if (finesRes.data) {
-        setFines(finesRes.data.map((f: any) => ({
-          source_type: f.source_type,
-          source_id: f.source_id,
-          source_name: f.source_name,
-          source_name_ar: f.source_name_ar,
-          created_at: f.created_at,
-          amount: f.amount,
-          is_paid: f.is_paid || false,
-          reviewed_by_name: f.reviewed_by_name,
-          reviewed_by_name_ar: f.reviewed_by_name_ar,
-        })));
-      }
-    } catch (error) {
-      console.error('Error fetching profile data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [authProfile?.avatar_url, isViewOnly, refreshProfile, setViewedAvatarUrl]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -498,7 +337,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       // Cleanup
       setAvatarPreview(null);
       setSelectedFile(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error uploading avatar:', error);
       toast.error(isRTL ? 'فشل في تحميل الصورة' : 'Failed to upload image');
     } finally {
@@ -611,24 +450,21 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           .select('caravans(created_by)')
           .eq('id', fineId)
           .single();
-        // @ts-ignore
-        creatorId = data?.caravans?.created_by;
+        creatorId = getCreatedByFromRelation(data?.caravans as CreatedByRelation);
       } else if (sourceType === 'event') {
         const { data } = await supabase
           .from('event_participants')
           .select('events(created_by)')
           .eq('id', fineId)
           .single();
-        // @ts-ignore
-        creatorId = data?.events?.created_by;
+        creatorId = getCreatedByFromRelation(data?.events as CreatedByRelation);
       } else if (sourceType === 'ethics_call') {
         const { data } = await supabase
           .from('ethics_calls_participants')
           .select('ethics_calls(created_by)')
           .eq('id', fineId)
           .single();
-        // @ts-ignore
-        creatorId = data?.ethics_calls?.created_by;
+        creatorId = getCreatedByFromRelation(data?.ethics_calls as CreatedByRelation);
       }
 
       // If we identified a creator and it's not the current user
@@ -899,22 +735,22 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
               </div>
 
               {/* Subtitle with Committee & Branch badges */}
-              {((displayProfile as any)?.committee || (displayProfile as any)?.branch) && (
+              {(displayProfile?.committee || displayProfile?.branch) && (
                 <div className="flex flex-wrap gap-2 justify-center sm:justify-start text-xs font-medium">
-                  {(displayProfile as any)?.committee && (
+                  {displayProfile.committee && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary border border-primary/20">
                       <Users className="h-3.5 w-3.5" />
                       {isRTL 
-                        ? ((displayProfile as any).committee.name_ar || (displayProfile as any).committee.name) 
-                        : (displayProfile as any).committee.name}
+                        ? (displayProfile.committee.name_ar || displayProfile.committee.name) 
+                        : displayProfile.committee.name}
                     </span>
                   )}
-                  {(displayProfile as any)?.branch && (
+                  {displayProfile.branch && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-secondary text-secondary-foreground border border-muted">
                       <MapPin className="h-3.5 w-3.5" />
                       {isRTL 
-                        ? ((displayProfile as any).branch.name_ar || (displayProfile as any).branch.name) 
-                        : (displayProfile as any).branch.name}
+                        ? (displayProfile.branch.name_ar || displayProfile.branch.name) 
+                        : displayProfile.branch.name}
                     </span>
                   )}
                 </div>
@@ -1097,16 +933,12 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                     >
                       <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                         {activity.proof_url && (
-                          <ImagePreview src={activity.proof_url} alt="Proof" className="shrink-0 group relative overflow-hidden rounded-md border">
-                            <img
-                              src={activity.proof_url}
-                              alt="Proof"
-                              className="w-12 h-12 sm:w-16 sm:h-16 object-cover transition-transform duration-300 group-hover:scale-110"
-                            />
-                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <span className="text-white text-xs font-medium">{isRTL ? 'عرض' : 'View'}</span>
-                            </div>
-                          </ImagePreview>
+                          <ProofImagePreview
+                            proofUrl={activity.proof_url}
+                            alt="Proof"
+                            className="shrink-0 group relative overflow-hidden rounded-md border"
+                            imgClassName="w-12 h-12 sm:w-16 sm:h-16 object-cover transition-transform duration-300 group-hover:scale-110"
+                          />
                         )}
                         <div className="space-y-1 sm:space-y-1.5 flex-1 min-w-0">
                           <p className="font-semibold truncate text-sm sm:text-base">{activity.activity_name}</p>

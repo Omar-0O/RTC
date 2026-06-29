@@ -40,7 +40,6 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
-import { utils, writeFile } from 'xlsx';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, format } from 'date-fns';
 
 interface Committee {
@@ -302,6 +301,7 @@ export default function CommitteeManagement() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
+      const { utils, writeFile } = await import('xlsx');
       const { startDate, endDate, label } = getDateRange(timeFilter);
 
       // Fetch fresh data for export

@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import {
   applyManualResolution,
   autoResolve,
+  type ConflictRecord,
   type ConflictInfo,
   type ConflictStrategy,
 } from '@/lib/conflictResolver';
@@ -27,7 +28,7 @@ import {
 
 interface ConflictDialogProps {
   conflict: ConflictInfo | null;
-  onResolve: (resolvedData: Record<string, any>, strategy: ConflictStrategy) => void;
+  onResolve: (resolvedData: ConflictRecord, strategy: ConflictStrategy) => void;
   onDismiss: () => void;
   /** Human-readable field labels (e.g., { full_name: 'الاسم', phone: 'التلفون' }) */
   fieldLabels?: Record<string, string>;
@@ -63,7 +64,7 @@ export function ConflictDialog({ conflict, onResolve, onDismiss, fieldLabels = {
   const getLabel = (field: string) =>
     fieldLabels[field] || field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
-  const formatValue = (val: any): string => {
+  const formatValue = (val: unknown): string => {
     if (val === null || val === undefined) return '—';
     if (typeof val === 'boolean') return val ? '✓' : '✗';
     if (typeof val === 'object') return JSON.stringify(val, null, 2);

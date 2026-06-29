@@ -4,6 +4,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database, Json } from '@/integrations/supabase/types';
+import {
+    createSession,
+    deleteSession,
+    getCircleAds,
+    getCircleAttendance,
+    getCircleEnrollments,
+    getCircleSessions,
+    saveAttendance,
+} from '@/services/circles.service';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,7 +45,6 @@ import { format } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import * as XLSX from 'xlsx';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -68,7 +77,7 @@ interface QuranCircle {
     sessions_count?: number;
     enrolled_count?: number;
     target_group?: 'children' | 'adults';
-    teaching_mode?: 'online' | 'offline' | 'mixed';
+    teaching_mode?: 'online' | 'offline' | 'mixed' | 'both';
     teacher_gender?: 'men' | 'women';
     is_active?: boolean;
     description?: string;
@@ -103,6 +112,35 @@ interface Guest {
     name: string;
     phone: string;
 }
+
+type Tables = Database['public']['Tables'];
+type QuranBeneficiaryRow = Tables['quran_beneficiaries']['Row'];
+type QuranCircleBeneficiaryInsert = Tables['quran_circle_beneficiaries']['Insert'];
+type QuranCircleRow = Tables['quran_circles']['Row'];
+type QuranCircleSessionRow = Tables['quran_circle_sessions']['Row'];
+type QuranEnrollmentRow = Tables['quran_enrollments']['Row'];
+type QuranTeacherRow = Tables['quran_teachers']['Row'];
+
+interface EnrollmentWithBeneficiary {
+    beneficiary_id: string;
+    quran_beneficiaries: QuranBeneficiaryRow;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null;
+
+const toSchedule = (value: Json | null): ScheduleItem[] => {
+    if (!Array.isArray(value)) return [];
+    return value.flatMap((item) => {
+        if (!isRecord(item)) return [];
+        const day = item.day;
+        const time = item.time;
+        return typeof day === 'number' && typeof time === 'string' ? [{ day, time }] : [];
+    });
+};
+
+const getErrorMessage = (error: unknown, fallback = 'Error occurred') =>
+    error instanceof Error ? error.message : fallback;
 
 const DAYS_AR = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -218,13 +256,13 @@ export default function MyQuranCircles() {
             if (orgError) throw orgError;
 
             // Fetch circles I'm a marketer of
-            const { data: marketerData } = await (supabase as any)
+            const { data: marketerData } = await supabase
                 .from('quran_circle_marketers')
                 .select('circle_id')
                 .eq('volunteer_id', user?.id);
 
-            const orgCircleIds = organizerData?.map((o: any) => o.circle_id) || [];
-            const marketerIds: string[] = marketerData?.map((m: any) => m.circle_id) || [];
+            const orgCircleIds = (organizerData || []).map((organizer) => organizer.circle_id);
+            const marketerIds = (marketerData || []).map((marketer) => marketer.circle_id);
 
             // Union of all circle IDs
             const allCircleIds = [...new Set([...orgCircleIds, ...marketerIds])];
@@ -269,7 +307,7 @@ export default function MyQuranCircles() {
                 .select('id, name, target_gender, teaching_mode');
 
             // Store full teacher object in map
-            const teachersMap = new Map(teachersData?.map(t => [t.id, t]) || []);
+            const teachersMap = new Map((teachersData || []).map((teacher) => [teacher.id, teacher]));
 
             // Fetch enrolled counts
             const { data: enrollments } = await supabase
@@ -283,23 +321,25 @@ export default function MyQuranCircles() {
                 enrollmentCounts[e.circle_id] = (enrollmentCounts[e.circle_id] || 0) + 1;
             });
 
-            const formatted: QuranCircle[] = (data?.map((c: any) => {
+            const formatted: QuranCircle[] = ((data || []) as QuranCircleRow[]).map((c) => {
                 const teacher = teachersMap.get(c.teacher_id);
                 return {
                     id: c.id,
-                    teacher_id: c.teacher_id,
+                    teacher_id: c.teacher_id || undefined,
                     teacher_name: teacher?.name,
-                    target_group: c.target_group,
-                    teacher_gender: teacher?.target_gender,
-                    teaching_mode: teacher?.teaching_mode as 'online' | 'offline' | 'mixed' | undefined,
-                    description: c.description,
-                    beneficiary_gender: c.beneficiary_gender,
+                    target_group: c.target_group === 'children' ? 'children' : 'adults',
+                    teacher_gender: teacher?.target_gender === 'women' ? 'women' : 'men',
+                    teaching_mode: teacher?.teaching_mode === 'online' || teacher?.teaching_mode === 'offline' || teacher?.teaching_mode === 'both'
+                        ? teacher.teaching_mode
+                        : undefined,
+                    description: c.description || undefined,
+                    beneficiary_gender: c.beneficiary_gender === 'female' ? 'female' : 'male',
                     is_active: true, // filtered by is_active=true anyway
-                    schedule: c.schedule || [],
+                    schedule: toSchedule(c.schedule),
                     sessions_count: sessionCounts[c.id] || 0,
                     enrolled_count: enrollmentCounts[c.id] || 0
                 };
-            }) || []) as QuranCircle[];
+            });
 
             setCircles(formatted);
         } catch (error) {
@@ -316,70 +356,20 @@ export default function MyQuranCircles() {
         setActiveTab(isMarketerOnly ? 'ads' : 'sessions');
         setIsDetailsOpen(true);
 
-        // Fetch sessions
-        const { data: sessionsData } = await supabase
-            .from('quran_circle_sessions')
-            .select('*, quran_circle_beneficiaries(count)')
-            .eq('circle_id', circle.id)
-            .order('session_date', { ascending: false })
-            .limit(50);
-
-        const formattedSessions = sessionsData?.map((s: any) => ({
-            ...s,
-            attendees_count: s.quran_circle_beneficiaries?.[0]?.count || 0
-        })) || [];
+        const formattedSessions = await getCircleSessions(circle.id);
         setSessions(formattedSessions);
 
-        // Fetch enrolled beneficiaries
-        const { data: enrolledData, error } = await supabase
-            .from('quran_enrollments')
-            .select(`
-                beneficiary_id,
-                quran_beneficiaries!inner(id, name_ar, name_en, image_url, phone, gender, beneficiary_type)
-            `)
-            .eq('circle_id', circle.id)
-            .eq('status', 'active');
+        setBeneficiaries(await getCircleEnrollments(circle.id));
 
-        if (!error && enrolledData) {
-            const bens = enrolledData.map((e: any) => ({
-                id: e.quran_beneficiaries.id,
-                name_ar: e.quran_beneficiaries.name_ar,
-                name_en: e.quran_beneficiaries.name_en,
-                image_url: e.quran_beneficiaries.image_url,
-                phone: e.quran_beneficiaries.phone,
-                gender: e.quran_beneficiaries.gender,
-                beneficiary_type: e.quran_beneficiaries.beneficiary_type
-            }));
-            setBeneficiaries(bens);
-        }
-
-        // Fetch attendance for all sessions
         if (formattedSessions.length > 0) {
             const sessionIds = formattedSessions.map(s => s.id);
-            const { data: attData } = await supabase
-                .from('quran_circle_beneficiaries')
-                .select('session_id, beneficiary_id, attendance_type')
-                .in('session_id', sessionIds);
-
-            const attMap: Record<string, Attendance[]> = {};
-            (attData || []).forEach((a: any) => {
-                if (!attMap[a.session_id]) attMap[a.session_id] = [];
-                attMap[a.session_id].push({
-                    beneficiary_id: a.beneficiary_id,
-                    attendance_type: a.attendance_type || 'memorization'
-                });
-            });
-            setAttendanceData(attMap);
+            setAttendanceData(await getCircleAttendance(sessionIds));
+        } else {
+            setAttendanceData({});
         }
 
-        // Fetch circle ads (for all users who have access to this circle)
         setAdsLoading(true);
-        const { data: adsData } = await (supabase as any)
-            .from('quran_circle_ads')
-            .select('*')
-            .eq('circle_id', circle.id)
-            .order('ad_number');
-        setCircleAds(adsData || []);
+        setCircleAds(await getCircleAds(circle.id));
         setAdsLoading(false);
     };
 
@@ -392,17 +382,11 @@ export default function MyQuranCircles() {
         }
 
         try {
-            const { data, error } = await supabase
-                .from('quran_circle_sessions')
-                .insert({
-                    circle_id: selectedCircle.id,
-                    session_date: sessionDate,
-                    notes: sessionNotes || null
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
+            await createSession({
+                circleId: selectedCircle.id,
+                sessionDate,
+                notes: sessionNotes || null,
+            });
 
             toast.success(isRTL ? 'تم إنشاء الجلسة' : 'Session created');
             setIsSessionDialogOpen(false);
@@ -419,9 +403,9 @@ export default function MyQuranCircles() {
             // setSelectedSession(data);
             // setAttendance([]);
             // setIsAttendanceDialogOpen(true);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error creating session:', error);
-            toast.error(error.message || 'Error occurred');
+            toast.error(getErrorMessage(error));
         }
     };
 
@@ -454,96 +438,21 @@ export default function MyQuranCircles() {
         if (!selectedSession || !selectedCircle) return;
 
         try {
-            // Delete existing
-            await supabase
-                .from('quran_circle_beneficiaries')
-                .delete()
-                .eq('session_id', selectedSession.id);
-
-            // Handle guests - create or find them as beneficiaries
-            const guestPhones = [...new Set(guests.map(g => g.phone).filter(Boolean))];
-            const guestMap = new Map<string, string>(); // phone -> id
-
-            if (guestPhones.length > 0) {
-                // 1. Find existing beneficiaries
-                const { data: existingBens } = await supabase
-                    .from('quran_beneficiaries')
-                    .select('id, phone')
-                    .in('phone', guestPhones);
-
-                existingBens?.forEach(b => guestMap.set(b.phone, b.id));
-
-                // 2. Identify new beneficiaries
-                const newGuests = guests.filter(g => g.phone && !guestMap.has(g.phone));
-
-                // Deduplicate new guests by phone to avoid double insert attempt
-                const uniqueNewGuests = new Map<string, Guest>();
-                newGuests.forEach(g => uniqueNewGuests.set(g.phone, g));
-
-                if (uniqueNewGuests.size > 0) {
-                    const toInsert = Array.from(uniqueNewGuests.values()).map(g => ({
-                        name_ar: g.name,
-                        phone: g.phone,
-                        gender: 'male',
-                        beneficiary_type: 'adult',
-                        branch_id: activeBranch?.id || null
-                    }));
-
-                    const { data: createdBens, error: createError } = await supabase
-                        .from('quran_beneficiaries')
-                        .insert(toInsert)
-                        .select('id, phone');
-
-                    if (createError) throw createError;
-
-                    createdBens?.forEach(b => guestMap.set(b.phone, b.id));
-                }
-            }
-
-            // Prepare all attendance records
-            const allRecords = [];
-
-            // Add enrolled attendance
-            if (attendance.length > 0) {
-                attendance.forEach(a => {
-                    allRecords.push({
-                        session_id: selectedSession.id,
-                        circle_id: selectedCircle.id,
-                        beneficiary_id: a.beneficiary_id,
-                        attendance_type: a.attendance_type
-                    });
-                });
-            }
-
-            // Add guest attendance
-            for (const guest of guests) {
-                const beneficiaryId = guestMap.get(guest.phone);
-
-                if (beneficiaryId) {
-                    allRecords.push({
-                        session_id: selectedSession.id,
-                        circle_id: selectedCircle.id,
-                        beneficiary_id: beneficiaryId,
-                        attendance_type: 'memorization'
-                    });
-                }
-            }
-
-            // Single Bulk Insert
-            if (allRecords.length > 0) {
-                const { error } = await supabase
-                    .from('quran_circle_beneficiaries')
-                    .insert(allRecords);
-
-                if (error) throw error;
-            }
+            await saveAttendance({
+                sessionId: selectedSession.id,
+                circleId: selectedCircle.id,
+                attendance,
+                guests,
+                circleGender: selectedCircle.beneficiary_gender || selectedCircle.teacher_gender,
+                circleTargetGroup: selectedCircle.target_group,
+            });
 
             toast.success(isRTL ? 'تم حفظ الحضور' : 'Attendance saved');
             setIsAttendanceDialogOpen(false);
             await openCircleDetails(selectedCircle);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error saving attendance:', error);
-            toast.error(error.message || 'Error occurred');
+            toast.error(getErrorMessage(error));
         }
     };
 
@@ -630,8 +539,8 @@ export default function MyQuranCircles() {
             toast.success(isRTL ? 'تم إلغاء التسجيل' : 'Unenrolled successfully');
             openCircleDetails(selectedCircle);
             fetchMyCircles();
-        } catch (err: any) {
-            toast.error(err.message);
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error));
         } finally {
             setIsDeleteConfirmOpen(false);
             setBeneficiaryToDelete(null);
@@ -660,7 +569,7 @@ export default function MyQuranCircles() {
             setLeaveCircleId(null);
             setLeaveType(null);
             fetchMyCircles();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error leaving circle:', error);
             toast.error(isRTL ? 'حدث خطأ أثناء الإزالة' : 'Error removing role');
         }
@@ -696,24 +605,13 @@ export default function MyQuranCircles() {
     const handleDeleteSession = async () => {
         if (!deleteSessionId || !selectedCircle) return;
         try {
-            // Delete attendance records first
-            await supabase
-                .from('quran_circle_beneficiaries')
-                .delete()
-                .eq('session_id', deleteSessionId);
-
-            const { error } = await supabase
-                .from('quran_circle_sessions')
-                .delete()
-                .eq('id', deleteSessionId);
-
-            if (error) throw error;
+            await deleteSession(deleteSessionId);
             toast.success(isRTL ? 'تم حذف الجلسة' : 'Session deleted');
             setDeleteSessionId(null);
             await openCircleDetails(selectedCircle);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error deleting session:', error);
-            toast.error(error.message || 'Error deleting session');
+            toast.error(getErrorMessage(error, 'Error deleting session'));
         }
     };
 
@@ -817,9 +715,9 @@ export default function MyQuranCircles() {
             await openCircleDetails(selectedCircle);
             // fetchCircles(); // Refresh counts if needed
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error saving beneficiary:', error);
-            toast.error(error.message || (isRTL ? 'حدث خطأ أثناء الحفظ' : 'Error saving beneficiary'));
+            toast.error(getErrorMessage(error, isRTL ? 'حدث خطأ أثناء الحفظ' : 'Error saving beneficiary'));
         }
     };
 
@@ -903,43 +801,19 @@ export default function MyQuranCircles() {
     const exportCircleToExcel = async (circle: QuranCircle) => {
         try {
             toast.info(isRTL ? 'جاري إعداد الملف...' : 'Preparing file...');
+            const XLSX = await import('xlsx');
 
-            // Fetch sessions
-            const { data: sessionsData } = await supabase
-                .from('quran_circle_sessions')
-                .select('*')
-                .eq('circle_id', circle.id)
-                .order('session_date', { ascending: true });
-
-            // Fetch enrolled beneficiaries
-            const { data: enrolledData } = await supabase
-                .from('quran_enrollments')
-                .select(`
-                    beneficiary_id,
-                    quran_beneficiaries(id, name_ar, name_en)
-                `)
-                .eq('circle_id', circle.id)
-                .eq('status', 'active');
-
-            const bens = (enrolledData || []).map((e: any) => ({
-                id: e.quran_beneficiaries.id,
-                name_ar: e.quran_beneficiaries.name_ar,
-                name_en: e.quran_beneficiaries.name_en
-            }));
-
-            // Fetch all attendance
-            const sessionIds = (sessionsData || []).map(s => s.id);
-            const { data: attData } = sessionIds.length > 0 ? await supabase
-                .from('quran_circle_beneficiaries')
-                .select('session_id, beneficiary_id, attendance_type')
-                .in('session_id', sessionIds) : { data: [] };
+            const sessionsData = await getCircleSessions(circle.id);
+            const sortedSessions = [...sessionsData].sort((a, b) => a.session_date.localeCompare(b.session_date));
+            const bens = await getCircleEnrollments(circle.id);
+            const attendanceMap = await getCircleAttendance(sortedSessions.map(s => s.id));
 
             const attendanceBySession: Record<string, Record<string, string>> = {};
-            (attData || []).forEach((a: any) => {
-                if (!attendanceBySession[a.session_id]) {
-                    attendanceBySession[a.session_id] = {};
-                }
-                attendanceBySession[a.session_id][a.beneficiary_id] = a.attendance_type;
+            Object.entries(attendanceMap).forEach(([sessionId, records]) => {
+                attendanceBySession[sessionId] = {};
+                records.forEach((record) => {
+                    attendanceBySession[sessionId][record.beneficiary_id] = record.attendance_type;
+                });
             });
 
             // Circle Info Sheet
@@ -949,11 +823,11 @@ export default function MyQuranCircles() {
                 [isRTL ? 'الأيام' : 'Days']: getScheduleDisplay(circle.schedule),
                 [isRTL ? 'الوقت' : 'Time']: getScheduleTime(circle.schedule) || '-',
                 [isRTL ? 'عدد المسجلين' : 'Enrolled Count']: bens.length,
-                [isRTL ? 'عدد الجلسات' : 'Sessions Count']: sessionsData?.length || 0
+                [isRTL ? 'عدد الجلسات' : 'Sessions Count']: sortedSessions.length
             }];
 
             // Sessions Sheet
-            const sessionsSheet = (sessionsData || []).map((s: any, idx: number) => {
+            const sessionsSheet = sortedSessions.map((s, idx: number) => {
                 const attCount = Object.keys(attendanceBySession[s.id] || {}).length;
                 return {
                     [isRTL ? 'رقم الجلسة' : 'Session #']: idx + 1,
@@ -966,7 +840,7 @@ export default function MyQuranCircles() {
 
             // Attendance Sheet
             const attendanceSheet = bens.map(ben => {
-                const row: any = {
+                const row: Record<string, string | number> = {
                     [isRTL ? 'الاسم' : 'Name']: ben.name_ar,
                     [isRTL ? 'الاسم الانجليزي' : 'English Name']: ben.name_en || '-'
                 };
@@ -975,7 +849,7 @@ export default function MyQuranCircles() {
                 let memorization = 0;
                 let revision = 0;
 
-                (sessionsData || []).forEach((s: any, idx: number) => {
+                sortedSessions.forEach((s, idx: number) => {
                     const colName = isRTL ? `ج${idx + 1}` : `S${idx + 1}`;
                     const attType = attendanceBySession[s.id]?.[ben.id];
 
@@ -1893,7 +1767,7 @@ export default function MyQuranCircles() {
                                                                             id={`my-poster-${ad.id}`}
                                                                             checked={ad.poster_done}
                                                                             onCheckedChange={async (checked) => {
-                                                                                await (supabase as any).from('quran_circle_ads').update({ poster_done: checked, updated_at: new Date().toISOString() }).eq('id', ad.id);
+                                                                                await supabase.from('quran_circle_ads').update({ poster_done: checked, updated_at: new Date().toISOString() }).eq('id', ad.id);
                                                                                 setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, poster_done: !!checked } : a));
                                                                                 toast.success(isRTL ? 'تم التحديث' : 'Updated');
                                                                             }}
@@ -1912,7 +1786,7 @@ export default function MyQuranCircles() {
                                                                             id={`my-content-${ad.id}`}
                                                                             checked={ad.content_done}
                                                                             onCheckedChange={async (checked) => {
-                                                                                await (supabase as any).from('quran_circle_ads').update({ content_done: checked, updated_at: new Date().toISOString() }).eq('id', ad.id);
+                                                                                await supabase.from('quran_circle_ads').update({ content_done: checked, updated_at: new Date().toISOString() }).eq('id', ad.id);
                                                                                 setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, content_done: !!checked } : a));
                                                                                 toast.success(isRTL ? 'تم التحديث' : 'Updated');
                                                                             }}

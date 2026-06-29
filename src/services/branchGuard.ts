@@ -9,8 +9,16 @@
  *   Component → Hook → Service (uses branchGuard) → Supabase (RLS enforced)
  */
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 
 // ─── Types ──────────────────────────────────────────────────────────
+
+type TableName = keyof Database['public']['Tables'];
+type UserRoleRow = Database['public']['Tables']['user_roles']['Row'];
+type BranchScopedPayload = Record<string, unknown> & { branch_id?: string | null };
+type BranchFilterableQuery<Q> = Q & {
+  eq(column: string, value: string): Q;
+};
 
 export interface BranchScope {
   /** The authenticated user's branch_id (from DB, NOT frontend) */
@@ -42,7 +50,7 @@ export async function getBranchScope(): Promise<BranchScope> {
     supabase.from('user_roles').select('role').eq('user_id', user.id),
   ]);
 
-  const roles = (rolesRes.data || []).map((r: any) => r.role as string);
+  const roles = ((rolesRes.data || []) as Pick<UserRoleRow, 'role'>[]).map(roleRow => roleRow.role as string);
   const isAdmin = roles.includes('admin') || roles.includes('executive');
 
   _cachedScope = {
@@ -70,17 +78,17 @@ export function invalidateBranchCache(): void {
  *   const { data } = await query.select('*').order('full_name');
  */
 export async function scopedQuery(
-  table: string,
+  table: TableName,
   adminBranchFilter?: string | null
 ) {
   const scope = await getBranchScope();
-  let query = (supabase as any).from(table).select as any;
+  const query = supabase.from(table);
 
   // For admin: optionally filter to a specific branch for the UI
   // RLS already allows them to see everything, this is just a convenience filter
   if (scope.isAdmin && adminBranchFilter) {
     return {
-      query: (supabase as any).from(table),
+      query,
       scope,
       branchFilter: adminBranchFilter,
     };
@@ -88,7 +96,7 @@ export async function scopedQuery(
 
   // For non-admin: RLS handles it, no client-side filter needed
   return {
-    query: (supabase as any).from(table),
+    query,
     scope,
     branchFilter: null,
   };
@@ -101,8 +109,8 @@ export async function scopedQuery(
  * Note: The DB trigger `auto_set_branch_id` is the ultimate guard,
  * but we also enforce it here for defense-in-depth.
  */
-export async function scopedInsert<T extends Record<string, any>>(
-  table: string,
+export async function scopedInsert<T extends BranchScopedPayload>(
+  table: TableName,
   data: T | T[]
 ): Promise<{ data: T | T[]; scope: BranchScope }> {
   const scope = await getBranchScope();
@@ -130,8 +138,8 @@ export async function scopedInsert<T extends Record<string, any>>(
  * Prepare data for UPDATE by stripping branch_id from non-admin users.
  * Prevents any attempt to move a record to another branch.
  */
-export async function scopedUpdate<T extends Record<string, any>>(
-  table: string,
+export async function scopedUpdate<T extends BranchScopedPayload>(
+  table: TableName,
   data: T
 ): Promise<{ data: T; scope: BranchScope }> {
   const scope = await getBranchScope();
@@ -139,7 +147,7 @@ export async function scopedUpdate<T extends Record<string, any>>(
 
   if (!scope.isAdmin) {
     // Non-admin: NEVER allow changing branch_id
-    delete (cleaned as any).branch_id;
+    delete cleaned.branch_id;
   }
 
   return { data: cleaned, scope };
@@ -156,7 +164,7 @@ export function applyBranchFilter<Q>(
   viewingBranchId?: string | null
 ): Q {
   if (scope.isAdmin && viewingBranchId) {
-    return (query as any).eq('branch_id', viewingBranchId);
+    return (query as BranchFilterableQuery<Q>).eq('branch_id', viewingBranchId);
   }
   // RLS enforces for non-admin — no client filter needed
   return query;

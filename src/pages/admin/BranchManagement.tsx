@@ -25,19 +25,29 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
-interface BranchStats {
-  id: string;
-  name: string;
-  name_ar: string;
-  is_default: boolean;
-  created_at: string;
+type BranchRow = Database['public']['Tables']['branches']['Row'];
+type BranchInsert = Database['public']['Tables']['branches']['Insert'];
+type BranchUpdate = Database['public']['Tables']['branches']['Update'];
+type ProfileBranchRef = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'branch_id'>;
+
+interface BranchStats extends BranchRow {
   volunteer_count?: number;
 }
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+};
 
 export default function BranchManagement() {
   const { language, isRTL } = useLanguage();
@@ -65,7 +75,7 @@ export default function BranchManagement() {
   const fetchBranchStats = async () => {
     setIsLoading(true);
     try {
-      const { data: branchData, error } = await (supabase as any)
+      const { data: branchData, error } = await supabase
         .from('branches')
         .select('*')
         .order('created_at', { ascending: true });
@@ -75,16 +85,16 @@ export default function BranchManagement() {
       // Fetch volunteer counts per branch
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('id, branch_id' as any);
+        .select('id, branch_id');
 
       const countMap = new Map<string, number>();
-      (profileData || []).forEach((p: any) => {
+      ((profileData || []) as ProfileBranchRef[]).forEach(p => {
         if (p.branch_id) {
           countMap.set(p.branch_id, (countMap.get(p.branch_id) || 0) + 1);
         }
       });
 
-      const stats: BranchStats[] = (branchData || []).map((b: any) => ({
+      const stats: BranchStats[] = ((branchData || []) as BranchRow[]).map(b => ({
         ...b,
         volunteer_count: countMap.get(b.id) || 0,
       }));
@@ -117,9 +127,10 @@ export default function BranchManagement() {
 
     setIsSubmitting(true);
     try {
-      const { error } = await (supabase as any)
+      const newBranch: BranchInsert = { name: formName.trim(), name_ar: formNameAr.trim(), code: formCode.trim() || null, is_default: false };
+      const { error } = await supabase
         .from('branches')
-        .insert({ name: formName.trim(), name_ar: formNameAr.trim(), code: formCode.trim() || null, is_default: false });
+        .insert(newBranch);
 
       if (error) throw error;
 
@@ -128,8 +139,8 @@ export default function BranchManagement() {
       resetForm();
       await refreshBranches();
       await fetchBranchStats();
-    } catch (err: any) {
-      toast.error(err.message || ar('فشل في إضافة الفرع', 'Failed to add branch'));
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, ar('فشل في إضافة الفرع', 'Failed to add branch')));
     } finally {
       setIsSubmitting(false);
     }
@@ -153,9 +164,10 @@ export default function BranchManagement() {
 
     setIsSubmitting(true);
     try {
-      const { error } = await (supabase as any)
+      const branchUpdates: BranchUpdate = { name: formName.trim(), name_ar: formNameAr.trim(), code: formCode.trim() || null };
+      const { error } = await supabase
         .from('branches')
-        .update({ name: formName.trim(), name_ar: formNameAr.trim(), code: formCode.trim() || null })
+        .update(branchUpdates)
         .eq('id', selectedBranch.id);
 
       if (error) throw error;
@@ -166,8 +178,8 @@ export default function BranchManagement() {
       resetForm();
       await refreshBranches();
       await fetchBranchStats();
-    } catch (err: any) {
-      toast.error(err.message || ar('فشل في تحديث الفرع', 'Failed to update branch'));
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, ar('فشل في تحديث الفرع', 'Failed to update branch')));
     } finally {
       setIsSubmitting(false);
     }
@@ -183,7 +195,7 @@ export default function BranchManagement() {
 
     setIsSubmitting(true);
     try {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('branches')
         .delete()
         .eq('id', selectedBranch.id);
@@ -195,8 +207,8 @@ export default function BranchManagement() {
       setSelectedBranch(null);
       await refreshBranches();
       await fetchBranchStats();
-    } catch (err: any) {
-      toast.error(err.message || ar('فشل في حذف الفرع', 'Failed to delete branch'));
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, ar('فشل في حذف الفرع', 'Failed to delete branch')));
     } finally {
       setIsSubmitting(false);
     }

@@ -83,9 +83,41 @@ import { waPhoneLink } from '@/utils/phoneUtils';
 
 // Image utilities extracted to @/utils/imageCrop
 
-import Cropper from 'react-easy-crop';
+import Cropper, { type Area } from 'react-easy-crop';
 import { Slider } from '@/components/ui/slider';
 import { getCroppedImg } from '@/utils/imageCrop';
+
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
+type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
+type UserRoleInsert = Database['public']['Tables']['user_roles']['Insert'];
+type UserFeatureRow = Database['public']['Tables']['user_features']['Row'];
+type UserFeatureInsert = Database['public']['Tables']['user_features']['Insert'];
+type DeleteUserAccountResponse = { error?: string } | null;
+type CreateUserResponse = { user?: { id: string }; error?: string };
+type UpdatePasswordResponse = { error?: string };
+type CsvValue = string | number | boolean | null | undefined;
+type CsvRow = Record<string, CsvValue>;
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  if (typeof error === 'object' && error !== null && 'error' in error) {
+    const message = (error as { error?: unknown }).error;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+};
+
+const getErrorStatus = (error: unknown): string | number | undefined => {
+  if (typeof error === 'object' && error !== null && 'status' in error) {
+    const status = (error as { status?: unknown }).status;
+    if (typeof status === 'string' || typeof status === 'number') return status;
+  }
+  return undefined;
+};
 
 const ALL_FEATURES = [
   { id: 'user_management', label: 'إدارة الأعضاء', labelEn: 'User Management' },
@@ -219,7 +251,7 @@ export default function UserManagement() {
   // Crop state
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [isCropping, setIsCropping] = useState(false)
   const [tempImageSrc, setTempImageSrc] = useState<string | null>(null)
 
@@ -236,8 +268,8 @@ export default function UserManagement() {
           ? (isRTL ? `✅ تم تفعيل ${user.full_name_ar || user.full_name}` : `✅ ${user.full_name || user.full_name_ar} activated`)
           : (isRTL ? `🚫 تم تعطيل ${user.full_name_ar || user.full_name}` : `🚫 ${user.full_name || user.full_name_ar} deactivated`)
       );
-    } catch (err: any) {
-      toast.error(err.message || (isRTL ? 'فشل في تغيير الحالة' : 'Failed to change status'));
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, isRTL ? 'فشل في تغيير الحالة' : 'Failed to change status'));
     }
   };
 
@@ -246,13 +278,13 @@ export default function UserManagement() {
     setIsCustomizeFeaturesDialogOpen(true);
     setSelectedUserFeatures([]);
     try {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('user_features')
         .select('feature')
         .eq('user_id', user.id);
       
       if (!error && data) {
-        setSelectedUserFeatures(data.map((f: any) => f.feature));
+        setSelectedUserFeatures(data.map((feature: Pick<UserFeatureRow, 'feature'>) => feature.feature));
       }
     } catch (err) {
       console.error('Error fetching user features:', err);
@@ -263,7 +295,7 @@ export default function UserManagement() {
     if (!featuresSelectedUser) return;
     setIsSavingFeatures(true);
     try {
-      const { error: deleteErr } = await (supabase as any)
+      const { error: deleteErr } = await supabase
         .from('user_features')
         .delete()
         .eq('user_id', featuresSelectedUser.id);
@@ -271,12 +303,12 @@ export default function UserManagement() {
       if (deleteErr) throw deleteErr;
 
       if (selectedUserFeatures.length > 0) {
-        const rows = selectedUserFeatures.map(f => ({
+        const rows: UserFeatureInsert[] = selectedUserFeatures.map(feature => ({
           user_id: featuresSelectedUser.id,
-          feature: f
+          feature,
         }));
         
-        const { error: insertErr } = await (supabase as any)
+        const { error: insertErr } = await supabase
           .from('user_features')
           .insert(rows);
           
@@ -285,9 +317,9 @@ export default function UserManagement() {
 
       toast.success(isRTL ? 'تم حفظ المميزات بنجاح' : 'Features saved successfully');
       setIsCustomizeFeaturesDialogOpen(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error saving features:', err);
-      toast.error(err.message || (isRTL ? 'فشل في حفظ المميزات' : 'Failed to save features'));
+      toast.error(getErrorMessage(err, isRTL ? 'فشل في حفظ المميزات' : 'Failed to save features'));
     } finally {
       setIsSavingFeatures(false);
     }
@@ -344,8 +376,8 @@ export default function UserManagement() {
     e.target.value = '';
   };
 
-  const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
-    setCroppedAreaPixels(croppedAreaPixels)
+  const onCropComplete = (_croppedArea: Area, croppedPixels: Area) => {
+    setCroppedAreaPixels(croppedPixels)
   }
 
   const showCroppedImage = async () => {
@@ -417,7 +449,7 @@ export default function UserManagement() {
       }
 
       // Call create-user edge function
-      const { data, error } = await supabase.functions.invoke('create-user', {
+      const { data, error } = await supabase.functions.invoke<CreateUserResponse>('create-user', {
         body: {
           email: formEmail.trim(),
           password: formPassword,
@@ -435,8 +467,9 @@ export default function UserManagement() {
       if (error) {
         console.error('Edge function invocation error:', error);
         // Extract status code if available
-        if (error instanceof Error && 'status' in error) {
-          console.error('Status Code:', (error as any).status);
+        const status = getErrorStatus(error);
+        if (status) {
+          console.error('Status Code:', status);
         }
         throw error;
       }
@@ -470,7 +503,7 @@ export default function UserManagement() {
 
       // Update attendance status if applicable
       if (data.user) {
-        const updates: any = {};
+        const updates: ProfileUpdate = {};
 
         if (formLevel === 'under_follow_up') {
           updates.attended_mini_camp = formAttendedMiniCamp;
@@ -493,7 +526,7 @@ export default function UserManagement() {
         }
 
         if (Object.keys(updates).length > 0) {
-          updates.level = formLevel;
+          updates.level = formLevel as ProfileRow['level'];
 
           const { error: updateError } = await supabase
             .from('profiles')
@@ -512,10 +545,9 @@ export default function UserManagement() {
       resetForm();
       // React Query auto-invalidates via createUserMutation
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error adding user:', error);
-      const message = error?.message || error?.error || (language === 'ar' ? 'فشل في إضافة المستخدم' : 'Failed to add user');
-      toast.error(message);
+      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في إضافة المستخدم' : 'Failed to add user'));
     } finally {
       setIsSubmitting(false);
     }
@@ -565,8 +597,7 @@ export default function UserManagement() {
           phone: formPhone.trim() || null,
           committee_id: formCommitteeId || null,
           branch_id: formBranchId || null,
-
-          level: formLevel as any,
+          level: formLevel as ProfileRow['level'],
           attended_mini_camp: formLevel === 'under_follow_up' ? formAttendedMiniCamp : null,
           attended_camp: formLevel === 'project_responsible' ? formAttendedCamp : null,
           is_ashbal: formIsAshbal,
@@ -612,9 +643,10 @@ export default function UserManagement() {
 
         // Then, insert the new role ONLY if it's not 'volunteer'
         if (formRole !== 'volunteer') {
-          const { error: roleError } = await (supabase as any)
+          const rolePayload: UserRoleInsert = { user_id: selectedUser.id, role: formRole };
+          const { error: roleError } = await supabase
             .from('user_roles')
-            .insert({ user_id: selectedUser.id, role: formRole });
+            .insert(rolePayload);
 
           if (roleError) throw roleError;
         }
@@ -627,7 +659,7 @@ export default function UserManagement() {
           return;
         }
 
-        const { data: passwordData, error: passwordError } = await supabase.functions.invoke('update-user-password', {
+        const { data: passwordData, error: passwordError } = await supabase.functions.invoke<UpdatePasswordResponse>('update-user-password', {
           body: {
             userId: selectedUser.id,
             newPassword: formPassword.trim()
@@ -643,9 +675,9 @@ export default function UserManagement() {
       setSelectedUser(null);
       resetForm();
       // React Query auto-invalidates via updateUserMutation
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating user:', error);
-      toast.error(error.message || (language === 'ar' ? 'فشل في تحديث بيانات المستخدم' : 'Failed to update user'));
+      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في تحديث بيانات المستخدم' : 'Failed to update user'));
     } finally {
       setIsSubmitting(false);
     }
@@ -667,17 +699,18 @@ export default function UserManagement() {
       }
 
       // Check if the RPC function returned an error
-      if ((data as { error?: string })?.error) {
-        throw new Error((data as { error: string }).error);
+      const rpcResult = data as DeleteUserAccountResponse;
+      if (rpcResult?.error) {
+        throw new Error(rpcResult.error);
       }
 
       toast.success(language === 'ar' ? 'تم حذف المستخدم بنجاح' : 'User deleted successfully');
       setIsDeleteDialogOpen(false);
       setSelectedUser(null);
       // React Query auto-invalidates via deleteUserMutation
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting user:', error);
-      toast.error(error.message || (language === 'ar' ? 'فشل حذف المستخدم' : 'Failed to delete user'));
+      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل حذف المستخدم' : 'Failed to delete user'));
     } finally {
       setIsSubmitting(false);
     }
@@ -696,9 +729,10 @@ export default function UserManagement() {
       // Then, insert the new role ONLY if it's not 'volunteer'
       // 'volunteer' is the default state (no explicit role record)
       if (newRole !== 'volunteer') {
-        const { error: insertError } = await (supabase as any)
+        const rolePayload: UserRoleInsert = { user_id: userId, role: newRole as UserRole };
+        const { error: insertError } = await supabase
           .from('user_roles')
-          .insert({ user_id: userId, role: newRole });
+          .insert(rolePayload);
 
         if (insertError) throw insertError;
       }
@@ -707,9 +741,9 @@ export default function UserManagement() {
 
       toast.success(language === 'ar' ? 'تم تحديث دور المستخدم بنجاح' : 'Role updated successfully');
       // React Query auto-invalidates via updateRoleMutation
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating role:', error);
-      toast.error(error.message || (language === 'ar' ? 'فشل في تحديث دور المستخدم' : 'Failed to update role'));
+      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في تحديث دور المستخدم' : 'Failed to update role'));
     }
   };
 
@@ -726,8 +760,7 @@ export default function UserManagement() {
         return 'bg-purple-100 text-purple-700';
       case 'branch_admin':
         return 'bg-orange-100 text-orange-700';
-      case 'head_production': // Keep existing style if needed or map to default, but removing case as per plan. 
-      // Actually if existing users have it they will be migrated. But to avoid runtime error if data is stale:
+      case 'head_production':
       case 'head_caravans':
       case 'head_events':
       case 'head_ethics':
@@ -779,7 +812,7 @@ export default function UserManagement() {
     return { text: language === 'ar' ? `منذ ${diffDays} يوم` : `${diffDays}d ago`, color: 'text-muted-foreground', dot: 'bg-gray-400' };
   };
 
-  const downloadCSV = (data: any[], filename: string) => {
+  const downloadCSV = (data: CsvRow[], filename: string) => {
     if (data.length === 0) {
       toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
       return;
@@ -822,18 +855,6 @@ export default function UserManagement() {
 
       if (rolesError) throw rolesError;
 
-      // Fetch passwords from user_private_details table
-      let passwordsMap = new Map<string, string>();
-      if (['admin', 'head_hr', 'hr'].includes(primaryRole)) {
-        const { data: privateData, error: privateError } = await supabase
-          .from('user_private_details')
-          .select('id, visible_password');
-
-        if (!privateError && privateData) {
-          passwordsMap = new Map(privateData.map(p => [p.id, p.visible_password || '']));
-        }
-      }
-
       const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role as string]) || []);
 
       const exportData = profilesData
@@ -864,7 +885,6 @@ export default function UserManagement() {
               default: return 'متطوع';
             }
           })(),
-          'Password': passwordsMap.get(u.id) || '',
           'Joined At': new Date(u.created_at).toLocaleDateString(),
           'Mini Camp Attendance': u.level === 'under_follow_up' ? (u.attended_mini_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A',
           'Camp Attendance': u.level === 'project_responsible' ? (u.attended_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A'

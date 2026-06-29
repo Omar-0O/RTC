@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { waPhoneLink } from '@/utils/phoneUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -29,61 +29,53 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { utils, writeFile } from 'xlsx';
+import type { Database } from '@/integrations/supabase/types';
 
 // Image compression utility
 const compressImage = async (file: File): Promise<File> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target?.result as string;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
+    const bitmap = await createImageBitmap(file);
+    const MAX_DIMENSION = 800;
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
+    const width = Math.round(bitmap.width * scale);
+    const height = Math.round(bitmap.height * scale);
 
-                const MAX_DIMENSION = 800;
-                if (width > height) {
-                    if (width > MAX_DIMENSION) {
-                        height *= MAX_DIMENSION / width;
-                        width = MAX_DIMENSION;
-                    }
-                } else {
-                    if (height > MAX_DIMENSION) {
-                        width *= MAX_DIMENSION / height;
-                        height = MAX_DIMENSION;
-                    }
-                }
+    try {
+        if ('OffscreenCanvas' in window) {
+            const canvas = new OffscreenCanvas(width, height);
+            const ctx = canvas.getContext('2d');
+            if (!ctx) throw new Error('Image compression failed');
+            ctx.drawImage(bitmap, 0, 0, width, height);
+            const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+            return new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+            });
+        }
 
-                canvas.width = width;
-                canvas.height = height;
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Image compression failed');
+        ctx.drawImage(bitmap, 0, 0, width, height);
 
-                const ctx = canvas.getContext('2d');
-                ctx?.drawImage(img, 0, 0, width, height);
+        const blob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob((result) => {
+                if (result) resolve(result);
+                else reject(new Error('Image compression failed'));
+            }, 'image/jpeg', 0.8);
+        });
 
-                canvas.toBlob(
-                    (blob) => {
-                        if (!blob) {
-                            reject(new Error('Image compression failed'));
-                            return;
-                        }
-                        const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
-                            type: 'image/jpeg',
-                            lastModified: Date.now(),
-                        });
-                        resolve(compressedFile);
-                    },
-                    'image/jpeg',
-                    0.8
-                );
-            };
-            img.onerror = (error) => reject(error);
-        };
-        reader.onerror = (error) => reject(error);
-    });
+        return new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+        });
+    } finally {
+        bitmap.close();
+    }
 };
+
+const MAX_TRAINER_IMAGE_SIZE = 4 * 1024 * 1024;
 
 interface Trainer {
     id: string;
@@ -118,6 +110,75 @@ interface UserProfile {
     full_name: string | null;
     email: string | null;
 }
+
+type TrainerStatsRow = {
+    id: string;
+    name_en: string;
+    name_ar: string;
+    phone: string | null;
+    image_url: string | null;
+    specialization: string | null;
+    committee_id: string | null;
+    user_id: string | null;
+    created_at: string;
+    join_date: string;
+    committee_name: string | null;
+    committee_name_ar: string | null;
+    linked_user_full_name: string | null;
+    linked_user_email: string | null;
+    courses_count: number;
+    completed_courses_count: number;
+    certificates_delivered_count: number;
+    is_active: boolean;
+};
+
+type TrainerInsert = Database['public']['Tables']['trainers']['Insert'];
+type TrainerUpdate = Database['public']['Tables']['trainers']['Update'];
+type ActivitySubmissionUpdate = Database['public']['Tables']['activity_submissions']['Update'];
+
+type TrainerReportBeneficiary = {
+    name: string;
+    phone: string;
+    attendance_percentage?: number | null;
+    certificate_eligible?: boolean | null;
+};
+
+type TrainerReportOrganizer = {
+    name: string | null;
+    phone: string | null;
+};
+
+type TrainerReportCourse = Database['public']['Tables']['courses']['Row'] & {
+    course_beneficiaries?: TrainerReportBeneficiary[] | null;
+    course_organizers?: TrainerReportOrganizer[] | null;
+};
+
+const toTrainer = (row: TrainerStatsRow, isRTL: boolean): Trainer => ({
+    id: row.id,
+    name_en: row.name_en,
+    name_ar: row.name_ar,
+    phone: row.phone,
+    image_url: row.image_url,
+    specialization: row.specialization,
+    committee_id: row.committee_id,
+    user_id: row.user_id,
+    created_at: row.created_at,
+    join_date: row.join_date,
+    committee_name: isRTL
+        ? (row.committee_name_ar || row.committee_name || undefined)
+        : (row.committee_name || undefined),
+    linked_user: row.linked_user_full_name || row.linked_user_email
+        ? {
+            full_name: row.linked_user_full_name,
+            email: row.linked_user_email,
+        }
+        : undefined,
+    courses_count: row.courses_count,
+    completed_courses_count: row.completed_courses_count,
+    certificates_delivered_count: row.certificates_delivered_count,
+    is_active: row.is_active,
+});
+
 export default function TrainerManagement(): JSX.Element {
     const { user, roles, profile, isLoading } = useAuth(); // Add isLoading
     const { isRTL } = useLanguage();
@@ -138,6 +199,14 @@ export default function TrainerManagement(): JSX.Element {
     const [isUploading, setIsUploading] = useState(false);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (previewUrl?.startsWith('blob:')) {
+                URL.revokeObjectURL(previewUrl);
+            }
+        };
+    }, [previewUrl]);
 
     // Users state
     const [availableUsers, setAvailableUsers] = useState<UserProfile[]>([]);
@@ -165,14 +234,7 @@ export default function TrainerManagement(): JSX.Element {
     const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
 
 
-    useEffect(() => {
-        if (isLoading) return; // Wait for auth to load
-        fetchTrainers();
-        fetchCommittees();
-        fetchUsers();
-    }, [isLoading, isRestricted, profile?.committee_id, activeBranch?.id]); // Re-fetch on branch change
-
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         try {
             const { data } = await supabase
                 .from('profiles')
@@ -186,119 +248,29 @@ export default function TrainerManagement(): JSX.Element {
         } catch (error) {
             console.error('Error fetching users:', error);
         }
-    };
-    const fetchTrainers = async () => {
+    }, []);
+
+    const fetchTrainers = useCallback(async () => {
         setLoading(true);
         try {
-            // Try to fetch with committee join first, fallback to simple query if column doesn't exist
-            let data: any[] = [];
-            let fetchError = null;
+            const { data, error } = await supabase.rpc('list_trainers_with_stats', {
+                p_committee_id: isRestricted && profile?.committee_id ? profile.committee_id : null,
+                p_branch_id: canViewAllBranches && activeBranch?.id ? activeBranch.id : null,
+                p_today: new Date().toISOString().split('T')[0],
+            });
 
-            try {
-                // Use explicit any to break the complex type inference chain that causes infinite recursion
-                // Note: user_id relationship might need to be created in DB first, but we handle graceful failure
-                let query: any = supabase
-                    .from('trainers')
-                    .select('*, committee:committees(id, name, name_ar), linked_user:profiles(full_name, email)')
-                    .order('name_ar');
+            if (error) throw error;
 
-                if (isRestricted && profile?.committee_id) {
-                    query = query.eq('committee_id', profile.committee_id);
-                }
-                // Branch scope: admin sees activeBranch; non-admin relies on RLS
-                if (canViewAllBranches && activeBranch?.id) {
-                    query = query.eq('branch_id', activeBranch.id);
-                }
-
-                const result = await query;
-                data = result.data || [];
-                fetchError = result.error;
-            } catch {
-                // If join fails (e.g. migration not applied yet), try with just committee
-                try {
-                    let query: any = supabase
-                        .from('trainers')
-                        .select('*, committee:committees(id, name, name_ar)')
-                        .order('name_ar');
-
-                    const result = await query;
-                    data = result.data || [];
-                    fetchError = result.error;
-                } catch {
-                    // If even that fails, raw select
-                    let query: any = supabase
-                        .from('trainers')
-                        .select('*')
-                        .order('name_ar');
-
-                    const result = await query;
-                    data = result.data || [];
-                }
-            }
-
-            // If there's still an error with the basic query, try simpler (usually this block is redundant if the above catch works, but keeping structure)
-            if (fetchError) {
-                let query: any = supabase
-                    .from('trainers')
-                    .select('*')
-                    .order('name_ar');
-
-                if (isRestricted && profile?.committee_id) {
-                    query = query.eq('committee_id', profile.committee_id);
-                }
-
-                const result = await query;
-                data = result.data || [];
-                if (result.error) throw result.error;
-            }
-
-            const today = new Date().toISOString().split('T')[0];
-
-            // Fetch stats and active status for each trainer
-            const trainersWithStats = await Promise.all(
-                (data || []).map(async (trainer: any) => {
-                    // Get stats
-                    const { data: stats } = await supabase
-                        .rpc('get_trainer_stats', { p_trainer_id: trainer.id });
-
-                    // Check if trainer has active courses (end_date >= today)
-                    const { data: activeCourses } = await supabase
-                        .from('courses')
-                        .select('id')
-                        .eq('trainer_id', trainer.id)
-                        .gte('end_date', today)
-                        .limit(1);
-
-                    // Get completed courses count (end_date < today)
-                    const { count: completedCount } = await supabase
-                        .from('courses')
-                        .select('id', { count: 'exact', head: true })
-                        .eq('trainer_id', trainer.id)
-                        .lt('end_date', today);
-
-                    return {
-                        ...trainer,
-                        committee_name: trainer.committee
-                            ? (isRTL ? trainer.committee.name_ar : trainer.committee.name)
-                            : null,
-                        courses_count: stats?.[0]?.courses_count || 0,
-                        completed_courses_count: completedCount || 0,
-                        certificates_delivered_count: stats?.[0]?.certificates_delivered_count || 0,
-                        is_active: (activeCourses && activeCourses.length > 0)
-                    };
-                })
-            );
-
-            setTrainers(trainersWithStats);
+            setTrainers((data || []).map((row) => toTrainer(row, isRTL)));
         } catch (error) {
             console.error('Error fetching trainers:', error);
             toast.error(isRTL ? 'فشل في تحميل المدربين' : 'Failed to fetch trainers');
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeBranch?.id, canViewAllBranches, isRestricted, isRTL, profile?.committee_id]);
 
-    const fetchCommittees = async () => {
+    const fetchCommittees = useCallback(async () => {
         try {
             const { data, error } = await supabase
                 .from('committees')
@@ -310,7 +282,14 @@ export default function TrainerManagement(): JSX.Element {
         } catch (error) {
             console.error('Error fetching committees:', error);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        if (isLoading) return; // Wait for auth to load
+        fetchTrainers();
+        fetchCommittees();
+        fetchUsers();
+    }, [fetchCommittees, fetchTrainers, fetchUsers, isLoading]); // Re-fetch on branch/auth scope change
 
     const resetForm = () => {
         setFormData({
@@ -359,12 +338,13 @@ export default function TrainerManagement(): JSX.Element {
             return;
         }
 
-        // Create preview
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setPreviewUrl(reader.result as string);
-        };
-        reader.readAsDataURL(file);
+        if (file.size > MAX_TRAINER_IMAGE_SIZE) {
+            toast.error(isRTL ? 'حجم الصورة يجب ألا يتجاوز 4 ميجابايت' : 'Image must be 4 MB or smaller');
+            e.target.value = '';
+            return;
+        }
+
+        setPreviewUrl(URL.createObjectURL(file));
 
         // Compress if needed
         let processedFile = file;
@@ -427,7 +407,7 @@ export default function TrainerManagement(): JSX.Element {
 
             if (editingTrainer) {
                 // Update - try with committee_id first, fallback without it
-                let updateData: any = {
+                const updateData: TrainerUpdate = {
                     name_en: formData.name_en,
                     name_ar: formData.name_ar,
                     phone: formData.phone || null,
@@ -453,9 +433,10 @@ export default function TrainerManagement(): JSX.Element {
                 // Sync the volunteer_id in activity_submissions if it changed
                 const newUserId = formData.user_id === 'none' ? null : formData.user_id;
                 if (newUserId !== editingTrainer.user_id) {
-                    const { error: syncError } = await (supabase as any)
+                    const submissionUpdate: ActivitySubmissionUpdate = { volunteer_id: newUserId };
+                    const { error: syncError } = await supabase
                         .from('activity_submissions')
-                        .update({ volunteer_id: newUserId })
+                        .update(submissionUpdate)
                         .eq('trainer_id', editingTrainer.id)
                         .eq('participant_type', 'trainer');
                         
@@ -467,7 +448,7 @@ export default function TrainerManagement(): JSX.Element {
                 toast.success(isRTL ? 'تم تحديث المدرب بنجاح' : 'Trainer updated successfully');
             } else {
                 // Create - try with committee_id first, fallback without it
-                let insertData: any = {
+                const insertData: TrainerInsert = {
                     name_en: formData.name_en,
                     name_ar: formData.name_ar,
                     phone: formData.phone || null,
@@ -552,6 +533,7 @@ export default function TrainerManagement(): JSX.Element {
     const handleExportTrainer = async (trainer: Trainer) => {
         try {
             toast.info(isRTL ? 'جاري تحضير التقرير...' : 'Preparing report...');
+            const { utils, writeFile } = await import('xlsx');
 
             // Fetch comprehensive course history for this trainer with full beneficiary data
             const { data: courses, error } = await supabase
@@ -622,7 +604,8 @@ export default function TrainerManagement(): JSX.Element {
                 isRTL ? 'منظم 2' : 'Organizer 2'
             ];
 
-            const impactData = (courses || []).map((course: any) => {
+            const reportCourses = (courses || []) as TrainerReportCourse[];
+            const impactData = reportCourses.map((course) => {
                 const beneficiaryCount = course.course_beneficiaries?.length || 0;
                 const hasCert = course.has_certificates ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No');
                 const org1 = course.course_organizers?.[0]?.name || '-';
@@ -666,11 +649,11 @@ export default function TrainerManagement(): JSX.Element {
                 isRTL ? 'التاريخ' : 'Date'
             ];
 
-            const certData: any[][] = [];
-            (courses || []).forEach((course: any) => {
+            const certData: Array<Array<string | number | null>> = [];
+            reportCourses.forEach((course) => {
                 // Show all beneficiaries from courses with certificates
                 if (course.has_certificates) {
-                    (course.course_beneficiaries || []).forEach((b: any) => {
+                    (course.course_beneficiaries || []).forEach((b) => {
                         const attendancePercentage = b.attendance_percentage != null
                             ? `${b.attendance_percentage}%`
                             : (isRTL ? 'غير محسوب' : 'Not calculated');
@@ -725,8 +708,10 @@ export default function TrainerManagement(): JSX.Element {
         }
     };
 
-    const handleExportAllTrainers = (trainers: Trainer[], isRTL: boolean) => {
+    const handleExportAllTrainers = async (trainers: Trainer[], isRTL: boolean) => {
         try {
+            const { utils, writeFile } = await import('xlsx');
+
             const allTrainersData = [
                 // Headers
                 [

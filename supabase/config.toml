@@ -1,4 +1,20 @@
 project_id = "lswyfhvvryckkziearre"
+
+[functions.create-admin]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/create-admin/index.ts"
+
+[functions.create-user]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/create-user/index.ts"
+
+[functions.delete-user]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/delete-user/index.ts"
+
 [functions.update-user-password]
 enabled = true
 verify_jwt = true

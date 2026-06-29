@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -168,11 +167,12 @@ export default function MyEvents() {
         setEventSpeakers((data as Speaker[]) || []);
     };
 
-    const handleExportBeneficiaries = () => {
+    const handleExportBeneficiaries = async () => {
         if (!selectedEvent || beneficiaries.length === 0) {
             toast.error(isRTL ? 'لا توجد بيانات' : 'No data to export');
             return;
         }
+        const XLSX = await import('xlsx');
         const rows = beneficiaries.map(b => ({
             [isRTL ? 'الاسم' : 'Name']: b.name,
             [isRTL ? 'الهاتف' : 'Phone']: b.phone || ''

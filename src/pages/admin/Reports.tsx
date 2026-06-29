@@ -29,8 +29,7 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { utils, writeFile } from 'xlsx';
-import ExcelJS from 'exceljs';
+import type ExcelJSTypes from 'exceljs';
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear, getDaysInMonth } from 'date-fns';
 import { normalizePhoneE164 } from '@/utils/phoneUtils';
 
@@ -172,6 +171,8 @@ async function downloadAttendanceMatrix(
     cOff += monthDaysCounts[m];
   }
 
+  const { default: ExcelJS } = await import('exceljs');
+
   // ── Create workbook & RTL worksheet ───────────────────────────────────────
   const wb = new ExcelJS.Workbook();
   wb.creator = 'RTC';
@@ -190,9 +191,9 @@ async function downloadAttendanceMatrix(
   }
 
   // ── Border helper ─────────────────────────────────────────────────────────
-  const thin:  ExcelJS.Border = { style: 'thin',  color: { argb: 'FF000000' } };
-  const thick: ExcelJS.Border = { style: 'thick', color: { argb: 'FF000000' } };
-  const getBorder = (col: number): Partial<ExcelJS.Borders> => ({
+  const thin:  ExcelJSTypes.Border = { style: 'thin',  color: { argb: 'FF000000' } };
+  const thick: ExcelJSTypes.Border = { style: 'thick', color: { argb: 'FF000000' } };
+  const getBorder = (col: number): Partial<ExcelJSTypes.Borders> => ({
     top:    thin,
     bottom: thin,
     left:   monthFirstCols.has(col) ? thick : thin,
@@ -665,7 +666,7 @@ export default function Reports() {
     toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
   };
 
-  const handleExport = (type: string) => {
+  const handleExport = async (type: string) => {
     switch (type) {
       case 'volunteers': {
         const volunteersData = profiles.map(p => {
@@ -893,6 +894,7 @@ export default function Reports() {
           });
 
         try {
+          const { utils, writeFile } = await import('xlsx');
           const wb = utils.book_new();
 
           const allWs = utils.json_to_sheet(allReportData);
@@ -1538,7 +1540,7 @@ export default function Reports() {
                               {monthSubmissions.length} {language === 'ar' ? 'مشاركة' : 'submissions'}
                             </p>
                           </div>
-                          <Button variant="outline" size="sm" onClick={() => {
+                          <Button variant="outline" size="sm" onClick={async () => {
                             toast.info(language === 'ar' ? 'جاري تحضير التقرير...' : 'Preparing report...');
 
                             const allReportData = monthSubmissions.map(s => {
@@ -1713,6 +1715,7 @@ export default function Reports() {
                               });
 
                             try {
+                              const { utils, writeFile } = await import('xlsx');
                               const wb = utils.book_new();
 
                               const wsAll = utils.json_to_sheet(allReportData);

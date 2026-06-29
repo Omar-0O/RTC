@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { subscribeToAllTables, subscribeToTable, onTableChange } from '@/lib/realtime';
-import { detectConflict, type ConflictInfo } from '@/lib/conflictResolver';
+import { detectConflict, type ConflictInfo, type ConflictRecord } from '@/lib/conflictResolver';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { queryKeys } from '@/lib/queryKeys';
 
@@ -41,6 +41,11 @@ const TABLE_QUERY_MAP: Record<TableName, readonly unknown[]> = {
   activity_submissions: queryKeys.activities.all,
 };
 
+type EditableRecord = ConflictRecord & {
+  id: string;
+  version?: number;
+};
+
 // ─── Hook ───────────────────────────────────────────────────────────
 
 export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
@@ -54,7 +59,7 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
   } | null>(null);
 
   // Track which records the user is currently editing (for conflict detection)
-  const editingRecordsRef = useRef<Map<string, { version: number; data: any }>>(new Map());
+  const editingRecordsRef = useRef<Map<string, { version: number; data: ConflictRecord }>>(new Map());
 
   // ─── Start/stop subscriptions ───────────────────────────────────
   useEffect(() => {
@@ -86,7 +91,7 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
     const targetTables = tables ?? (['profiles', 'users_followup', 'quran_circles', 'activity_submissions'] as TableName[]);
 
     const unsubs = targetTables.map(table =>
-      onTableChange(table, (payload: RealtimePostgresChangesPayload<any>) => {
+      onTableChange(table, (payload: RealtimePostgresChangesPayload<EditableRecord>) => {
         if (payload.eventType !== 'UPDATE') return;
 
         const newRecord = payload.new;
@@ -126,7 +131,7 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
   }, [enabled, onConflict, tables?.join(',')]);
 
   // ─── API for marking records as "being edited" ─────────────────
-  const markEditing = useCallback((table: TableName, recordId: string, version: number, data: any) => {
+  const markEditing = useCallback((table: TableName, recordId: string, version: number, data: ConflictRecord) => {
     editingRecordsRef.current.set(`${table}:${recordId}`, { version, data });
   }, []);
 

@@ -8,6 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { unwrap } from './api';
 import type { UserRole } from '@/types';
 import type { Branch } from '@/contexts/BranchContext';
+import type { Database } from '@/integrations/supabase/types';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -90,6 +91,16 @@ export interface UpdateUserPayload {
 // ─── Helpers ────────────────────────────────────────────────────────
 
 type AppRole = UserRole;
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
+type LegacyProfileRow = ProfileRow & { role?: string | null };
+type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
+type ActivitySubmissionRow = Database['public']['Tables']['activity_submissions']['Row'];
+type CommitteeRow = Database['public']['Tables']['committees']['Row'];
+type UserRoleRow = Database['public']['Tables']['user_roles']['Row'];
+type UserRoleInsert = Database['public']['Tables']['user_roles']['Insert'];
+type CreateUserResponse = { user?: { id: string }; error?: string };
+type UpdatePasswordResponse = { error?: string };
+type DeleteUserAccountResponse = { error?: string } | null;
 
 const getPrimaryRole = (roles: AppRole[]): AppRole => {
   if (roles.includes('admin')) return 'admin';
@@ -135,14 +146,16 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
   ]);
 
   if (profilesRes.error) throw profilesRes.error;
+  if (rolesRes.error) throw rolesRes.error;
+  if (committeesRes.error) throw committeesRes.error;
 
-  const profilesData = profilesRes.data || [];
-  const rolesData = rolesRes.data || [];
-  const committeesData = committeesRes.data || [];
+  const profilesData = (profilesRes.data ?? []) as LegacyProfileRow[];
+  const rolesData = (rolesRes.data ?? []) as Pick<UserRoleRow, 'user_id' | 'role'>[];
+  const committeesData = (committeesRes.data ?? []) as Pick<CommitteeRow, 'id' | 'name' | 'name_ar'>[];
   const totalCount = profilesRes.count ?? 0;
 
   // 3. Participation counts — scoped to current page only
-  const userIds = profilesData.map((p: any) => p.id);
+  const userIds = profilesData.map(profile => profile.id);
   const participationMap = new Map<string, number>();
 
   if (userIds.length > 0) {
@@ -152,32 +165,36 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
       .in('volunteer_id', userIds)
       .neq('status', 'rejected');
 
-    (actData || []).forEach((a: any) => {
-      if (a.volunteer_id) {
-        participationMap.set(a.volunteer_id, (participationMap.get(a.volunteer_id) || 0) + 1);
+    const submissions = (actData ?? []) as Pick<ActivitySubmissionRow, 'volunteer_id' | 'status'>[];
+    submissions.forEach(submission => {
+      if (submission.volunteer_id) {
+        participationMap.set(
+          submission.volunteer_id,
+          (participationMap.get(submission.volunteer_id) || 0) + 1
+        );
       }
     });
   }
 
   // 4. Lookup maps
   const rolesMap = new Map<string, AppRole[]>();
-  rolesData.forEach((r: any) => {
-    if (r.user_id) {
-      const cur = rolesMap.get(r.user_id) || [];
-      cur.push(r.role as AppRole);
-      rolesMap.set(r.user_id, cur);
+  rolesData.forEach(roleRow => {
+    if (roleRow.user_id) {
+      const currentRoles = rolesMap.get(roleRow.user_id) || [];
+      currentRoles.push(roleRow.role as AppRole);
+      rolesMap.set(roleRow.user_id, currentRoles);
     }
   });
 
   const committeesMap = new Map(
-    committeesData.map((c: any) => [c.id, language === 'ar' ? c.name_ar : c.name])
+    committeesData.map(committee => [committee.id, language === 'ar' ? committee.name_ar : committee.name])
   );
   const branchesMap = new Map(
     branches.map(b => [b.id, language === 'ar' ? b.name_ar : b.name])
   );
 
   // 5. Transform
-  const users: UserWithDetails[] = profilesData.map((profile: any) => {
+  const users: UserWithDetails[] = profilesData.map(profile => {
     const userRoles = rolesMap.get(profile.id) || [];
     if (profile.role) {
       const normalized = profile.role.toLowerCase().trim().replace(/ /g, '_') as AppRole;
@@ -217,7 +234,7 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
 // ─── Mutations ──────────────────────────────────────────────────────
 
 export async function createUser(payload: CreateUserPayload): Promise<{ userId: string }> {
-  const { data, error } = await supabase.functions.invoke('create-user', {
+  const { data, error } = await supabase.functions.invoke<CreateUserResponse>('create-user', {
     body: {
       email: payload.email,
       password: payload.password,
@@ -248,7 +265,7 @@ export async function createUser(payload: CreateUserPayload): Promise<{ userId: 
     }
   }
 
-  const updates: Record<string, any> = {};
+  const updates: ProfileUpdate = {};
   if (payload.level === 'under_follow_up') updates.attended_mini_camp = payload.attendedMiniCamp;
   if (payload.level === 'project_responsible') updates.attended_camp = payload.attendedCamp;
   if (payload.isAshbal) updates.is_ashbal = true;
@@ -256,7 +273,7 @@ export async function createUser(payload: CreateUserPayload): Promise<{ userId: 
   if (payload.branchId) updates.branch_id = payload.branchId;
 
   if (Object.keys(updates).length > 0) {
-    updates.level = payload.level;
+    updates.level = payload.level as ProfileRow['level'];
     await supabase.from('profiles').update(updates).eq('id', userId);
   }
 
@@ -273,7 +290,7 @@ export async function updateUser(payload: UpdateUserPayload): Promise<void> {
       phone: payload.phone || null,
       committee_id: payload.committeeId || null,
       branch_id: payload.branchId || null,
-      level: payload.level as any,
+      level: payload.level as ProfileRow['level'],
       attended_mini_camp: payload.level === 'under_follow_up' ? payload.attendedMiniCamp : null,
       attended_camp: payload.level === 'project_responsible' ? payload.attendedCamp : null,
       is_ashbal: payload.isAshbal,
@@ -303,13 +320,14 @@ export async function updateUser(payload: UpdateUserPayload): Promise<void> {
   if (payload.role !== payload.previousRole) {
     await supabase.from('user_roles').delete().eq('user_id', payload.userId);
     if (payload.role !== 'volunteer') {
-      await supabase.from('user_roles').insert({ user_id: payload.userId, role: payload.role } as any);
+      const rolePayload: UserRoleInsert = { user_id: payload.userId, role: payload.role };
+      await supabase.from('user_roles').insert(rolePayload);
     }
   }
 
   if (payload.password?.trim()) {
     if (payload.password.length < 6) throw new Error('Password must be at least 6 characters');
-    const { data: pwData, error: pwError } = await supabase.functions.invoke('update-user-password', {
+    const { data: pwData, error: pwError } = await supabase.functions.invoke<UpdatePasswordResponse>('update-user-password', {
       body: { userId: payload.userId, newPassword: payload.password.trim() },
     });
     if (pwError) throw pwError;
@@ -322,13 +340,14 @@ export async function deleteUser(userId: string): Promise<void> {
     target_user_id: userId,
   });
   if (error) throw error;
-  if ((data as { error?: string })?.error) throw new Error((data as { error: string }).error);
+  const rpcResult = data as DeleteUserAccountResponse;
+  if (rpcResult?.error) throw new Error(rpcResult.error);
 }
 
 export async function toggleUserActive(userId: string, isActive: boolean): Promise<void> {
   const { error } = await supabase
     .from('profiles')
-    .update({ is_active: isActive } as any)
+    .update({ is_active: isActive })
     .eq('id', userId);
   if (error) throw error;
 }
@@ -338,7 +357,7 @@ export async function updateUserRole(userId: string, newRole: string): Promise<v
   if (newRole !== 'volunteer') {
     const { error } = await supabase
       .from('user_roles')
-      .insert({ user_id: userId, role: newRole } as any);
+      .insert({ user_id: userId, role: newRole as UserRole });
     if (error) throw error;
   }
 }

@@ -1,81 +1,67 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+/// <reference lib="deno.ns" />
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+import {
+  assertGlobalAdmin,
+  assertJsonRequest,
+  corsHeaders,
+  createAdminClient,
+  getErrorMessage,
+  getErrorStatus,
+  getRequesterContext,
+  json,
+} from '../_shared/authz.ts'
+
+interface CreateAdminBody {
+  email: string
+  password: string
+  fullName: string
 }
 
-serve(async (req) => {
-  // Handle CORS preflight requests
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { email, password, fullName } = await req.json()
+    assertJsonRequest(req)
 
-    // Create admin client with service role key
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
+    const { email, password, fullName } = await req.json() as CreateAdminBody
+    if (!email?.trim() || !password || !fullName?.trim()) {
+      return json({ error: 'email, password, and fullName are required', success: false }, 400)
+    }
 
-    // Create the user
+    const supabaseAdmin = createAdminClient()
+    const requester = await getRequesterContext(req, supabaseAdmin)
+    assertGlobalAdmin(requester)
+
     const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: email.trim(),
       password,
       email_confirm: true,
       user_metadata: {
-        full_name: fullName
-      }
+        full_name: fullName.trim(),
+      },
     })
 
-    if (createError) {
-      throw createError
-    }
+    if (createError) throw createError
 
-    // Update the role to admin
     const { error: roleError } = await supabaseAdmin
       .from('user_roles')
-      .update({ role: 'admin' })
-      .eq('user_id', userData.user.id)
+      .upsert({ user_id: userData.user.id, role: 'admin' }, { onConflict: 'user_id' })
 
-    if (roleError) {
-      // If update fails, try insert
-      await supabaseAdmin
-        .from('user_roles')
-        .insert({ user_id: userData.user.id, role: 'admin' })
-    }
+    if (roleError) throw roleError
 
-    // Update profile with full name
-    await supabaseAdmin
+    const { error: profileError } = await supabaseAdmin
       .from('profiles')
-      .update({ full_name: fullName, full_name_ar: fullName })
+      .update({ full_name: fullName.trim(), full_name_ar: fullName.trim() })
       .eq('id', userData.user.id)
 
-    return new Response(
-      JSON.stringify({ success: true, user: userData.user }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200 
-      }
-    )
+    if (profileError) throw profileError
 
+    return json({ success: true, user: userData.user })
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400 
-      }
-    )
+    const errorMessage = getErrorMessage(error)
+    console.error('Error in create-admin:', errorMessage)
+    return json({ error: errorMessage, success: false }, getErrorStatus(error))
   }
 })

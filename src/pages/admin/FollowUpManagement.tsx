@@ -29,33 +29,36 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import * as XLSX from 'xlsx';
 import { normalizePhoneE164, phonesAreEqual } from '@/utils/phoneUtils';
-
-interface FollowUpUser {
-  id: number;
-  full_name: string;
-  /** Normalized E.164 value stored in DB */
-  phone_1: string;
-  /** Normalized E.164 value stored in DB */
-  phone_2: string | null;
-  branch: string | null;
-  branch_id: string | null;
-  created_at: string;
-  status: string;
-  linked_to: number | null;
-}
+import {
+  addFollowUp,
+  approveFollowUp,
+  editFollowUp,
+  findFollowUpConflicts,
+  getFollowUpUsers,
+  getParticipations,
+  importReplace,
+  linkToAnother,
+  rejectFollowUp,
+  syncFollowUp,
+  type FollowUpConflictMatch,
+  type FollowUpUser,
+  type ImportFollowUpRecord,
+  type ParticipationItem,
+} from '@/services/followup.service';
 
 interface ConflictRecord {
-  excelRow: any;
-  possibleMatches: any[];
+  excelRow: ImportFollowUpRecord;
+  possibleMatches: FollowUpConflictMatch[];
   selectedMatchId?: number | 'skip' | 'new';
 }
+
+type ExcelCell = string | number | boolean | null | undefined;
+type ExcelRow = ExcelCell[];
 
 
 // ---------------------------------------------------------------------------
@@ -101,7 +104,7 @@ export default function FollowUpManagement() {
 
   // Import Confirmation State
   const [isImportConfirmOpen, setIsImportConfirmOpen] = useState(false);
-  const [pendingImportRecords, setPendingImportRecords] = useState<any[]>([]);
+  const [pendingImportRecords, setPendingImportRecords] = useState<ImportFollowUpRecord[]>([]);
 
 
 
@@ -111,7 +114,7 @@ export default function FollowUpManagement() {
   // Participations viewer
   const [isParticipationsOpen, setIsParticipationsOpen] = useState(false);
   const [participationsUser, setParticipationsUser] = useState<FollowUpUser | null>(null);
-  const [participationsList, setParticipationsList] = useState<any[]>([]);
+  const [participationsList, setParticipationsList] = useState<ParticipationItem[]>([]);
   const [isLoadingParticipations, setIsLoadingParticipations] = useState(false);
 
   // Conflict Resolution
@@ -124,90 +127,7 @@ export default function FollowUpManagement() {
     setIsParticipationsOpen(true);
     setIsLoadingParticipations(true);
     try {
-      // Collect own phones
-      const ownPhones = [user.phone_1, user.phone_2].filter(Boolean).map(p => normalizePhone(p!));
-
-      // Also collect phones from any alias entries (users whose linked_to = this user's id)
-      const { data: aliasEntries } = await (supabase as any)
-        .from('users_followup')
-        .select('phone_1, phone_2, full_name')
-        .eq('linked_to', user.id);
-
-      const aliasPhones: string[] = [];
-      if (aliasEntries) {
-        aliasEntries.forEach((a: any) => {
-          if (a.phone_1) aliasPhones.push(normalizePhone(a.phone_1));
-          if (a.phone_2) aliasPhones.push(normalizePhone(a.phone_2));
-        });
-      }
-
-      const phones = [...new Set([...ownPhones, ...aliasPhones])].filter(Boolean);
-
-      const [submissionsRes, profileRes] = await Promise.all([
-        phones.length > 0
-          ? (() => {
-              // Generate search variants for each phone to catch all storage formats.
-              // e.g. +201005784855 → also search 201005784855 and 01005784855
-              const variants = new Set<string>();
-              phones.forEach(p => {
-                variants.add(p); // full normalized: +201...
-                if (p.startsWith('+')) variants.add(p.slice(1));         // 201...
-                if (p.startsWith('+20')) variants.add('0' + p.slice(3)); // 01...
-                if (p.startsWith('201')) variants.add('0' + p.slice(2)); // 01...
-              });
-              const orFilter = [...variants].map(v => `guest_phone.eq.${v}`).join(',');
-              return (supabase as any)
-                .from('activity_submissions')
-                .select('id, date, submitted_at, created_at, activity_types(name, name_ar)')
-                .or(orFilter)
-                .order('date', { ascending: false, nullsLast: true })
-                .limit(200);
-            })()
-          : Promise.resolve({ data: [] }),
-        phones.length > 0
-          ? (() => {
-              // Generate search variants for profiles too
-              const profileVariants = new Set<string>();
-              phones.forEach(p => {
-                profileVariants.add(p);
-                if (p.startsWith('+')) profileVariants.add(p.slice(1));
-                if (p.startsWith('+20')) profileVariants.add('0' + p.slice(3));
-              });
-              return (supabase as any)
-                .from('profiles')
-                .select('id, full_name, phone')
-                .in('phone', [...profileVariants])
-                .limit(1);
-            })()
-          : Promise.resolve({ data: [] }),
-      ]);
-
-      let items: any[] = submissionsRes.data || [];
-
-      // If we found a volunteer profile, also get their submissions by volunteer_id
-      if (profileRes.data && profileRes.data.length > 0) {
-        const volunteerId = profileRes.data[0].id;
-        const { data: volunteerSubmissions } = await (supabase as any)
-          .from('activity_submissions')
-          .select('id, date, submitted_at, created_at, activity_types(name, name_ar)')
-          .eq('volunteer_id', volunteerId)
-          .order('date', { ascending: false, nullsLast: true })
-          .limit(100);
-        if (volunteerSubmissions) {
-          const existingIds = new Set(items.map((i: any) => i.id));
-          volunteerSubmissions.forEach((s: any) => {
-            if (!existingIds.has(s.id)) items.push(s);
-          });
-        }
-      }
-
-      // Sort by actual session date (most recent first)
-      items.sort((a: any, b: any) => {
-        const dateA = new Date(a.date || a.submitted_at || a.created_at).getTime();
-        const dateB = new Date(b.date || b.submitted_at || b.created_at).getTime();
-        return dateB - dateA;
-      });
-      setParticipationsList(items);
+      setParticipationsList(await getParticipations(user));
     } catch (err) {
       console.error(err);
     } finally {
@@ -228,91 +148,10 @@ export default function FollowUpManagement() {
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      let allData: FollowUpUser[] = [];
-
-      // ── Approved records: always scoped to the active branch ──
-      const approvedQuery = () => {
-        let q = (supabase as any)
-          .from('users_followup')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'approved');
-        if (activeBranch?.id) {
-          if (canViewAllBranches) {
-            q = q.or(`branch_id.eq.${activeBranch.id},branch_id.is.null`);
-          } else {
-            q = q.eq('branch_id', activeBranch.id);
-          }
-        }
-        return q;
-      };
-
-      const { count: approvedCount, error: countError1 } = await approvedQuery();
-      if (countError1) throw countError1;
-
-      const pageSize = 1000;
-      const approvedPromises = [];
-      for (let from = 0; from < (approvedCount ?? 0); from += pageSize) {
-        const to = Math.min(from + pageSize - 1, (approvedCount ?? 0) - 1);
-        let q = (supabase as any)
-          .from('users_followup')
-          .select('*')
-          .eq('status', 'approved')
-          .order('id', { ascending: true })
-          .range(from, to);
-        if (activeBranch?.id) {
-          if (canViewAllBranches) {
-            q = q.or(`branch_id.eq.${activeBranch.id},branch_id.is.null`);
-          } else {
-            q = q.eq('branch_id', activeBranch.id);
-          }
-        }
-        approvedPromises.push(q);
-      }
-
-      // ── Pending records: ALSO branch-scoped to prevent cross-branch data leak ──
-      const pendingQuery = () => {
-        let q = (supabase as any)
-          .from('users_followup')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'pending');
-        if (activeBranch?.id) {
-          if (canViewAllBranches) {
-            q = q.or(`branch_id.eq.${activeBranch.id},branch_id.is.null`);
-          } else {
-            q = q.eq('branch_id', activeBranch.id);
-          }
-        }
-        return q;
-      };
-      const { count: pendingCount, error: countError2 } = await pendingQuery();
-      if (countError2) throw countError2;
-
-      const pendingPromises = [];
-      for (let from = 0; from < (pendingCount ?? 0); from += pageSize) {
-        const to = Math.min(from + pageSize - 1, (pendingCount ?? 0) - 1);
-        let pq = (supabase as any)
-            .from('users_followup')
-            .select('*')
-            .eq('status', 'pending')
-            .order('id', { ascending: true })
-            .range(from, to);
-        if (activeBranch?.id) {
-          if (canViewAllBranches) {
-            pq = pq.or(`branch_id.eq.${activeBranch.id},branch_id.is.null`);
-          } else {
-            pq = pq.eq('branch_id', activeBranch.id);
-          }
-        }
-        pendingPromises.push(pq);
-      }
-
-      const results = await Promise.all([...approvedPromises, ...pendingPromises]);
-      for (const res of results) {
-        if (res.error) throw res.error;
-        if (res.data) allData = allData.concat(res.data as FollowUpUser[]);
-      }
-
-      setUsers(allData);
+      setUsers(await getFollowUpUsers({
+        branchId: activeBranch?.id,
+        canViewAllBranches,
+      }));
     } catch (err) {
       toast.error(ar('فشل في تحميل البيانات', 'Failed to load data'));
     } finally {
@@ -328,269 +167,20 @@ export default function FollowUpManagement() {
   const handleSyncAndRefresh = async () => {
     setIsLoading(true);
     try {
-      // 1. Fetch Follow-up Users normal refresh
+      const result = await syncFollowUp({
+        canViewAllBranches,
+        branchId: activeBranch?.id,
+        branches,
+      });
+
       await fetchUsers();
 
-      // 2. Fetch submissions with only the columns needed for sync
-      // Sync only needs phone/name/branch info — not full records
-      // NOTE: This query intentionally fetches ALL statuses/branches because we need
-      //       to detect new participants across the entire system.
-      let submissions: any[] = [];
-      const subBatchSize = 1000;
-      let hasMoreSubmissions = true;
-      let subOffset = 0;
-
-      while (hasMoreSubmissions) {
-        let subQuery = (supabase as any)
-          .from('activity_submissions')
-          .select('id, guest_name, guest_phone, volunteer_id, trainer_id, branch_id, location')
-          .range(subOffset, subOffset + subBatchSize - 1);
-
-        // Filter submissions by branch if selected
-        if (activeBranch?.id) {
-          subQuery = subQuery.eq('branch_id', activeBranch.id);
-        }
-
-        const { data: batch, error: subError } = await subQuery;
-
-        if (subError) throw subError;
-        if (!batch || batch.length === 0) {
-          hasMoreSubmissions = false;
-        } else {
-          submissions = [...submissions, ...batch];
-          subOffset += subBatchSize;
-          if (batch.length < subBatchSize) hasMoreSubmissions = false;
-        }
-      }
-
-      const { data: trainers } = await (supabase as any).from('trainers').select('id, user_id, name_en, name_ar, phone');
-      const { data: profiles } = await (supabase as any).from('profiles').select('id, full_name, full_name_ar, phone');
-
-      if (submissions.length === 0) return;
-
-      const profilesMap = new Map();
-      profiles?.forEach((p: any) => profilesMap.set(p.id, p));
-
-      // Fetch all existing phones directly from the database to avoid branch filtering and closure issues
-      // Use pagination to ensure we get all records beyond the 1000 limit
-      let allExistingUsers: any[] = [];
-      const userBatchSize = 1000;
-      let hasMoreUsers = true;
-      let userOffset = 0;
-
-      while (hasMoreUsers) {
-        const { data: batch, error: existError } = await (supabase as any)
-          .from('users_followup')
-          .select('id, phone_1, phone_2, full_name, status')
-          .range(userOffset, userOffset + userBatchSize - 1);
-
-        if (existError) throw existError;
-        if (!batch || batch.length === 0) {
-          hasMoreUsers = false;
-        } else {
-          allExistingUsers = [...allExistingUsers, ...batch];
-          userOffset += userBatchSize;
-          if (batch.length < userBatchSize) hasMoreUsers = false;
-        }
-      }
-
-      // Build a set of ALL phones that already exist in any status (approved, pending, duplicate, rejected).
-      // This is the critical fix: we must NOT re-insert a person who already exists in ANY form.
-      const phoneToExistingUser = new Map<string, string>();
-      const approvedPhones = new Set<string>();
-      const pendingOrDuplicateToClean: any[] = [];
-
-      allExistingUsers?.forEach((u: any) => {
-        const p1 = normalizePhone(u.phone_1);
-        const p2 = normalizePhone(u.phone_2);
-
-        // Track ALL phones regardless of status so we never re-insert them
-        if (p1) phoneToExistingUser.set(p1, u.full_name);
-        if (p2) phoneToExistingUser.set(p2, u.full_name);
-
-        if (u.status === 'approved') {
-          if (p1) approvedPhones.add(p1);
-          if (p2) approvedPhones.add(p2);
-        } else if (u.status === 'pending' || u.status === 'duplicate') {
-          // Collect pending & duplicate records so we can clean them up if they match an approved phone
-          pendingOrDuplicateToClean.push(u);
-        }
-      });
-
-      // Build map: normalized phone → approved user ID (for linked_to assignment)
-      const approvedPhoneToId = new Map<string, number>();
-      allExistingUsers?.forEach((u: any) => {
-        if (u.status === 'approved') {
-          const p1 = normalizePhone(u.phone_1);
-          const p2 = normalizePhone(u.phone_2);
-          if (p1) approvedPhoneToId.set(p1, u.id);
-          if (p2) approvedPhoneToId.set(p2, u.id);
-        }
-      });
-
-      // Cleanup: auto-reject pending/duplicate rows whose phone already exists as approved
-      // Also set linked_to → approved record so their participations show under the right person
-      const duplicatesToClear = pendingOrDuplicateToClean.filter(p => {
-        const p1 = normalizePhone(p.phone_1);
-        const p2 = normalizePhone(p.phone_2);
-        return (p1 && approvedPhones.has(p1)) || (p2 && approvedPhones.has(p2));
-      });
-
-      if (duplicatesToClear.length > 0) {
-        // Update each record individually to set its specific linked_to value
-        await Promise.all(
-          duplicatesToClear.map(d => {
-            const p1 = normalizePhone(d.phone_1);
-            const p2 = normalizePhone(d.phone_2);
-            const linkedToId = (p1 && approvedPhoneToId.get(p1)) || (p2 && approvedPhoneToId.get(p2)) || null;
-            return (supabase as any)
-              .from('users_followup')
-              .update({
-                status: 'rejected',
-                ...(linkedToId && !d.linked_to ? { linked_to: linkedToId } : {}),
-              })
-              .eq('id', d.id)
-              .in('status', ['pending', 'duplicate']); // SAFETY: never touch approved
-          })
-        );
-        console.log(`[Sync] Automatically cleaned up ${duplicatesToClear.length} duplicates/pending, linked them to approved records.`);
-        toast.info(ar(`تم تنظيف ${duplicatesToClear.length} طلبات مكررة تلقائياً!`, `Automatically cleaned up ${duplicatesToClear.length} duplicate requests!`));
-      }
-
-      console.log(`[Sync] Fetched ${allExistingUsers.length} existing users. Map size: ${phoneToExistingUser.size}`);
-      console.log(`[Sync] Fetched ${submissions.length} submissions.`);
-
-      const newUsersToInsert: any[] = [];
-
-      submissions.forEach((s: any) => {
-        let participantName = '';
-        const phones: string[] = [];
-
-        if (s.guest_name || s.guest_phone) {
-          participantName = s.guest_name || '';
-          if (s.guest_phone) phones.push(s.guest_phone);
-        }
-
-        if (s.volunteer_id) {
-          const p = profilesMap.get(s.volunteer_id);
-          if (p) {
-            if (!participantName) participantName = p.full_name_ar || p.full_name || '';
-            if (p.phone) phones.push(p.phone);
-          }
-        }
-
-        if (s.trainer_id) {
-          const tr = trainers?.find((t: any) => t.id === s.trainer_id);
-          if (tr) {
-            if (!participantName) participantName = tr.name_ar || tr.name_en;
-            if (tr.phone) phones.push(tr.phone);
-          }
-        } else if (s.volunteer_id) {
-          const tr = trainers?.find((t: any) => t.user_id === s.volunteer_id);
-          if (tr) {
-            if (!participantName) participantName = tr.name_ar || tr.name_en;
-            if (tr.phone) phones.push(tr.phone);
-          }
-        }
-
-        if (!participantName) participantName = ar('غير معروف', 'Unknown');
-
-        const cleanPhones = phones.map(p => normalizePhone(p)).filter(p => p.length > 0);
-
-        let found = false;
-        let foundBy: string | null = null;
-        for (const p of cleanPhones) {
-          if (phoneToExistingUser.has(p)) {
-            found = true;
-            foundBy = p;
-            break;
-          }
-        }
-
-        if (!found && cleanPhones.length > 0) {
-          const primaryPhone = cleanPhones[0];
-          phoneToExistingUser.set(primaryPhone, participantName);
-          console.log(`[Sync] Found NEW participant: ${participantName} (${primaryPhone})`);
-
-          // Try to resolve branch_id from the submission
-          let resolvedBranchId: string | null = s.branch_id || null;
-
-          // If no branch_id on submission, try to match via location string (code or name)
-          if (!resolvedBranchId && s.location) {
-            const loc = String(s.location).toLowerCase().trim();
-            const bMatch = branches.find(b =>
-              (b.code && b.code.toLowerCase() === loc) ||
-              b.name.toLowerCase() === loc ||
-              b.name_ar === s.location
-            );
-            if (bMatch) resolvedBranchId = bMatch.id;
-          }
-
-          // If still null, fallback to the currently active branch in the UI
-          if (!resolvedBranchId && activeBranch?.id) {
-            resolvedBranchId = activeBranch.id;
-          }
-
-          newUsersToInsert.push({
-            full_name: participantName,
-            phone_1: primaryPhone,
-            phone_2: cleanPhones[1] || null,
-            branch_id: resolvedBranchId,
-            status: 'pending'
-          });
-        }
-      });
-
-      // Always refresh after cleanup (even if 0 new inserts) so rejected duplicates disappear
-      const needsRefresh = duplicatesToClear.length > 0;
-
-      if (newUsersToInsert.length > 0) {
-        // -----------------------------------------------------------------------
-        // CRITICAL: Do a final DB-level check right before inserting.
-        // The in-memory map can miss cases where branch_id is NULL because
-        // PostgreSQL unique constraints treat NULL as distinct (NULL ≠ NULL),
-        // so the upsert onConflict clause silently fails for null-branch rows.
-        // Querying the DB directly is the only 100% reliable dedup mechanism.
-        // -----------------------------------------------------------------------
-        const phonesToCheck = [...new Set(
-          newUsersToInsert.map(u => u.phone_1).filter(Boolean) as string[]
-        )];
-
-        // Chunk into groups of 100 to stay within Supabase's query limits
-        const CHUNK = 100;
-        const alreadyExistingPhones = new Set<string>();
-        for (let i = 0; i < phonesToCheck.length; i += CHUNK) {
-          const chunk = phonesToCheck.slice(i, i + CHUNK);
-          const { data: existingRows } = await (supabase as any)
-            .from('users_followup')
-            .select('phone_1')
-            .in('phone_1', chunk);
-          (existingRows || []).forEach((r: any) => {
-            if (r.phone_1) alreadyExistingPhones.add(r.phone_1);
-          });
-        }
-
-        // Filter to only phones that truly don't exist in the DB at all
-        const trulyNew = newUsersToInsert.filter(u => u.phone_1 && !alreadyExistingPhones.has(u.phone_1));
-
-        console.log(`[Sync] Pre-check: ${newUsersToInsert.length} candidates → ${trulyNew.length} truly new (${newUsersToInsert.length - trulyNew.length} already in DB)`);
-
-        if (trulyNew.length > 0) {
-          const { error } = await (supabase as any).from('users_followup').insert(trulyNew);
-          if (error) throw error;
-          toast.success(ar(
-            `تم العثور على ${trulyNew.length} مشارك جديد وإضافتهم لطلبات الإضافة!`,
-            `Found and added ${trulyNew.length} new participants to pending!`
-          ));
-          await fetchUsers();
-        } else if (needsRefresh) {
-          await fetchUsers();
-          toast.success(ar('تم تنظيف السجلات المكررة بنجاح!', 'Duplicate records cleaned up successfully!'));
-        } else {
-          toast.info(ar('البيانات محدثة بالفعل، لا يوجد مشاركين جدد.', 'Data is up to date, no new participants.'));
-        }
-      } else if (needsRefresh) {
-        await fetchUsers();
+      if (result.newCount > 0) {
+        toast.success(ar(
+          `تم العثور على ${result.newCount} مشارك جديد وإضافتهم لطلبات الإضافة!`,
+          `Found and added ${result.newCount} new participants to pending!`
+        ));
+      } else if (result.cleanedCount > 0) {
         toast.success(ar('تم تنظيف السجلات المكررة بنجاح!', 'Duplicate records cleaned up successfully!'));
       } else {
         toast.info(ar('البيانات محدثة بالفعل، لا يوجد مشاركين جدد.', 'Data is up to date, no new participants.'));
@@ -687,55 +277,20 @@ export default function FollowUpManagement() {
       return;
     }
 
-    const normPhone1 = normalizePhoneE164(formPhone1);
-    const normPhone2 = formPhone2.trim() ? normalizePhoneE164(formPhone2) : null;
-
-    // Guard: phone_1 and phone_2 must not be the same number
-    if (normPhone2 && phonesAreEqual(normPhone1, normPhone2)) {
-      toast.error(ar(
-        'الهاتف الأول والثاني هما نفس الرقم بعد التطبيع — يرجى إدخال رقمين مختلفين',
-        'Phone 1 and Phone 2 are the same number after normalization — please enter two different numbers'
-      ));
-      return;
-    }
-
-    // Guard: no existing record in the SAME BRANCH should have the same phone_1 or phone_2
-    // (same phone is allowed in different branches)
-    if (normPhone1 && formBranch) {
-      const { data: existing } = await (supabase as any)
-        .from('users_followup')
-        .select('id, full_name, phone_1, phone_2')
-        .eq('branch_id', formBranch)
-        .or(`phone_1.eq.${normPhone1},phone_2.eq.${normPhone1}${normPhone2 ? `,phone_1.eq.${normPhone2},phone_2.eq.${normPhone2}` : ''}`);
-
-      if (existing && existing.length > 0) {
-        const clash = existing[0];
-        toast.error(ar(
-          `رقم الهاتف موجود مسبقاً في نفس الفرع: "${clash.full_name}" (${clash.phone_1})`,
-          `Phone number already exists in this branch: "${clash.full_name}" (${clash.phone_1})`
-        ));
-        return;
-      }
-    }
-
     setIsSubmitting(true);
     try {
-      const { error } = await (supabase as any)
-        .from('users_followup')
-        .insert({
-          full_name: formName.trim(),
-          phone_1: normPhone1 || formPhone1.trim(),
-          phone_2: normPhone2,
-          branch_id: formBranch || null,
-          status: 'approved'
-        });
-      if (error) throw error;
+      await addFollowUp({
+        fullName: formName,
+        phone1: formPhone1,
+        phone2: formPhone2.trim() ? formPhone2 : null,
+        branchId: formBranch || null,
+      });
       toast.success(ar('تم الإضافة بنجاح', 'Added successfully'));
       setIsAddOpen(false);
       resetForm();
       await fetchUsers();
-    } catch (err: any) {
-      toast.error(err.message || ar('فشل في الإضافة', 'Failed to add'));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : ar('فشل في الإضافة', 'Failed to add'));
     } finally {
       setIsSubmitting(false);
     }
@@ -749,64 +304,25 @@ export default function FollowUpManagement() {
       return;
     }
 
-    const normPhone1 = normalizePhoneE164(formPhone1);
-    const normPhone2 = formPhone2.trim() ? normalizePhoneE164(formPhone2) : null;
-
-    // Guard: phone_1 and phone_2 must not be the same number
-    if (normPhone2 && phonesAreEqual(normPhone1, normPhone2)) {
-      toast.error(ar(
-        'الهاتف الأول والثاني هما نفس الرقم بعد التطبيع — يرجى إدخال رقمين مختلفين',
-        'Phone 1 and Phone 2 are the same number after normalization — please enter two different numbers'
-      ));
-      return;
-    }
-
-    // Guard: no OTHER record in the SAME BRANCH should have the same phone_1 or phone_2
-    // Only check if the phone or branch actually changed to prevent blocking edits on existing duplicates.
-    const targetBranch = formBranch || selected.branch_id;
-    
-    // Use strict string comparison of raw inputs to reliably detect if the user actually modified these fields
-    const isPhoneChanged = formPhone1.trim() !== (selected.phone_1 || '').trim() || 
-                           formPhone2.trim() !== (selected.phone_2 || '').trim();
-    const isBranchChanged = (formBranch || '') !== (selected.branch_id || '');
-
-    if ((isPhoneChanged || isBranchChanged) && normPhone1 && targetBranch) {
-      const { data: existing } = await (supabase as any)
-        .from('users_followup')
-        .select('id, full_name, phone_1, phone_2')
-        .eq('branch_id', targetBranch)
-        .or(`phone_1.eq.${normPhone1},phone_2.eq.${normPhone1}${normPhone2 ? `,phone_1.eq.${normPhone2},phone_2.eq.${normPhone2}` : ''}`);
-
-      const conflicts = (existing || []).filter((r: any) => r.id !== selected.id);
-      if (conflicts.length > 0) {
-        const clash = conflicts[0];
-        toast.error(ar(
-          `رقم الهاتف موجود مسبقاً في نفس الفرع: "${clash.full_name}" (${clash.phone_1})`,
-          `Phone number already exists in this branch: "${clash.full_name}" (${clash.phone_1})`
-        ));
-        return;
-      }
-    }
-
     setIsSubmitting(true);
     try {
-      const { error } = await (supabase as any)
-        .from('users_followup')
-        .update({
-          full_name: formName.trim(),
-          phone_1: normPhone1 || formPhone1.trim(),
-          phone_2: normPhone2,
-          branch_id: formBranch || null,
-        })
-        .eq('id', selected.id);
-      if (error) throw error;
+      await editFollowUp({
+        id: selected.id,
+        fullName: formName,
+        phone1: formPhone1,
+        phone2: formPhone2.trim() ? formPhone2 : null,
+        branchId: formBranch || null,
+        previousPhone1: selected.phone_1,
+        previousPhone2: selected.phone_2,
+        previousBranchId: selected.branch_id,
+      });
       toast.success(ar('تم التعديل بنجاح', 'Updated successfully'));
       setIsEditOpen(false);
       setSelected(null);
       resetForm();
       await fetchUsers();
-    } catch (err: any) {
-      toast.error(err.message || ar('فشل في التعديل', 'Failed to update'));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : ar('فشل في التعديل', 'Failed to update'));
     } finally {
       setIsSubmitting(false);
     }
@@ -815,48 +331,11 @@ export default function FollowUpManagement() {
   const handleApprove = async (id: number) => {
     setIsSubmitting(true);
     try {
-      // Fetch the pending record to get its phone
-      const { data: pendingRec, error: fetchErr } = await (supabase as any)
-        .from('users_followup')
-        .select('phone_1, branch_id')
-        .eq('id', id)
-        .single();
-      if (fetchErr) throw fetchErr;
-
-      // Guard: check if an approved record with the same phone already exists
-      if (pendingRec?.phone_1) {
-        let dupQuery = (supabase as any)
-          .from('users_followup')
-          .select('id, full_name')
-          .eq('status', 'approved')
-          .eq('phone_1', pendingRec.phone_1)
-          .neq('id', id)
-          .limit(1);
-        // Scope to same branch if present
-        if (pendingRec.branch_id) {
-          dupQuery = dupQuery.eq('branch_id', pendingRec.branch_id);
-        }
-        const { data: duplicates } = await dupQuery;
-        if (duplicates && duplicates.length > 0) {
-          const dup = duplicates[0];
-          toast.error(ar(
-            `لا يمكن القبول: الرقم ${pendingRec.phone_1} موجود بالفعل كمعتمد لـ "${dup.full_name}"`,
-            `Cannot approve: phone ${pendingRec.phone_1} already approved for "${dup.full_name}"`
-          ));
-          setIsSubmitting(false);
-          return;
-        }
-      }
-
-      const { error } = await (supabase as any)
-        .from('users_followup')
-        .update({ status: 'approved' })
-        .eq('id', id);
-      if (error) throw error;
+      await approveFollowUp(id);
       toast.success(ar('تم قبول الشخص بنجاح', 'Person approved successfully'));
       await fetchUsers();
-    } catch (err: any) {
-      toast.error(err.message || ar('فشل في القبول', 'Failed to approve'));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : ar('فشل في القبول', 'Failed to approve'));
     } finally {
       setIsSubmitting(false);
     }
@@ -900,53 +379,16 @@ export default function FollowUpManagement() {
     if (!linkSourceUser || !selectedLinkTarget) return;
     setIsSubmitting(true);
     try {
-      // 1. Mark the source record as rejected + linked_to target
-      const { error: updateErr } = await (supabase as any)
-        .from('users_followup')
-        .update({
-          status: 'rejected',
-          linked_to: selectedLinkTarget.id,
-        })
-        .eq('id', linkSourceUser.id);
-      if (updateErr) throw updateErr;
-
-      // 2. Transfer participations: update activity_submissions where guest_phone matches
-      //    source phone → change to target phone
-      const sourcePhones = [linkSourceUser.phone_1, linkSourceUser.phone_2].filter(Boolean);
-      const sourceVariants = new Set<string>();
-      sourcePhones.forEach(p => {
-        if (!p) return;
-        const norm = normalizePhone(p);
-        sourceVariants.add(norm);
-        if (norm.startsWith('+')) sourceVariants.add(norm.slice(1));
-        if (norm.startsWith('+20')) sourceVariants.add('0' + norm.slice(3));
+      const transferredCount = await linkToAnother({
+        sourceUser: linkSourceUser,
+        targetUser: selectedLinkTarget,
       });
 
-      if (sourceVariants.size > 0) {
-        const targetPhone = selectedLinkTarget.phone_1;
-        // Find submissions with source phone
-        const orFilter = [...sourceVariants].map(v => `guest_phone.eq.${v}`).join(',');
-        const { data: submissions } = await (supabase as any)
-          .from('activity_submissions')
-          .select('id')
-          .or(orFilter);
-
-        if (submissions && submissions.length > 0) {
-          const ids = submissions.map((s: any) => s.id);
-          // Update in batches
-          const BATCH = 100;
-          for (let i = 0; i < ids.length; i += BATCH) {
-            const chunk = ids.slice(i, i + BATCH);
-            await (supabase as any)
-              .from('activity_submissions')
-              .update({ guest_phone: targetPhone })
-              .in('id', chunk);
-          }
-          toast.info(ar(
-            `تم نقل ${submissions.length} مشاركة إلى "${selectedLinkTarget.full_name}"`,
-            `Transferred ${submissions.length} participations to "${selectedLinkTarget.full_name}"`
-          ));
-        }
+      if (transferredCount > 0) {
+        toast.info(ar(
+          `تم نقل ${transferredCount} مشاركة إلى "${selectedLinkTarget.full_name}"`,
+          `Transferred ${transferredCount} participations to "${selectedLinkTarget.full_name}"`
+        ));
       }
 
       toast.success(ar(
@@ -956,8 +398,8 @@ export default function FollowUpManagement() {
       setIsLinkDialogOpen(false);
       setLinkSourceUser(null);
       await fetchUsers();
-    } catch (err: any) {
-      toast.error(err.message || ar('فشل في الربط', 'Failed to link'));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : ar('فشل في الربط', 'Failed to link'));
     } finally {
       setIsSubmitting(false);
     }
@@ -967,23 +409,21 @@ export default function FollowUpManagement() {
     if (!selected) return;
     setIsSubmitting(true);
     try {
-      const { error } = await (supabase as any)
-        .from('users_followup')
-        .update({ status: 'rejected' })
-        .eq('id', selected.id);
-      if (error) throw error;
+      await rejectFollowUp(selected.id);
       toast.success(ar('تم الحذف بنجاح', 'Deleted successfully'));
       setIsDeleteOpen(false);
       setSelected(null);
       await fetchUsers();
-    } catch (err: any) {
-      toast.error(err.message || ar('فشل في الحذف', 'Failed to delete'));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : ar('فشل في الحذف', 'Failed to delete'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    const XLSX = await import('xlsx');
+
     if (filtered.length === 0) {
       toast.error(ar('لا توجد بيانات للتصدير', 'No data to export'));
       return;
@@ -1027,7 +467,9 @@ export default function FollowUpManagement() {
     toast.success(ar('تم التصدير بنجاح', 'Exported successfully'));
   };
 
-  const downloadExcelTemplate = () => {
+  const downloadExcelTemplate = async () => {
+    const XLSX = await import('xlsx');
+
     const headers = ['id', 'full_name', 'phone_1', 'phone_2', 'branch_id', 'linked_to'];
     const example1 = ['', 'أحمد محمد', '01012345678', '01123456789', 'ma', ''];
     const example2 = ['', 'محمود خليل', '01234567890', '', 'hq', ''];
@@ -1058,6 +500,7 @@ export default function FollowUpManagement() {
     toast.info(ar('جاري معالجة الملف...', 'Processing file...'));
 
     try {
+      const XLSX = await import('xlsx');
       const reader = new FileReader();
       reader.onload = async (evt) => {
         try {
@@ -1065,7 +508,7 @@ export default function FollowUpManagement() {
           const wb = XLSX.read(bstr, { type: 'binary' });
           const wsname = wb.SheetNames[0];
           const ws = wb.Sheets[wsname];
-          const data = XLSX.utils.sheet_to_json<any>(ws, { header: 1 });
+          const data = XLSX.utils.sheet_to_json<ExcelRow>(ws, { header: 1 });
 
           // Smart parsing: scan the first 10 rows to find the headers and normalize arabic letters
           let headerRowIdx = -1;
@@ -1075,7 +518,7 @@ export default function FollowUpManagement() {
             const row = data[r] || [];
             if (!Array.isArray(row)) continue;
 
-            const normalize = (val: any) => typeof val === 'string' ? val.toLowerCase().replace(/[أإآ]/g, 'ا').trim() : '';
+            const normalize = (val: ExcelCell) => typeof val === 'string' ? val.toLowerCase().replace(/[أإآ]/g, 'ا').trim() : '';
 
             const idxName = row.findIndex(h => {
               const s = normalize(h);
@@ -1115,7 +558,7 @@ export default function FollowUpManagement() {
           }
 
           // Parse rows starting after the discovered header bounds
-          const newRecords: any[] = [];
+          const newRecords: ImportFollowUpRecord[] = [];
           for (let i = headerRowIdx + 1; i < data.length; i++) {
             const row = data[i];
             if (!row || row.length === 0 || !row[nameIdx] || !row[phone1Idx]) continue;
@@ -1183,24 +626,14 @@ export default function FollowUpManagement() {
           const uniquePhones = Array.from(new Set(newRecords.map(r => r.phone_1).filter(Boolean)));
           
           if (uniquePhones.length > 0) {
-            let query = (supabase as any)
-              .from('users_followup')
-              .select('id, full_name, phone_1, status, branch_id')
-              .in('phone_1', uniquePhones);
+            const existingUsers = await findFollowUpConflicts(uniquePhones, activeBranch?.id);
 
-            if (activeBranch?.id) {
-              query = query.eq('branch_id', activeBranch.id);
-            }
-
-            const { data: existingUsersRaw, error: fetchError } = await query;
-            const existingUsers = existingUsersRaw?.filter((u: any) => u.status !== 'rejected') || [];
-
-            if (!fetchError && existingUsers && existingUsers.length > 0) {
+            if (existingUsers.length > 0) {
               const conflicts: ConflictRecord[] = [];
-              const cleanRecords: any[] = [];
+              const cleanRecords: ImportFollowUpRecord[] = [];
 
               newRecords.forEach(rec => {
-                const matches = existingUsers.filter((eu: any) => eu.phone_1 === rec.phone_1);
+                const matches = existingUsers.filter((eu) => eu.phone_1 === rec.phone_1);
                 if (matches.length > 0) {
                   conflicts.push({
                     excelRow: rec,
@@ -1224,7 +657,7 @@ export default function FollowUpManagement() {
           // All records go straight to confirmation (no conflict dialog needed)
           setPendingImportRecords(newRecords);
           setIsImportConfirmOpen(true);
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error('Parse error:', err);
           toast.error(ar('حدث خطأ أثناء قراءة الملف.', 'Error parsing file.'));
         } finally {
@@ -1233,8 +666,8 @@ export default function FollowUpManagement() {
         }
       };
       reader.readAsBinaryString(file);
-    } catch (err: any) {
-      toast.error(err.message || ar('حدث خطأ', 'An error occurred'));
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : ar('حدث خطأ', 'An error occurred'));
       setIsSubmitting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
@@ -1255,67 +688,18 @@ export default function FollowUpManagement() {
         return;
       }
 
-      // 1. Soft-delete existing approved users FOR THIS BRANCH ONLY
-      // BUG FIX: No longer deletes NULL-branch records — they may belong to other branches
-      console.log(`[Import] Wiping branch_id=${targetBranchId} only...`);
-      
-      const { error: deleteError1 } = await (supabase as any)
-        .from('users_followup')
-        .update({ status: 'rejected' })
-        .eq('status', 'approved')
-        .eq('branch_id', targetBranchId);
+      const { approvedCount, updatedCount, duplicateCount } = await importReplace({
+        targetBranchId,
+        records: pendingImportRecords,
+      });
 
-      if (deleteError1) throw deleteError1;
-
-      // 2. Extract linked_to row references and mapped records
-      const linkedToRows: (number | null)[] = pendingImportRecords.map(r => r._linkedToRow ?? null);
-      
-      const recordsToUpdate = pendingImportRecords.filter(r => r._mappedToExistingId);
-      const cleanRecords = pendingImportRecords
-        .filter(r => !r._mappedToExistingId)
-        .map(({ _linkedToRow, _mappedToExistingId, ...rest }) => rest);
-
-      // 3. Update mapped existing records
-      if (recordsToUpdate.length > 0) {
-        await Promise.all(recordsToUpdate.map(r => 
-          (supabase as any)
-            .from('users_followup')
-            .update({ 
-               status: 'approved', 
-               branch_id: targetBranchId 
-               // Intentionally not overwriting full_name/phone from the excel to preserve existing DB profile integrity
-            })
-            .eq('id', r._mappedToExistingId)
-        ));
-      }
-
-      // 4. Insert records in batches and capture the returned IDs in insertion order
-      const insertedIds: number[] = [];
-      const insertedPhones: string[] = []; // track phone per inserted record
-      const BATCH = 100;
-      for (let i = 0; i < cleanRecords.length; i += BATCH) {
-        const batch = cleanRecords.slice(i, i + BATCH);
-        const { data: inserted, error: insertError } = await (supabase as any)
-          .from('users_followup')
-          .insert(batch)
-          .select('id');
-        if (insertError) throw insertError;
-        (inserted as { id: number }[])?.forEach(r => insertedIds.push(r.id));
-        batch.forEach((r: any) => insertedPhones.push(r.phone_1));
-      }
-
-
-
-      const duplicateCount = cleanRecords.filter((r: any) => r.status === 'pending').length;
-      const approvedCount = cleanRecords.length - duplicateCount;
-      const updatedCount = recordsToUpdate.length;
       toast.success(ar(
         `تم العملية بنجاح! تم إدراج ${approvedCount} سجل جديد وتم ربط/تحديث ${updatedCount} سجل موجود${duplicateCount > 0 ? ` — ${duplicateCount} رقم مكرر ينتظر مراجعتك في تاب "برا الشيت"` : ''}.`,
         `Operation successful! ${approvedCount} new records inserted and ${updatedCount} existing mapped${duplicateCount > 0 ? ` — ${duplicateCount} duplicates waiting in "Out of Sheet" tab` : ''}.`
       ));
       setPendingImportRecords([]);
       await fetchUsers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Import insert error:', err);
       toast.error(ar('حدث خطأ أثناء تحديث قاعدة البيانات.', 'Error updating database.'));
     } finally {
@@ -1334,7 +718,7 @@ export default function FollowUpManagement() {
       }
       // Mapped to existing
       return { ...cr.excelRow, _mappedToExistingId: cr.selectedMatchId };
-    }).filter(Boolean) as any[];
+    }).filter((record): record is ImportFollowUpRecord => Boolean(record));
 
     setPendingImportRecords(prev => [...prev, ...resolvedRecords]);
     setIsConflictModalOpen(false);
@@ -1898,7 +1282,7 @@ export default function FollowUpManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {participationsList.map((p: any, i: number) => (
+                    {participationsList.map((p, i) => (
                       <TableRow key={p.id}>
                         <TableCell className="text-center text-muted-foreground text-sm">{i + 1}</TableCell>
                         <TableCell className="font-medium">
@@ -2061,7 +1445,7 @@ export default function FollowUpManagement() {
                         <SelectItem value="new" className="text-blue-500 font-medium">
                           {ar('إضافة كملف جديد منفصل (مكرر)', 'Add as new separate profile')}
                         </SelectItem>
-                        {conflict.possibleMatches.map((match: any) => (
+                        {conflict.possibleMatches.map((match) => (
                           <SelectItem key={match.id} value={match.id.toString()}>
                             {ar('ربط مع:', 'Link to:')} {match.full_name} ({match.status})
                           </SelectItem>

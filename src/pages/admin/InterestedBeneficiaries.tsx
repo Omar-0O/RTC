@@ -19,7 +19,6 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Plus, Trash2, Download, Users } from 'lucide-react';
 import { format } from 'date-fns';
-import * as XLSX from 'xlsx';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -257,11 +256,12 @@ export default function InterestedBeneficiaries() {
 
     // ── Export Excel ──────────────────────────────────────────────────────────
 
-    const handleExport = () => {
+    const handleExport = async () => {
         if (currentlyVisible.length === 0) {
             toast.error(isRTL ? 'لا توجد بيانات للتصدير' : 'No data to export');
             return;
         }
+        const XLSX = await import('xlsx');
         const rows = currentlyVisible.map((b, i) => ({
             '#': i + 1,
             [isRTL ? 'الاسم' : 'Name']: b.name,

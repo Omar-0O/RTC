@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ImagePreview } from '@/components/ui/image-preview';
+import { ProofImagePreview } from '@/components/ProofImagePreview';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1139,20 +1139,12 @@ export default function SubmissionManagement() {
                                                 {/* Proof Image */}
                                                 {submission.proof_url && (
                                                     <div className="mt-2">
-                                                        <ImagePreview src={submission.proof_url} alt={isRTL ? 'إثبات المشاركة' : 'Submission Proof'}>
-                                                            <div className="relative group max-w-[150px] rounded-lg overflow-hidden border shadow-sm cursor-pointer">
-                                                                <img
-                                                                    src={submission.proof_url}
-                                                                    alt={isRTL ? 'إثبات المشاركة' : 'Submission Proof'}
-                                                                    className="h-20 w-auto object-cover transition-transform duration-300 group-hover:scale-105"
-                                                                />
-                                                                <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                                    <span className="text-[10px] text-white bg-black/60 px-2 py-0.5 rounded-full font-medium">
-                                                                        {isRTL ? 'معاينة' : 'Preview'}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </ImagePreview>
+                                                        <ProofImagePreview
+                                                            proofUrl={submission.proof_url}
+                                                            alt={isRTL ? 'إثبات المشاركة' : 'Submission Proof'}
+                                                            className="relative group max-w-[150px] rounded-lg overflow-hidden border shadow-sm cursor-pointer"
+                                                            imgClassName="h-20 w-auto object-cover transition-transform duration-300 group-hover:scale-105"
+                                                        />
                                                     </div>
                                                 )}
                                             </div>

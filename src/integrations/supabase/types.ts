@@ -17,13 +17,19 @@ export type Database = {
       activity_submissions: {
         Row: {
           activity_type_id: string
+          branch_id: string | null
           committee_id: string
           created_at: string
+          date: string | null
           description: string | null
           fine_type_id: string | null
+          guest_name: string | null
+          guest_phone: string | null
           group_submission_id: string | null
           id: string
+          is_paid: boolean | null
           location: string | null
+          participant_type: Database["public"]["Enums"]["participant_type"]
           participants_count: number | null
           points_awarded: number | null
           proof_url: string | null
@@ -32,18 +38,25 @@ export type Database = {
           reviewed_by: string | null
           status: Database["public"]["Enums"]["submission_status"]
           submitted_at: string
-          volunteer_id: string
+          trainer_id: string | null
+          volunteer_id: string | null
           wore_vest: boolean | null
         }
         Insert: {
           activity_type_id: string
+          branch_id?: string | null
           committee_id: string
           created_at?: string
+          date?: string | null
           description?: string | null
           fine_type_id?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
           group_submission_id?: string | null
           id?: string
+          is_paid?: boolean | null
           location?: string | null
+          participant_type?: Database["public"]["Enums"]["participant_type"]
           participants_count?: number | null
           points_awarded?: number | null
           proof_url?: string | null
@@ -52,18 +65,25 @@ export type Database = {
           reviewed_by?: string | null
           status?: Database["public"]["Enums"]["submission_status"]
           submitted_at?: string
-          volunteer_id: string
+          trainer_id?: string | null
+          volunteer_id?: string | null
           wore_vest?: boolean | null
         }
         Update: {
           activity_type_id?: string
+          branch_id?: string | null
           committee_id?: string
           created_at?: string
+          date?: string | null
           description?: string | null
           fine_type_id?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
           group_submission_id?: string | null
           id?: string
+          is_paid?: boolean | null
           location?: string | null
+          participant_type?: Database["public"]["Enums"]["participant_type"]
           participants_count?: number | null
           points_awarded?: number | null
           proof_url?: string | null
@@ -72,7 +92,8 @@ export type Database = {
           reviewed_by?: string | null
           status?: Database["public"]["Enums"]["submission_status"]
           submitted_at?: string
-          volunteer_id?: string
+          trainer_id?: string | null
+          volunteer_id?: string | null
           wore_vest?: boolean | null
         }
         Relationships: [
@@ -248,6 +269,36 @@ export type Database = {
         }
         Relationships: []
       }
+      branches: {
+        Row: {
+          code: string | null
+          created_at: string
+          id: string
+          is_default: boolean
+          name: string
+          name_ar: string
+          updated_at: string | null
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name: string
+          name_ar: string
+          updated_at?: string | null
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          name_ar?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       caravan_participants: {
         Row: {
           caravan_id: string | null
@@ -302,6 +353,9 @@ export type Database = {
       caravans: {
         Row: {
           actual_move_time: string | null
+          actual_meals: number | null
+          bag_contents: string[] | null
+          branch_id: string | null
           bus_arrival_time: string | null
           created_at: string | null
           created_by: string | null
@@ -311,11 +365,16 @@ export type Database = {
           move_time: string | null
           name: string
           return_time: string | null
+          target_meals: number | null
+          total_bags: number | null
           type: string
           updated_at: string | null
         }
         Insert: {
           actual_move_time?: string | null
+          actual_meals?: number | null
+          bag_contents?: string[] | null
+          branch_id?: string | null
           bus_arrival_time?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -325,11 +384,16 @@ export type Database = {
           move_time?: string | null
           name: string
           return_time?: string | null
+          target_meals?: number | null
+          total_bags?: number | null
           type: string
           updated_at?: string | null
         }
         Update: {
           actual_move_time?: string | null
+          actual_meals?: number | null
+          bag_contents?: string[] | null
+          branch_id?: string | null
           bus_arrival_time?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -339,6 +403,8 @@ export type Database = {
           move_time?: string | null
           name?: string
           return_time?: string | null
+          target_meals?: number | null
+          total_bags?: number | null
           type?: string
           updated_at?: string | null
         }
@@ -455,22 +521,46 @@ export type Database = {
       }
       course_ads: {
         Row: {
-          id: string
+          ad_date: string
+          ad_number: number
+          content: string | null
+          content_done: boolean
           course_id: string
-          volunteer_id: string
-          created_at: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          poster_done: boolean
+          poster_url: string | null
+          updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
-          id?: string
+          ad_date: string
+          ad_number: number
+          content?: string | null
+          content_done?: boolean
           course_id: string
-          volunteer_id: string
-          created_at?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          poster_done?: boolean
+          poster_url?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
-          id?: string
+          ad_date?: string
+          ad_number?: number
+          content?: string | null
+          content_done?: boolean
           course_id?: string
-          volunteer_id?: string
-          created_at?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          poster_done?: boolean
+          poster_url?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -481,8 +571,15 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "course_ads_volunteer_id_fkey"
-            columns: ["volunteer_id"]
+            foreignKeyName: "course_ads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_ads_updated_by_fkey"
+            columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -536,27 +633,36 @@ export type Database = {
       }
       course_beneficiaries: {
         Row: {
+          attendance_percentage: number | null
+          certificate_eligible: boolean | null
           course_id: string | null
           created_at: string | null
           created_by: string | null
           id: string
           name: string
+          national_id: string | null
           phone: string
         }
         Insert: {
+          attendance_percentage?: number | null
+          certificate_eligible?: boolean | null
           course_id?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
           name: string
+          national_id?: string | null
           phone: string
         }
         Update: {
+          attendance_percentage?: number | null
+          certificate_eligible?: boolean | null
           course_id?: string | null
           created_at?: string | null
           created_by?: string | null
           id?: string
           name?: string
+          national_id?: string | null
           phone?: string
         }
         Relationships: [
@@ -695,8 +801,45 @@ export type Database = {
           },
         ]
       }
+      course_trainers: {
+        Row: {
+          course_id: string
+          created_at: string | null
+          id: string
+          trainer_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string | null
+          id?: string
+          trainer_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string | null
+          id?: string
+          trainer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_trainers_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_trainers_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
+          branch_id: string | null
           certificate_status: string | null
           committee_id: string | null
           created_at: string | null
@@ -719,6 +862,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          branch_id?: string | null
           certificate_status?: string | null
           committee_id?: string | null
           created_at?: string | null
@@ -741,6 +885,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          branch_id?: string | null
           certificate_status?: string | null
           committee_id?: string | null
           created_at?: string | null
@@ -952,6 +1097,8 @@ export type Database = {
       }
       events: {
         Row: {
+          branch_id: string | null
+          committee_id: string | null
           created_at: string | null
           created_by: string | null
           date: string
@@ -964,6 +1111,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          branch_id?: string | null
+          committee_id?: string | null
           created_at?: string | null
           created_by?: string | null
           date: string
@@ -976,6 +1125,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          branch_id?: string | null
+          committee_id?: string | null
           created_at?: string | null
           created_by?: string | null
           date?: string
@@ -993,6 +1144,73 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_beneficiaries: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          name: string
+          phone: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          name: string
+          phone?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          name?: string
+          phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_beneficiaries_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_speakers: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          name: string
+          phone: string | null
+          social_media_link: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          name: string
+          phone?: string | null
+          social_media_link?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          social_media_link?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_speakers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
         ]
@@ -1055,6 +1273,7 @@ export type Database = {
       profiles: {
         Row: {
           activities_count: number
+          ashbal_status: string | null
           attended_camp: boolean | null
           attended_mini_camp: boolean | null
           avatar_url: string | null
@@ -1067,6 +1286,7 @@ export type Database = {
           full_name: string | null
           full_name_ar: string | null
           id: string
+          is_active: boolean | null
           is_ashbal: boolean | null
           join_date: string
           last_seen_at: string | null
@@ -1074,10 +1294,10 @@ export type Database = {
           phone: string | null
           total_points: number
           updated_at: string
-          visible_password: string | null
         }
         Insert: {
           activities_count?: number
+          ashbal_status?: string | null
           attended_camp?: boolean | null
           attended_mini_camp?: boolean | null
           avatar_url?: string | null
@@ -1090,6 +1310,7 @@ export type Database = {
           full_name?: string | null
           full_name_ar?: string | null
           id: string
+          is_active?: boolean | null
           is_ashbal?: boolean | null
           join_date?: string
           last_seen_at?: string | null
@@ -1097,10 +1318,10 @@ export type Database = {
           phone?: string | null
           total_points?: number
           updated_at?: string
-          visible_password?: string | null
         }
         Update: {
           activities_count?: number
+          ashbal_status?: string | null
           attended_camp?: boolean | null
           attended_mini_camp?: boolean | null
           avatar_url?: string | null
@@ -1113,6 +1334,7 @@ export type Database = {
           full_name?: string | null
           full_name_ar?: string | null
           id?: string
+          is_active?: boolean | null
           is_ashbal?: boolean | null
           join_date?: string
           last_seen_at?: string | null
@@ -1120,7 +1342,6 @@ export type Database = {
           phone?: string | null
           total_points?: number
           updated_at?: string
-          visible_password?: string | null
         }
         Relationships: [
           {
@@ -1134,6 +1355,8 @@ export type Database = {
       }
       quran_beneficiaries: {
         Row: {
+          birth_date: string | null
+          branch_id: string | null
           beneficiary_type: string
           created_at: string
           gender: string
@@ -1145,6 +1368,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          birth_date?: string | null
+          branch_id?: string | null
           beneficiary_type: string
           created_at?: string
           gender: string
@@ -1156,6 +1381,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          birth_date?: string | null
+          branch_id?: string | null
           beneficiary_type?: string
           created_at?: string
           gender?: string
@@ -1167,6 +1394,73 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      quran_circle_ads: {
+        Row: {
+          ad_date: string
+          ad_number: number
+          circle_id: string
+          content: string | null
+          content_done: boolean
+          created_at: string | null
+          created_by: string | null
+          id: string
+          poster_done: boolean
+          poster_url: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          ad_date: string
+          ad_number: number
+          circle_id: string
+          content?: string | null
+          content_done?: boolean
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          poster_done?: boolean
+          poster_url?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          ad_date?: string
+          ad_number?: number
+          circle_id?: string
+          content?: string | null
+          content_done?: boolean
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          poster_done?: boolean
+          poster_url?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quran_circle_ads_circle_id_fkey"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "quran_circles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quran_circle_ads_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quran_circle_ads_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quran_circle_beneficiaries: {
         Row: {
@@ -1301,6 +1595,7 @@ export type Database = {
           created_at: string
           id: string
           notes: string | null
+          organizer_id: string | null
           session_date: string
         }
         Insert: {
@@ -1308,6 +1603,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          organizer_id?: string | null
           session_date: string
         }
         Update: {
@@ -1315,6 +1611,7 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          organizer_id?: string | null
           session_date?: string
         }
         Relationships: [
@@ -1330,38 +1627,47 @@ export type Database = {
       quran_circles: {
         Row: {
           beneficiary_gender: string | null
+          branch_id: string | null
           created_at: string
           date: string
+          description: string | null
           guest_names: Json | null
           id: string
           is_active: boolean | null
           name: string
           organizer_id: string | null
           schedule: Json | null
+          target_group: string | null
           teacher_id: string | null
         }
         Insert: {
           beneficiary_gender?: string | null
+          branch_id?: string | null
           created_at?: string
           date?: string
+          description?: string | null
           guest_names?: Json | null
           id?: string
           is_active?: boolean | null
           name: string
           organizer_id?: string | null
           schedule?: Json | null
+          target_group?: string | null
           teacher_id?: string | null
         }
         Update: {
           beneficiary_gender?: string | null
+          branch_id?: string | null
           created_at?: string
           date?: string
+          description?: string | null
           guest_names?: Json | null
           id?: string
           is_active?: boolean | null
           name?: string
           organizer_id?: string | null
           schedule?: Json | null
+          target_group?: string | null
           teacher_id?: string | null
         }
         Relationships: [
@@ -1422,6 +1728,7 @@ export type Database = {
       }
       quran_teachers: {
         Row: {
+          branch_id: string | null
           created_at: string
           id: string
           name: string
@@ -1434,6 +1741,7 @@ export type Database = {
           volunteer_id: string | null
         }
         Insert: {
+          branch_id?: string | null
           created_at?: string
           id?: string
           name: string
@@ -1446,6 +1754,7 @@ export type Database = {
           volunteer_id?: string | null
         }
         Update: {
+          branch_id?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -1474,39 +1783,132 @@ export type Database = {
           },
         ]
       }
+      rooms: {
+        Row: {
+          branch_id: string
+          created_at: string
+          id: string
+          name: string
+          name_ar: string
+        }
+        Insert: {
+          branch_id?: string
+          created_at?: string
+          id: string
+          name: string
+          name_ar: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          name_ar?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rooms_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trainer_lecture_records: {
+        Row: {
+          course_id: string
+          created_at: string | null
+          id: string
+          lecture_id: string
+          trainer_name: string
+          trainer_phone: string | null
+          volunteer_id: string | null
+        }
+        Insert: {
+          course_id: string
+          created_at?: string | null
+          id?: string
+          lecture_id: string
+          trainer_name: string
+          trainer_phone?: string | null
+          volunteer_id?: string | null
+        }
+        Update: {
+          course_id?: string
+          created_at?: string | null
+          id?: string
+          lecture_id?: string
+          trainer_name?: string
+          trainer_phone?: string | null
+          volunteer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trainer_lecture_records_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trainer_lecture_records_lecture_id_fkey"
+            columns: ["lecture_id"]
+            isOneToOne: false
+            referencedRelation: "course_lectures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trainer_lecture_records_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trainers: {
         Row: {
+          branch_id: string | null
           committee_id: string | null
           created_at: string | null
           id: string
           image_url: string | null
+          join_date: string
           name_ar: string
           name_en: string
           phone: string | null
           specialization: string | null
           updated_at: string | null
+          user_id: string | null
         }
         Insert: {
+          branch_id?: string | null
           committee_id?: string | null
           created_at?: string | null
           id?: string
           image_url?: string | null
+          join_date?: string
           name_ar: string
           name_en: string
           phone?: string | null
           specialization?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Update: {
+          branch_id?: string | null
           committee_id?: string | null
           created_at?: string | null
           id?: string
           image_url?: string | null
+          join_date?: string
           name_ar?: string
           name_en?: string
           phone?: string | null
           specialization?: string | null
           updated_at?: string | null
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -1554,32 +1956,6 @@ export type Database = {
           },
         ]
       }
-      user_private_details: {
-        Row: {
-          created_at: string | null
-          id: string
-          visible_password: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id: string
-          visible_password?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          visible_password?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_private_details_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_roles: {
         Row: {
           id: string
@@ -1598,6 +1974,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_features: {
+        Row: {
+          branch_id: string | null
+          created_at: string
+          feature: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          branch_id?: string | null
+          created_at?: string
+          feature: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          branch_id?: string | null
+          created_at?: string
+          feature?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_features_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_features_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users_followup: {
         Row: {
           branch: string | null
@@ -1605,6 +2020,7 @@ export type Database = {
           created_at: string
           full_name: string
           id: number
+          linked_to: number | null
           phone_1: string
           phone_2: string | null
           status: string
@@ -1615,6 +2031,7 @@ export type Database = {
           created_at?: string
           full_name: string
           id?: number
+          linked_to?: number | null
           phone_1: string
           phone_2?: string | null
           status?: string
@@ -1625,6 +2042,7 @@ export type Database = {
           created_at?: string
           full_name?: string
           id?: number
+          linked_to?: number | null
           phone_1?: string
           phone_2?: string | null
           status?: string
@@ -1640,27 +2058,27 @@ export type Database = {
         ]
       }
       volunteer_feedbacks: {
-        Row: any
-        Insert: any
-        Update: any
+        Row: Record<string, Json | undefined>
+        Insert: Record<string, Json | undefined>
+        Update: Record<string, Json | undefined>
         Relationships: []
       }
       volunteer_fines: {
-        Row: any
-        Insert: any
-        Update: any
+        Row: Record<string, Json | undefined>
+        Insert: Record<string, Json | undefined>
+        Update: Record<string, Json | undefined>
         Relationships: []
       }
       fine_types: {
-        Row: any
-        Insert: any
-        Update: any
+        Row: Record<string, Json | undefined>
+        Insert: Record<string, Json | undefined>
+        Update: Record<string, Json | undefined>
         Relationships: []
       }
     }
     Views: {
       volunteer_fines_view: {
-        Row: any
+        Row: Record<string, Json | undefined>
         Relationships: []
       }
     }
@@ -1668,6 +2086,22 @@ export type Database = {
       calculate_level: {
         Args: { points: number }
         Returns: Database["public"]["Enums"]["volunteer_level"]
+      }
+      check_room_conflict: {
+        Args: {
+          p_room: string
+          p_schedule_days: string[]
+          p_schedule_time: string
+          p_schedule_end_time: string | null
+          p_start_date: string
+          p_end_date: string | null
+          p_exclude_course_id?: string | null
+        }
+        Returns: {
+          conflicting_course_name: string
+          conflicting_committee_name: string
+          conflicting_committee_name_ar: string
+        }[]
       }
       delete_user_account: { Args: { target_user_id: string }; Returns: Json }
       get_leaderboard: {
@@ -1694,6 +2128,34 @@ export type Database = {
         Returns: {
           certificates_delivered_count: number
           courses_count: number
+        }[]
+      }
+      list_trainers_with_stats: {
+        Args: {
+          p_branch_id?: string | null
+          p_committee_id?: string | null
+          p_today?: string
+        }
+        Returns: {
+          branch_id: string | null
+          certificates_delivered_count: number
+          committee_id: string | null
+          committee_name: string | null
+          committee_name_ar: string | null
+          completed_courses_count: number
+          courses_count: number
+          created_at: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          join_date: string
+          linked_user_email: string | null
+          linked_user_full_name: string | null
+          name_ar: string
+          name_en: string
+          phone: string | null
+          specialization: string | null
+          user_id: string | null
         }[]
       }
       get_user_committee_id: { Args: { _user_id: string }; Returns: string }
@@ -1723,6 +2185,7 @@ export type Database = {
       | "head_marketing"
       | "head_ashbal"
       | "marketing_member"
+      participant_type: "volunteer" | "trainer" | "guest"
       submission_status: "pending" | "approved" | "rejected"
       volunteer_level:
       | "bronze"

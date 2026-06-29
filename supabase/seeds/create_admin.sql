@@ -5,10 +5,15 @@ create extension if not exists "pgcrypto";
 do $$
 declare
   new_user_id uuid := gen_random_uuid();
-  user_email text := 'rtc@gmail.com';
-  user_password text := 'admin321';
-  user_name text := 'RTC Admin';
+  user_email text := nullif(current_setting('app.seed_admin_email', true), '');
+  user_password text := nullif(current_setting('app.seed_admin_password', true), '');
+  user_name text := coalesce(nullif(current_setting('app.seed_admin_name', true), ''), 'RTC Admin');
 begin
+  if user_email is null or user_password is null then
+    raise exception
+      'Set app.seed_admin_email and app.seed_admin_password before running this local seed script.';
+  end if;
+
   -- 1. Insert into auth.users
   insert into auth.users (
     instance_id,
@@ -65,7 +70,8 @@ begin
   -- 3. Insert into public.user_roles
   insert into public.user_roles (user_id, role)
   values (new_user_id, 'admin')
-  on conflict (user_id, role) do nothing;
+  on conflict (user_id) do update
+  set role = EXCLUDED.role;
 
   raise notice 'Admin user created successfully. ID: %', new_user_id;
 

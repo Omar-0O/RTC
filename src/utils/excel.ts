@@ -1,5 +1,3 @@
-import { utils, write } from 'xlsx';
-
 interface Participant {
     name: string;
     phone: string;
@@ -16,7 +14,9 @@ interface GroupSubmissionData {
     participants: Participant[];
 }
 
-export const generateGroupSubmissionCSV = (data: GroupSubmissionData): Blob => {
+export const generateGroupSubmissionCSV = async (data: GroupSubmissionData): Promise<Blob> => {
+    const { utils, write } = await import('xlsx');
+
     // Calculate totals
     const totalParticipants = data.participants.length;
     const totalPoints = data.participants.reduce((sum, p) => sum + (p.points || 0), 0);

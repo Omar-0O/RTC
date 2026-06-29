@@ -33,18 +33,49 @@ import Profile from '@/pages/volunteer/Profile';
 import { EditAshbalDialog } from "./EditAshbalDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { waPhoneLink } from '@/utils/phoneUtils';
+import type { Database } from "@/integrations/supabase/types";
+
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+type AshbalUser = Pick<
+    ProfileRow,
+    "id" | "full_name" | "email" | "phone" | "avatar_url" | "level" | "is_ashbal" | "join_date" | "created_at" | "ashbal_status"
+>;
+type RpcErrorResponse = { error?: string } | null;
+
+const canManageAshbal = (role: string | null | undefined) => role === "admin" || role === "head_ashbal";
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === "object" && error !== null && "message" in error) {
+        const message = (error as { message?: unknown }).message;
+        if (typeof message === "string" && message.trim()) return message;
+    }
+    return fallback;
+};
+
+const getInitials = (name: string | null): string => {
+    if (!name) return "U";
+    const initials = name
+        .split(" ")
+        .filter(Boolean)
+        .map(part => part[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    return initials || "U";
+};
 
 export default function AshbalManagement() {
     const { isRTL, t } = useLanguage();
     const { user, primaryRole } = useAuth();
     const [loading, setLoading] = useState(true);
-    const [users, setUsers] = useState<any[]>([]);
+    const [users, setUsers] = useState<AshbalUser[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [isAddUserOpen, setIsAddUserOpen] = useState(false);
     const [activeAshbalsCount, setActiveAshbalsCount] = useState(0);
-    const [viewProfileUser, setViewProfileUser] = useState<any | null>(null);
-    const [editUser, setEditUser] = useState<any | null>(null);
-    const [deleteUser, setDeleteUser] = useState<any | null>(null);
+    const [viewProfileUser, setViewProfileUser] = useState<AshbalUser | null>(null);
+    const [editUser, setEditUser] = useState<AshbalUser | null>(null);
+    const [deleteUser, setDeleteUser] = useState<AshbalUser | null>(null);
     const [isRenewDialogOpen, setIsRenewDialogOpen] = useState(false);
     const [isRenewing, setIsRenewing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -52,17 +83,18 @@ export default function AshbalManagement() {
     const fetchAshbalUsers = async () => {
         try {
             setLoading(true);
-            const { data, error } = await (supabase
-                .from('profiles') as any)
+            const { data, error } = await supabase
+                .from('profiles')
                 .select('id, full_name, email, phone, avatar_url, level, is_ashbal, join_date, created_at, ashbal_status')
                 .eq('is_ashbal', true)
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setUsers(data || []);
+            const ashbalUsers = (data || []) as AshbalUser[];
+            setUsers(ashbalUsers);
 
             // Count active ashbals
-            const activeCount = (data || []).filter((u: any) => u.ashbal_status === 'active' || !u.ashbal_status).length;
+            const activeCount = ashbalUsers.filter(u => u.ashbal_status === 'active' || !u.ashbal_status).length;
             setActiveAshbalsCount(activeCount);
 
         } catch (error) {
@@ -91,7 +123,7 @@ export default function AshbalManagement() {
     const handleRenewTarget = async () => {
         try {
             setIsRenewing(true);
-            const { data, error } = await (supabase as any).rpc('renew_ashbal_target');
+            const { error } = await supabase.rpc('renew_ashbal_target');
 
             if (error) throw error;
 
@@ -117,22 +149,23 @@ export default function AshbalManagement() {
 
             if (error) throw error;
 
-            if (data && typeof data === 'object' && 'error' in data && (data as any).error) {
-                throw new Error((data as any).error);
+            const rpcResult = data as RpcErrorResponse;
+            if (rpcResult?.error) {
+                throw new Error(rpcResult.error);
             }
 
             toast.success(isRTL ? "تم حذف المستخدم بنجاح" : "User deleted successfully");
             setDeleteUser(null);
             fetchAshbalUsers();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error deleting user:', error);
-            toast.error(error.message || (isRTL ? "حدث خطأ أثناء حذف المستخدم" : "Error deleting user"));
+            toast.error(getErrorMessage(error, isRTL ? "حدث خطأ أثناء حذف المستخدم" : "Error deleting user"));
         } finally {
             setIsDeleting(false);
         }
     };
 
-    const UserList = ({ users }: { users: any[] }) => (
+    const UserList = ({ users }: { users: AshbalUser[] }) => (
         <div className="rounded-md border bg-card">
             {/* Desktop View */}
             <div className="hidden lg:block">
@@ -168,7 +201,7 @@ export default function AshbalManagement() {
                                                 <Avatar className="h-8 w-8">
                                                     <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
                                                     <AvatarFallback className="text-xs">
-                                                        {user.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
+                                                        {getInitials(user.full_name)}
                                                     </AvatarFallback>
                                                 </Avatar>
                                                 <div>
@@ -196,7 +229,7 @@ export default function AshbalManagement() {
                                                 <DropdownMenuContent align="end">
                                                     <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                                                     <DropdownMenuSeparator />
-                                                    {['admin', 'head_ashbal'].includes(primaryRole) && (
+                                                    {canManageAshbal(primaryRole) && (
                                                         <>
                                                             <DropdownMenuItem onClick={() => setEditUser(user)}>
                                                                 <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
@@ -253,7 +286,7 @@ export default function AshbalManagement() {
                                             <Avatar className="h-12 w-12 shrink-0">
                                                 <AvatarImage src={user.avatar_url || undefined} alt={user.full_name || ''} />
                                                 <AvatarFallback className="text-sm">
-                                                    {user.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || 'U'}
+                                                    {getInitials(user.full_name)}
                                                 </AvatarFallback>
                                             </Avatar>
                                             <div className="min-w-0 flex-1">
@@ -270,7 +303,7 @@ export default function AshbalManagement() {
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                                                 <DropdownMenuSeparator />
-                                                {['admin', 'head_ashbal'].includes(primaryRole) && (
+                                                {canManageAshbal(primaryRole) && (
                                                     <>
                                                         <DropdownMenuItem onClick={() => setEditUser(user)}>
                                                             <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
@@ -360,7 +393,7 @@ export default function AshbalManagement() {
                     <CardTitle className="text-lg font-medium">
                         {isRTL ? "التارجت الحالي" : "Current Target"}
                     </CardTitle>
-                    {['admin', 'head_ashbal'].includes(primaryRole) && (
+                    {canManageAshbal(primaryRole) && (
                         <Button
                             variant="outline"
                             size="sm"

@@ -10,6 +10,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { normalizePhoneE164, phonesAreEqual } from '@/utils/phoneUtils';
 import type { Branch } from '@/contexts/BranchContext';
+import type { Database } from '@/integrations/supabase/types';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -60,9 +61,11 @@ export interface LinkFollowUpPayload {
   targetUser: FollowUpUser;
 }
 
+export type FollowUpConflictMatch = Pick<FollowUpUser, 'id' | 'full_name' | 'phone_1' | 'status' | 'branch_id'>;
+
 export interface ImportReplaceOptions {
   targetBranchId: string;
-  records: any[];
+  records: ImportFollowUpRecord[];
 }
 
 export interface SyncResult {
@@ -78,6 +81,78 @@ export interface ParticipationItem {
   activity_types: { name: string; name_ar: string } | null;
 }
 
+type UsersFollowUpInsert = Database['public']['Tables']['users_followup']['Insert'];
+type UsersFollowUpUpdate = Database['public']['Tables']['users_followup']['Update'];
+type ActivitySubmissionUpdate = Database['public']['Tables']['activity_submissions']['Update'];
+
+interface FollowUpPhoneRow {
+  id: number;
+  full_name: string;
+  phone_1: string;
+  phone_2?: string | null;
+  branch_id?: string | null;
+  status?: string;
+  linked_to?: number | null;
+}
+
+interface FollowUpImportRow {
+  id: number;
+  phone_1: string;
+  phone_2: string | null;
+  full_name: string;
+  status: string;
+  linked_to: number | null;
+}
+
+interface AliasPhoneRow {
+  phone_1: string | null;
+  phone_2: string | null;
+}
+
+interface SubmissionIdRow {
+  id: string;
+}
+
+interface ProfilePhoneRow {
+  id: string;
+  full_name: string | null;
+  full_name_ar: string | null;
+  phone: string | null;
+}
+
+interface TrainerPhoneRow {
+  id: string;
+  user_id: string | null;
+  name_en: string;
+  name_ar: string;
+  phone: string | null;
+}
+
+interface FollowUpSourceSubmission {
+  id: string;
+  guest_name: string | null;
+  guest_phone: string | null;
+  volunteer_id: string | null;
+  trainer_id: string | null;
+  branch_id: string | null;
+  location: string | null;
+}
+
+export type ImportFollowUpRecord = UsersFollowUpInsert & {
+  _linkedToRow?: unknown;
+  _mappedToExistingId?: number;
+};
+
+type PaginatedQuery<T> = PromiseLike<{
+  data: T[] | null;
+  error: unknown;
+}>;
+
+type BranchScopedQuery<T> = PaginatedQuery<T> & {
+  eq(column: string, value: unknown): BranchScopedQuery<T>;
+  or(filter: string): BranchScopedQuery<T>;
+};
+
 // ─── Internal helpers ───────────────────────────────────────────────
 
 const normalizePhone = (raw: string | null | undefined): string =>
@@ -85,10 +160,10 @@ const normalizePhone = (raw: string | null | undefined): string =>
 
 /** Paginated fetch helper — fetches all rows from a table in batches. */
 async function fetchAllPaginated<T>(
-  buildQuery: (from: number, to: number) => any
+  buildQuery: (from: number, to: number) => PaginatedQuery<T>
 ): Promise<T[]> {
   const PAGE_SIZE = 1000;
-  let allData: T[] = [];
+  const allData: T[] = [];
   let offset = 0;
   let hasMore = true;
 
@@ -98,7 +173,7 @@ async function fetchAllPaginated<T>(
     if (!batch || batch.length === 0) {
       hasMore = false;
     } else {
-      allData = allData.concat(batch as T[]);
+      allData.push(...batch);
       offset += PAGE_SIZE;
       if (batch.length < PAGE_SIZE) hasMore = false;
     }
@@ -116,7 +191,7 @@ async function fetchAllPaginated<T>(
  * cross-branch data to branch_admin users.
  */
 export async function getFollowUpUsers(opts: FetchFollowUpOptions): Promise<FollowUpUser[]> {
-  const buildBranchQuery = (q: any) => {
+  const buildBranchQuery = (q: BranchScopedQuery<FollowUpUser>) => {
     if (opts.branchId) {
       if (opts.canViewAllBranches) {
         // Admin viewing a specific branch: show that branch + orphaned NULL records
@@ -132,23 +207,23 @@ export async function getFollowUpUsers(opts: FetchFollowUpOptions): Promise<Foll
 
   // Fetch approved records — always branch-scoped
   const approved = await fetchAllPaginated<FollowUpUser>((from, to) => {
-    let q = (supabase as any)
+    const q = supabase
       .from('users_followup')
       .select('*')
       .eq('status', 'approved')
       .order('id', { ascending: true })
-      .range(from, to);
+      .range(from, to) as unknown as BranchScopedQuery<FollowUpUser>;
     return buildBranchQuery(q);
   });
 
   // Fetch pending records — ALSO branch-scoped (BUG #2 fix)
   const pending = await fetchAllPaginated<FollowUpUser>((from, to) => {
-    let q = (supabase as any)
+    const q = supabase
       .from('users_followup')
       .select('*')
       .eq('status', 'pending')
       .order('id', { ascending: true })
-      .range(from, to);
+      .range(from, to) as unknown as BranchScopedQuery<FollowUpUser>;
     return buildBranchQuery(q);
   });
 
@@ -166,7 +241,7 @@ export async function addFollowUp(payload: AddFollowUpPayload): Promise<void> {
   }
 
   if (normPhone1 && payload.branchId) {
-    const { data: existing } = await (supabase as any)
+    const { data: existing } = await supabase
       .from('users_followup')
       .select('id, full_name, phone_1')
       .eq('branch_id', payload.branchId)
@@ -177,13 +252,15 @@ export async function addFollowUp(payload: AddFollowUpPayload): Promise<void> {
     }
   }
 
-  const { error } = await (supabase as any).from('users_followup').insert({
+  const row: UsersFollowUpInsert = {
     full_name: payload.fullName.trim(),
     phone_1: normPhone1 || payload.phone1.trim(),
     phone_2: normPhone2,
     branch_id: payload.branchId || null,
     status: 'approved',
-  });
+  };
+
+  const { error } = await supabase.from('users_followup').insert(row);
   if (error) throw error;
 }
 
@@ -204,29 +281,31 @@ export async function editFollowUp(payload: EditFollowUpPayload): Promise<void> 
   const targetBranch = payload.branchId;
 
   if ((isPhoneChanged || isBranchChanged) && normPhone1 && targetBranch) {
-    const { data: existing } = await (supabase as any)
+    const { data: existing } = await supabase
       .from('users_followup')
       .select('id, full_name, phone_1')
       .eq('branch_id', targetBranch)
       .or(`phone_1.eq.${normPhone1},phone_2.eq.${normPhone1}${normPhone2 ? `,phone_1.eq.${normPhone2},phone_2.eq.${normPhone2}` : ''}`);
 
-    const conflicts = (existing || []).filter((r: any) => r.id !== payload.id);
+    const conflicts = (existing || []).filter((r: FollowUpPhoneRow) => r.id !== payload.id);
     if (conflicts.length > 0) {
       throw new Error(`Phone already exists: "${conflicts[0].full_name}"`);
     }
   }
 
-  const { error } = await (supabase as any).from('users_followup').update({
+  const changes: UsersFollowUpUpdate = {
     full_name: payload.fullName.trim(),
     phone_1: normPhone1 || payload.phone1.trim(),
     phone_2: normPhone2,
     branch_id: payload.branchId || null,
-  }).eq('id', payload.id);
+  };
+
+  const { error } = await supabase.from('users_followup').update(changes).eq('id', payload.id);
   if (error) throw error;
 }
 
 export async function approveFollowUp(id: number): Promise<void> {
-  const { data: pendingRec, error: fetchErr } = await (supabase as any)
+  const { data: pendingRec, error: fetchErr } = await supabase
     .from('users_followup')
     .select('phone_1, branch_id')
     .eq('id', id)
@@ -235,7 +314,7 @@ export async function approveFollowUp(id: number): Promise<void> {
   if (fetchErr) throw fetchErr;
 
   if (pendingRec?.phone_1) {
-    let dupQuery = (supabase as any)
+    let dupQuery = supabase
       .from('users_followup')
       .select('id, full_name')
       .eq('status', 'approved')
@@ -251,13 +330,34 @@ export async function approveFollowUp(id: number): Promise<void> {
     }
   }
 
-  const { error } = await (supabase as any).from('users_followup').update({ status: 'approved' }).eq('id', id);
+  const { error } = await supabase.from('users_followup').update({ status: 'approved' }).eq('id', id);
   if (error) throw error;
 }
 
 export async function rejectFollowUp(id: number): Promise<void> {
-  const { error } = await (supabase as any).from('users_followup').update({ status: 'rejected' }).eq('id', id);
+  const { error } = await supabase.from('users_followup').update({ status: 'rejected' }).eq('id', id);
   if (error) throw error;
+}
+
+export async function findFollowUpConflicts(
+  phones: string[],
+  branchId?: string,
+): Promise<FollowUpConflictMatch[]> {
+  if (phones.length === 0) return [];
+
+  let query = supabase
+    .from('users_followup')
+    .select('id, full_name, phone_1, status, branch_id')
+    .in('phone_1', phones);
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return ((data || []) as FollowUpConflictMatch[]).filter((user) => user.status !== 'rejected');
 }
 
 // ─── Link to Another ───────────────────────────────────────────────
@@ -271,12 +371,14 @@ export async function linkToAnother(payload: LinkFollowUpPayload): Promise<numbe
   const { sourceUser, targetUser } = payload;
 
   // 1. Mark source as rejected + linked
-  const { error: updateErr } = await (supabase as any)
+  const sourceUpdate: UsersFollowUpUpdate = {
+    status: 'rejected',
+    linked_to: targetUser.id,
+  };
+
+  const { error: updateErr } = await supabase
     .from('users_followup')
-    .update({
-      status: 'rejected',
-      linked_to: targetUser.id,
-    })
+    .update(sourceUpdate)
     .eq('id', sourceUser.id);
   if (updateErr) throw updateErr;
 
@@ -296,19 +398,20 @@ export async function linkToAnother(payload: LinkFollowUpPayload): Promise<numbe
   if (sourceVariants.size > 0) {
     const targetPhone = targetUser.phone_1;
     const orFilter = [...sourceVariants].map(v => `guest_phone.eq.${v}`).join(',');
-    const { data: submissions } = await (supabase as any)
+    const { data: submissions } = await supabase
       .from('activity_submissions')
       .select('id')
       .or(orFilter);
 
     if (submissions && submissions.length > 0) {
-      const ids = submissions.map((s: any) => s.id);
+      const ids = (submissions as SubmissionIdRow[]).map((s) => s.id);
       const BATCH = 100;
+      const transferUpdate: ActivitySubmissionUpdate = { guest_phone: targetPhone };
       for (let i = 0; i < ids.length; i += BATCH) {
         const chunk = ids.slice(i, i + BATCH);
-        await (supabase as any)
+        await supabase
           .from('activity_submissions')
-          .update({ guest_phone: targetPhone })
+          .update(transferUpdate)
           .in('id', chunk);
       }
       transferredCount = submissions.length;
@@ -329,14 +432,14 @@ export async function getParticipations(user: FollowUpUser): Promise<Participati
   const ownPhones = [user.phone_1, user.phone_2].filter(Boolean).map(p => normalizePhone(p!));
 
   // Also collect phones from alias entries (users whose linked_to = this user's id)
-  const { data: aliasEntries } = await (supabase as any)
+  const { data: aliasEntries } = await supabase
     .from('users_followup')
     .select('phone_1, phone_2')
     .eq('linked_to', user.id);
 
   const aliasPhones: string[] = [];
   if (aliasEntries) {
-    aliasEntries.forEach((a: any) => {
+    (aliasEntries as AliasPhoneRow[]).forEach((a) => {
       if (a.phone_1) aliasPhones.push(normalizePhone(a.phone_1));
       if (a.phone_2) aliasPhones.push(normalizePhone(a.phone_2));
     });
@@ -356,14 +459,14 @@ export async function getParticipations(user: FollowUpUser): Promise<Participati
 
   // Fetch guest_phone submissions
   const orFilter = [...variants].map(v => `guest_phone.eq.${v}`).join(',');
-  const { data: guestSubmissions } = await (supabase as any)
+  const { data: guestSubmissions } = await supabase
     .from('activity_submissions')
     .select('id, date, submitted_at, created_at, activity_types(name, name_ar)')
     .or(orFilter)
     .order('date', { ascending: false, nullsLast: true })
     .limit(200);
 
-  let items: ParticipationItem[] = guestSubmissions || [];
+  const items: ParticipationItem[] = (guestSubmissions || []) as unknown as ParticipationItem[];
 
   // Check if this person has a volunteer profile
   const profileVariants = new Set<string>();
@@ -373,7 +476,7 @@ export async function getParticipations(user: FollowUpUser): Promise<Participati
     if (p.startsWith('+20')) profileVariants.add('0' + p.slice(3));
   });
 
-  const { data: profileRes } = await (supabase as any)
+  const { data: profileRes } = await supabase
     .from('profiles')
     .select('id')
     .in('phone', [...profileVariants])
@@ -382,22 +485,22 @@ export async function getParticipations(user: FollowUpUser): Promise<Participati
   // If profile found, also get their volunteer_id submissions
   if (profileRes && profileRes.length > 0) {
     const volunteerId = profileRes[0].id;
-    const { data: volunteerSubmissions } = await (supabase as any)
+    const { data: volunteerSubmissions } = await supabase
       .from('activity_submissions')
       .select('id, date, submitted_at, created_at, activity_types(name, name_ar)')
       .eq('volunteer_id', volunteerId)
       .order('date', { ascending: false, nullsLast: true })
       .limit(100);
     if (volunteerSubmissions) {
-      const existingIds = new Set(items.map((i: any) => i.id));
-      volunteerSubmissions.forEach((s: any) => {
+      const existingIds = new Set(items.map((i) => i.id));
+      (volunteerSubmissions as unknown as ParticipationItem[]).forEach((s) => {
         if (!existingIds.has(s.id)) items.push(s);
       });
     }
   }
 
   // Sort by date (most recent first)
-  items.sort((a: any, b: any) => {
+  items.sort((a, b) => {
     const dateA = new Date(a.date || a.submitted_at || a.created_at).getTime();
     const dateB = new Date(b.date || b.submitted_at || b.created_at).getTime();
     return dateB - dateA;
@@ -410,39 +513,40 @@ export async function getParticipations(user: FollowUpUser): Promise<Participati
 
 export async function syncFollowUp(opts: SyncFollowUpOptions): Promise<SyncResult> {
   // Fetch submissions
-  const submissions = await fetchAllPaginated<any>((from, to) => {
-    let q = (supabase as any)
+  const submissions = await fetchAllPaginated<FollowUpSourceSubmission>((from, to) => {
+    let q = supabase
       .from('activity_submissions')
       .select('id, guest_name, guest_phone, volunteer_id, trainer_id, branch_id, location')
-      .range(from, to);
+      .range(from, to) as unknown as BranchScopedQuery<FollowUpSourceSubmission>;
     if (opts.branchId) {
       q = q.eq('branch_id', opts.branchId);
     }
     return q;
   });
 
-  const { data: trainers } = await (supabase as any).from('trainers').select('id, user_id, name_en, name_ar, phone');
-  const { data: profiles } = await (supabase as any).from('profiles').select('id, full_name, full_name_ar, phone');
+  const { data: trainers } = await supabase.from('trainers').select('id, user_id, name_en, name_ar, phone');
+  const { data: profiles } = await supabase.from('profiles').select('id, full_name, full_name_ar, phone');
   if (submissions.length === 0) return { newCount: 0, cleanedCount: 0 };
 
-  const profilesMap = new Map();
-  profiles?.forEach((p: any) => profilesMap.set(p.id, p));
+  const trainerRows = (trainers || []) as TrainerPhoneRow[];
+  const profilesMap = new Map<string, ProfilePhoneRow>();
+  (profiles || []).forEach((p) => profilesMap.set(p.id, p as ProfilePhoneRow));
 
   // Fetch ALL existing follow-up users (across all branches for dedup)
-  const allExisting = await fetchAllPaginated<any>((from, to) =>
-    (supabase as any)
+  const allExisting = await fetchAllPaginated<FollowUpImportRow>((from, to) =>
+    supabase
       .from('users_followup')
       .select('id, phone_1, phone_2, full_name, status, linked_to')
-      .range(from, to)
+      .range(from, to) as unknown as PaginatedQuery<FollowUpImportRow>
   );
 
   // Build phone maps
   const phoneToUser = new Map<string, string>();
   const approvedPhones = new Set<string>();
-  const pendingToClean: any[] = [];
+  const pendingToClean: FollowUpImportRow[] = [];
   const approvedPhoneToId = new Map<string, number>();
 
-  allExisting.forEach((u: any) => {
+  allExisting.forEach((u) => {
     const p1 = normalizePhone(u.phone_1);
     const p2 = normalizePhone(u.phone_2);
     if (p1) phoneToUser.set(p1, u.full_name);
@@ -467,15 +571,17 @@ export async function syncFollowUp(opts: SyncFollowUpOptions): Promise<SyncResul
       const p1 = normalizePhone(d.phone_1);
       const p2 = normalizePhone(d.phone_2);
       const linkedToId = (p1 && approvedPhoneToId.get(p1)) || (p2 && approvedPhoneToId.get(p2)) || null;
-      return (supabase as any).from('users_followup').update({
-        status: 'rejected', ...(linkedToId && !d.linked_to ? { linked_to: linkedToId } : {}),
-      }).eq('id', d.id).in('status', ['pending', 'duplicate']);
+      const update: UsersFollowUpUpdate = {
+        status: 'rejected',
+        ...(linkedToId && !d.linked_to ? { linked_to: linkedToId } : {}),
+      };
+      return supabase.from('users_followup').update(update).eq('id', d.id).in('status', ['pending', 'duplicate']);
     }));
   }
 
   // Find new participants from submissions
-  const newToInsert: any[] = [];
-  submissions.forEach((s: any) => {
+  const newToInsert: UsersFollowUpInsert[] = [];
+  submissions.forEach((s) => {
     let name = '';
     const phones: string[] = [];
     if (s.guest_name || s.guest_phone) { name = s.guest_name || ''; if (s.guest_phone) phones.push(s.guest_phone); }
@@ -484,10 +590,10 @@ export async function syncFollowUp(opts: SyncFollowUpOptions): Promise<SyncResul
       if (p) { if (!name) name = p.full_name_ar || p.full_name || ''; if (p.phone) phones.push(p.phone); }
     }
     if (s.trainer_id) {
-      const tr = trainers?.find((t: any) => t.id === s.trainer_id);
+      const tr = trainerRows.find((t) => t.id === s.trainer_id);
       if (tr) { if (!name) name = tr.name_ar || tr.name_en; if (tr.phone) phones.push(tr.phone); }
     } else if (s.volunteer_id) {
-      const tr = trainers?.find((t: any) => t.user_id === s.volunteer_id);
+      const tr = trainerRows.find((t) => t.user_id === s.volunteer_id);
       if (tr) { if (!name) name = tr.name_ar || tr.name_en; if (tr.phone) phones.push(tr.phone); }
     }
     if (!name) name = 'Unknown';
@@ -525,12 +631,12 @@ export async function syncFollowUp(opts: SyncFollowUpOptions): Promise<SyncResul
     const CHUNK = 100;
     for (let i = 0; i < phonesToCheck.length; i += CHUNK) {
       const chunk = phonesToCheck.slice(i, i + CHUNK);
-      const { data: rows } = await (supabase as any).from('users_followup').select('phone_1').in('phone_1', chunk);
-      (rows || []).forEach((r: any) => { if (r.phone_1) existing.add(r.phone_1); });
+      const { data: rows } = await supabase.from('users_followup').select('phone_1').in('phone_1', chunk);
+      (rows || []).forEach((r: Pick<FollowUpPhoneRow, 'phone_1'>) => { if (r.phone_1) existing.add(r.phone_1); });
     }
     const trulyNew = newToInsert.filter(u => u.phone_1 && !existing.has(u.phone_1));
     if (trulyNew.length > 0) {
-      const { error } = await (supabase as any).from('users_followup').insert(trulyNew);
+      const { error } = await supabase.from('users_followup').insert(trulyNew);
       if (error) throw error;
       insertedCount = trulyNew.length;
     }
@@ -555,28 +661,30 @@ export async function importReplace(opts: ImportReplaceOptions): Promise<{
   const { targetBranchId, records } = opts;
 
   // 1. Soft-delete existing approved users FOR THIS BRANCH ONLY
-  const { error: deleteError } = await (supabase as any)
+  const rejectApproved: UsersFollowUpUpdate = { status: 'rejected' };
+  const { error: deleteError } = await supabase
     .from('users_followup')
-    .update({ status: 'rejected' })
+    .update(rejectApproved)
     .eq('status', 'approved')
     .eq('branch_id', targetBranchId);
   if (deleteError) throw deleteError;
 
   // 2. Separate mapped (update existing) vs new (insert) records
-  const recordsToUpdate = records.filter((r: any) => r._mappedToExistingId);
+  const recordsToUpdate = records.filter((r) => r._mappedToExistingId);
   const cleanRecords = records
-    .filter((r: any) => !r._mappedToExistingId)
-    .map(({ _linkedToRow, _mappedToExistingId, ...rest }: any) => rest);
+    .filter((r) => !r._mappedToExistingId)
+    .map(({ _linkedToRow, _mappedToExistingId, ...rest }) => rest);
 
   // 3. Update mapped existing records
   if (recordsToUpdate.length > 0) {
-    await Promise.all(recordsToUpdate.map((r: any) =>
-      (supabase as any)
+    const approveMapped: UsersFollowUpUpdate = {
+      status: 'approved',
+      branch_id: targetBranchId,
+    };
+    await Promise.all(recordsToUpdate.map((r) =>
+      supabase
         .from('users_followup')
-        .update({
-          status: 'approved',
-          branch_id: targetBranchId,
-        })
+        .update(approveMapped)
         .eq('id', r._mappedToExistingId)
     ));
   }
@@ -585,13 +693,13 @@ export async function importReplace(opts: ImportReplaceOptions): Promise<{
   const BATCH = 100;
   for (let i = 0; i < cleanRecords.length; i += BATCH) {
     const batch = cleanRecords.slice(i, i + BATCH);
-    const { error: insertError } = await (supabase as any)
+    const { error: insertError } = await supabase
       .from('users_followup')
       .insert(batch);
     if (insertError) throw insertError;
   }
 
-  const duplicateCount = cleanRecords.filter((r: any) => r.status === 'pending').length;
+  const duplicateCount = cleanRecords.filter((r) => r.status === 'pending').length;
   const approvedCount = cleanRecords.length - duplicateCount;
   const updatedCount = recordsToUpdate.length;
 

@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -39,6 +40,26 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 
+type CaravanRow = Database['public']['Tables']['caravans']['Row'];
+type CaravanInsert = Database['public']['Tables']['caravans']['Insert'];
+type CaravanUpdate = Database['public']['Tables']['caravans']['Update'];
+type CaravanParticipantRow = Database['public']['Tables']['caravan_participants']['Row'];
+type CaravanParticipantInsert = Database['public']['Tables']['caravan_participants']['Insert'];
+type CaravanParticipantUpdate = Database['public']['Tables']['caravan_participants']['Update'];
+type ProfileVolunteerRow = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'phone' | 'committee_id' | 'avatar_url'>;
+type CsvValue = string | number | boolean | null | undefined;
+type CsvRow = Record<string, CsvValue>;
+type CaravanWithCount = CaravanRow & { participants_count?: { count: number }[] };
+type CaravanWithParticipants = CaravanRow & { caravan_participants?: CaravanParticipantRow[] };
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+        const message = (error as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim()) return message;
+    }
+    return fallback;
+};
 
 interface Caravan {
     id: string;
@@ -207,7 +228,7 @@ export default function CaravanManagement() {
 
         try {
             // 1. Update Caravan Details
-            const updatePayload: any = {
+            const updatePayload: CaravanUpdate = {
                 name: formData.name,
                 type: formData.type,
                 location: formData.location,
@@ -269,18 +290,19 @@ export default function CaravanManagement() {
             const toUpdate = participants.filter(p => p.id);
 
             if (toInsert.length > 0) {
-                await supabase.from('caravan_participants').insert(toInsert.map(p => ({
+                const newParticipants: CaravanParticipantInsert[] = toInsert.map(p => ({
                     caravan_id: selectedCaravanId,
                     volunteer_id: p.is_volunteer ? (p.volunteer_id || null) : null, // Force null for guests
                     name: p.name,
                     phone: p.phone,
                     is_volunteer: Boolean(p.is_volunteer),
                     wore_vest: p.wore_vest
-                })));
+                }));
+                await supabase.from('caravan_participants').insert(newParticipants);
             }
 
             if (toUpdate.length > 0) {
-                await supabase.from('caravan_participants').upsert(toUpdate.map(p => ({
+                const updatedParticipants: CaravanParticipantUpdate[] = toUpdate.map(p => ({
                     id: p.id,
                     caravan_id: selectedCaravanId,
                     volunteer_id: p.is_volunteer ? (p.volunteer_id || null) : null, // Force null for guests
@@ -288,7 +310,8 @@ export default function CaravanManagement() {
                     phone: p.phone,
                     is_volunteer: Boolean(p.is_volunteer),
                     wore_vest: p.wore_vest
-                })));
+                }));
+                await supabase.from('caravan_participants').upsert(updatedParticipants);
             }
 
             toast.success(isRTL ? 'تم تحديث القافلة بنجاح' : 'Caravan updated successfully');
@@ -296,10 +319,9 @@ export default function CaravanManagement() {
             resetForm();
             fetchCaravans();
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error updating caravan:', error);
-            const errorMessage = error.message || (isRTL ? 'حدث خطأ أثناء تحديث القافلة' : 'Error updating caravan');
-            toast.error(errorMessage);
+            toast.error(getErrorMessage(error, isRTL ? 'حدث خطأ أثناء تحديث القافلة' : 'Error updating caravan'));
         }
     };
 
@@ -403,7 +425,7 @@ export default function CaravanManagement() {
             setLoading(true);
         }
         try {
-            let query: any = supabase
+            let query = supabase
                 .from('caravans')
                 .select('*, participants_count:caravan_participants(count)');
 
@@ -415,7 +437,7 @@ export default function CaravanManagement() {
 
             if (error) throw error;
 
-            const caravansData = (data || []).map((c: any) => ({ // eslint-disable-line @typescript-eslint/no-explicit-any
+            const caravansData = ((data || []) as CaravanWithCount[]).map(c => ({
                 ...c,
                 participants_count: c.participants_count?.[0]?.count || 0
             } as Caravan));
@@ -432,7 +454,7 @@ export default function CaravanManagement() {
     };
 
     const fetchVolunteers = async () => {
-        let query: any = (supabase as any)
+        let query = supabase
             .from('profiles')
             .select('id, full_name, phone, committee_id, avatar_url')
             .neq('full_name', 'RTC Admin');
@@ -442,7 +464,7 @@ export default function CaravanManagement() {
         }
 
         const { data } = await query.order('full_name');
-        if (data) setVolunteers(data);
+        if (data) setVolunteers(data as ProfileVolunteerRow[]);
     };
 
     const fetchCaravansCommittee = async () => {
@@ -562,8 +584,7 @@ export default function CaravanManagement() {
             return null;
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return (newActivity as any).id;
+        return newActivity.id;
     };
 
     const handleCreateCaravan = async () => {
@@ -595,7 +616,7 @@ export default function CaravanManagement() {
         try {
             // 1. Create Caravan
             // 1. Create Caravan
-            const insertPayload: any = {
+            const insertPayload: CaravanInsert = {
                 name: formData.name,
                 type: formData.type,
                 location: formData.location,
@@ -613,29 +634,27 @@ export default function CaravanManagement() {
             };
 
             const { data: caravan, error: caravanError } = await supabase
-                .from('caravans' as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+                .from('caravans')
                 .insert(insertPayload)
                 .select()
                 .single();
 
             if (caravanError) throw caravanError;
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const caravanData = caravan as any;
-
             // 2. Add Participants & Award Points
             if (participants.length > 0) {
                 // Add to caravan_participants
+                const participantRows: CaravanParticipantInsert[] = participants.map(p => ({
+                    caravan_id: caravan.id,
+                    volunteer_id: p.is_volunteer ? (p.volunteer_id || null) : null, // Force null for guests
+                    name: p.name,
+                    phone: p.phone,
+                    is_volunteer: Boolean(p.is_volunteer),
+                    wore_vest: p.wore_vest // Pass wore_vest status
+                }));
                 const { error: partsError } = await supabase
-                    .from('caravan_participants' as any) // eslint-disable-line @typescript-eslint/no-explicit-any
-                    .insert(participants.map(p => ({
-                        caravan_id: caravanData.id,
-                        volunteer_id: p.is_volunteer ? (p.volunteer_id || null) : null, // Force null for guests
-                        name: p.name,
-                        phone: p.phone,
-                        is_volunteer: Boolean(p.is_volunteer),
-                        wore_vest: p.wore_vest // Pass wore_vest status
-                    })));
+                    .from('caravan_participants')
+                    .insert(participantRows);
 
                 if (partsError) throw partsError;
                 // Note: Points are now automatically awarded by the database trigger 'on_caravan_participant_added'
@@ -645,10 +664,9 @@ export default function CaravanManagement() {
             setIsCreateOpen(false);
             resetForm();
             fetchCaravans();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error creating caravan:', error);
-            const errorMessage = error.message || (isRTL ? 'حدث خطأ أثناء إنشاء القافلة' : 'Error creating caravan');
-            toast.error(errorMessage);
+            toast.error(getErrorMessage(error, isRTL ? 'حدث خطأ أثناء إنشاء القافلة' : 'Error creating caravan'));
         }
     };
 
@@ -692,7 +710,7 @@ export default function CaravanManagement() {
 
             // 2. Delete the caravan (caravan_participants will be deleted via ON DELETE CASCADE)
             const { error } = await supabase
-                .from('caravans' as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+                .from('caravans')
                 .delete()
                 .eq('id', caravanToDelete.id);
 
@@ -702,16 +720,15 @@ export default function CaravanManagement() {
             setIsDeleteDialogOpen(false);
             setCaravanToDelete(null);
             fetchCaravans();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error deleting caravan:', error);
-            toast.error(error.message || (isRTL ? 'فشل حذف القافلة' : 'Failed to delete caravan'));
+            toast.error(getErrorMessage(error, isRTL ? 'فشل حذف القافلة' : 'Failed to delete caravan'));
         } finally {
             setIsDeleting(false);
         }
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const downloadCSV = (data: any[], filename: string) => {
+    const downloadCSV = (data: CsvRow[], filename: string) => {
         if (data.length === 0) {
             toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
             return;
@@ -744,12 +761,11 @@ export default function CaravanManagement() {
         try {
             // Fetch participants
             const { data: parts } = await supabase
-                .from('caravan_participants' as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+                .from('caravan_participants')
                 .select('*')
                 .eq('caravan_id', caravan.id);
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const exportData = ((parts as any[]) || []).map(p => ({
+            const exportData: CsvRow[] = ((parts || []) as CaravanParticipantRow[]).map(p => ({
                 [t('leaderboard.name')]: p.name,
                 [t('users.phoneNumber')]: p.phone,
                 [isRTL ? 'متطوع/ضيف' : 'Volunteer/Guest']: p.is_volunteer ? t('common.volunteer') : (isRTL ? 'ضيف' : 'Guest'),
@@ -788,20 +804,20 @@ export default function CaravanManagement() {
             }
 
             const { data: allCaravans } = await supabase
-                .from('caravans' as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+                .from('caravans')
                 .select('*, caravan_participants(*)')
                 .in('id', shownCaravanIds);
 
             if (!allCaravans) return;
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const flattenedData: any[] = [];
-            allCaravans.forEach((c: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
-                const volunteersCount = (c.caravan_participants || []).filter((p: any) => p.is_volunteer).length;
-                const guestsCount = (c.caravan_participants || []).filter((p: any) => !p.is_volunteer).length;
+            const flattenedData: CsvRow[] = [];
+            (allCaravans as CaravanWithParticipants[]).forEach(c => {
+                const participantsList = c.caravan_participants || [];
+                const volunteersCount = participantsList.filter(p => p.is_volunteer).length;
+                const guestsCount = participantsList.filter(p => !p.is_volunteer).length;
 
-                if (c.caravan_participants && c.caravan_participants.length > 0) {
-                    c.caravan_participants.forEach((p: any) => { // eslint-disable-line @typescript-eslint/no-explicit-any
+                if (participantsList.length > 0) {
+                    participantsList.forEach(p => {
                         flattenedData.push({
                             [t('caravans.name')]: c.name,
                             [t('caravans.type')]: c.type,

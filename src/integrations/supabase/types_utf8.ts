@@ -909,7 +909,6 @@ export type Database = {
           phone: string | null
           total_points: number
           updated_at: string
-          visible_password: string | null
         }
         Insert: {
           activities_count?: number
@@ -927,7 +926,6 @@ export type Database = {
           phone?: string | null
           total_points?: number
           updated_at?: string
-          visible_password?: string | null
         }
         Update: {
           activities_count?: number
@@ -945,7 +943,6 @@ export type Database = {
           phone?: string | null
           total_points?: number
           updated_at?: string
-          visible_password?: string | null
         }
         Relationships: [
           {
@@ -1032,32 +1029,6 @@ export type Database = {
             foreignKeyName: "user_badges_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      user_private_details: {
-        Row: {
-          created_at: string | null
-          id: string
-          visible_password: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          id: string
-          visible_password?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          id?: string
-          visible_password?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_private_details_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },

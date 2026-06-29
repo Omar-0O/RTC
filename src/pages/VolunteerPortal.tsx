@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { ImagePreview } from '@/components/ui/image-preview';
+import { ProofImagePreview } from '@/components/ProofImagePreview';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -64,6 +64,21 @@ interface Submission {
   status: string;
   submitted_at: string;
   proof_url: string | null;
+}
+
+interface ActivityCommitteeRow {
+  activity_type_id: string;
+  committee_id: string;
+}
+
+interface ActivitySubmissionSummaryRow {
+  id: string;
+  points_awarded: number | null;
+  status: string;
+  submitted_at: string;
+  proof_url: string | null;
+  activity: { name: string | null; name_ar: string | null } | null;
+  committee: { name: string | null; name_ar: string | null } | null;
 }
 
 interface VolunteerProfile {
@@ -140,7 +155,7 @@ export default function VolunteerPortal() {
 
       const activityCommitteeMap = new Map<string, string[]>();
       if (activityCommitteesRes.data) {
-        activityCommitteesRes.data.forEach((ac: any) => {
+        (activityCommitteesRes.data as ActivityCommitteeRow[]).forEach((ac) => {
           if (!activityCommitteeMap.has(ac.activity_type_id)) {
             activityCommitteeMap.set(ac.activity_type_id, []);
           }
@@ -150,7 +165,7 @@ export default function VolunteerPortal() {
 
       if (activitiesRes.data) {
         setActivityTypes(
-          activitiesRes.data.map((a: any) => ({
+          activitiesRes.data.map((a) => ({
             ...a,
             committee_ids: activityCommitteeMap.get(a.id) || [],
           }))
@@ -158,7 +173,7 @@ export default function VolunteerPortal() {
       }
 
       if (submissionsRes.data) {
-        const mapped = submissionsRes.data.map((s: any) => ({
+        const mapped = (submissionsRes.data as ActivitySubmissionSummaryRow[]).map((s) => ({
           id: s.id,
           activity_name: s.activity?.name_ar || s.activity?.name || '—',
           committee_name: s.committee?.name_ar || s.committee?.name || '—',
@@ -223,7 +238,7 @@ export default function VolunteerPortal() {
       if (error) throw error;
 
       setIsSubmitted(true);
-    } catch (err: any) {
+    } catch {
       toast.error(isRTL ? 'فشل في تسجيل المشاركة' : 'Failed to log participation');
     } finally {
       setIsSubmitting(false);
@@ -631,13 +646,12 @@ export default function VolunteerPortal() {
                     >
                       <div className="flex items-center gap-4 flex-1 min-w-0">
                         {submission.proof_url ? (
-                          <ImagePreview src={submission.proof_url} alt="Proof" className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border/50">
-                            <img
-                              src={submission.proof_url}
-                              alt="Proof"
-                              className="h-full w-full object-cover transition-transform group-hover:scale-110"
-                            />
-                          </ImagePreview>
+                          <ProofImagePreview
+                            proofUrl={submission.proof_url}
+                            alt="Proof"
+                            className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-border/50"
+                            imgClassName="h-full w-full object-cover transition-transform group-hover:scale-110"
+                          />
                         ) : (
                           <div className="h-12 w-12 shrink-0 rounded-lg bg-primary/5 flex items-center justify-center border border-primary/10">
                             <Activity className="h-6 w-6 text-primary/40" />

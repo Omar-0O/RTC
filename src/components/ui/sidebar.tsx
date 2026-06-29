@@ -137,6 +137,7 @@ const Sidebar = React.forwardRef<
   }
 >(({ side = "left", variant = "sidebar", collapsible = "offcanvas", className, children, ...props }, ref) => {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
+  const [startX, setStartX] = React.useState(0);
 
   if (collapsible === "none") {
     return (
@@ -149,8 +150,6 @@ const Sidebar = React.forwardRef<
       </div>
     );
   }
-
-  const [startX, setStartX] = React.useState(0);
 
   if (isMobile) {
     return (

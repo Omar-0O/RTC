@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import { ImagePreview } from '@/components/ui/image-preview';
+import { ProofImagePreview } from '@/components/ProofImagePreview';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -51,18 +51,37 @@ interface Submission {
   proof_url: string | null;
 }
 
+interface ActivityCommitteeRow {
+  activity_type_id: string;
+  committee_id: string;
+}
+
+interface ActivitySubmissionSummaryRow {
+  id: string;
+  points_awarded: number | null;
+  status: string;
+  submitted_at: string;
+  proof_url: string | null;
+  activity: { name: string | null; name_ar: string | null } | null;
+  committee: { name: string | null; name_ar: string | null } | null;
+}
+
+interface GroupSubmissionListItem {
+  id: string;
+  submitted_at: string;
+  created_at: string;
+  excel_sheet_url: string | null;
+  activity: { name: string | null; name_ar: string | null } | null;
+  committee: { name: string | null; name_ar: string | null } | null;
+  guest_participants: unknown;
+}
+
 interface Volunteer {
   id: string;
   full_name: string;
   phone?: string;
   avatar_url?: string | null;
 }
-
-
-
-
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export default function LogActivity() {
   const { user, profile, refreshProfile, primaryRole } = useAuth();
@@ -191,7 +210,7 @@ export default function LogActivity() {
       // Build activity_type_id -> committee_ids map
       const activityCommitteeMap = new Map<string, string[]>();
       if (activityCommitteesRes.data) {
-        activityCommitteesRes.data.forEach((ac: any) => {
+        (activityCommitteesRes.data as ActivityCommitteeRow[]).forEach((ac) => {
           if (!activityCommitteeMap.has(ac.activity_type_id)) {
             activityCommitteeMap.set(ac.activity_type_id, []);
           }
@@ -200,14 +219,14 @@ export default function LogActivity() {
       }
 
       if (activitiesRes.data) {
-        const activitiesWithCommittees = activitiesRes.data.map((a: any) => ({
+        const activitiesWithCommittees = activitiesRes.data.map((a) => ({
           ...a,
           committee_ids: activityCommitteeMap.get(a.id) || []
-        }));
+        })) as ActivityType[];
         setActivityTypes(activitiesWithCommittees);
       }
       if (submissionsRes.data) {
-        setSubmissions(submissionsRes.data.map((s: any) => ({
+        setSubmissions((submissionsRes.data as ActivitySubmissionSummaryRow[]).map((s) => ({
           id: s.id,
           activity_name: isRTL ? (s.activity?.name_ar || s.activity?.name || '-') : (s.activity?.name || '-'),
           committee_name: isRTL ? (s.committee?.name_ar || s.committee?.name || '-') : (s.committee?.name || '-'),
@@ -283,11 +302,7 @@ export default function LogActivity() {
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage
-        .from(pathPrefix)
-        .getPublicUrl(fileName);
-
-      return data.publicUrl;
+      return fileName;
     } catch (error) {
       console.error('Error uploading file:', error);
       toast.error(isRTL ? 'فشل في رفع الصورة' : 'Failed to upload image');
@@ -315,11 +330,7 @@ export default function LogActivity() {
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage
-        .from('activity-proofs')
-        .getPublicUrl(fileName);
-
-      return data.publicUrl;
+      return fileName;
     } catch (error) {
       console.error('Error uploading excel:', error);
       return null;
@@ -414,7 +425,7 @@ export default function LogActivity() {
           }))
         ];
 
-        const excelBlob = generateGroupSubmissionCSV({
+        const excelBlob = await generateGroupSubmissionCSV({
           leaderName: profile.full_name || 'Leader',
           activityName: isRTL ? selectedActivity.name_ar : selectedActivity.name,
           committeeName: committees.find(c => c.id === committeeId)?.name || '',
@@ -481,11 +492,9 @@ export default function LogActivity() {
             status: 'approved' as "pending" | "approved" | "rejected"
           }));
 
-          // We need to cast to any because Typescript might complain about volunteer_id being null
-          // until the types are regenerated.
           const { error: guestBatchError } = await supabase
             .from('activity_submissions')
-            .insert(guestSubmissions as any);
+            .insert(guestSubmissions);
 
           if (guestBatchError) throw guestBatchError;
         }
@@ -506,7 +515,7 @@ export default function LogActivity() {
       toast.success(isRTL ? 'تم تسجيل المشاركة بنجاح!' : 'Participation logged successfully!');
       await refreshProfile();
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error logging participation:', error);
       toast.error(isRTL ? 'فشل في تسجيل المشاركة' : 'Failed to log participation');
     } finally {
@@ -1350,13 +1359,12 @@ export default function LogActivity() {
 
                     <div className="flex items-start gap-3 flex-1 min-w-0 ps-3">
                       {submission.proof_url ? (
-                        <ImagePreview src={submission.proof_url} alt="Proof" className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-border/50 shadow-sm">
-                          <img
-                            src={submission.proof_url}
-                            alt="Proof"
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                          />
-                        </ImagePreview>
+                        <ProofImagePreview
+                          proofUrl={submission.proof_url}
+                          alt="Proof"
+                          className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-border/50 shadow-sm"
+                          imgClassName="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
                       ) : (
                         <div className="h-11 w-11 shrink-0 rounded-lg bg-primary/5 flex items-center justify-center border border-primary/10 shadow-sm">
                           <Activity className="h-5.5 w-5.5 text-primary/60" />
@@ -1426,7 +1434,7 @@ export default function LogActivity() {
 
 function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
   const { isRTL } = useLanguage();
-  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<GroupSubmissionListItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1451,7 +1459,7 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
         .limit(20);
 
       if (error) throw error;
-      setSubmissions(data || []);
+      setSubmissions((data || []) as GroupSubmissionListItem[]);
     } catch (error) {
       console.error('Error fetching group submissions:', error);
     } finally {
@@ -1522,4 +1530,3 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
     </div>
   );
 }
-

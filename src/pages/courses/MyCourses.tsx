@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -24,7 +25,6 @@ import { BookOpen, Calendar, Clock, MapPin, Users, Check, X, Loader2, Graduation
 import { format, parseISO } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { Plus, Trash2, Pencil, MoreHorizontal, Download, Megaphone, Image, FileText, MessageSquare } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -36,6 +36,28 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+type RoomRow = Database['public']['Tables']['rooms']['Row'];
+type TrainerRow = Database['public']['Tables']['trainers']['Row'];
+type CourseTrainerRow = Database['public']['Tables']['course_trainers']['Row'];
+type CourseAdRow = Database['public']['Tables']['course_ads']['Row'];
+type CourseAdInsert = Database['public']['Tables']['course_ads']['Insert'];
+type CourseAdUpdate = Database['public']['Tables']['course_ads']['Update'];
+type CourseAttendanceRow = Database['public']['Tables']['course_attendance']['Row'];
+type TrainerLectureRecordInsert = Database['public']['Tables']['trainer_lecture_records']['Insert'];
+type SupabaseErrorWithCode = { code?: string };
+type ExportRow = Record<string, string | number>;
+
+const getErrorCode = (error: unknown): string | undefined => {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+        const code = (error as SupabaseErrorWithCode).code;
+        return typeof code === 'string' ? code : undefined;
+    }
+    return undefined;
+};
+
+type CourseAdWithUpdater = CourseAdRow & {
+    updater?: { full_name: string | null, full_name_ar: string | null } | null;
+};
 
 interface Course {
     id: string;
@@ -91,8 +113,8 @@ interface CourseAd {
     content_done: boolean;
     created_by: string | null;
     updated_by: string | null;
-    created_at: string;
-    updated_at: string;
+    created_at: string | null;
+    updated_at: string | null;
     updater?: { full_name: string | null, full_name_ar: string | null } | null;
 }
 
@@ -169,7 +191,7 @@ export default function MyCourses() {
 
     const fetchRooms = async () => {
         try {
-            const { data, error } = await (supabase as any)
+            const { data, error } = await supabase
                 .from('rooms')
                 .select('id, name, name_ar');
 
@@ -180,7 +202,7 @@ export default function MyCourses() {
 
             if (data) {
                 const roomsMap: Record<string, { en: string; ar: string }> = {};
-                data.forEach(r => {
+                (data as Pick<RoomRow, 'id' | 'name' | 'name_ar'>[]).forEach(r => {
                     roomsMap[r.id] = { en: r.name, ar: r.name_ar };
                 });
                 setRooms(roomsMap);
@@ -213,7 +235,7 @@ export default function MyCourses() {
 
             // Get courses where current user is a trainer (via course_trainers)
             // First find the trainer record linked to this user
-            const { data: trainerRecord } = await (supabase as any)
+            const { data: trainerRecord } = await supabase
                 .from('trainers')
                 .select('id')
                 .eq('user_id', user?.id)
@@ -221,11 +243,11 @@ export default function MyCourses() {
 
             let trainerCourseIds: string[] = [];
             if (trainerRecord?.id) {
-                const { data: trainerCourseData } = await (supabase as any)
+                const { data: trainerCourseData } = await supabase
                     .from('course_trainers')
                     .select('course_id')
                     .eq('trainer_id', trainerRecord.id);
-                trainerCourseIds = trainerCourseData?.map((t: any) => t.course_id) || [];
+                trainerCourseIds = (trainerCourseData as Pick<CourseTrainerRow, 'course_id'>[] | null)?.map(t => t.course_id) || [];
 
                 // Also check if trainer is primary trainer (trainer_id column on courses)
                 const { data: primaryTrainerCourses } = await supabase
@@ -296,15 +318,16 @@ export default function MyCourses() {
                 content_done: false
             };
 
-            const { data, error } = await (supabase as any)
+            const newAdPayload: CourseAdInsert = newAdData;
+            const { data, error } = await supabase
                 .from('course_ads')
-                .insert(newAdData)
+                .insert(newAdPayload)
                 .select()
                 .single();
 
             if (error) throw error;
 
-            setCourseAds([...courseAds, data as unknown as CourseAd]);
+            setCourseAds([...courseAds, data as CourseAd]);
             toast.success(isRTL ? 'تم إضافة إعلان جديد' : 'New ad added successfully');
         } catch (error) {
             console.error('Error adding ad:', error);
@@ -314,9 +337,10 @@ export default function MyCourses() {
 
     const handleUpdateAd = async (adId: string, updates: Partial<CourseAd>) => {
         try {
-            const { error } = await (supabase as any)
+            const adUpdates: CourseAdUpdate = { ...updates, updated_by: user?.id, updated_at: new Date().toISOString() };
+            const { error } = await supabase
                 .from('course_ads')
-                .update({ ...updates, updated_by: user?.id, updated_at: new Date().toISOString() })
+                .update(adUpdates)
                 .eq('id', adId);
 
             if (error) throw error;
@@ -333,7 +357,7 @@ export default function MyCourses() {
         if (!confirm(isRTL ? 'هل أنت متأكد من حذف هذا الإعلان؟' : 'Are you sure you want to delete this ad?')) return;
 
         try {
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('course_ads')
                 .delete()
                 .eq('id', adId);
@@ -370,7 +394,7 @@ export default function MyCourses() {
             setLeaveCourseId(null);
             setLeaveType(null);
             fetchMyCourses();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error leaving course:', error);
             toast.error(isRTL ? 'حدث خطأ أثناء الإزالة' : 'Error removing role');
         }
@@ -396,7 +420,7 @@ export default function MyCourses() {
         }
 
         // Fetch Course Ads
-        const { data: adsData } = await (supabase as any)
+        const { data: adsData } = await supabase
             .from('course_ads')
             .select(`
                 *,
@@ -404,7 +428,7 @@ export default function MyCourses() {
             `)
             .eq('course_id', course.id)
             .order('ad_number');
-        if (adsData) setCourseAds(adsData as CourseAd[]);
+        if (adsData) setCourseAds(adsData as CourseAdWithUpdater[]);
 
         // Fetch lectures
         const { data: lecturesData } = await supabase
@@ -431,9 +455,10 @@ export default function MyCourses() {
                 .in('lecture_id', lectureIds);
 
             const attendanceMap: Record<string, Attendance[]> = {};
-            (attendanceList || []).forEach((a: any) => {
-                if (!attendanceMap[a.lecture_id]) attendanceMap[a.lecture_id] = [];
-                attendanceMap[a.lecture_id].push(a);
+            ((attendanceList || []) as CourseAttendanceRow[]).forEach(attendance => {
+                if (!attendance.lecture_id) return;
+                if (!attendanceMap[attendance.lecture_id]) attendanceMap[attendance.lecture_id] = [];
+                attendanceMap[attendance.lecture_id].push(attendance as Attendance);
             });
             setAttendanceData(attendanceMap);
         }
@@ -478,10 +503,11 @@ export default function MyCourses() {
 
             // Helper: always log in trainer_lecture_records (no profile needed)
             const logTrainerRecord = async (name: string, phone: string | null, volunteerId: string | null) => {
-                await (supabase as any).from('trainer_lecture_records').insert({
+                const record: TrainerLectureRecordInsert = {
                     course_id: course.id, lecture_id: lectureId,
                     trainer_name: name, trainer_phone: phone || null, volunteer_id: volunteerId || null
-                });
+                };
+                await supabase.from('trainer_lecture_records').insert(record);
             };
 
             interface TrainerEntry { name: string; phone: string | null; volunteerId: string | null; hasTrainerId: boolean; }
@@ -490,17 +516,18 @@ export default function MyCourses() {
             // Case A: Trainers from trainers table (trainer_id + course_trainers from DB)
             const trainerIds = new Set<string>();
             if (course.trainer_id) trainerIds.add(course.trainer_id);
-            const { data: ctData } = await (supabase as any)
+            const { data: ctData } = await supabase
                 .from('course_trainers').select('trainer_id').eq('course_id', course.id);
-            ctData?.forEach((ct: any) => trainerIds.add(ct.trainer_id));
+            (ctData as Pick<CourseTrainerRow, 'trainer_id'>[] | null)?.forEach(ct => trainerIds.add(ct.trainer_id));
 
             for (const tId of trainerIds) {
-                const { data: td } = await (supabase as any)
+                const { data: td } = await supabase
                     .from('trainers').select('user_id, phone, name_ar, name_en').eq('id', tId).single();
                 if (!td) continue;
-                let vid: string | null = td.user_id || null;
-                if (!vid && td.phone) vid = await findProfileByPhone(td.phone);
-                trainers.push({ name: td.name_ar || td.name_en || 'مدرب', phone: td.phone, volunteerId: vid, hasTrainerId: true });
+                const trainer = td as Pick<TrainerRow, 'user_id' | 'phone' | 'name_ar' | 'name_en'>;
+                let vid: string | null = trainer.user_id || null;
+                if (!vid && trainer.phone) vid = await findProfileByPhone(trainer.phone);
+                trainers.push({ name: trainer.name_ar || trainer.name_en || 'مدرب', phone: trainer.phone, volunteerId: vid, hasTrainerId: true });
             }
 
             // Case B: External trainer (name + phone on course, no trainer_id)
@@ -681,9 +708,9 @@ export default function MyCourses() {
             setBeneficiaries([...beneficiaries, data]);
             setNewBeneficiary({ name: '', phone: '', national_id: '' });
             toast.success(isRTL ? 'تم إضافة المستفيد' : 'Beneficiary added');
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error adding beneficiary:', error);
-            if (error.code === '23505') {
+            if (getErrorCode(error) === '23505') {
                 toast.error(isRTL ? 'هذا الرقم مسجل بالفعل' : 'This phone is already registered');
             } else {
                 toast.error(isRTL ? 'فشل إضافة المستفيد' : 'Failed to add beneficiary');
@@ -719,6 +746,8 @@ export default function MyCourses() {
 
     const exportCourseToExcel = async (course: Course) => {
         try {
+            const XLSX = await import('xlsx');
+
             // Fetch organizers
             const { data: orgs } = await supabase
                 .from('course_organizers')
@@ -781,16 +810,17 @@ export default function MyCourses() {
 
             // Create attendance lookup
             const attendanceByLecture: Record<string, Record<string, string>> = {};
-            (attendance || []).forEach((att: any) => {
+            ((attendance || []) as CourseAttendanceRow[]).forEach(att => {
+                if (!att.lecture_id) return;
                 if (!attendanceByLecture[att.lecture_id]) {
                     attendanceByLecture[att.lecture_id] = {};
                 }
-                attendanceByLecture[att.lecture_id][att.student_phone] = att.status;
+                attendanceByLecture[att.lecture_id][att.student_phone] = att.status || '';
             });
 
             // Create attendance sheet from beneficiaries
             const attendanceSheetValues = (beneficiariesData || []).map(beneficiary => {
-                const row: any = {
+                const row: ExportRow = {
                     [isRTL ? 'الاسم' : 'Name']: beneficiary.name,
                     [isRTL ? 'الرقم' : 'Phone']: beneficiary.phone
                 };

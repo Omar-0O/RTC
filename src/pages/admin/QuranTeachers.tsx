@@ -43,7 +43,6 @@ import {
     AlertCircle, FileSpreadsheet, Building2, User
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { utils, writeFile } from 'xlsx';
 
 interface QuranTeacher {
     id: string;
@@ -282,6 +281,7 @@ export default function QuranTeachers() {
     const handleExportTeacher = async (teacher: QuranTeacher) => {
         try {
             toast.info(isRTL ? 'جاري تحضير التقرير...' : 'Preparing report...');
+            const { utils, writeFile } = await import('xlsx');
 
             // Fetch circles for this teacher
             const { data: circles, error } = await supabase
@@ -371,8 +371,10 @@ export default function QuranTeachers() {
         }
     };
 
-    const handleExportAllTeachers = () => {
+    const handleExportAllTeachers = async () => {
         try {
+            const { utils, writeFile } = await import('xlsx');
+
             const allTeachersData = [
                 // Headers
                 [

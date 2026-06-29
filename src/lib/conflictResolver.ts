@@ -11,7 +11,9 @@
 
 export type ConflictStrategy = 'last-write-wins' | 'field-merge' | 'manual';
 
-export interface ConflictInfo<T = Record<string, any>> {
+export type ConflictRecord = Record<string, unknown>;
+
+export interface ConflictInfo<T = ConflictRecord> {
   type: 'CONFLICT';
   table: string;
   recordId: string;
@@ -27,7 +29,7 @@ export interface ConflictInfo<T = Record<string, any>> {
   serverOnlyFields: string[];
 }
 
-export interface MergeResult<T = Record<string, any>> {
+export interface MergeResult<T = ConflictRecord> {
   resolved: boolean;
   strategy: ConflictStrategy;
   mergedData: T;
@@ -41,7 +43,7 @@ export interface MergeResult<T = Record<string, any>> {
  * Detect if there's a version conflict.
  * Call this BEFORE sending an update to the server.
  */
-export function detectConflict<T extends Record<string, any>>(
+export function detectConflict<T extends ConflictRecord>(
   table: string,
   recordId: string,
   clientVersion: number,
@@ -97,7 +99,7 @@ export function detectConflict<T extends Record<string, any>>(
  * Strategy 1: Last Write Wins — server version always wins.
  * Simplest strategy, no data loss detection.
  */
-export function resolveLastWriteWins<T extends Record<string, any>>(
+export function resolveLastWriteWins<T extends ConflictRecord>(
   conflict: ConflictInfo<T>
 ): MergeResult<T> {
   return {
@@ -112,12 +114,12 @@ export function resolveLastWriteWins<T extends Record<string, any>>(
  * Strategy 2: Field-Level Merge — auto-merge non-conflicting fields.
  * If both client and server changed the same field → mark unresolved.
  */
-export function resolveFieldMerge<T extends Record<string, any>>(
+export function resolveFieldMerge<T extends ConflictRecord>(
   conflict: ConflictInfo<T>,
   /** The original data (before either client or server modified it) */
   originalData?: T
 ): MergeResult<T> {
-  const merged = { ...conflict.serverData } as Record<string, any>;
+  const merged: ConflictRecord = { ...conflict.serverData };
   const unresolvedFields: string[] = [];
 
   for (const field of conflict.conflictingFields) {
@@ -156,7 +158,7 @@ export function resolveFieldMerge<T extends Record<string, any>>(
  * Strategy 3: Manual Resolution — return both versions for user to pick.
  * The UI component (ConflictDialog) handles the actual resolution.
  */
-export function resolveManual<T extends Record<string, any>>(
+export function resolveManual<T extends ConflictRecord>(
   conflict: ConflictInfo<T>
 ): MergeResult<T> {
   return {
@@ -170,12 +172,12 @@ export function resolveManual<T extends Record<string, any>>(
 /**
  * Apply a user's manual resolution choices.
  */
-export function applyManualResolution<T extends Record<string, any>>(
+export function applyManualResolution<T extends ConflictRecord>(
   conflict: ConflictInfo<T>,
   /** Map of field → 'client' | 'server' choices made by user */
   choices: Record<string, 'client' | 'server'>
 ): T {
-  const merged = { ...conflict.serverData } as Record<string, any>;
+  const merged: ConflictRecord = { ...conflict.serverData };
 
   for (const [field, choice] of Object.entries(choices)) {
     if (choice === 'client') {
@@ -192,7 +194,7 @@ export function applyManualResolution<T extends Record<string, any>>(
 /**
  * Auto-resolve a conflict using the specified strategy.
  */
-export function autoResolve<T extends Record<string, any>>(
+export function autoResolve<T extends ConflictRecord>(
   conflict: ConflictInfo<T>,
   strategy: ConflictStrategy = 'last-write-wins',
   originalData?: T

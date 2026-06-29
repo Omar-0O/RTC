@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import * as XLSX from 'xlsx';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -86,6 +86,24 @@ interface Volunteer {
     phone: string | null;
     avatar_url?: string | null;
 }
+
+type Tables = Database['public']['Tables'];
+type EventBeneficiaryInsert = Tables['event_beneficiaries']['Insert'];
+type EventOrganizerInsert = Tables['event_organizers']['Insert'];
+type EventParticipantInsert = Tables['event_participants']['Insert'];
+type EventSpeakerInsert = Tables['event_speakers']['Insert'];
+
+type EventWithCounts = Tables['events']['Row'] & {
+    committees?: { name: string; name_ar: string } | null;
+    event_participants?: { count: number }[] | null;
+};
+
+type EventOrganizerWithProfile = Tables['event_organizers']['Row'] & {
+    profiles?: { full_name: string | null } | null;
+};
+
+const getErrorMessage = (error: unknown, fallback = 'Error occurred') =>
+    error instanceof Error ? error.message : fallback;
 
 export default function EventManagement() {
     const { user, hasRole, primaryRole } = useAuth();
@@ -223,7 +241,7 @@ export default function EventManagement() {
 
             // Branch scope: admin sees activeBranch; non-admin relies on RLS
             if (canViewAllBranches && activeBranch?.id) {
-                query = (query as any).eq('branch_id', activeBranch.id);
+                query = query.eq('branch_id', activeBranch.id);
             }
 
             // Non-admin heads only see events for their committee
@@ -231,18 +249,18 @@ export default function EventManagement() {
                 const currentCommittees = committeesList || committees;
                 const committeeMatch = currentCommittees.find(c => c.name === userCommitteeName);
                 if (committeeMatch) {
-                    query = (query as any).eq('committee_id', committeeMatch.id);
+                    query = query.eq('committee_id', committeeMatch.id);
                 }
             }
 
             const { data, error } = await query;
             if (error) throw error;
 
-            const eventsData = data?.map((event: any) => ({
+            const eventsData = ((data || []) as unknown as EventWithCounts[]).map((event) => ({
                 ...event,
                 committee_name: event.committees?.name_ar || event.committees?.name || '',
                 participants_count: event.event_participants?.[0]?.count || 0
-            })) || [];
+            }));
 
             setEvents(eventsData);
 
@@ -257,7 +275,7 @@ export default function EventManagement() {
     };
 
     const fetchVolunteers = async () => {
-        let q = (supabase as any)
+        let q = supabase
             .from('profiles')
             .select('id, full_name, phone, avatar_url')
             .order('full_name');
@@ -269,7 +287,7 @@ export default function EventManagement() {
         const { data } = await q;
 
         if (data) {
-            setVolunteers(data.map((p: any) => ({
+            setVolunteers(data.map((p) => ({
                 id: p.id,
                 full_name: p.full_name || 'Unknown',
                 phone: p.phone,
@@ -319,7 +337,7 @@ export default function EventManagement() {
     const openBeneficiaries = async (event: Event) => {
         setSelectedEventForBeneficiaries(event);
         setBeneficiariesDialogOpen(true);
-        const { data } = await (supabase as any)
+        const { data } = await supabase
             .from('event_beneficiaries')
             .select('*')
             .eq('event_id', event.id)
@@ -330,13 +348,14 @@ export default function EventManagement() {
     const handleAddBeneficiary = async () => {
         if (!selectedEventForBeneficiaries || !newBeneficiary.name) return;
         try {
-            const { data, error } = await (supabase as any)
+            const beneficiaryToCreate: EventBeneficiaryInsert = {
+                event_id: selectedEventForBeneficiaries.id,
+                name: newBeneficiary.name,
+                phone: newBeneficiary.phone || null
+            };
+            const { data, error } = await supabase
                 .from('event_beneficiaries')
-                .insert({
-                    event_id: selectedEventForBeneficiaries.id,
-                    name: newBeneficiary.name,
-                    phone: newBeneficiary.phone || null
-                })
+                .insert(beneficiaryToCreate)
                 .select()
                 .single();
             if (error) throw error;
@@ -351,7 +370,7 @@ export default function EventManagement() {
 
     const handleRemoveBeneficiary = async (id: string) => {
         try {
-            const { error } = await (supabase as any).from('event_beneficiaries').delete().eq('id', id);
+            const { error } = await supabase.from('event_beneficiaries').delete().eq('id', id);
             if (error) throw error;
             setEventBeneficiaries(eventBeneficiaries.filter(b => b.id !== id));
             toast.success(isRTL ? 'تم حذف المستفيد' : 'Beneficiary removed');
@@ -405,8 +424,8 @@ export default function EventManagement() {
             // Fetch participants, speakers, organizers in parallel
             const [partsRes, speakersRes, orgsRes] = await Promise.all([
                 supabase.from('event_participants').select('*').eq('event_id', event.id),
-                (supabase as any).from('event_speakers').select('*').eq('event_id', event.id),
-                (supabase as any).from('event_organizers').select('*, profiles:volunteer_id(full_name)').eq('event_id', event.id)
+                supabase.from('event_speakers').select('*').eq('event_id', event.id),
+                supabase.from('event_organizers').select('*, profiles:volunteer_id(full_name)').eq('event_id', event.id)
             ]);
 
             setFormData({
@@ -419,17 +438,17 @@ export default function EventManagement() {
                 committee_id: event.committee_id || ''
             });
 
-            setParticipants((partsRes.data || []).map((p: any) => ({
+            setParticipants((partsRes.data || []).map((p) => ({
                 id: p.id, volunteer_id: p.volunteer_id,
-                name: p.name, phone: p.phone, is_volunteer: p.is_volunteer
+                name: p.name, phone: p.phone || '', is_volunteer: Boolean(p.is_volunteer)
             })));
 
-            setSpeakers((speakersRes.data || []).map((s: any) => ({
+            setSpeakers((speakersRes.data || []).map((s) => ({
                 id: s.id, name: s.name, phone: s.phone || '',
                 social_media_link: s.social_media_link || ''
             })));
 
-            setOrganizers((orgsRes.data || []).map((o: any) => ({
+            setOrganizers(((orgsRes.data || []) as unknown as EventOrganizerWithProfile[]).map((o) => ({
                 id: o.id, volunteer_id: o.volunteer_id,
                 volunteer_name: o.profiles?.full_name || ''
             })));
@@ -469,29 +488,30 @@ export default function EventManagement() {
                 .single();
 
             if (eventError) throw eventError;
-            const eventData = event as any;
 
             // 2. Add Participants & Award Points
             if (participants.length > 0) {
+                const participantRows: EventParticipantInsert[] = participants.map(p => ({
+                    event_id: event.id,
+                    volunteer_id: p.volunteer_id || null,
+                    name: p.name,
+                    phone: p.phone,
+                    is_volunteer: p.is_volunteer
+                }));
                 const { error: partsError } = await supabase
-                    .from('event_participants' as any)
-                    .insert(participants.map(p => ({
-                        event_id: eventData.id,
-                        volunteer_id: p.volunteer_id || null,
-                        name: p.name, phone: p.phone, is_volunteer: p.is_volunteer
-                    })));
+                    .from('event_participants')
+                    .insert(participantRows);
                 if (partsError) throw partsError;
             }
 
             // 3. Save speakers
             if (speakers.length > 0) {
-                await (supabase as any).from('event_speakers').insert(
-                    speakers.map(s => ({
-                        event_id: eventData.id,
+                const speakerRows: EventSpeakerInsert[] = speakers.map(s => ({
+                        event_id: event.id,
                         name: s.name, phone: s.phone || null,
                         social_media_link: s.social_media_link || null
-                    }))
-                );
+                    }));
+                await supabase.from('event_speakers').insert(speakerRows);
 
                 // Award points to speakers who match existing volunteers
                 const matchedVolunteers = speakers.map(s => 
@@ -523,9 +543,8 @@ export default function EventManagement() {
 
             // 4. Save organizers & award participation
             if (organizers.length > 0) {
-                await (supabase as any).from('event_organizers').insert(
-                    organizers.map(o => ({ event_id: eventData.id, volunteer_id: o.volunteer_id }))
-                );
+                const organizerRows: EventOrganizerInsert[] = organizers.map(o => ({ event_id: event.id, volunteer_id: o.volunteer_id }));
+                await supabase.from('event_organizers').insert(organizerRows);
 
                 // Award points to organizers
                 const activityTypeId = await ensureEventActivityType();
@@ -584,7 +603,7 @@ export default function EventManagement() {
                 .from('event_participants')
                 .select('id, volunteer_id, is_volunteer')
                 .eq('event_id', selectedEventId);
-            const existingParts = existingPartsType as any[] || [];
+            const existingParts = existingPartsType || [];
             const currentParticipantIds = participants.filter(p => p.id).map(p => p.id);
             const toRemove = existingParts.filter(p => !currentParticipantIds.includes(p.id));
             const toAdd = participants.filter(p => !p.id);
@@ -602,23 +621,21 @@ export default function EventManagement() {
             }
 
             // 3. Sync speakers (delete all + reinsert)
-            await (supabase as any).from('event_speakers').delete().eq('event_id', selectedEventId);
+            await supabase.from('event_speakers').delete().eq('event_id', selectedEventId);
             if (speakers.length > 0) {
-                await (supabase as any).from('event_speakers').insert(
-                    speakers.map(s => ({
+                const speakerRows: EventSpeakerInsert[] = speakers.map(s => ({
                         event_id: selectedEventId,
                         name: s.name, phone: s.phone || null,
                         social_media_link: s.social_media_link || null
-                    }))
-                );
+                    }));
+                await supabase.from('event_speakers').insert(speakerRows);
             }
 
             // 4. Sync organizers (delete all + reinsert)
-            await (supabase as any).from('event_organizers').delete().eq('event_id', selectedEventId);
+            await supabase.from('event_organizers').delete().eq('event_id', selectedEventId);
             if (organizers.length > 0) {
-                await (supabase as any).from('event_organizers').insert(
-                    organizers.map(o => ({ event_id: selectedEventId, volunteer_id: o.volunteer_id }))
-                );
+                const organizerRows: EventOrganizerInsert[] = organizers.map(o => ({ event_id: selectedEventId, volunteer_id: o.volunteer_id }));
+                await supabase.from('event_organizers').insert(organizerRows);
             }
 
             toast.success(isRTL ? 'تم تحديث الإيفينت بنجاح' : 'Event updated successfully');
@@ -660,11 +677,12 @@ export default function EventManagement() {
         }
     };
 
-    const handleExportAllEvents = () => {
+    const handleExportAllEvents = async () => {
         if (events.length === 0) {
             toast.error(isRTL ? 'لا توجد بيانات للتصدير' : 'No data to export');
             return;
         }
+        const XLSX = await import('xlsx');
 
         const data = events.map(e => ({
             [isRTL ? 'الاسم' : 'Event Name']: e.name,
@@ -685,6 +703,8 @@ export default function EventManagement() {
 
     const handleExportSingleEvent = async (event: Event) => {
         try {
+            const XLSX = await import('xlsx');
+
             // Fetch participants
             const { data: participantsData, error } = await supabase
                 .from('event_participants')
@@ -757,9 +777,9 @@ export default function EventManagement() {
             setIsDeleteDialogOpen(false);
             setEventToDelete(null);
             fetchEvents();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error deleting event:', error);
-            toast.error(error.message || (isRTL ? 'فشل حذف الإيفينت' : 'Failed to delete event'));
+            toast.error(getErrorMessage(error, isRTL ? 'فشل حذف الإيفينت' : 'Failed to delete event'));
         } finally {
             setIsDeleting(false);
         }
