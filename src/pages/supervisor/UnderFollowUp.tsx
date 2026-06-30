@@ -371,7 +371,7 @@ export default function UnderFollowUp() {
                       size="icon"
                       className="h-9 w-9 shrink-0 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-400 hover:text-blue-600 transition-colors"
                       onClick={() => window.open(getPortalLink(volunteer.id), '_blank')}
-                      title={isRTL ? 'فتح صفحة المتطوع' : 'Open volunteer portal'}
+                      title={isRTL ? 'فتح صفحة المتطوع' : 'Open volunteer platform'}
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Button>

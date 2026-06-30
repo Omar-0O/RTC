@@ -39,7 +39,11 @@ export default function Auth() {
     console.log('Attempting login with:', cleanEmail);
 
     // Save remember me preference before login
-    localStorage.setItem('rememberMe', String(rememberMe));
+    try {
+      localStorage.setItem('rememberMe', String(rememberMe));
+    } catch (e) {
+      console.warn('Failed to save rememberMe preference:', e);
+    }
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({

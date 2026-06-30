@@ -27,6 +27,7 @@ import {
   Legend
 } from 'recharts';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { utils, writeFile } from 'xlsx';
@@ -317,12 +318,34 @@ export default function Reports() {
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState('month');
   const [archiveYear, setArchiveYear] = useState<number>(new Date().getFullYear());
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [committees, setCommittees] = useState<Committee[]>([]);
-  const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
+  const { activeBranch } = useBranch();
+  const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
+  const [allCommittees, setAllCommittees] = useState<Committee[]>([]);
+  const [allSubmissions, setAllSubmissions] = useState<ActivitySubmission[]>([]);
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
-  const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [allTrainers, setAllTrainers] = useState<Trainer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Filter lists based on selected branch
+  const profiles = useMemo(() => {
+    if (!activeBranch) return allProfiles;
+    return allProfiles.filter(p => (p as any).branch_id === activeBranch.id);
+  }, [allProfiles, activeBranch]);
+
+  const committees = useMemo(() => {
+    if (!activeBranch) return allCommittees;
+    return allCommittees.filter(c => (c as any).branch_id === activeBranch.id);
+  }, [allCommittees, activeBranch]);
+
+  const submissions = useMemo(() => {
+    if (!activeBranch) return allSubmissions;
+    return allSubmissions.filter(s => (s as any).branch_id === activeBranch.id);
+  }, [allSubmissions, activeBranch]);
+
+  const trainers = useMemo(() => {
+    if (!activeBranch) return allTrainers;
+    return allTrainers.filter(t => (t as any).branch_id === activeBranch.id);
+  }, [allTrainers, activeBranch]);
 
   // Memoized maps for O(1) lookups
   const profilesMap = useMemo(() => new Map(profiles.map(p => [p.id, p])), [profiles]);
@@ -376,16 +399,16 @@ export default function Reports() {
             roles: userRoles
           };
         }).filter(p => !p.roles?.includes('admin'));
-        setProfiles(enrichedProfiles);
+        setAllProfiles(enrichedProfiles);
       }
 
-      if (committeesRes.data) setCommittees(committeesRes.data);
-      if (submissionsRes.data) setSubmissions(submissionsRes.data);
+      if (committeesRes.data) setAllCommittees(committeesRes.data);
+      if (submissionsRes.data) setAllSubmissions(submissionsRes.data);
       if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
 
       // Fetch trainers
       const { data: trainersData } = await supabase.from('trainers').select('id, user_id, name_en, name_ar, phone');
-      if (trainersData) setTrainers(trainersData as unknown as Trainer[]);
+      if (trainersData) setAllTrainers(trainersData as unknown as Trainer[]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -1334,10 +1357,14 @@ export default function Reports() {
                   try {
                     const matrixYear = new Date().getFullYear();
                     
-                    // Fetch ALL users_followup rows (paginated to bypass 1000-row limit)
-                    const { count: fuCount } = await (supabase as any)
+                    // Fetch ALL users_followup rows for active branch (paginated to bypass 1000-row limit)
+                    let countQuery = (supabase as any)
                       .from('users_followup')
                       .select('*', { count: 'exact', head: true });
+                    if (activeBranch) {
+                      countQuery = countQuery.eq('branch_id', activeBranch.id);
+                    }
+                    const { count: fuCount } = await countQuery;
                     
                     let followupUsers: any[] = [];
                     const fuTotal = fuCount ?? 0;
@@ -1345,13 +1372,15 @@ export default function Reports() {
                     const promises = [];
                     for (let from = 0; from < fuTotal; from += fuPageSize) {
                       const to = Math.min(from + fuPageSize - 1, fuTotal - 1);
-                      promises.push(
-                        (supabase as any)
-                          .from('users_followup')
-                          .select('*')
-                          .order('id', { ascending: true })
-                          .range(from, to)
-                      );
+                      let pQuery = (supabase as any)
+                        .from('users_followup')
+                        .select('*')
+                        .order('id', { ascending: true })
+                        .range(from, to);
+                      if (activeBranch) {
+                        pQuery = pQuery.eq('branch_id', activeBranch.id);
+                      }
+                      promises.push(pQuery);
                     }
 
                     const results = await Promise.all(promises);
@@ -1434,7 +1463,8 @@ export default function Reports() {
                               full_name: participantName,
                               phone_1: primaryPhone,
                               phone_2: cleanPhones[1] || null,
-                              branch: branchName
+                              branch: branchName,
+                              branch_id: activeBranch?.id
                            });
                         }
                     });
@@ -1519,16 +1549,28 @@ export default function Reports() {
                       months.push(new Date(archiveYear, m, 1));
                     }
 
-                    return months.map((date, i) => {
+                    const activeMonths = months.map(date => {
                       const monthStart = startOfMonth(date);
                       const monthEnd = endOfMonth(date);
-                      const monthName = format(date, 'MMMM yyyy');
-
-                      // Calculate stats for this month
                       const monthSubmissions = submissions.filter(s => {
                         const sDate = new Date(s.submitted_at);
                         return sDate >= monthStart && sDate <= monthEnd;
                       });
+                      return { date, monthSubmissions };
+                    }).filter(item => item.monthSubmissions.length > 0);
+
+                    if (activeMonths.length === 0) {
+                      return (
+                        <div className="col-span-full flex flex-col items-center justify-center p-12 text-muted-foreground border border-dashed rounded-lg bg-muted/20">
+                          <p className="text-sm font-medium">
+                            {language === 'ar' ? 'لا توجد مشاركات مؤرشفة في هذا العام لهذا الفرع' : 'No archived submissions found for this branch in this year'}
+                          </p>
+                        </div>
+                      );
+                    }
+
+                    return activeMonths.map(({ date, monthSubmissions }, i) => {
+                      const monthName = format(date, 'MMMM yyyy');
 
                       return (
                         <div key={i} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">

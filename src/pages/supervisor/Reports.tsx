@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Download, Calendar, TrendingUp, Users, Activity, Award } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -26,6 +26,7 @@ import {
   Legend
 } from 'recharts';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
@@ -115,13 +116,35 @@ export default function Reports() {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState('month');
-  const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [committees, setCommittees] = useState<Committee[]>([]);
-  const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
+  const { activeBranch } = useBranch();
+  const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
+  const [allCommittees, setAllCommittees] = useState<Committee[]>([]);
+  const [allSubmissions, setAllSubmissions] = useState<ActivitySubmission[]>([]);
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
   // Add Trainers state
-  const [trainers, setTrainers] = useState<{ id: string, user_id: string | null, name_ar: string, name_en: string, phone: string | null }[]>([]);
+  const [allTrainers, setAllTrainers] = useState<{ id: string, user_id: string | null, name_ar: string, name_en: string, phone: string | null }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Filter lists based on selected branch
+  const profiles = useMemo(() => {
+    if (!activeBranch) return allProfiles;
+    return allProfiles.filter(p => (p as any).branch_id === activeBranch.id);
+  }, [allProfiles, activeBranch]);
+
+  const committees = useMemo(() => {
+    if (!activeBranch) return allCommittees;
+    return allCommittees.filter(c => (c as any).branch_id === activeBranch.id);
+  }, [allCommittees, activeBranch]);
+
+  const submissions = useMemo(() => {
+    if (!activeBranch) return allSubmissions;
+    return allSubmissions.filter(s => (s as any).branch_id === activeBranch.id);
+  }, [allSubmissions, activeBranch]);
+
+  const trainers = useMemo(() => {
+    if (!activeBranch) return allTrainers;
+    return allTrainers.filter(t => (t as any).branch_id === activeBranch.id);
+  }, [allTrainers, activeBranch]);
 
   useEffect(() => {
     fetchData();
@@ -153,21 +176,21 @@ export default function Reports() {
             roles: userRoles
           };
         });
-        setProfiles(enrichedProfiles);
+        setAllProfiles(enrichedProfiles);
       }
 
-      if (committeesRes.data) setCommittees(committeesRes.data);
+      if (committeesRes.data) setAllCommittees(committeesRes.data);
       if (submissionsRes.data) {
         console.log('DEBUG: Fetched Submissions:', submissionsRes.data.length);
         const guestSubs = submissionsRes.data.filter(s => s.participant_type === 'guest' || s.guest_name);
         console.log('DEBUG: Guest Submissions Sample:', guestSubs.slice(0, 3));
-        setSubmissions(submissionsRes.data);
+        setAllSubmissions(submissionsRes.data);
       }
       if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
 
       // Fetch trainers
       const { data: trainersData } = await supabase.from('trainers').select('id, user_id, name_en, name_ar, phone');
-      if (trainersData) setTrainers(trainersData);
+      if (trainersData) setAllTrainers(trainersData);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {

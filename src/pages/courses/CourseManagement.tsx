@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import { isPhoneValid } from '@/utils/phoneUtils';
 import { useBranch } from '@/contexts/BranchContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -174,6 +175,93 @@ const DAYS = [
     { value: 'friday', label: { en: 'Friday', ar: 'الجمعة' } },
 ];
 
+const validateBeneficiaryData = (name: string, phone: string, nationalId: string, isRTL: boolean): string | null => {
+    // 1. Name validation
+    if (!name || name.trim().length < 2) {
+        return isRTL ? 'الاسم مطلوب ويجب أن لا يقل عن حرفين' : 'Name is required and must be at least 2 characters';
+    }
+
+    // 2. Phone validation
+    const cleanPhone = phone.trim();
+    if (!cleanPhone) {
+        return isRTL ? 'رقم الهاتف مطلوب' : 'Phone number is required';
+    }
+
+    // Accept only digits and + for phone numbers
+    if (!/^[0-9+]+$/.test(cleanPhone)) {
+        return isRTL ? 'رقم الهاتف يجب أن يحتوي على أرقام وعلامة + فقط' : 'Phone number must contain only numbers and +';
+    }
+
+    // Use our helper isPhoneValid
+    if (!isPhoneValid(cleanPhone)) {
+        return isRTL ? 'رقم الهاتف غير صالح' : 'Phone number is invalid';
+    }
+
+    // Egyptian phone validation rules:
+    // Standard local format: 01xxxxxxxxx (11 digits)
+    // International formats: +201xxxxxxxxx (13 chars), 00201xxxxxxxxx (14 chars), 201xxxxxxxxx (12 digits)
+    const isEgyptianPhone = /^(01|\+201|201|00201)/.test(cleanPhone);
+    if (isEgyptianPhone) {
+        if (cleanPhone.startsWith('01') && cleanPhone.length !== 11) {
+            return isRTL ? 'رقم الهاتف المصري المحلي يجب أن يكون مكوناً من 11 رقماً' : 'Egyptian local phone number must be exactly 11 digits';
+        }
+        if (cleanPhone.startsWith('+201') && cleanPhone.length !== 13) {
+            return isRTL ? 'رقم الهاتف المصري الدولي (+201) يجب أن يكون مكوناً من 13 رمزاً' : 'Egyptian international phone (+201) must be exactly 13 characters';
+        }
+        if (cleanPhone.startsWith('201') && cleanPhone.length !== 12) {
+            return isRTL ? 'رقم الهاتف المصري الدولي (201) يجب أن يكون مكوناً من 12 رقماً' : 'Egyptian international phone (201) must be exactly 12 digits';
+        }
+        if (cleanPhone.startsWith('00201') && cleanPhone.length !== 14) {
+            return isRTL ? 'رقم الهاتف المصري الدولي (00201) يجب أن يكون مكوناً من 14 رقماً' : 'Egyptian international phone (00201) must be exactly 14 digits';
+        }
+    } else {
+        // General global phone length validation (between 7 and 15 digits)
+        const digitCount = cleanPhone.replace(/\+/g, '').length;
+        if (digitCount < 7 || digitCount > 15) {
+            return isRTL ? 'رقم الهاتف الدولي يجب أن يكون بين 7 و 15 رقماً' : 'International phone number must be between 7 and 15 digits';
+        }
+    }
+
+    // 3. National ID validation
+    const cleanId = nationalId.trim();
+    if (!cleanId) {
+        return isRTL ? 'الرقم القومي أو رقم جواز السفر مطلوب' : 'National ID or Passport number is required';
+    }
+
+    // If it looks like an Egyptian National ID (only digits, 14 digits, or starting with 2 or 3)
+    const isOnlyDigits = /^\d+$/.test(cleanId);
+    const looksLikeEgyptianId = isOnlyDigits && (cleanId.length === 14 || /^[23]/.test(cleanId));
+
+    if (looksLikeEgyptianId) {
+        if (cleanId.length !== 14) {
+            return isRTL ? 'الرقم القومي المصري يجب أن يكون 14 رقماً' : 'Egyptian National ID must be exactly 14 digits';
+        }
+        if (!/^[23]\d{13}$/.test(cleanId)) {
+            return isRTL ? 'الرقم القومي المصري يجب أن يبدأ بـ 2 أو 3 ومكون من أرقام فقط' : 'Egyptian National ID must start with 2 or 3 and contain only digits';
+        }
+    } else {
+        // Foreign ID / Passport validation:
+        // Must be at least 6 characters (up to 20)
+        // Must contain alphanumeric characters (no special chars except dash or spaces optionally)
+        if (cleanId.length < 6) {
+            return isRTL ? 'رقم الهوية أو جواز السفر الأجنبي يجب ألا يقل عن 6 خانات' : 'Foreign ID or Passport number must be at least 6 characters';
+        }
+        if (cleanId.length > 20) {
+            return isRTL ? 'رقم الهوية أو جواز السفر يجب ألا يزيد عن 20 خانة' : 'Foreign ID or Passport number must not exceed 20 characters';
+        }
+        if (!/^[a-zA-Z0-9\s-]+$/.test(cleanId)) {
+            return isRTL ? 'رقم الهوية أو جواز السفر يجب أن يحتوي على حروف وأرقام فقط' : 'ID or Passport number must contain only letters and numbers';
+        }
+        // Check for placeholder/simple patterns (e.g. 111111, aaaaaa)
+        const isRepeated = /^(.)\1+$/.test(cleanId);
+        if (isRepeated) {
+            return isRTL ? 'رقم الهوية غير صالح (مكرر)' : 'Invalid ID/Passport number (repeated characters)';
+        }
+    }
+
+    return null; // Valid
+};
+
 export default function CourseManagement() {
     const { user, hasRole, roles, profile, isLoading } = useAuth(); // Add isLoading
     const { t, language, isRTL } = useLanguage();
@@ -241,7 +329,12 @@ export default function CourseManagement() {
     const statusFilteredCourses = courses.filter(course => {
         if (showPastCourses) return true;
 
-        const remainingLectures = Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0));
+        const remainingLectures = Math.max(
+            0,
+            course.total_lectures -
+                (course.course_lectures?.filter(l => l.status === 'completed').length || 0) -
+                (course.course_lectures?.filter(l => l.status === 'cancelled').length || 0)
+        );
         const isFinished = remainingLectures === 0;
 
         if (isFinished) return false;
@@ -313,13 +406,33 @@ export default function CourseManagement() {
             return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
         }
         if (sortBy === 'lectures-desc') {
-            const remA = Math.max(0, a.total_lectures - (a.course_lectures?.filter(l => l.status === 'completed').length || 0));
-            const remB = Math.max(0, b.total_lectures - (b.course_lectures?.filter(l => l.status === 'completed').length || 0));
+            const remA = Math.max(
+                0,
+                a.total_lectures -
+                    (a.course_lectures?.filter(l => l.status === 'completed').length || 0) -
+                    (a.course_lectures?.filter(l => l.status === 'cancelled').length || 0)
+            );
+            const remB = Math.max(
+                0,
+                b.total_lectures -
+                    (b.course_lectures?.filter(l => l.status === 'completed').length || 0) -
+                    (b.course_lectures?.filter(l => l.status === 'cancelled').length || 0)
+            );
             return remB - remA;
         }
         if (sortBy === 'lectures-asc') {
-            const remA = Math.max(0, a.total_lectures - (a.course_lectures?.filter(l => l.status === 'completed').length || 0));
-            const remB = Math.max(0, b.total_lectures - (b.course_lectures?.filter(l => l.status === 'completed').length || 0));
+            const remA = Math.max(
+                0,
+                a.total_lectures -
+                    (a.course_lectures?.filter(l => l.status === 'completed').length || 0) -
+                    (a.course_lectures?.filter(l => l.status === 'cancelled').length || 0)
+            );
+            const remB = Math.max(
+                0,
+                b.total_lectures -
+                    (b.course_lectures?.filter(l => l.status === 'completed').length || 0) -
+                    (b.course_lectures?.filter(l => l.status === 'cancelled').length || 0)
+            );
             return remA - remB;
         }
         return 0;
@@ -1820,21 +1933,33 @@ export default function CourseManagement() {
 
             // Create attendance sheet from beneficiaries
             const attendanceSheetValues = (beneficiariesData || []).map(beneficiary => {
-                const row: any = {
-                    [isRTL ? 'الاسم' : 'Name']: beneficiary.name,
-                    [isRTL ? 'الرقم' : 'Phone']: beneficiary.phone
-                };
                 let attended = 0;
                 let missed = 0;
+                (lects || []).forEach(l => {
+                    const status = attendanceByLecture[l.id]?.[beneficiary.phone];
+                    if (status === 'present') {
+                        attended++;
+                    } else if (l.status === 'completed') {
+                        missed++;
+                    }
+                });
+
+                const rate = completedLectures > 0 ? Math.round((attended / completedLectures) * 100) : 0;
+
+                const row: any = {
+                    [isRTL ? 'الاسم' : 'Name']: beneficiary.name,
+                    [isRTL ? 'الرقم' : 'Phone']: beneficiary.phone,
+                    [isRTL ? 'الرقم القومي / جواز السفر' : 'National ID / Passport']: beneficiary.national_id || '-',
+                    [isRTL ? 'نسبة الحضور' : 'Attendance Rate']: `${rate}%`
+                };
+
                 (lects || []).forEach(l => {
                     const status = attendanceByLecture[l.id]?.[beneficiary.phone];
                     const colName = isRTL ? `م${l.lecture_number}` : `L${l.lecture_number}`;
                     if (status === 'present') {
                         row[colName] = isRTL ? 'حضر' : 'Present';
-                        attended++;
                     } else if (l.status === 'completed') {
                         row[colName] = isRTL ? 'غائب' : 'Absent';
-                        missed++;
                     } else {
                         row[colName] = '-';
                     }
@@ -1964,8 +2089,16 @@ export default function CourseManagement() {
 
     // Beneficiary Management Functions
     const addBeneficiary = async () => {
-        if (!selectedCourse || !newBeneficiary.name || !newBeneficiary.phone) {
-            toast.error(isRTL ? 'يرجى إدخال الاسم والرقم' : 'Please enter name and phone');
+        if (!selectedCourse) return;
+
+        const valError = validateBeneficiaryData(
+            newBeneficiary.name,
+            newBeneficiary.phone,
+            newBeneficiary.national_id,
+            isRTL
+        );
+        if (valError) {
+            toast.error(valError);
             return;
         }
 
@@ -2000,6 +2133,17 @@ export default function CourseManagement() {
     const updateBeneficiary = async () => {
         if (!editingBeneficiary) return;
 
+        const valError = validateBeneficiaryData(
+            editingBeneficiary.name,
+            editingBeneficiary.phone,
+            editingBeneficiary.national_id || '',
+            isRTL
+        );
+        if (valError) {
+            toast.error(valError);
+            return;
+        }
+
         try {
             const { error } = await supabase
                 .from('course_beneficiaries')
@@ -2016,10 +2160,15 @@ export default function CourseManagement() {
                 b.id === editingBeneficiary.id ? editingBeneficiary : b
             ));
             setEditingBeneficiary(null);
+            setIsEditStudentDialogOpen(false);
             toast.success(isRTL ? 'تم تحديث البيانات' : 'Beneficiary updated');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error updating beneficiary:', error);
-            toast.error(isRTL ? 'فشل التحديث' : 'Failed to update');
+            if (error.code === '23505') {
+                toast.error(isRTL ? 'هذا الرقم مسجل بالفعل' : 'This phone is already registered');
+            } else {
+                toast.error(isRTL ? 'فشل التحديث' : 'Failed to update');
+            }
         }
     };
 
@@ -2809,7 +2958,12 @@ export default function CourseManagement() {
             {/* Course Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {activeCourses.map(course => {
-                    const remainingLectures = Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0));
+                    const remainingLectures = Math.max(
+                        0,
+                        course.total_lectures -
+                            (course.course_lectures?.filter(l => l.status === 'completed').length || 0) -
+                            (course.course_lectures?.filter(l => l.status === 'cancelled').length || 0)
+                    );
                     const isFinished = remainingLectures === 0;
                     return (
                         <Card
@@ -2932,7 +3086,12 @@ export default function CourseManagement() {
                                         <Clock className="w-4 h-4" />
                                         <span>
                                             {isRTL ? 'متبقي: ' : 'Remaining: '}
-                                            {Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0))}
+                                            {Math.max(
+                                                0,
+                                                course.total_lectures -
+                                                    (course.course_lectures?.filter(l => l.status === 'completed').length || 0) -
+                                                    (course.course_lectures?.filter(l => l.status === 'cancelled').length || 0)
+                                            )}
                                         </span>
                                     </div>
                                 </div>
@@ -3507,9 +3666,9 @@ export default function CourseManagement() {
                                                                     />
                                                                 </div>
                                                                 <div className="space-y-1">
-                                                                    <label className="text-[11px] font-semibold text-muted-foreground">{isRTL ? 'الرقم القومي' : 'National ID'}</label>
+                                                                    <label className="text-[11px] font-semibold text-muted-foreground">{isRTL ? 'الرقم القومي / جواز السفر *' : 'National ID / Passport *'}</label>
                                                                     <Input
-                                                                        placeholder={isRTL ? 'الرقم القومي' : 'National ID'}
+                                                                        placeholder={isRTL ? 'الرقم القومي أو جواز السفر' : 'National ID or Passport'}
                                                                         value={newBeneficiary.national_id}
                                                                         onChange={(e) => setNewBeneficiary({ ...newBeneficiary, national_id: e.target.value })}
                                                                         className="bg-background"
@@ -4330,7 +4489,7 @@ export default function CourseManagement() {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-xs font-semibold">{isRTL ? 'الرقم القومي' : 'National ID'}</Label>
+                            <Label className="text-xs font-semibold">{isRTL ? 'الرقم القومي / جواز السفر *' : 'National ID / Passport *'}</Label>
                             <Input
                                 value={editingBeneficiary?.national_id || ''}
                                 onChange={(e) => setEditingBeneficiary(prev => prev ? { ...prev, national_id: e.target.value } : null)}
@@ -4345,22 +4504,7 @@ export default function CourseManagement() {
                         <Button
                             onClick={async () => {
                                 if (!editingBeneficiary) return;
-                                try {
-                                    const { error } = await supabase
-                                        .from('course_beneficiaries')
-                                        .update({
-                                            name: editingBeneficiary.name,
-                                            phone: editingBeneficiary.phone,
-                                            national_id: editingBeneficiary.national_id || null
-                                        })
-                                        .eq('id', editingBeneficiary.id);
-                                    if (error) throw error;
-                                    toast.success(isRTL ? 'تم التعديل بنجاح' : 'Updated successfully');
-                                    setBeneficiaries(prev => prev.map(b => b.id === editingBeneficiary.id ? editingBeneficiary : b));
-                                    setIsEditStudentDialogOpen(false);
-                                } catch (err: any) {
-                                    toast.error(err.message);
-                                }
+                                await updateBeneficiary();
                             }}
                             className="h-10 px-4"
                         >

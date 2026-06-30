@@ -23,7 +23,7 @@ export function AppLayout() {
               <h1 className="text-lg font-semibold">
                 {user?.role === 'admin' && 'Admin Dashboard'}
                 {user?.role === 'supervisor' && 'Head of Branch Dashboard'}
-                {user?.role === 'volunteer' && 'Volunteer Portal'}
+                {user?.role === 'volunteer' && 'Volunteer Platform'}
               </h1>
             </div>
           </header>

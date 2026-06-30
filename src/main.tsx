@@ -1,3 +1,103 @@
+// ─── Polyfill/Safe Storage wrapper to prevent quota exceeded or security/incognito crashes ───
+(function safeStoragePolyfill() {
+  const memoryFallback = new Map<any, Map<string, string>>();
+
+  const getMemoryMap = (storage: any): Map<string, string> => {
+    let map = memoryFallback.get(storage);
+    if (!map) {
+      map = new Map<string, string>();
+      memoryFallback.set(storage, map);
+    }
+    return map;
+  };
+
+  const createMemoryStorage = () => {
+    const store = new Map<string, string>();
+    const storageInstance = {
+      getItem: (key: string) => store.get(key) || null,
+      setItem: (key: string, value: string) => store.set(key, value),
+      removeItem: (key: string) => store.delete(key),
+      clear: () => store.clear(),
+      key: (index: number) => Array.from(store.keys())[index] || null,
+      get length() { return store.size; }
+    };
+    memoryFallback.set(storageInstance, store);
+    return storageInstance;
+  };
+
+  let storageAccessible = false;
+  try {
+    const testKey = '__storage_test__';
+    window.localStorage.setItem(testKey, testKey);
+    window.localStorage.removeItem(testKey);
+    storageAccessible = true;
+  } catch (e) {
+    storageAccessible = false;
+  }
+
+  if (!storageAccessible) {
+    console.warn('[Storage Polyfill] Web Storage is disabled or throws on access. Redefining on window.');
+    try {
+      Object.defineProperty(window, 'localStorage', {
+        value: createMemoryStorage(),
+        configurable: true,
+        enumerable: true,
+        writable: true
+      });
+      Object.defineProperty(window, 'sessionStorage', {
+        value: createMemoryStorage(),
+        configurable: true,
+        enumerable: true,
+        writable: true
+      });
+    } catch (err) {
+      console.error('[Storage Polyfill] Failed to redefine storage on window:', err);
+    }
+  } else {
+    // Storage is accessible, but might throw on quota limits later. Patch prototype.
+    try {
+      const originalGetItem = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (key: string): string | null {
+        try {
+          return originalGetItem.call(this, key);
+        } catch (e) {
+          return getMemoryMap(this).get(key) || null;
+        }
+      };
+
+      const originalSetItem = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key: string, value: string): void {
+        try {
+          originalSetItem.call(this, key, value);
+        } catch (e) {
+          console.warn('[Storage Polyfill] setItem failed (quota exceeded?), falling back to memory:', e);
+          getMemoryMap(this).set(key, value);
+        }
+      };
+
+      const originalRemoveItem = Storage.prototype.removeItem;
+      Storage.prototype.removeItem = function (key: string): void {
+        try {
+          originalRemoveItem.call(this, key);
+        } catch (e) {
+          getMemoryMap(this).delete(key);
+        }
+      };
+
+      const originalClear = Storage.prototype.clear;
+      Storage.prototype.clear = function (): void {
+        try {
+          originalClear.call(this);
+        } catch (e) {
+          getMemoryMap(this).clear();
+        }
+      };
+    } catch (err) {
+      console.error('[Storage Polyfill] Failed to patch Storage prototype:', err);
+    }
+  }
+})();
+
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
