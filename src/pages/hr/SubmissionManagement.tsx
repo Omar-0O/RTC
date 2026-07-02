@@ -704,6 +704,12 @@ export default function SubmissionManagement() {
                 return false;
             }
 
+            const volunteerLevel = summary.volunteer.level;
+            // Handle level aliases correctly based on existing code mapping logic
+            if (['responsible', 'platinum', 'diamond', 'project_responsible', 'gold'].includes(volunteerLevel)) {
+                return summary.submission_count < 8;
+            }
+
             return summary.submission_count < 4;
         });
     }, [volunteerSummaries, selectedLevel, selectedVolunteer]);
@@ -886,7 +892,7 @@ export default function SubmissionManagement() {
                                 <DialogHeader>
                                     <DialogTitle>{isRTL ? 'المتطوعين ذوي المشاركات المنخفضة' : 'Low Participation Volunteers'}</DialogTitle>
                                     <DialogDescription>
-                                        {isRTL ? 'المتطوعين الذين لديهم أقل من 4 مشاركات هذا الشهر' : 'Volunteers with less than 4 submissions this month'}
+                                        {isRTL ? 'المتطوعين تحت المتابعة (أقل من 4 مشاركات) ومسؤولي المشاريع والمسؤولين (أقل من 8 مشاركات)' : 'Under follow-up volunteers (< 4 submissions) and project responsibles/responsibles (< 8 submissions)'}
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="overflow-auto flex-1">
