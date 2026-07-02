@@ -892,7 +892,7 @@ export default function SubmissionManagement() {
                                 <DialogHeader>
                                     <DialogTitle>{isRTL ? 'المتطوعين ذوي المشاركات المنخفضة' : 'Low Participation Volunteers'}</DialogTitle>
                                     <DialogDescription>
-                                        {isRTL ? 'المتطوعين تحت المتابعة (أقل من 4 مشاركات) ومسؤولي المشاريع والمسؤولين (أقل من 8 مشاركات)' : 'Under follow-up volunteers (< 4 submissions) and project responsibles/responsibles (< 8 submissions)'}
+                                        {isRTL ? 'المتطوعين تحت المتابعة (أقل من 4 مشاركات) ومسؤول مشروع والمسؤولين (أقل من 8 مشاركات)' : 'Under follow-up volunteers (< 4 submissions) and project responsibles/responsibles (< 8 submissions)'}
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="overflow-auto flex-1">
