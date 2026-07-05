@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,6 +30,7 @@ import { ar, enUS } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { Json } from '@/integrations/supabase/types';
 
 const ETHICS_COMMITTEE_ID = '722d7feb-0b46-48a8-8652-75c1e1a8487a';
 
@@ -42,6 +43,10 @@ interface EthicsCall {
     created_by: string;
     participants_count?: number;
     accepted_count: number;
+}
+
+interface EthicsCallQueryRow extends EthicsCall {
+    participants_count?: { count: number }[];
 }
 
 interface Participant {
@@ -70,6 +75,22 @@ interface EthicsCallParticipantRow {
     created_at: string | null;
     wore_vest: boolean | null;
 }
+
+type CsvValue = string | number | boolean | null | undefined;
+type CsvRow = Record<string, CsvValue>;
+type VolunteerParticipant = Participant & { volunteer_id: string };
+
+const isVolunteerParticipant = (participant: Participant): participant is VolunteerParticipant =>
+    Boolean(participant.is_volunteer && participant.volunteer_id);
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+        const message = (error as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim()) return message;
+    }
+    return fallback;
+};
 
 export default function CallsManagement() {
     const { user } = useAuth();
@@ -108,12 +129,7 @@ export default function CallsManagement() {
     const [isEditMode, setIsEditMode] = useState(false);
     const [selectedCallId, setSelectedCallId] = useState<string | null>(null);
 
-    useEffect(() => {
-        fetchCalls();
-        fetchVolunteers();
-    }, []);
-
-    const fetchCalls = async () => {
+    const fetchCalls = useCallback(async () => {
         setLoading(true);
         try {
             const { data, error } = await supabase
@@ -123,7 +139,7 @@ export default function CallsManagement() {
 
             if (error) throw error;
 
-            setCalls((data || []).map((c: any) => ({
+            setCalls(((data as unknown as EthicsCallQueryRow[] | null) || []).map((c) => ({
                 ...c,
                 participants_count: c.participants_count?.[0]?.count || 0
             })));
@@ -133,15 +149,20 @@ export default function CallsManagement() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [isRTL]);
 
-    const fetchVolunteers = async () => {
+    const fetchVolunteers = useCallback(async () => {
         const { data } = await supabase
             .from('profiles')
             .select('id, full_name, phone, avatar_url')
             .order('full_name');
         if (data) setVolunteers(data);
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchCalls();
+        fetchVolunteers();
+    }, [fetchCalls, fetchVolunteers]);
 
     // ... (Participant Handling Functions - unchanged)
     const handleAddVolunteer = (volunteerId: string) => {
@@ -201,7 +222,7 @@ export default function CallsManagement() {
         const activityTypeId = await getEthicsActivityTypeId();
 
         // Filter valid volunteers
-        const validParticipants = participantsList.filter(p => p.is_volunteer && p.volunteer_id);
+        const validParticipants = participantsList.filter(isVolunteerParticipant);
         console.log('Valid volunteers found:', validParticipants.length, validParticipants);
 
         if (!activityTypeId) {
@@ -221,7 +242,7 @@ export default function CallsManagement() {
             return;
         }
 
-        const submissions = validParticipants.map(participant => {
+        const submissions: Json = validParticipants.map(participant => {
             // Points calculation: 10 if wore_vest, 5 otherwise (or as user requested "calculate based on that")
             // I'm setting: With Vest = 10, Without Vest = 5.
             const points = participant.wore_vest ? 10 : 5;
@@ -241,7 +262,7 @@ export default function CallsManagement() {
         console.log('Submitting RPC payload:', submissions);
 
         // Use RPC to bypass RLS issues cleanly
-        const { error } = await supabase.rpc('award_ethics_call_points' as any, {
+        const { error } = await supabase.rpc('award_ethics_call_points', {
             participants: submissions
         });
 
@@ -277,14 +298,12 @@ export default function CallsManagement() {
 
             if (callError) throw callError;
 
-            const callData = call as any;
-
             // 2. Add Participants
             if (participants.length > 0) {
                 const { error: partsError } = await supabase
                     .from('ethics_calls_participants')
                     .insert(participants.map(p => ({
-                        call_id: callData.id,
+                        call_id: call.id,
                         volunteer_id: p.volunteer_id || null,
                         name: p.name,
                         phone: p.phone,
@@ -462,9 +481,9 @@ export default function CallsManagement() {
             setIsDeleteDialogOpen(false);
             setCallToDelete(null);
             fetchCalls();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error deleting call:', error);
-            toast.error(error.message || (isRTL ? 'فشل حذف النزولة' : 'Failed to delete call'));
+            toast.error(getErrorMessage(error, isRTL ? 'فشل حذف النزولة' : 'Failed to delete call'));
         } finally {
             setIsDeleting(false);
         }
@@ -496,7 +515,7 @@ export default function CallsManagement() {
     const currentMonth = format(new Date(), 'yyyy-MM');
 
     // Archive Download Logic
-    const downloadCSV = (data: any[], filename: string) => {
+    const downloadCSV = (data: CsvRow[], filename: string) => {
         if (data.length === 0) {
             toast.error(isRTL ? 'لا توجد بيانات للتصدير' : 'No data to export');
             return;
@@ -510,7 +529,7 @@ export default function CallsManagement() {
                 if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
                     return `"${value.replace(/"/g, '""')}"`;
                 }
-                return value ?? '';
+                return String(value ?? '');
             }).join(','))
         ].join('\n');
 

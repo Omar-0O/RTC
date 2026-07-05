@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, MoreHorizontal, Users, Award, Pencil, Trash2, FileSpreadsheet, GraduationCap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -73,6 +73,15 @@ interface CommitteeRPCResponse {
   participation_count: number | string | null;
 }
 
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+};
+
 export default function CommitteeManagement() {
   const { t, language } = useLanguage();
   const [committees, setCommittees] = useState<CommitteeWithStats[]>([]);
@@ -106,7 +115,7 @@ export default function CommitteeManagement() {
     }
   };
 
-  const getDateRange = (filter: string) => {
+  const getDateRange = useCallback((filter: string) => {
     const now = new Date();
     let startDate: Date | null = null;
     let endDate: Date | null = null;
@@ -157,9 +166,9 @@ export default function CommitteeManagement() {
         break;
     }
     return { startDate, endDate, label };
-  };
+  }, []);
 
-  const fetchCommittees = async () => {
+  const fetchCommittees = useCallback(async () => {
     setIsLoading(true);
     try {
       const { startDate, endDate } = getDateRange(timeFilter);
@@ -193,11 +202,11 @@ export default function CommitteeManagement() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getDateRange, language, timeFilter]);
 
   useEffect(() => {
     fetchCommittees();
-  }, [timeFilter]);
+  }, [fetchCommittees]);
 
   const resetForm = () => {
     setFormName('');
@@ -232,9 +241,9 @@ export default function CommitteeManagement() {
       setIsAddDialogOpen(false);
       resetForm();
       fetchCommittees();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error adding committee:', error);
-      toast.error(error.message || (language === 'ar' ? 'فشل في إضافة اللجنة' : 'Failed to add committee'));
+      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في إضافة اللجنة' : 'Failed to add committee'));
     } finally {
       setIsSubmitting(false);
     }
@@ -266,9 +275,9 @@ export default function CommitteeManagement() {
       setSelectedCommittee(null);
       resetForm();
       fetchCommittees();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating committee:', error);
-      toast.error(error.message || (language === 'ar' ? 'فشل في تحديث اللجنة' : 'Failed to update committee'));
+      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في تحديث اللجنة' : 'Failed to update committee'));
     } finally {
       setIsSubmitting(false);
     }
@@ -290,9 +299,9 @@ export default function CommitteeManagement() {
       setIsDeleteDialogOpen(false);
       setSelectedCommittee(null);
       fetchCommittees();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting committee:', error);
-      toast.error(error.message || (language === 'ar' ? 'فشل في حذف اللجنة' : 'Failed to delete committee'));
+      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في حذف اللجنة' : 'Failed to delete committee'));
     } finally {
       setIsSubmitting(false);
     }
@@ -301,7 +310,7 @@ export default function CommitteeManagement() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const { utils, writeFile } = await import('xlsx');
+      const { utils, writeFile } = await import('@e965/xlsx');
       const { startDate, endDate, label } = getDateRange(timeFilter);
 
       // Fetch fresh data for export

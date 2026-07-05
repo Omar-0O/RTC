@@ -8,6 +8,21 @@ import { UserRole } from '@/types';
 type AppRole = UserRole;
 type Profile = Database['public']['Tables']['profiles']['Row'];
 
+type UserFeatureRow = {
+  feature: string;
+};
+
+type UserFeatureClient = {
+  from(table: 'user_features'): {
+    select(columns: 'feature'): {
+      eq(column: 'user_id', value: string): Promise<{
+        data: UserFeatureRow[] | null;
+        error: { message: string } | null;
+      }>;
+    };
+  };
+};
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -31,6 +46,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const profileRef = useRef<Profile | null>(null);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
@@ -67,13 +87,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Fetch custom user features — completely independent, non-blocking.
       // If this fails (e.g., table doesn't exist), it must NOT affect authentication.
       try {
-        const { data: featuresData, error: featuresError } = await (supabase as any)
+        const userFeatureClient = supabase as unknown as UserFeatureClient;
+        const { data: featuresData, error: featuresError } = await userFeatureClient
           .from('user_features')
           .select('feature')
           .eq('user_id', userId);
 
         if (!featuresError && featuresData) {
-          setFeatures(featuresData.map((f: any) => f.feature));
+          setFeatures(featuresData.map(f => f.feature));
         } else {
           setFeatures([]);
         }
@@ -133,7 +154,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(session?.user ?? null);
           if (session?.user) {
             // Only fetch profile if we don't have it or it's different
-            if (!profile || profile.id !== session.user.id) {
+            const currentProfile = profileRef.current;
+            if (!currentProfile || currentProfile.id !== session.user.id) {
               fetchProfile(session.user.id);
             }
           }

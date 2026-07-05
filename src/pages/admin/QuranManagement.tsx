@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -52,6 +52,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { compressImage } from '@/utils/imageCompression';
 import { waPhoneLink } from '@/utils/phoneUtils';
+import type { TablesUpdate } from '@/integrations/supabase/types';
 
 interface Beneficiary {
     id: string;
@@ -64,6 +65,15 @@ interface Beneficiary {
     beneficiary_type?: 'child' | 'adult';
     gender?: 'male' | 'female';
 }
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+        const message = (error as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim()) return message;
+    }
+    return fallback;
+};
 
 export default function QuranManagement() {
     const navigate = useNavigate();
@@ -92,11 +102,7 @@ export default function QuranManagement() {
 
     const [unit, setUnit] = useState<'page' | 'quarter' | 'hizb' | 'juz'>('juz');
 
-    useEffect(() => {
-        fetchBeneficiaries();
-    }, []);
-
-    const fetchBeneficiaries = async () => {
+    const fetchBeneficiaries = useCallback(async () => {
         setLoading(true);
         try {
             const { data, error } = await supabase
@@ -105,14 +111,18 @@ export default function QuranManagement() {
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
-            setBeneficiaries((data as any) || []);
+            setBeneficiaries((data as unknown as Beneficiary[]) || []);
         } catch (error) {
             console.error('Error fetching beneficiaries:', error);
             toast.error(isRTL ? 'فشل تحميل البيانات' : 'Failed to fetch data');
         } finally {
             setLoading(false);
         }
-    };
+    }, [isRTL]);
+
+    useEffect(() => {
+        fetchBeneficiaries();
+    }, [fetchBeneficiaries]);
 
     const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -158,7 +168,7 @@ export default function QuranManagement() {
                     const fileExt = 'jpg'; // compressed is always jpeg
                     const fileName = `quran-beneficiaries/${Date.now()}.${fileExt}`;
 
-                    const { error: uploadError, data } = await supabase.storage
+                    const { error: uploadError } = await supabase.storage
                         .from('avatars')
                         .upload(fileName, compressedFile, {
                             cacheControl: '3600',
@@ -212,9 +222,9 @@ export default function QuranManagement() {
             setIsCreateOpen(false);
             resetForm();
             fetchBeneficiaries();
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error saving:', error);
-            toast.error(error.message || (isRTL ? 'حدث خطأ' : 'Error occurred'));
+            toast.error(getErrorMessage(error, isRTL ? 'حدث خطأ' : 'Error occurred'));
         } finally {
             setIsUploading(false);
         }
@@ -317,9 +327,11 @@ export default function QuranManagement() {
 
             const newParts = currentParts + val;
 
+            const progressUpdate: TablesUpdate<'quran_beneficiaries'> = { current_parts: newParts };
+
             const { error } = await supabase
                 .from('quran_beneficiaries')
-                .update({ current_parts: newParts } as any)
+                .update(progressUpdate)
                 .eq('id', id);
 
             if (error) throw error;

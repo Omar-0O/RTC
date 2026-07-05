@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Eye, EyeOff, Calendar as CalendarIcon, UserPlus } from 'lucide-react';
-import Cropper from 'react-easy-crop';
+import Cropper, { type Area } from 'react-easy-crop';
 import { DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,29 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Slider } from '@/components/ui/slider';
+import type { Database } from '@/integrations/supabase/types';
+
+type CommitteeOption = Pick<Database['public']['Tables']['committees']['Row'], 'id' | 'name' | 'name_ar'>;
+type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
+type UserRole = Database['public']['Enums']['app_role'];
+type VolunteerLevel = Database['public']['Enums']['volunteer_level'];
+
+type CreateUserResponse = {
+  user?: {
+    id: string;
+  };
+  error?: string;
+};
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null) {
+    const possibleError = error as { message?: unknown; error?: unknown };
+    if (typeof possibleError.message === 'string') return possibleError.message;
+    if (typeof possibleError.error === 'string') return possibleError.error;
+  }
+  return fallback;
+};
 
 // Helper functions for image cropping
 const createImage = (url: string): Promise<HTMLImageElement> =>
@@ -109,8 +132,8 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
   const [formEmail, setFormEmail] = useState('');
   const [formPhone, setFormPhone] = useState('');
   const [formPassword, setFormPassword] = useState('');
-  const [formRole, setFormRole] = useState<string>('volunteer');
-  const [formLevel, setFormLevel] = useState<string>('under_follow_up');
+  const [formRole, setFormRole] = useState<UserRole>('volunteer');
+  const [formLevel, setFormLevel] = useState<VolunteerLevel>('under_follow_up');
   const [formCommitteeId, setFormCommitteeId] = useState<string>('');
   const [formAvatarFile, setFormAvatarFile] = useState<File | null>(null);
   const [formAvatarPreview, setFormAvatarPreview] = useState<string | null>(null);
@@ -122,28 +145,27 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [committees, setCommittees] = useState<any[]>([]);
+  const [committees, setCommittees] = useState<CommitteeOption[]>([]);
 
   // Crop state
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null)
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
   const [isCropping, setIsCropping] = useState(false)
   const [tempImageSrc, setTempImageSrc] = useState<string | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch committees
-  useState(() => {
+  useEffect(() => {
     const fetchCommittees = async () => {
       const { data } = await supabase
         .from('committees')
         .select('id, name, name_ar')
         .order('name');
-      setCommittees(data || []);
+      setCommittees((data || []) as CommitteeOption[]);
     };
     fetchCommittees();
-  });
+  }, []);
 
   const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -163,7 +185,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
     e.target.value = '';
   };
 
-  const onCropComplete = (_croppedArea: any, croppedAreaPixels: any) => {
+  const onCropComplete = (_croppedArea: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels)
   }
 
@@ -231,7 +253,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
         return;
       }
 
-      const { data, error } = await supabase.functions.invoke('create-user', {
+      const { data, error } = await supabase.functions.invoke<CreateUserResponse>('create-user', {
         body: {
           email: formEmail.trim(),
           password: formPassword,
@@ -273,7 +295,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
 
       // Update attendance & ashbal status
       if (data.user) {
-        const updates: any = {};
+        const updates: ProfileUpdate = {};
         if (formLevel === 'under_follow_up') updates.attended_mini_camp = formAttendedMiniCamp;
         if (formLevel === 'project_responsible') updates.attended_camp = formAttendedCamp;
         if (formIsAshbal) updates.is_ashbal = true;
@@ -287,9 +309,9 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
 
       toast.success(language === 'ar' ? 'تم إضافة المستخدم بنجاح' : 'User added successfully');
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error adding user:', error);
-      const message = error?.message || error?.error || (language === 'ar' ? 'فشل في إضافة المستخدم' : 'Failed to add user');
+      const message = getErrorMessage(error, language === 'ar' ? 'فشل في إضافة المستخدم' : 'Failed to add user');
       toast.error(message);
     } finally {
       setIsSubmitting(false);
@@ -388,7 +410,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="grid gap-2">
             <Label htmlFor="role">{t('users.role')}</Label>
-            <Select value={formRole} onValueChange={setFormRole}>
+            <Select value={formRole} onValueChange={(value) => setFormRole(value as UserRole)}>
               <SelectTrigger>
                 <SelectValue placeholder={t('users.role')} />
               </SelectTrigger>
@@ -410,7 +432,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
           </div>
           <div className="grid gap-2">
             <Label htmlFor="level">{t('users.level')}</Label>
-            <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
+            <Select value={formLevel} onValueChange={(value) => setFormLevel(value as VolunteerLevel)} disabled={!['admin', 'head_hr'].includes(primaryRole)}>
               <SelectTrigger>
                 <SelectValue placeholder={t('users.level')} />
               </SelectTrigger>
@@ -434,7 +456,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">{language === 'ar' ? 'بدون لجنة' : 'No Committee'}</SelectItem>
-              {committees.map((committee: any) => (
+              {committees.map((committee) => (
                 <SelectItem key={committee.id} value={committee.id}>
                   {language === 'ar' ? committee.name_ar : committee.name}
                 </SelectItem>

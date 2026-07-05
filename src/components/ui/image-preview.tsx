@@ -52,6 +52,17 @@ export function ImagePreview({ src, alt = 'Image preview', children, className }
     setIsOpen(false);
   }, []);
 
+  const zoomIn = useCallback(() => { setScale(s => Math.min(s + 0.5, 5)); setIsFitted(false); }, []);
+  const zoomOut = useCallback(() => {
+    setScale(s => {
+      const next = Math.max(s - 0.5, 0.5);
+      if (next <= 1) setPosition({ x: 0, y: 0 });
+      return next;
+    });
+  }, []);
+  const rotate = useCallback(() => setRotation(r => (r + 90) % 360), []);
+  const resetView = useCallback(() => { setScale(1); setRotation(0); setPosition({ x: 0, y: 0 }); setIsFitted(true); }, []);
+
   // Lock body scroll
   useEffect(() => {
     if (isOpen) {
@@ -74,7 +85,7 @@ export function ImagePreview({ src, alt = 'Image preview', children, className }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [isOpen, close]);
+  }, [isOpen, close, zoomIn, zoomOut, rotate, resetView]);
 
   // Auto-hide controls
   const resetControlsTimer = useCallback(() => {
@@ -88,24 +99,14 @@ export function ImagePreview({ src, alt = 'Image preview', children, className }
     return () => { if (controlsTimer.current) clearTimeout(controlsTimer.current); };
   }, [isOpen, resetControlsTimer]);
 
-  const zoomIn = () => { setScale(s => Math.min(s + 0.5, 5)); setIsFitted(false); };
-  const zoomOut = () => {
-    setScale(s => {
-      const next = Math.max(s - 0.5, 0.5);
-      if (next <= 1) setPosition({ x: 0, y: 0 });
-      return next;
-    });
-  };
-  const rotate = () => setRotation(r => (r + 90) % 360);
-  const resetView = () => { setScale(1); setRotation(0); setPosition({ x: 0, y: 0 }); setIsFitted(true); };
-  const toggleFit = () => {
+  const toggleFit = useCallback(() => {
     if (isFitted) {
       setScale(2);
       setIsFitted(false);
     } else {
       resetView();
     }
-  };
+  }, [isFitted, resetView]);
 
   // Mouse wheel zoom
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -125,7 +126,7 @@ export function ImagePreview({ src, alt = 'Image preview', children, className }
     e.stopPropagation();
     resetControlsTimer();
     toggleFit();
-  }, [isFitted]);
+  }, [resetControlsTimer, toggleFit]);
 
   // Drag to pan when zoomed
   const handleMouseDown = useCallback((e: React.MouseEvent) => {

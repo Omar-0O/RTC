@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { ProofImagePreview } from '@/components/ProofImagePreview';
@@ -113,11 +113,8 @@ export default function VolunteerPortal() {
   const [notFound, setNotFound] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
-  useEffect(() => {
-    if (volunteerId) loadAll();
-  }, [volunteerId]);
-
-  const loadAll = async () => {
+  const loadAll = useCallback(async () => {
+    if (!volunteerId) return;
     setLoadingPage(true);
     try {
       const [profileRes, committeesRes, activitiesRes, activityCommitteesRes, submissionsRes] =
@@ -125,7 +122,7 @@ export default function VolunteerPortal() {
           supabase
             .from('profiles')
             .select('id, full_name, full_name_ar, avatar_url, committee_id, total_points')
-            .eq('id', volunteerId!)
+            .eq('id', volunteerId)
             .maybeSingle(),
           supabase.from('committees').select('id, name, name_ar').order('name'),
           supabase.from('activity_types').select('*').order('name'),
@@ -137,7 +134,7 @@ export default function VolunteerPortal() {
                activity:activity_types(name, name_ar),
                committee:committees(name, name_ar)`
             )
-            .eq('volunteer_id', volunteerId!)
+            .eq('volunteer_id', volunteerId)
             .order('submitted_at', { ascending: false })
             .limit(10),
         ]);
@@ -190,7 +187,11 @@ export default function VolunteerPortal() {
     } finally {
       setLoadingPage(false);
     }
-  };
+  }, [volunteerId]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   const filteredActivities = activityTypes.filter(a => {
     const matchesCommittee =

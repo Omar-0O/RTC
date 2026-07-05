@@ -80,13 +80,23 @@ export function useSyncStatus(): SyncStatusInfo {
  *   const { mutate } = useOfflineMutation('CREATE_USER', createUserFn);
  *   mutate(payload); // works online or offline
  */
-export function useOfflineMutation<TPayload>(
+const isNetworkError = (error: unknown): boolean => {
+  if (error instanceof Error) {
+    return error.message.includes('Failed to fetch') || error.message.includes('NetworkError');
+  }
+  return false;
+};
+
+const toError = (error: unknown): Error =>
+  error instanceof Error ? error : new Error(String(error));
+
+export function useOfflineMutation<TPayload, TResult = unknown>(
   type: MutationType,
-  onlineFn: (payload: TPayload) => Promise<any>,
+  onlineFn: (payload: TPayload) => Promise<TResult>,
   options?: {
     onOptimisticUpdate?: (payload: TPayload) => void;
     onRollback?: (payload: TPayload) => void;
-    onSuccess?: (result: any) => void;
+    onSuccess?: (result: TResult) => void;
     onError?: (error: Error) => void;
   }
 ) {
@@ -104,15 +114,15 @@ export function useOfflineMutation<TPayload>(
         const result = await onlineFn(payload);
         options?.onSuccess?.(result);
         return result;
-      } catch (err: any) {
+      } catch (err: unknown) {
         // If it's a network error, queue it instead
-        if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        if (isNetworkError(err)) {
           console.log('[OfflineMutation] Network error, queueing...');
           await enqueue(type, payload);
           return;
         }
         options?.onRollback?.(payload);
-        options?.onError?.(err);
+        options?.onError?.(toError(err));
         throw err;
       } finally {
         setIsLoading(false);

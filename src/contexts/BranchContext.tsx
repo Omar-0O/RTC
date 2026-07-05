@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { invalidateBranchCache } from '@/services/branchGuard';
+import type { UserRole } from '@/types';
 
 export interface Branch {
   id: string;
@@ -29,7 +30,7 @@ interface BranchContextType {
 const BranchContext = createContext<BranchContextType | undefined>(undefined);
 
 /** Roles that can see data from ALL branches */
-const ALL_BRANCH_ROLES = ['admin', 'executive'] as const;
+const ALL_BRANCH_ROLES: readonly UserRole[] = ['admin', 'executive'];
 
 export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, profile, primaryRole } = useAuth();
@@ -38,17 +39,17 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isLoading, setIsLoading] = useState(true);
 
   /** The user's authoritative branch from their profile — NEVER overridable */
-  const userBranchId = useMemo(() => (profile as any)?.branch_id || null, [profile]);
+  const userBranchId = useMemo(() => profile?.branch_id || null, [profile]);
 
   const canViewAllBranches = useMemo(
-    () => ALL_BRANCH_ROLES.includes(primaryRole as any),
+    () => ALL_BRANCH_ROLES.includes(primaryRole),
     [primaryRole]
   );
 
   const fetchBranches = useCallback(async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('branches')
         .select('*');
 
@@ -72,7 +73,7 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // admin / executive: can switch branches freely, restore from localStorage
       const savedBranchId = localStorage.getItem('active_branch_id');
       const savedBranch = savedBranchId ? branches.find(b => b.id === savedBranchId) : null;
-      setActiveBranchState(savedBranch || branches[0]);
+      setActiveBranchState(savedBranch || null);
     } else {
       // ALL other roles: locked to their profile's branch_id — NO override possible
       let branchToUse = branches[0];
@@ -104,10 +105,12 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     if (branch) {
       localStorage.setItem('active_branch_id', branch.id);
-      setActiveBranchState(branch);
-      invalidateBranchCache();
-      window.dispatchEvent(new Event('branch-changed'));
+    } else {
+      localStorage.removeItem('active_branch_id');
     }
+    setActiveBranchState(branch);
+    invalidateBranchCache();
+    window.dispatchEvent(new Event('branch-changed'));
   }, [canViewAllBranches]);
 
   const contextValue = useMemo(() => ({

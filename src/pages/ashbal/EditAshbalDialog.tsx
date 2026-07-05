@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Eye, EyeOff } from 'lucide-react';
-import Cropper from 'react-easy-crop';
+import Cropper, { type Area } from 'react-easy-crop';
 
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,32 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
+import type { Enums, Tables, TablesUpdate } from '@/integrations/supabase/types';
+
+type VolunteerLevel = Enums<'volunteer_level'>;
+type EditableAshbalUser = Pick<
+  Tables<'profiles'>,
+  | 'id'
+  | 'full_name'
+  | 'full_name_ar'
+  | 'phone'
+  | 'level'
+  | 'join_date'
+  | 'created_at'
+  | 'birth_date'
+  | 'avatar_url'
+> & Partial<Pick<Tables<'profiles'>, 'email'>>;
+
+const DEFAULT_ASHBAL_LEVEL: VolunteerLevel = 'under_follow_up';
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+};
 
 // Helper functions for image cropping
 const createImage = (url: string): Promise<HTMLImageElement> =>
@@ -102,7 +128,7 @@ async function getCroppedImg(
 }
 
 interface EditAshbalDialogProps {
-  user: any | null;
+  user: EditableAshbalUser | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
@@ -118,7 +144,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
   const [formName, setFormName] = useState('');
   const [formNameAr, setFormNameAr] = useState('');
   const [formPhone, setFormPhone] = useState('');
-  const [formLevel, setFormLevel] = useState<string>('under_follow_up');
+  const [formLevel, setFormLevel] = useState<VolunteerLevel>(DEFAULT_ASHBAL_LEVEL);
   const [formJoinDate, setFormJoinDate] = useState<string>('');
   const [formBirthDate, setFormBirthDate] = useState<string>('');
 
@@ -129,14 +155,14 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
   const [isCropping, setIsCropping] = useState(false);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
 
   useEffect(() => {
     if (user && open) {
       setFormName(user.full_name || '');
       setFormNameAr(user.full_name_ar || '');
       setFormPhone(user.phone || '');
-      setFormLevel(user.level || 'under_follow_up');
+      setFormLevel(user.level || DEFAULT_ASHBAL_LEVEL);
       setFormJoinDate(user.join_date ? format(new Date(user.join_date), 'yyyy-MM-dd') : (user.created_at ? format(new Date(user.created_at), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')));
       setFormBirthDate(user.birth_date || '');
       setFormAvatarPreview(user.avatar_url);
@@ -164,7 +190,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
     e.target.value = '';
   };
 
-  const onCropComplete = (_croppedArea: any, croppedAreaPixels: any) => {
+  const onCropComplete = (_croppedArea: Area, croppedAreaPixels: Area) => {
     setCroppedAreaPixels(croppedAreaPixels)
   }
 
@@ -223,7 +249,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
     setIsSubmitting(true);
     try {
       // Update profile
-      const updates: any = {
+      const updates: TablesUpdate<'profiles'> = {
         full_name: formName.trim(),
         full_name_ar: formNameAr.trim() || null,
         phone: formPhone.trim() || null,
@@ -264,9 +290,9 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
       toast.success(language === 'ar' ? 'تم تحديث البيانات بنجاح' : 'User updated successfully');
       onSuccess();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating user:', error);
-      toast.error(error.message || (language === 'ar' ? 'فشل في تحديث بيانات المستخدم' : 'Failed to update user'));
+      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في تحديث بيانات المستخدم' : 'Failed to update user'));
     } finally {
       setIsSubmitting(false);
     }
@@ -385,7 +411,11 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="edit-level">{t('users.level')}</Label>
-                <Select value={formLevel} onValueChange={setFormLevel} disabled={!['admin', 'head_ashbal'].includes(primaryRole)}>
+                <Select
+                  value={formLevel}
+                  onValueChange={(value) => setFormLevel(value as VolunteerLevel)}
+                  disabled={!['admin', 'head_ashbal'].includes(primaryRole)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder={t('users.level')} />
                   </SelectTrigger>

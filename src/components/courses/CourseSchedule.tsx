@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
@@ -39,6 +39,16 @@ interface QuranCircle {
     is_active: boolean;
     time?: string;
 }
+
+type QuranCircleRow = {
+    id: string;
+    teacher_id: string | null;
+    schedule: QuranCircle['schedule'] | null;
+    is_active: boolean | null;
+};
+
+type CsvValue = string | number | boolean | null | undefined;
+type CsvRow = Record<string, CsvValue>;
 
 const ROOMS: Record<string, { en: string; ar: string; color: string; bg: string }> = {
     'lab_1': { en: 'Lab 1', ar: 'لاب 1', color: 'bg-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30 border-blue-300' },
@@ -88,24 +98,60 @@ export default function CourseSchedule() {
     const isHead = HEAD_ROLES.includes(primaryRole || '');
     const locale = language === 'ar' ? ar : enUS;
 
-    useEffect(() => {
-        if (!user?.id) return;
-        const cacheKey = `rtc_course_schedule_${user.id}_${activeBranch?.id || 'all'}`;
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-            try {
-                const parsed = JSON.parse(cached);
-                setCourses(parsed.courses || []);
-                setCircles(parsed.circles || []);
-                setLoading(false);
-            } catch (e) {
-                console.error('Error parsing cached course schedule:', e);
-            }
-        }
-        fetchData(!!cached);
-    }, [user?.id, activeBranch?.id]);
+    const fetchCoursesList = useCallback(async (): Promise<Course[]> => {
+        try {
+            let q = supabase
+                .from('courses')
+                .select('*')
+                .order('schedule_time', { ascending: true });
+            
+            if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
 
-    const fetchData = async (hasCache = false) => {
+            const { data, error } = await q;
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error('Error fetching courses:', error);
+            return [];
+        }
+    }, [activeBranch?.id, canViewAllBranches]);
+
+    const fetchCirclesList = useCallback(async (): Promise<QuranCircle[]> => {
+        try {
+            let circlesQuery = supabase
+                .from('quran_circles')
+                .select('id, schedule, is_active, teacher_id')
+                .eq('is_active', true);
+            
+            if (canViewAllBranches && activeBranch?.id) circlesQuery = circlesQuery.eq('branch_id', activeBranch.id);
+
+            const { data: circlesData, error: circlesError } = await circlesQuery;
+            if (circlesError) throw circlesError;
+
+            const { data: teachersData, error: teachersError } = await supabase
+                .from('quran_teachers')
+                .select('id, name, target_gender');
+            if (teachersError) throw teachersError;
+
+            const teachersMap = new Map(teachersData?.map(t => [t.id, t]) || []);
+
+            return (circlesData as unknown as QuranCircleRow[] | null)?.map((c) => {
+                const teacher = teachersMap.get(c.teacher_id);
+                return {
+                    id: c.id,
+                    teacher_name: teacher?.name,
+                    teacher_gender: teacher?.target_gender,
+                    schedule: c.schedule || [],
+                    is_active: c.is_active
+                };
+            }) || [];
+        } catch (error) {
+            console.error('Error fetching circles:', error);
+            return [];
+        }
+    }, [activeBranch?.id, canViewAllBranches]);
+
+    const fetchData = useCallback(async (hasCache = false) => {
         if (!hasCache) {
             setLoading(true);
         }
@@ -130,60 +176,24 @@ export default function CourseSchedule() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeBranch?.id, fetchCirclesList, fetchCoursesList, user?.id]);
 
-    const fetchCoursesList = async (): Promise<Course[]> => {
-        try {
-            let q = supabase
-                .from('courses')
-                .select('*')
-                .order('schedule_time', { ascending: true });
-            
-            if (canViewAllBranches && activeBranch?.id) q = (q as any).eq('branch_id', activeBranch.id);
-
-            const { data, error } = await q;
-            if (error) throw error;
-            return data || [];
-        } catch (error) {
-            console.error('Error fetching courses:', error);
-            return [];
+    useEffect(() => {
+        if (!user?.id) return;
+        const cacheKey = `rtc_course_schedule_${user.id}_${activeBranch?.id || 'all'}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached) as { courses?: Course[]; circles?: QuranCircle[] };
+                setCourses(parsed.courses || []);
+                setCircles(parsed.circles || []);
+                setLoading(false);
+            } catch (e) {
+                console.error('Error parsing cached course schedule:', e);
+            }
         }
-    };
-
-    const fetchCirclesList = async (): Promise<QuranCircle[]> => {
-        try {
-            let circlesQuery = supabase
-                .from('quran_circles')
-                .select('id, schedule, is_active, teacher_id')
-                .eq('is_active', true);
-            
-            if (canViewAllBranches && activeBranch?.id) circlesQuery = (circlesQuery as any).eq('branch_id', activeBranch.id);
-
-            const { data: circlesData, error: circlesError } = await circlesQuery;
-            if (circlesError) throw circlesError;
-
-            const { data: teachersData, error: teachersError } = await supabase
-                .from('quran_teachers')
-                .select('id, name, target_gender');
-            if (teachersError) throw teachersError;
-
-            const teachersMap = new Map(teachersData?.map(t => [t.id, t]) || []);
-
-            return circlesData?.map((c: any) => {
-                const teacher = teachersMap.get(c.teacher_id);
-                return {
-                    id: c.id,
-                    teacher_name: teacher?.name,
-                    teacher_gender: teacher?.target_gender,
-                    schedule: c.schedule || [],
-                    is_active: c.is_active
-                };
-            }) || [];
-        } catch (error) {
-            console.error('Error fetching circles:', error);
-            return [];
-        }
-    };
+        fetchData(!!cached);
+    }, [activeBranch?.id, fetchData, user?.id]);
 
     const openCourseDetails = async (course: Course) => {
         setSelectedCourse(course);
@@ -200,7 +210,7 @@ export default function CourseSchedule() {
         }
     };
 
-    const openCircleDetails = (circle: any) => {
+    const openCircleDetails = (circle: QuranCircle) => {
         setSelectedCircle(circle);
     };
 
@@ -221,7 +231,7 @@ export default function CourseSchedule() {
         }
     };
 
-    const downloadCSV = (data: any[], filename: string) => {
+    const downloadCSV = (data: CsvRow[], filename: string) => {
         if (data.length === 0) return;
         const headers = Object.keys(data[0]);
         const csvContent = [
@@ -231,7 +241,7 @@ export default function CourseSchedule() {
                 if (typeof val === 'string' && (val.includes(',') || val.includes('"'))) {
                     return `"${val.replace(/"/g, '""')}"`;
                 }
-                return val ?? '';
+                return String(val ?? '');
             }).join(','))
         ].join('\n');
         const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });

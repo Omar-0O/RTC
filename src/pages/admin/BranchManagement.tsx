@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Building2, Plus, Pencil, Trash2, CheckCircle2, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -72,7 +72,7 @@ export default function BranchManagement() {
 
   const ar = (ar: string, en: string) => language === 'ar' ? ar : en;
 
-  const fetchBranchStats = async () => {
+  const fetchBranchStats = useCallback(async () => {
     setIsLoading(true);
     try {
       const { data: branchData, error } = await supabase
@@ -102,15 +102,15 @@ export default function BranchManagement() {
       setBranchStats(stats);
     } catch (err) {
       console.error(err);
-      toast.error(ar('فشل في تحميل الفروع', 'Failed to load branches'));
+      toast.error(language === 'ar' ? 'فشل في تحميل الفروع' : 'Failed to load branches');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [language]);
 
   useEffect(() => {
     fetchBranchStats();
-  }, []);
+  }, [fetchBranchStats]);
 
   const resetForm = () => {
     setFormName('');

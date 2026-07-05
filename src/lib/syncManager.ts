@@ -26,6 +26,7 @@ import * as followupService from '@/services/followup.service';
 export type SyncState = 'idle' | 'syncing' | 'error' | 'offline';
 
 type SyncListener = (state: SyncState, detail?: { pending: number; synced: number; failed: number }) => void;
+type CreateSessionPayload = { circleId: string; sessionDate: string; notes: string | null; organizerVolunteerId?: string };
 
 // ─── State ──────────────────────────────────────────────────────────
 
@@ -41,6 +42,24 @@ function emit(state: SyncState, detail?: { pending: number; synced: number; fail
   listeners.forEach(fn => fn(state, detail));
 }
 
+const getString = (payload: Record<string, unknown>, key: string): string => {
+  const value = payload[key];
+  return typeof value === 'string' ? value : '';
+};
+
+const getNumber = (payload: Record<string, unknown>, key: string): number => {
+  const value = payload[key];
+  return typeof value === 'number' ? value : Number(value);
+};
+
+const getBoolean = (payload: Record<string, unknown>, key: string): boolean => {
+  const value = payload[key];
+  return typeof value === 'boolean' ? value : Boolean(value);
+};
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error || 'Unknown error');
+
 // ─── Mutation Executor ──────────────────────────────────────────────
 
 /**
@@ -53,57 +72,57 @@ async function executeMutation(item: QueueItem): Promise<void> {
   switch (type as MutationType) {
     // Users
     case 'CREATE_USER':
-      await usersService.createUser(payload);
+      await usersService.createUser(payload as unknown as usersService.CreateUserPayload);
       break;
     case 'UPDATE_USER':
-      await usersService.updateUser(payload);
+      await usersService.updateUser(payload as unknown as usersService.UpdateUserPayload);
       break;
     case 'DELETE_USER':
-      await usersService.deleteUser(payload.userId);
+      await usersService.deleteUser(getString(payload, 'userId'));
       break;
     case 'TOGGLE_USER_ACTIVE':
-      await usersService.toggleUserActive(payload.userId, payload.isActive);
+      await usersService.toggleUserActive(getString(payload, 'userId'), getBoolean(payload, 'isActive'));
       break;
     case 'UPDATE_ROLE':
-      await usersService.updateUserRole(payload.userId, payload.newRole);
+      await usersService.updateUserRole(getString(payload, 'userId'), getString(payload, 'newRole'));
       break;
 
     // Circles
     case 'CREATE_CIRCLE':
     case 'UPDATE_CIRCLE':
-      await circlesService.saveCircle(payload);
+      await circlesService.saveCircle(payload as unknown as circlesService.SaveCirclePayload);
       break;
     case 'DELETE_CIRCLE':
-      await circlesService.deleteCircle(payload.circleId);
+      await circlesService.deleteCircle(getString(payload, 'circleId'));
       break;
     case 'ENROLL_BENEFICIARY':
-      await circlesService.enrollBeneficiary(payload.circleId, payload.beneficiaryId);
+      await circlesService.enrollBeneficiary(getString(payload, 'circleId'), getString(payload, 'beneficiaryId'));
       break;
     case 'UNENROLL_BENEFICIARY':
-      await circlesService.unenrollBeneficiary(payload.circleId, payload.beneficiaryId);
+      await circlesService.unenrollBeneficiary(getString(payload, 'circleId'), getString(payload, 'beneficiaryId'));
       break;
     case 'CREATE_SESSION':
-      await circlesService.createSession(payload);
+      await circlesService.createSession(payload as unknown as CreateSessionPayload);
       break;
     case 'DELETE_SESSION':
-      await circlesService.deleteSession(payload.sessionId);
+      await circlesService.deleteSession(getString(payload, 'sessionId'));
       break;
     case 'SAVE_ATTENDANCE':
-      await circlesService.saveAttendance(payload);
+      await circlesService.saveAttendance(payload as unknown as circlesService.SaveAttendancePayload);
       break;
 
     // Follow-up
     case 'ADD_FOLLOWUP':
-      await followupService.addFollowUp(payload);
+      await followupService.addFollowUp(payload as unknown as followupService.AddFollowUpPayload);
       break;
     case 'EDIT_FOLLOWUP':
-      await followupService.editFollowUp(payload);
+      await followupService.editFollowUp(payload as unknown as followupService.EditFollowUpPayload);
       break;
     case 'APPROVE_FOLLOWUP':
-      await followupService.approveFollowUp(payload.id);
+      await followupService.approveFollowUp(getNumber(payload, 'id'));
       break;
     case 'REJECT_FOLLOWUP':
-      await followupService.rejectFollowUp(payload.id);
+      await followupService.rejectFollowUp(getNumber(payload, 'id'));
       break;
 
     default:
@@ -152,8 +171,8 @@ export async function flushQueue(): Promise<{ synced: number; failed: number }> 
       await executeMutation(item);
       await updateItemStatus(item.id, 'synced');
       synced++;
-    } catch (err: any) {
-      const errMsg = err?.message || 'Unknown error';
+    } catch (err: unknown) {
+      const errMsg = getErrorMessage(err);
 
       // Conflict detection: if server returns 409 or duplicate error
       if (errMsg.includes('duplicate') || errMsg.includes('conflict') || errMsg.includes('23505')) {

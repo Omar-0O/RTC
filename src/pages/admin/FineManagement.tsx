@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -47,11 +47,7 @@ export default function FineManagement() {
         amount: '',
     });
 
-    useEffect(() => {
-        fetchFines();
-    }, [activeBranch?.id]);
-
-    const fetchFines = async () => {
+    const fetchFines = useCallback(async () => {
         try {
             setLoading(true);
             let q = supabase
@@ -72,7 +68,11 @@ export default function FineManagement() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeBranch?.id, canViewAllBranches, isRTL]);
+
+    useEffect(() => {
+        fetchFines();
+    }, [fetchFines]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

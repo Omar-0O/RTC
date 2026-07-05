@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,17 @@ type RecentSubmission = {
   submitted_at: string;
 };
 
+type RecentSubmissionRow = {
+  id: string;
+  points_awarded: number | null;
+  status: string;
+  submitted_at: string;
+  activity: {
+    name: string | null;
+    name_ar: string | null;
+  } | null;
+};
+
 export default function VolunteerDashboard() {
   const { user, profile, refreshProfile, primaryRole } = useAuth();
   const { t, isRTL } = useLanguage();
@@ -33,27 +44,6 @@ export default function VolunteerDashboard() {
   // const points = profile?.total_points || 0; // Deprecated, using dynamic impact calculation
   const [totalActivities, setTotalActivities] = useState(0);
   const [monthlyActivities, setMonthlyActivities] = useState(0);
-
-  useEffect(() => {
-    if (user?.id) {
-      const cacheKey = `rtc_dashboard_data_${user.id}`;
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          setRecentSubmissions(parsed.recentSubmissions || []);
-          setImpact(parsed.impact || 0);
-          setMonthlyActivities(parsed.monthlyActivities || 0);
-          setLoading(false);
-        } catch (e) {
-          console.error('Error parsing cached dashboard data:', e);
-        }
-      }
-
-      refreshProfile();
-      fetchData(!!cached);
-    }
-  }, [user?.id]);
 
   const [canViewAds, setCanViewAds] = useState(false);
 
@@ -90,7 +80,7 @@ export default function VolunteerDashboard() {
     }
   }, [user, primaryRole, profile?.committee_id]);
 
-  const fetchData = async (hasCache = false) => {
+  const fetchData = useCallback(async (hasCache = false) => {
     if (!user?.id) return;
     if (!hasCache) {
       setLoading(true);
@@ -124,9 +114,9 @@ export default function VolunteerDashboard() {
           .is('fine_type_id', null) // Exclude fines (ALL TIME)
       ]);
 
-      let updatedRecentSubmissions = recentSubmissions;
+      let updatedRecentSubmissions: RecentSubmission[] = [];
       if (submissionsRes.data) {
-        updatedRecentSubmissions = submissionsRes.data.map((s: any) => ({
+        updatedRecentSubmissions = (submissionsRes.data as RecentSubmissionRow[]).map((s) => ({
           id: s.id,
           activity_name: isRTL ? (s.activity?.name_ar || s.activity?.name) : s.activity?.name,
           points: s.points_awarded || 0,
@@ -137,8 +127,8 @@ export default function VolunteerDashboard() {
       }
 
       // Calculate monthly impact and activities
-      let monthlyImpactSum = impact;
-      let monthlyCount = monthlyActivities;
+      let monthlyImpactSum = 0;
+      let monthlyCount = 0;
       if (allActivitiesRes.data) {
         monthlyImpactSum = 0;
         monthlyCount = 0;
@@ -175,7 +165,28 @@ export default function VolunteerDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, isRTL]);
+
+  useEffect(() => {
+    if (user?.id) {
+      const cacheKey = `rtc_dashboard_data_${user.id}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached);
+          setRecentSubmissions(parsed.recentSubmissions || []);
+          setImpact(parsed.impact || 0);
+          setMonthlyActivities(parsed.monthlyActivities || 0);
+          setLoading(false);
+        } catch (e) {
+          console.error('Error parsing cached dashboard data:', e);
+        }
+      }
+
+      refreshProfile();
+      fetchData(!!cached);
+    }
+  }, [user?.id, refreshProfile, fetchData]);
 
   const getStatusText = (status: string) => {
     switch (status) {

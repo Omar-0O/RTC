@@ -2083,6 +2083,7 @@ export type Database = {
       }
     }
     Functions: {
+      award_ethics_call_points: { Args: { participants: Json }; Returns: undefined }
       calculate_level: {
         Args: { points: number }
         Returns: Database["public"]["Enums"]["volunteer_level"]

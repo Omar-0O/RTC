@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
@@ -46,30 +46,18 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(true);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [committees, setCommittees] = useState<Committee[]>([]);
+  const committeesRef = useRef<Committee[]>([]);
 
   useEffect(() => {
-    if (!user?.id) return;
-    const cacheKey = `rtc_leaderboard_data_${user.id}_${timeFilter}_${selectedCommittee}_${activeBranch?.id || 'all'}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        setLeaderboard(parsed.leaderboard || []);
-        setCommittees(parsed.committees || []);
-        setLoading(false);
-      } catch (e) {
-        console.error('Error parsing cached leaderboard:', e);
-      }
-    }
-    fetchData(!!cached);
-  }, [user?.id, timeFilter, selectedCommittee, activeBranch?.id]);
+    committeesRef.current = committees;
+  }, [committees]);
 
-  const fetchData = async (hasCache = false) => {
+  const fetchData = useCallback(async (hasCache = false) => {
     if (!hasCache) {
       setLoading(true);
     }
     try {
-      let currentCommittees = committees;
+      let currentCommittees = committeesRef.current;
       const cachedKey = user?.id ? `rtc_leaderboard_data_${user.id}_${timeFilter}_${selectedCommittee}_${activeBranch?.id || 'all'}` : null;
 
       if (currentCommittees.length === 0) {
@@ -105,7 +93,24 @@ export default function Leaderboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, timeFilter, selectedCommittee, activeBranch?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const cacheKey = `rtc_leaderboard_data_${user.id}_${timeFilter}_${selectedCommittee}_${activeBranch?.id || 'all'}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        setLeaderboard(parsed.leaderboard || []);
+        setCommittees(parsed.committees || []);
+        setLoading(false);
+      } catch (e) {
+        console.error('Error parsing cached leaderboard:', e);
+      }
+    }
+    fetchData(!!cached);
+  }, [user?.id, timeFilter, selectedCommittee, activeBranch?.id, fetchData]);
 
   // Filter by level on client side
   const filteredLeaderboard = useMemo(() => {
@@ -323,7 +328,7 @@ export default function Leaderboard() {
                         </div>
                         <p className="text-xs text-muted-foreground truncate">{getCommitteeName(entry)}</p>
                       </div>
-                      <LevelBadge level={entry.level as any} size="sm" showLabel={false} className="hidden sm:flex" />
+                      <LevelBadge level={entry.level} size="sm" showLabel={false} className="hidden sm:flex" />
                       <div className="text-right shrink-0">
                         <p className="font-bold text-sm text-primary">{entry.total_points}</p>
                         <p className="text-[10px] text-muted-foreground">{entry.activities_count} {isRTL ? 'مشاركة' : 'parts'}</p>

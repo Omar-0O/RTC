@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
@@ -115,6 +115,7 @@ export default function EventManagement() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
     const [committees, setCommittees] = useState<Committee[]>([]);
+    const committeesRef = useRef<Committee[]>([]);
 
     // Filter State
     const [searchQuery, setSearchQuery] = useState('');
@@ -157,6 +158,10 @@ export default function EventManagement() {
 
     const [eventsCommitteeId, setEventsCommitteeId] = useState<string | null>(null);
 
+    useEffect(() => {
+        committeesRef.current = committees;
+    }, [committees]);
+
     // Role-based committee mapping
     const ROLE_COMMITTEE_MAP: Record<string, string> = {
         head_events: 'Events', head_caravans: 'Caravans', head_ethics: 'Ethics',
@@ -167,48 +172,22 @@ export default function EventManagement() {
     const isAdmin = hasRole('admin') || hasRole('supervisor');
     const userCommitteeName = ROLE_COMMITTEE_MAP[primaryRole] || null;
 
-    useEffect(() => {
-        const loadData = async () => {
-            const cacheKey = `rtc_events_data_${user?.id}_${activeBranch?.id || 'all'}`;
-            const cached = localStorage.getItem(cacheKey);
-            let hasCache = false;
-            if (cached) {
-                try {
-                    const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed)) {
-                        setEvents(parsed);
-                        setLoading(false);
-                        hasCache = true;
-                    }
-                } catch (e) {
-                    console.error('Error parsing cached events:', e);
-                }
-            }
-
-            fetchVolunteers();
-            fetchEventsCommittee();
-            const committeesData = await fetchCommittees();
-            fetchEvents(committeesData, hasCache);
-        };
-        loadData();
-    }, [activeBranch?.id]);
-
     const filteredEvents = events.filter(event => {
         const matchesSearch = event.name.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesDate = filterDate ? event.date === filterDate : true;
         return matchesSearch && matchesDate;
     });
 
-    const fetchEventsCommittee = async () => {
+    const fetchEventsCommittee = useCallback(async () => {
         const { data } = await supabase
             .from('committees')
             .select('id')
             .ilike('name', 'Events')
             .maybeSingle();
         if (data) setEventsCommitteeId(data.id);
-    };
+    }, []);
 
-    const fetchCommittees = async () => {
+    const fetchCommittees = useCallback(async () => {
         const { data } = await supabase
             .from('committees')
             .select('id, name, name_ar')
@@ -223,9 +202,9 @@ export default function EventManagement() {
             return data;
         }
         return [];
-    };
+    }, [isAdmin, userCommitteeName]);
 
-    const fetchEvents = async (committeesList?: Committee[], hasCache = false) => {
+    const fetchEvents = useCallback(async (committeesList?: Committee[], hasCache = false) => {
         if (!hasCache) {
             setLoading(true);
         }
@@ -246,7 +225,7 @@ export default function EventManagement() {
 
             // Non-admin heads only see events for their committee
             if (!isAdmin && userCommitteeName) {
-                const currentCommittees = committeesList || committees;
+                const currentCommittees = committeesList || committeesRef.current;
                 const committeeMatch = currentCommittees.find(c => c.name === userCommitteeName);
                 if (committeeMatch) {
                     query = query.eq('committee_id', committeeMatch.id);
@@ -272,9 +251,9 @@ export default function EventManagement() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeBranch?.id, canViewAllBranches, isAdmin, isRTL, user?.id, userCommitteeName]);
 
-    const fetchVolunteers = async () => {
+    const fetchVolunteers = useCallback(async () => {
         let q = supabase
             .from('profiles')
             .select('id, full_name, phone, avatar_url')
@@ -294,7 +273,33 @@ export default function EventManagement() {
                 avatar_url: p.avatar_url
             })));
         }
-    };
+    }, [activeBranch?.id, canViewAllBranches]);
+
+    useEffect(() => {
+        const loadData = async () => {
+            const cacheKey = `rtc_events_data_${user?.id}_${activeBranch?.id || 'all'}`;
+            const cached = localStorage.getItem(cacheKey);
+            let hasCache = false;
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) {
+                        setEvents(parsed);
+                        setLoading(false);
+                        hasCache = true;
+                    }
+                } catch (e) {
+                    console.error('Error parsing cached events:', e);
+                }
+            }
+
+            fetchVolunteers();
+            fetchEventsCommittee();
+            const committeesData = await fetchCommittees();
+            fetchEvents(committeesData, hasCache);
+        };
+        loadData();
+    }, [activeBranch?.id, user?.id, fetchVolunteers, fetchEventsCommittee, fetchCommittees, fetchEvents]);
 
     const ensureEventActivityType = async () => {
         const { data } = await supabase
@@ -682,7 +687,7 @@ export default function EventManagement() {
             toast.error(isRTL ? 'لا توجد بيانات للتصدير' : 'No data to export');
             return;
         }
-        const XLSX = await import('xlsx');
+        const XLSX = await import('@e965/xlsx');
 
         const data = events.map(e => ({
             [isRTL ? 'الاسم' : 'Event Name']: e.name,
@@ -703,7 +708,7 @@ export default function EventManagement() {
 
     const handleExportSingleEvent = async (event: Event) => {
         try {
-            const XLSX = await import('xlsx');
+            const XLSX = await import('@e965/xlsx');
 
             // Fetch participants
             const { data: participantsData, error } = await supabase

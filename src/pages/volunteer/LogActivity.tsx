@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -121,25 +121,7 @@ export default function LogActivity() {
 
   const isLeader = ['committee_leader', 'head_hr', 'admin', 'supervisor', 'head_caravans', 'head_events', 'head_ethics', 'head_quran', 'head_ashbal', 'head_marketing', 'head_production', 'head_fourth_year', 'hr', 'head_media'].includes(primaryRole);
 
-  useEffect(() => {
-    fetchData();
-  }, [user?.id]);
-
-  useEffect(() => {
-    if (profile?.committee_id && !committeeId) {
-      setCommitteeId(profile.committee_id);
-    }
-  }, [profile?.committee_id, committeeId]);
-
-
-
-  useEffect(() => {
-    if (isGroupSubmission) {
-      fetchVolunteers();
-    }
-  }, [isGroupSubmission, user?.id]);
-
-  const fetchVolunteers = async () => {
+  const fetchVolunteers = useCallback(async () => {
     try {
       // First, get all volunteers
       let query = supabase
@@ -178,9 +160,9 @@ export default function LogActivity() {
     } catch (error) {
       console.error('Error fetching volunteers:', error);
     }
-  };
+  }, [profile?.branch_id, user?.id]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [committeesRes, activitiesRes, activityCommitteesRes, submissionsRes] = await Promise.all([
@@ -237,15 +219,31 @@ export default function LogActivity() {
         })));
       }
 
-      if (profile?.committee_id && !committeeId) {
-        setCommitteeId(profile.committee_id);
+      if (profile?.committee_id) {
+        setCommitteeId(current => current || profile.committee_id || '');
       }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, isRTL, profile?.committee_id]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (profile?.committee_id && !committeeId) {
+      setCommitteeId(profile.committee_id);
+    }
+  }, [profile?.committee_id, committeeId]);
+
+  useEffect(() => {
+    if (isGroupSubmission) {
+      fetchVolunteers();
+    }
+  }, [isGroupSubmission, fetchVolunteers]);
 
   const filteredActivities = activityTypes.filter(
     a => {
@@ -1437,11 +1435,8 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
   const [submissions, setSubmissions] = useState<GroupSubmissionListItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (leaderId) fetchGroupSubmissions();
-  }, [leaderId]);
-
-  const fetchGroupSubmissions = async () => {
+  const fetchGroupSubmissions = useCallback(async () => {
+    if (!leaderId) return;
     try {
       const { data, error } = await supabase
         .from('group_submissions')
@@ -1465,7 +1460,11 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [leaderId]);
+
+  useEffect(() => {
+    fetchGroupSubmissions();
+  }, [fetchGroupSubmissions]);
 
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 

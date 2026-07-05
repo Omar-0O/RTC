@@ -60,8 +60,8 @@ export default defineConfig(({ mode }) => ({
             return "supabase";
           }
 
-          if (id.includes("xlsx") || id.includes("exceljs")) {
-            return "spreadsheet";
+          if (id.includes("@e965/xlsx")) {
+            return "xlsx";
           }
 
           if (id.includes("recharts") || id.includes("d3-")) {

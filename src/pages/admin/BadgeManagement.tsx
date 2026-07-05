@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Plus, MoreHorizontal, Pencil, Trash2, Search, Loader2, Award, UserPlus, Star, Trophy, Medal, Crown, Heart, Zap, Target, Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import {
@@ -63,27 +63,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
+import type { Database } from '@/integrations/supabase/types';
 
-type Badge = {
-  id: string;
-  name: string;
-  name_ar: string;
-  description: string | null;
-  description_ar: string | null;
-  icon: string;
-  color: string;
-  points_required: number | null;
-  activities_required: number | null;
-  months_required: number | null;
-  caravans_required: number | null;
-};
-
-type Profile = {
-  id: string;
-  full_name: string | null;
-  full_name_ar: string | null;
-  email: string;
-};
+type Badge = Database['public']['Tables']['badges']['Row'];
+type Profile = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'full_name_ar' | 'email'>;
+type UserBadge = Pick<Database['public']['Tables']['user_badges']['Row'], 'user_id'>;
 
 const BADGE_ICONS = [
   { name: 'Award', name_ar: 'وسام', value: 'award', component: Award },
@@ -136,30 +120,39 @@ export default function BadgeManagement() {
     caravans_required: '',
   });
 
-  useEffect(() => {
-    fetchData();
-  }, [activeBranch?.id]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
+      let profilesQuery = supabase
+        .from('profiles')
+        .select('id, full_name, full_name_ar, email')
+        .order('full_name');
+
+      if (activeBranch?.id) {
+        profilesQuery = profilesQuery.eq('branch_id', activeBranch.id);
+      }
+
       const [badgesRes, profilesRes] = await Promise.all([
         supabase.from('badges').select('*').order('created_at', { ascending: false }),
-        supabase.from('profiles').select('id, full_name, full_name_ar, email').order('full_name'),
+        profilesQuery,
       ]);
 
       if (badgesRes.error) throw badgesRes.error;
       if (profilesRes.error) throw profilesRes.error;
 
-      setBadges((badgesRes.data as any) || []);
-      setProfiles(profilesRes.data || []);
-    } catch (error: any) {
+      setBadges((badgesRes.data || []) as Badge[]);
+      setProfiles((profilesRes.data || []) as Profile[]);
+    } catch (error) {
       toast.error(isRTL ? 'فشل في تحميل البيانات' : 'Failed to load data');
       console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeBranch?.id, isRTL]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const filteredBadges = badges.filter(badge => {
     const name = isRTL ? badge.name_ar : badge.name;
@@ -177,7 +170,7 @@ export default function BadgeManagement() {
         .eq('badge_id', badgeId);
 
       if (error) throw error;
-      setUsersWithBadge(data?.map(ub => ub.user_id) || []);
+      setUsersWithBadge(((data || []) as UserBadge[]).map(ub => ub.user_id));
     } catch (error) {
       console.error('Failed to fetch users with badge:', error);
       setUsersWithBadge([]);
@@ -227,7 +220,7 @@ export default function BadgeManagement() {
       setIsAddDialogOpen(false);
       resetForm();
       fetchData();
-    } catch (error: any) {
+    } catch (error) {
       toast.error(isRTL ? 'فشل في إنشاء الشارة' : 'Failed to create badge');
       console.error(error);
     } finally {
@@ -260,7 +253,7 @@ export default function BadgeManagement() {
       setSelectedBadge(null);
       resetForm();
       fetchData();
-    } catch (error: any) {
+    } catch (error) {
       toast.error(isRTL ? 'فشل في تحديث الشارة' : 'Failed to update badge');
       console.error(error);
     } finally {
@@ -280,7 +273,7 @@ export default function BadgeManagement() {
       setIsDeleteDialogOpen(false);
       setSelectedBadge(null);
       fetchData();
-    } catch (error: any) {
+    } catch (error) {
       toast.error(isRTL ? 'فشل في حذف الشارة' : 'Failed to delete badge');
       console.error(error);
     } finally {
@@ -361,7 +354,7 @@ export default function BadgeManagement() {
       setIsAwardDialogOpen(false);
       setSelectedBadge(null);
       setSelectedUserId('');
-    } catch (error: any) {
+    } catch (error) {
       toast.error(isRTL ? 'فشل في منح الشارة' : 'Failed to award badge');
       console.error(error);
     } finally {

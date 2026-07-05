@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, MoreHorizontal, Pencil, Trash2, Search, Loader2, Award, UserPlus, Star, Trophy, Medal, Crown, Heart, Zap, Target, Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import {
@@ -133,11 +133,7 @@ export default function BadgeManagement() {
     auto_award: false,
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [badgesRes, profilesRes] = await Promise.all([
@@ -150,13 +146,17 @@ export default function BadgeManagement() {
 
       setBadges(badgesRes.data || []);
       setProfiles(profilesRes.data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(isRTL ? 'فشل في تحميل البيانات' : 'Failed to load data');
       console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [isRTL]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const filteredBadges = badges.filter(badge => {
     const name = isRTL ? badge.name_ar : badge.name;
@@ -222,7 +222,7 @@ export default function BadgeManagement() {
       setIsAddDialogOpen(false);
       resetForm();
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(isRTL ? 'فشل في إنشاء الشارة' : 'Failed to create badge');
       console.error(error);
     } finally {
@@ -254,7 +254,7 @@ export default function BadgeManagement() {
       setSelectedBadge(null);
       resetForm();
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(isRTL ? 'فشل في تحديث الشارة' : 'Failed to update badge');
       console.error(error);
     } finally {
@@ -274,7 +274,7 @@ export default function BadgeManagement() {
       setIsDeleteDialogOpen(false);
       setSelectedBadge(null);
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(isRTL ? 'فشل في حذف الشارة' : 'Failed to delete badge');
       console.error(error);
     } finally {
@@ -344,7 +344,7 @@ export default function BadgeManagement() {
       setIsAwardDialogOpen(false);
       setSelectedBadge(null);
       setSelectedUserId('');
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(isRTL ? 'فشل في منح الشارة' : 'Failed to award badge');
       console.error(error);
     } finally {

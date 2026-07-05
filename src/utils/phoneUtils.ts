@@ -21,7 +21,7 @@
  * If parsing fails the cleaned digit string is returned as-is (best-effort).
  */
 
-import { parsePhoneNumber, isValidPhoneNumber, AsYouType } from 'libphonenumber-js';
+import { parsePhoneNumber, isValidPhoneNumber, AsYouType, type CountryCode } from 'libphonenumber-js';
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -116,7 +116,7 @@ export const INVALID_PHONE = '';
  */
 export function normalizePhoneE164(
   raw: string | null | undefined,
-  defaultCountry: string = 'EG'
+  defaultCountry: CountryCode = 'EG'
 ): string {
   if (!raw) return INVALID_PHONE;
 
@@ -125,10 +125,7 @@ export function normalizePhoneE164(
 
   try {
     // Attempt full parse with the default country as fallback
-    const parsed = parsePhoneNumber(
-      preprocessed,
-      defaultCountry as any // libphonenumber-js accepts CountryCode
-    );
+    const parsed = parsePhoneNumber(preprocessed, defaultCountry);
     if (parsed && parsed.isValid()) {
       return parsed.format('E.164');
     }
@@ -163,7 +160,7 @@ export function normalizePhoneE164(
   ) {
     const fixed = '+20' + preprocessed.slice(4);
     try {
-      const parsed = parsePhoneNumber(fixed, defaultCountry as any);
+      const parsed = parsePhoneNumber(fixed, defaultCountry);
       if (parsed && parsed.isValid()) {
         return parsed.format('E.164');
       }
@@ -253,11 +250,11 @@ export function formatPhoneDisplay(raw: string | null | undefined): string {
  */
 export function formatPhoneAsYouType(
   partial: string,
-  defaultCountry: string = 'EG'
+  defaultCountry: CountryCode = 'EG'
 ): string {
   if (!partial) return '';
   const pre = preProcess(partial);
-  return new AsYouType(defaultCountry as any).input(pre);
+  return new AsYouType(defaultCountry).input(pre);
 }
 
 // ---------------------------------------------------------------------------

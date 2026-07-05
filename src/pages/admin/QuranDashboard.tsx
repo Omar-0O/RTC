@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Users, Activity, Award, BookOpen, Clock, Calendar, TrendingUp, Percent, BarChart3 } from 'lucide-react';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +29,9 @@ type QuranCircle = {
     sessions_count: number;
 };
 
+type QuranScheduleItem = { day: number; time: string };
+type QuranSessionRow = { id: string; circle_id: string | null };
+
 const CommitteeDashboard = () => {
     const { t, isRTL } = useLanguage();
     const { activeBranch, canViewAllBranches } = useBranch();
@@ -43,11 +46,7 @@ const CommitteeDashboard = () => {
     });
     const [activeCircles, setActiveCircles] = useState<QuranCircle[]>([]);
 
-    useEffect(() => {
-        fetchDashboardData();
-    }, [activeBranch?.id]);
-
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = useCallback(async () => {
         setLoading(true);
         try {
             // 1. Stats
@@ -58,17 +57,17 @@ const CommitteeDashboard = () => {
                 sessionsRes,
             ] = await Promise.all([
                 (() => {
-                    let q: any = supabase.from('quran_circles').select('*');
+                    let q = supabase.from('quran_circles').select('*');
                     if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
                     return q;
                 })(),
                 (() => {
-                    let q: any = supabase.from('quran_beneficiaries').select('id', { count: 'exact' });
+                    let q = supabase.from('quran_beneficiaries').select('id', { count: 'exact' });
                     if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
                     return q;
                 })(),
                 (() => {
-                    let q: any = supabase.from('quran_teachers').select('id', { count: 'exact' });
+                    let q = supabase.from('quran_teachers').select('id', { count: 'exact' });
                     if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
                     return q;
                 })(),
@@ -77,7 +76,7 @@ const CommitteeDashboard = () => {
 
             const activeCirclesData = (circlesRes.data || []).filter(c => c.is_active);
             const totalTeachersCount = quranTeachersRes.count || 0;
-            const allSessions = sessionsRes.data || [];
+            const allSessions = (sessionsRes.data || []) as QuranSessionRow[];
 
             // Calculate average attendance
             let avgAttendance = 0;
@@ -105,7 +104,9 @@ const CommitteeDashboard = () => {
             // Find most active circle (most sessions)
             const circleSessionCounts: Record<string, number> = {};
             allSessions.forEach(s => {
-                circleSessionCounts[s.circle_id] = (circleSessionCounts[s.circle_id] || 0) + 1;
+                if (s.circle_id) {
+                    circleSessionCounts[s.circle_id] = (circleSessionCounts[s.circle_id] || 0) + 1;
+                }
             });
             let mostActiveCircleId = '';
             let maxSessionCount = 0;
@@ -145,7 +146,7 @@ const CommitteeDashboard = () => {
                     return {
                         id: circle.id,
                         teacher_name: teacherName,
-                        schedule: (circle.schedule as unknown as { day: number; time: string }[]) || [],
+                        schedule: (circle.schedule as unknown as QuranScheduleItem[]) || [],
                         is_active: circle.is_active,
                         students_count: count || 0,
                         sessions_count: sessCount,
@@ -169,7 +170,11 @@ const CommitteeDashboard = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeBranch?.id, canViewAllBranches, isRTL]);
+
+    useEffect(() => {
+        fetchDashboardData();
+    }, [fetchDashboardData]);
 
     if (loading) {
         return (
@@ -299,11 +304,7 @@ const VolunteerDashboard = () => {
         myStudents: 0
     });
 
-    useEffect(() => {
-        if (user) fetchVolunteerData();
-    }, [user]);
-
-    const fetchVolunteerData = async () => {
+    const fetchVolunteerData = useCallback(async () => {
         try {
             // Get circle IDs for this volunteer
             const { data: organizerData } = await supabase
@@ -342,7 +343,11 @@ const VolunteerDashboard = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [user?.id]);
+
+    useEffect(() => {
+        if (user) fetchVolunteerData();
+    }, [fetchVolunteerData, user]);
 
     if (loading) return null;
 

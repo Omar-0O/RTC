@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Users, TrendingUp, FileSpreadsheet, Calendar, Award, Filter, Check, ChevronsUpDown, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import type { Tables } from '@/integrations/supabase/types';
 
 
 interface Profile {
@@ -52,6 +53,18 @@ interface Committee {
   name: string;
   name_ar: string;
 }
+
+type MemberFilter = 'all' | 'members' | 'external';
+type CsvValue = string | number | boolean | null | undefined;
+type CsvRow = Record<string, CsvValue>;
+type TrainerLookupRow = Pick<Tables<'trainers'>, 'id' | 'name_ar' | 'name_en' | 'phone' | 'image_url'>;
+type TrainersMap = Record<string, { ar: string; en: string; phone: string | null; image_url: string | null }>;
+type CachedLeaderDashboard = {
+  committee?: Committee | null;
+  submissions?: Submission[];
+  committeeMembers?: Profile[];
+  trainersMap?: TrainersMap;
+};
 
 interface Submission {
   id: string;
@@ -93,11 +106,11 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [committeeMembers, setCommitteeMembers] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [trainersMap, setTrainersMap] = useState<Record<string, { ar: string, en: string, phone: string, image_url: string | null }>>({});
+  const [trainersMap, setTrainersMap] = useState<TrainersMap>({});
 
   // Filters
   const [selectedMonth, setSelectedMonth] = useState('all');
-  const [memberFilter, setMemberFilter] = useState<'all' | 'members' | 'external'>('all');
+  const [memberFilter, setMemberFilter] = useState<MemberFilter>('all');
   const [selectedVolunteer, setSelectedVolunteer] = useState<string>('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
   const [volunteerSearchOpen, setVolunteerSearchOpen] = useState(false);
@@ -117,6 +130,8 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
     if (profile?.committee_id) return [profile.committee_id];
     return [];
   }, [propCommitteeIds, propCommitteeId, profile?.committee_id]);
+  const effectiveCommitteeIdsKey = useMemo(() => JSON.stringify(effectiveCommitteeIds), [effectiveCommitteeIds]);
+  const hasCommitteeScope = effectiveCommitteeIds.length > 0;
 
   // Use the first ID for "Primary" committee info (name, etc)
   const primaryCommitteeId = effectiveCommitteeIds[0];
@@ -144,10 +159,8 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
   const CARAVANS_COMMITTEE_ID = 'e3517d42-3140-4323-bf79-5a6728fc45ef';
   const EVENTS_COMMITTEE_ID = 'c82bc5e2-49b1-4951-9f1e-249afeaafeb8';
 
-  const committeeId = propCommitteeId || profile?.committee_id;
-
-  const fetchData = async (hasCache = false) => {
-    if (effectiveCommitteeIds.length === 0) return;
+  const fetchData = useCallback(async (hasCache = false) => {
+    if (!hasCommitteeScope) return;
     if (!hasCache) {
       setIsLoading(true);
     }
@@ -176,8 +189,8 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
         .from('trainers')
         .select('id, user_id, name_ar, name_en, phone, image_url');
       
-      const tMap: Record<string, { ar: string, en: string, phone: string, image_url: string | null }> = {};
-      trainersData?.forEach((t: any) => {
+      const tMap: TrainersMap = {};
+      ((trainersData || []) as TrainerLookupRow[]).forEach((t) => {
           if (t.id) {
               tMap[t.id] = { ar: t.name_ar, en: t.name_en, phone: t.phone, image_url: t.image_url };
           }
@@ -235,30 +248,30 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
 
       // Save to cache
       if (user?.id) {
-        const cacheKey = `rtc_leader_dashboard_data_${user.id}_${JSON.stringify(effectiveCommitteeIds)}_${selectedMonth}`;
+        const cacheKey = `rtc_leader_dashboard_data_${user.id}_${effectiveCommitteeIdsKey}_${selectedMonth}`;
         localStorage.setItem(cacheKey, JSON.stringify({
-          committee: committeeData || committee || null,
+          committee: committeeData || null,
           submissions: finalSubmissions,
-          committeeMembers: membersData || committeeMembers || [],
-          trainersMap: tMap || trainersMap || {},
+          committeeMembers: membersData || [],
+          trainersMap: tMap,
           cachedAt: Date.now()
         }));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error fetching data:', error);
       toast.error(isRTL ? 'فشل في تحميل البيانات' : 'Failed to load data');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [effectiveCommitteeIds, effectiveCommitteeIdsKey, hasCommitteeScope, isRTL, primaryCommitteeId, selectedMonth, user?.id]);
 
   useEffect(() => {
-    if (!user?.id || effectiveCommitteeIds.length === 0) return;
-    const cacheKey = `rtc_leader_dashboard_data_${user.id}_${JSON.stringify(effectiveCommitteeIds)}_${selectedMonth}`;
+    if (!user?.id || !hasCommitteeScope) return;
+    const cacheKey = `rtc_leader_dashboard_data_${user.id}_${effectiveCommitteeIdsKey}_${selectedMonth}`;
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       try {
-        const parsed = JSON.parse(cached);
+        const parsed = JSON.parse(cached) as CachedLeaderDashboard;
         setCommittee(parsed.committee || null);
         setSubmissions(parsed.submissions || []);
         setCommitteeMembers(parsed.committeeMembers || []);
@@ -269,7 +282,7 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
       }
     }
     fetchData(!!cached);
-  }, [user?.id, JSON.stringify(effectiveCommitteeIds), selectedMonth]); // Deep compare IDs array
+  }, [effectiveCommitteeIdsKey, fetchData, hasCommitteeScope, selectedMonth, user?.id]);
 
   // Filter submissions based on all filters
   const filteredSubmissions = useMemo(() => {
@@ -318,7 +331,7 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
   };
 
   const exportReport = () => {
-    const reportData = filteredSubmissions.map(s => {
+      const reportData: CsvRow[] = filteredSubmissions.map(s => {
       const volunteer = s.profiles;
       const activityType = s.activity_types;
 
@@ -383,7 +396,7 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
         if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
           return `"${value.replace(/"/g, '""')}"`;
         }
-        return value ?? '';
+        return String(value ?? '');
       }).join(','))
     ].join('\n');
 
@@ -407,7 +420,7 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
       if (error) throw error;
       setSubmissions(prev => prev.filter(s => s.id !== submissionId));
       toast.success(isRTL ? 'تم حذف المشاركة بنجاح' : 'Submission deleted successfully');
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error deleting submission:', error);
       toast.error(isRTL ? 'فشل في حذف المشاركة' : 'Failed to delete submission');
     }
@@ -501,7 +514,7 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
           </div>
           <div className="space-y-2">
             <Label>{isRTL ? 'نوع العضوية' : 'Membership Type'}</Label>
-            <Select value={memberFilter} onValueChange={(v) => setMemberFilter(v as any)}>
+            <Select value={memberFilter} onValueChange={(v) => setMemberFilter(v as MemberFilter)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>

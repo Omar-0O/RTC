@@ -13,7 +13,7 @@ export default function QuranParticipations() {
         const fetchQuranCommitteeIds = async () => {
             try {
                 // Search for ALL Quran committee variations to handle duplicates/legacy data
-                let { data } = await supabase
+                const { data } = await supabase
                     .from('committees')
                     .select('id')
                     .or('name.ilike.%Quran%,name.ilike.%Ahl al-Quran%,name_ar.ilike.%قرآن%,name_ar.ilike.%أهل القرآن%');

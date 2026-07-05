@@ -29,6 +29,39 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
+import type { Database } from '@/integrations/supabase/types';
+
+type CsvValue = string | number | boolean | null | undefined;
+type CsvRow = Record<string, CsvValue>;
+type Trainer = Pick<Database['public']['Tables']['trainers']['Row'], 'id' | 'user_id' | 'name_ar' | 'name_en' | 'phone'>;
+
+type PieLabelProps = {
+  cx?: number | string;
+  cy?: number | string;
+  midAngle?: number | string;
+  innerRadius?: number | string;
+  outerRadius?: number | string;
+  value?: number | string;
+  name?: number | string;
+};
+
+type SupervisorAverageTrendDatum = {
+  month: string;
+  average: number;
+  supervisorsCount: number;
+  totalCappedParticipations: number;
+  totalUncappedParticipations: number;
+  monthKey: string;
+};
+
+type TooltipPayload<T> = {
+  payload: T;
+};
+
+type SupervisorAverageTooltipProps = {
+  active?: boolean;
+  payload?: TooltipPayload<SupervisorAverageTrendDatum>[];
+};
 
 const ARABIC_MONTHS = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -95,10 +128,10 @@ async function fetchAllRows(table: 'activity_submissions', pageSize = 500) {
   if (cntError || count === null) {
     // Fallback: simple select
     const { data, error } = await supabase.from(table).select('*');
-    return { data: data || [], error };
+    return { data: (data || []) as ActivitySubmission[], error };
   }
   // Step 2: paginate using the known count
-  let allData: any[] = [];
+  let allData: ActivitySubmission[] = [];
   for (let from = 0; from < count; from += pageSize) {
     const to = Math.min(from + pageSize - 1, count - 1);
     const { data, error } = await supabase
@@ -106,7 +139,7 @@ async function fetchAllRows(table: 'activity_submissions', pageSize = 500) {
       .select('*')
       .range(from, to);
     if (error) return { data: allData, error };
-    if (data) allData = allData.concat(data);
+    if (data) allData = allData.concat(data as ActivitySubmission[]);
   }
   return { data: allData, error: null };
 }
@@ -120,7 +153,7 @@ export default function Reports() {
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
   // Add Trainers state
-  const [trainers, setTrainers] = useState<{ id: string, user_id: string | null, name_ar: string, name_en: string, phone: string | null }[]>([]);
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -250,7 +283,17 @@ export default function Reports() {
     { name: t('level.responsible'), value: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length, color: '#9333ea' }, // purple-600
   ].filter(l => l.value > 0);
 
-  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name, fill }: any) => {
+  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name }: PieLabelProps) => {
+    if (
+      typeof cx !== 'number' ||
+      typeof cy !== 'number' ||
+      typeof midAngle !== 'number' ||
+      typeof innerRadius !== 'number' ||
+      typeof outerRadius !== 'number'
+    ) {
+      return null;
+    }
+
     const RADIAN = Math.PI / 180;
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5 + (outerRadius - innerRadius);
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -274,7 +317,7 @@ export default function Reports() {
         dominantBaseline="central"
         fontSize={12}
       >
-        {`${name}: ${value}`}
+        {`${name ?? ''}: ${value ?? ''}`}
       </text>
     );
   };
@@ -378,7 +421,7 @@ export default function Reports() {
   });
 
   // CSV Export functions
-  const downloadCSV = (data: any[], filename: string) => {
+  const downloadCSV = (data: CsvRow[], filename: string) => {
     if (data.length === 0) {
       toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
       return;
@@ -409,7 +452,7 @@ export default function Reports() {
 
   const handleExport = (type: string) => {
     switch (type) {
-      case 'volunteers':
+      case 'volunteers': {
         const volunteersData = profiles.map(p => {
           const level = p.level || 'under_follow_up';
           const isResponsible = ['responsible', 'platinum', 'diamond'].includes(level);
@@ -442,8 +485,9 @@ export default function Reports() {
         });
         downloadCSV(volunteersData, 'volunteers');
         break;
+      }
 
-      case 'activities':
+      case 'activities': {
         const reportData = filteredSubmissions.map(s => {
           const volunteer = profiles.find(p => p.id === s.volunteer_id);
           const activityType = activityTypes.find(a => a.id === s.activity_type_id);
@@ -490,8 +534,9 @@ export default function Reports() {
         // Use 'participation_log' filename, filtered by current month
         downloadCSV(reportData, `participation_log_${dateRange}`);
         break;
+      }
 
-      case 'points':
+      case 'points': {
         const pointsData = profiles.map(p => ({
           [language === 'ar' ? 'الاسم' : 'Name']: p.full_name || '',
           [language === 'ar' ? 'البريد الإلكتروني' : 'Email']: p.email,
@@ -500,6 +545,7 @@ export default function Reports() {
         })).sort((a, b) => (b[language === 'ar' ? 'إجمالي الأثر' : 'Total Impact'] as number) - (a[language === 'ar' ? 'إجمالي الأثر' : 'Total Impact'] as number));
         downloadCSV(pointsData, 'points_summary');
         break;
+      }
 
 
       case 'full':
@@ -807,7 +853,7 @@ export default function Reports() {
                   <XAxis dataKey="month" className="text-xs" />
                   <YAxis className="text-xs" />
                   <Tooltip
-                    content={({ active, payload }: any) => {
+                    content={({ active, payload }: SupervisorAverageTooltipProps) => {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (

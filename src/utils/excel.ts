@@ -15,7 +15,7 @@ interface GroupSubmissionData {
 }
 
 export const generateGroupSubmissionCSV = async (data: GroupSubmissionData): Promise<Blob> => {
-    const { utils, write } = await import('xlsx');
+    const { utils, write } = await import('@e965/xlsx');
 
     // Calculate totals
     const totalParticipants = data.participants.length;

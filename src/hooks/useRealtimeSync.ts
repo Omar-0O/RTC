@@ -14,7 +14,7 @@
  *     onConflict: (info) => setConflictDialog(info),
  *   });
  */
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { subscribeToAllTables, subscribeToTable, onTableChange } from '@/lib/realtime';
 import { detectConflict, type ConflictInfo, type ConflictRecord } from '@/lib/conflictResolver';
@@ -41,6 +41,8 @@ const TABLE_QUERY_MAP: Record<TableName, readonly unknown[]> = {
   activity_submissions: queryKeys.activities.all,
 };
 
+const DEFAULT_TABLES: TableName[] = ['profiles', 'users_followup', 'quran_circles', 'activity_submissions'];
+
 type EditableRecord = ConflictRecord & {
   id: string;
   version?: number;
@@ -51,6 +53,12 @@ type EditableRecord = ConflictRecord & {
 export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
   const queryClient = useQueryClient();
   const { tables, onConflict, enabled = true } = options ?? {};
+  const tableKey = tables?.join(',') ?? '';
+  const hasTableFilter = tableKey.length > 0;
+  const selectedTables = useMemo<TableName[]>(
+    () => (hasTableFilter ? (tableKey.split(',') as TableName[]) : DEFAULT_TABLES),
+    [hasTableFilter, tableKey]
+  );
   const [lastEvent, setLastEvent] = useState<{
     table: string;
     event: string;
@@ -67,12 +75,12 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
 
     let cleanup: (() => void) | undefined;
 
-    if (!tables || tables.length === 0) {
+    if (!hasTableFilter) {
       // Subscribe to all tables
       cleanup = subscribeToAllTables(queryClient);
     } else {
       // Subscribe to specific tables
-      const unsubs = tables.map(table =>
+      const unsubs = selectedTables.map(table =>
         subscribeToTable(queryClient, {
           table,
           queryKey: TABLE_QUERY_MAP[table],
@@ -82,15 +90,13 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
     }
 
     return cleanup;
-  }, [queryClient, enabled, tables?.join(',')]);
+  }, [queryClient, enabled, hasTableFilter, selectedTables]);
 
   // ─── Conflict detection listener ────────────────────────────────
   useEffect(() => {
     if (!enabled || !onConflict) return;
 
-    const targetTables = tables ?? (['profiles', 'users_followup', 'quran_circles', 'activity_submissions'] as TableName[]);
-
-    const unsubs = targetTables.map(table =>
+    const unsubs = selectedTables.map(table =>
       onTableChange(table, (payload: RealtimePostgresChangesPayload<EditableRecord>) => {
         if (payload.eventType !== 'UPDATE') return;
 
@@ -128,7 +134,7 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
     );
 
     return () => unsubs.forEach(fn => fn());
-  }, [enabled, onConflict, tables?.join(',')]);
+  }, [enabled, onConflict, selectedTables]);
 
   // ─── API for marking records as "being edited" ─────────────────
   const markEditing = useCallback((table: TableName, recordId: string, version: number, data: ConflictRecord) => {

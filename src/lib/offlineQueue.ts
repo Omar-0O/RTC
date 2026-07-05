@@ -19,11 +19,12 @@ export type MutationType =
   | 'ADD_FOLLOWUP' | 'EDIT_FOLLOWUP' | 'APPROVE_FOLLOWUP' | 'REJECT_FOLLOWUP';
 
 export type QueueItemStatus = 'pending' | 'processing' | 'synced' | 'failed';
+export type QueuePayload = Record<string, unknown>;
 
 export interface QueueItem {
   id: string;
   type: MutationType;
-  payload: any;
+  payload: QueuePayload;
   timestamp: number;
   status: QueueItemStatus;
   retryCount: number;
@@ -64,7 +65,7 @@ function generateId(): string {
  * Add a mutation to the offline queue.
  * Returns the queue item ID for tracking.
  */
-export async function enqueue(type: MutationType, payload: any): Promise<string> {
+export async function enqueue(type: MutationType, payload: QueuePayload): Promise<string> {
   const db = await openDB();
   const id = generateId();
   const item: QueueItem = {

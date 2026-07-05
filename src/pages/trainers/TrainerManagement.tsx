@@ -533,7 +533,7 @@ export default function TrainerManagement(): JSX.Element {
     const handleExportTrainer = async (trainer: Trainer) => {
         try {
             toast.info(isRTL ? 'جاري تحضير التقرير...' : 'Preparing report...');
-            const { utils, writeFile } = await import('xlsx');
+            const { utils, writeFile } = await import('@e965/xlsx');
 
             // Fetch comprehensive course history for this trainer with full beneficiary data
             const { data: courses, error } = await supabase
@@ -710,7 +710,7 @@ export default function TrainerManagement(): JSX.Element {
 
     const handleExportAllTrainers = async (trainers: Trainer[], isRTL: boolean) => {
         try {
-            const { utils, writeFile } = await import('xlsx');
+            const { utils, writeFile } = await import('@e965/xlsx');
 
             const allTrainersData = [
                 // Headers

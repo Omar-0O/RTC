@@ -19,6 +19,7 @@ import { queryKeys } from './queryKeys';
 // ─── Types ──────────────────────────────────────────────────────────
 
 type TableName = 'profiles' | 'users_followup' | 'quran_circles' | 'activity_submissions';
+type RealtimeRecord = Record<string, unknown> & { id?: string };
 
 interface SubscriptionConfig {
   table: TableName;
@@ -27,7 +28,7 @@ interface SubscriptionConfig {
   invalidateOnly?: boolean;
 }
 
-type ChangeHandler = (payload: RealtimePostgresChangesPayload<any>) => void;
+type ChangeHandler = (payload: RealtimePostgresChangesPayload<RealtimeRecord>) => void;
 
 // ─── Table → Query Key mapping ──────────────────────────────────────
 
@@ -128,7 +129,7 @@ export function onTableChange(table: TableName, handler: ChangeHandler): () => v
 function handleChange(
   queryClient: QueryClient,
   config: SubscriptionConfig,
-  payload: RealtimePostgresChangesPayload<any>
+  payload: RealtimePostgresChangesPayload<RealtimeRecord>
 ): void {
   const { eventType, new: newRecord, old: oldRecord } = payload;
 
@@ -170,7 +171,7 @@ function handleChange(
 function patchCacheRecord(
   queryClient: QueryClient,
   config: SubscriptionConfig,
-  newRecord: any
+  newRecord: RealtimeRecord
 ): void {
   if (!newRecord?.id) return;
 
@@ -184,10 +185,10 @@ function patchCacheRecord(
   const detailKeyFn = detailKeyMap[config.table];
   if (detailKeyFn) {
     const detailKey = detailKeyFn(newRecord.id);
-    queryClient.setQueryData(detailKey, (old: any) => {
+    queryClient.setQueryData(detailKey, (old: unknown) => {
       if (!old) return old;
       // Merge new fields into cached record
-      return { ...old, ...newRecord };
+      return { ...(old as Record<string, unknown>), ...newRecord };
     });
   }
 }

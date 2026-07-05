@@ -422,7 +422,7 @@ export default function FollowUpManagement() {
   };
 
   const handleExportExcel = async () => {
-    const XLSX = await import('xlsx');
+    const XLSX = await import('@e965/xlsx');
 
     if (filtered.length === 0) {
       toast.error(ar('لا توجد بيانات للتصدير', 'No data to export'));
@@ -468,7 +468,7 @@ export default function FollowUpManagement() {
   };
 
   const downloadExcelTemplate = async () => {
-    const XLSX = await import('xlsx');
+    const XLSX = await import('@e965/xlsx');
 
     const headers = ['id', 'full_name', 'phone_1', 'phone_2', 'branch_id', 'linked_to'];
     const example1 = ['', 'أحمد محمد', '01012345678', '01123456789', 'ma', ''];
@@ -500,7 +500,7 @@ export default function FollowUpManagement() {
     toast.info(ar('جاري معالجة الملف...', 'Processing file...'));
 
     try {
-      const XLSX = await import('xlsx');
+      const XLSX = await import('@e965/xlsx');
       const reader = new FileReader();
       reader.onload = async (evt) => {
         try {

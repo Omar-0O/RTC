@@ -19,6 +19,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../integrations/supabase/types';
 import { normalizePhoneE164 } from '../utils/phoneUtils';
 
 // ---------------------------------------------------------------------------
@@ -33,7 +34,7 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   process.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 const DRY_RUN = !process.argv.includes('--fix');
 
 // ---------------------------------------------------------------------------
@@ -63,7 +64,7 @@ interface DuplicateGroup {
 async function main() {
   console.log(`\n🔍 Fetching records from users_followup…`);
 
-  const { data, error } = await (supabase as any)
+  const { data, error } = await supabase
     .from('users_followup')
     .select('id, full_name, phone_1, phone_2, branch_id, status, created_at')
     .order('id', { ascending: true });
@@ -171,7 +172,7 @@ async function main() {
 
   console.log(`\n🔄 Applying soft-flags to ${allFlagIds.length} records…`);
 
-  const { error: updateError } = await (supabase as any)
+  const { error: updateError } = await supabase
     .from('users_followup')
     .update({ status: 'duplicate' })
     .in('id', allFlagIds);

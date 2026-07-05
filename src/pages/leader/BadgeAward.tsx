@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, Loader2, Award, UserPlus, Star, Trophy, Medal, Crown, Heart, Zap, Target, Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import {
@@ -85,11 +85,7 @@ export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardP
 
     const committeeId = propCommitteeId || authProfile?.committee_id;
 
-    useEffect(() => {
-        fetchData();
-    }, [committeeId]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         if (!committeeId) return;
 
         setLoading(true);
@@ -114,13 +110,17 @@ export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardP
 
             setBadges(badgesRes.data || []);
             setCommitteeMembers(membersRes.data || []);
-        } catch (error: any) {
+        } catch (error: unknown) {
             toast.error(isRTL ? 'فشل في تحميل البيانات' : 'Failed to load data');
             console.error(error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [committeeId, hasRole, isRTL]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const filteredBadges = badges.filter(badge => {
         const name = isRTL ? badge.name_ar : badge.name;
@@ -202,7 +202,7 @@ export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardP
             setIsAwardDialogOpen(false);
             setSelectedBadge(null);
             setSelectedUserId('');
-        } catch (error: any) {
+        } catch (error: unknown) {
             toast.error(isRTL ? 'فشل في منح الشارة' : 'Failed to award badge');
             console.error(error);
         } finally {

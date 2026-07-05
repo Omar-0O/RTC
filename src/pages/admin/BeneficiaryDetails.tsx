@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -43,20 +43,33 @@ interface ProgressRecord {
     total_parts: number;
 }
 
+interface AttendanceChartPoint {
+    date: string;
+    memorization: number;
+    revision: number;
+}
+
+interface ProgressChartPoint {
+    date: string;
+    parts: number;
+}
+
+interface AttendanceQueryRow {
+    attendance_type: 'memorization' | 'revision' | string | null;
+    quran_circles: { date: string | null } | null;
+}
+
 export default function BeneficiaryDetails() {
     const { id } = useParams();
     const navigate = useNavigate();
     const { isRTL } = useLanguage();
     const [beneficiary, setBeneficiary] = useState<Beneficiary | null>(null);
-    const [attendanceData, setAttendanceData] = useState<any[]>([]);
-    const [progressData, setProgressData] = useState<any[]>([]);
+    const [attendanceData, setAttendanceData] = useState<AttendanceChartPoint[]>([]);
+    const [progressData, setProgressData] = useState<ProgressChartPoint[]>([]);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        if (id) fetchData();
-    }, [id]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
+        if (!id) return;
         setLoading(true);
         try {
             // Fetch Beneficiary Details
@@ -87,7 +100,7 @@ export default function BeneficiaryDetails() {
             // Group by date and count types
             const attMap = new Map<string, { date: string, memorization: number, revision: number }>();
 
-            attData?.forEach((record: any) => {
+            (attData as unknown as AttendanceQueryRow[] | null)?.forEach((record) => {
                 const date = record.quran_circles?.date;
                 if (!date) return;
 
@@ -132,7 +145,11 @@ export default function BeneficiaryDetails() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [id]);
+
+    useEffect(() => {
+        if (id) fetchData();
+    }, [fetchData, id]);
 
     if (loading) {
         return (

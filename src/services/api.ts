@@ -6,7 +6,11 @@
  *  2. Errors are classified (network vs auth vs validation)
  *  3. The service layer is reusable outside React
  */
-import { PostgrestError } from '@supabase/supabase-js';
+import type { PostgrestError } from '@supabase/supabase-js';
+import { supabase } from '@/integrations/supabase/client';
+
+type JsonRecord = Record<string, unknown>;
+type VersionedRecord = JsonRecord & { version?: number };
 
 // ─── Error Classification ───────────────────────────────────────────
 
@@ -104,8 +108,8 @@ export function shouldRetry(failureCount: number, error: unknown): boolean {
 // ─── Version Conflict ───────────────────────────────────────────────
 
 export class VersionConflictError extends Error {
-  public readonly serverData: any;
-  public readonly clientData: any;
+  public readonly serverData: VersionedRecord | null;
+  public readonly clientData: JsonRecord;
   public readonly serverVersion: number;
   public readonly clientVersion: number;
   public readonly table: string;
@@ -116,8 +120,8 @@ export class VersionConflictError extends Error {
     recordId: string;
     serverVersion: number;
     clientVersion: number;
-    serverData: any;
-    clientData: any;
+    serverData: VersionedRecord | null;
+    clientData: JsonRecord;
   }) {
     super(`Version conflict on ${opts.table}:${opts.recordId} (client v${opts.clientVersion} vs server v${opts.serverVersion})`);
     this.name = 'VersionConflictError';
@@ -137,14 +141,12 @@ export class VersionConflictError extends Error {
  * Throws VersionConflictError if the server version has changed since
  * the client last read the record.
  */
-import { supabase } from '@/integrations/supabase/client';
-
 export async function versionedUpdate(
   table: string,
   recordId: string,
   clientVersion: number,
-  updateData: Record<string, any>
-): Promise<any> {
+  updateData: JsonRecord
+): Promise<VersionedRecord> {
   // 1. Fetch current server record
   const { data: serverRecord, error: fetchErr } = await supabase
     .from(table)
@@ -191,5 +193,5 @@ export async function versionedUpdate(
     });
   }
 
-  return data;
+  return data as VersionedRecord;
 }

@@ -4,7 +4,7 @@
  * Shows a side-by-side diff of server vs client data,
  * lets the user pick which version to keep per field.
  */
-import { useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -40,12 +40,12 @@ export function ConflictDialog({ conflict, onResolve, onDismiss, fieldLabels = {
   const [choices, setChoices] = useState<Record<string, 'client' | 'server'>>({});
 
   // Initialize choices with server as default
-  useMemo(() => {
+  useEffect(() => {
     if (!conflict) return;
     const initial: Record<string, 'client' | 'server'> = {};
     conflict.conflictingFields.forEach(f => { initial[f] = 'server'; });
     setChoices(initial);
-  }, [conflict?.recordId]);
+  }, [conflict]);
 
   if (!conflict) return null;
 

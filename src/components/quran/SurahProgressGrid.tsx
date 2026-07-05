@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { QURAN_SURAHS, QuranSurah, SurahStatus, SURAH_STATUS_COLORS } from '@/data/quranSurahs';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SurahEditModal } from './SurahEditModal';
@@ -37,11 +37,7 @@ export function SurahProgressGrid({ beneficiaryId, readOnly = false }: SurahProg
     const [isSaving, setIsSaving] = useState(false);
     const [viewFilter, setViewFilter] = useState<'all' | 'juz30' | 'juz29' | 'long'>('all');
 
-    useEffect(() => {
-        fetchProgress();
-    }, [beneficiaryId]);
-
-    const fetchProgress = async () => {
+    const fetchProgress = useCallback(async () => {
         try {
             const { data, error } = await supabase
                 .from('beneficiary_surah_progress')
@@ -60,7 +56,11 @@ export function SurahProgressGrid({ beneficiaryId, readOnly = false }: SurahProg
         } finally {
             setLoading(false);
         }
-    };
+    }, [beneficiaryId]);
+
+    useEffect(() => {
+        fetchProgress();
+    }, [fetchProgress]);
 
     const handleSurahClick = (surah: QuranSurah) => {
         if (readOnly) return;

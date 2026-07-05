@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -417,40 +417,14 @@ export default function CourseManagement() {
         }
     }, [isRestricted, profile?.committee_id]);
 
-    useEffect(() => {
-        if (isLoading) return; // Wait for auth
-
-        const cacheKey = `rtc_courses_${user?.id}_${profile?.committee_id || 'all'}`;
-        const cached = localStorage.getItem(cacheKey);
-        let hasCache = false;
-        if (cached) {
-            try {
-                const parsed = JSON.parse(cached);
-                if (Array.isArray(parsed)) {
-                    setCourses(parsed);
-                    setLoading(false);
-                    hasCache = true;
-                }
-            } catch (e) {
-                console.error('Error parsing cached courses:', e);
-            }
-        }
-
-        fetchCourses(hasCache);
-        fetchVolunteers();
-        fetchTrainers();
-        fetchCommittees();
-        fetchRooms();
-    }, [isLoading, isRestricted, profile?.committee_id, activeBranch?.id]);
-
-    const fetchRooms = async () => {
+    const fetchRooms = useCallback(async () => {
         try {
             let query = supabase
                 .from('rooms')
                 .select('id, name, name_ar')
                 .order('created_at');
 
-            if (activeBranch) {
+            if (activeBranch?.id) {
                 query = query.eq('branch_id', activeBranch.id);
             }
 
@@ -478,9 +452,9 @@ export default function CourseManagement() {
         } catch (error) {
             console.error('Error fetching rooms:', error);
         }
-    };
+    }, [activeBranch?.id]);
 
-    const fetchCommittees = async () => {
+    const fetchCommittees = useCallback(async () => {
         try {
             const { data, error } = await supabase
                 .from('committees')
@@ -491,7 +465,7 @@ export default function CourseManagement() {
         } catch (error) {
             console.error('Error fetching committees:', error);
         }
-    };
+    }, []);
 
 
 
@@ -535,7 +509,7 @@ export default function CourseManagement() {
         calculateEndDate();
     }, [formData.start_date, formData.total_lectures, formData.schedule_days]);
 
-    const fetchVolunteers = async () => {
+    const fetchVolunteers = useCallback(async () => {
         try {
             let query = supabase
                 .from('profiles')
@@ -543,7 +517,7 @@ export default function CourseManagement() {
                 .neq('full_name', 'RTC Admin')
                 .order('full_name');
 
-            if (activeBranch) {
+            if (activeBranch?.id) {
                 query = query.eq('branch_id', activeBranch.id);
             }
 
@@ -553,9 +527,9 @@ export default function CourseManagement() {
         } catch (error) {
             console.error('Error fetching volunteers:', error);
         }
-    };
+    }, [activeBranch?.id]);
 
-    const fetchTrainers = async () => {
+    const fetchTrainers = useCallback(async () => {
         try {
             let query = supabase
                 .from('trainers')
@@ -566,7 +540,7 @@ export default function CourseManagement() {
                 query = query.eq('committee_id', profile.committee_id);
             }
 
-            if (activeBranch) {
+            if (activeBranch?.id) {
                 query = query.eq('branch_id', activeBranch.id);
             }
 
@@ -576,9 +550,9 @@ export default function CourseManagement() {
         } catch (error) {
             console.error('Error fetching trainers:', error);
         }
-    };
+    }, [activeBranch?.id, isRestricted, profile?.committee_id]);
 
-    const fetchCourses = async (hasCache = false) => {
+    const fetchCourses = useCallback(async (hasCache = false) => {
         if (!hasCache) {
             setLoading(true);
         }
@@ -592,7 +566,7 @@ export default function CourseManagement() {
                 query = query.eq('committee_id', profile.committee_id);
             }
 
-            if (activeBranch) {
+            if (activeBranch?.id) {
                 query = query.eq('branch_id', activeBranch.id);
             }
 
@@ -610,7 +584,33 @@ export default function CourseManagement() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeBranch?.id, isRestricted, profile?.committee_id, user?.id, isRTL]);
+
+    useEffect(() => {
+        if (isLoading) return; // Wait for auth
+
+        const cacheKey = `rtc_courses_${user?.id}_${profile?.committee_id || 'all'}`;
+        const cached = localStorage.getItem(cacheKey);
+        let hasCache = false;
+        if (cached) {
+            try {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed)) {
+                    setCourses(parsed);
+                    setLoading(false);
+                    hasCache = true;
+                }
+            } catch (e) {
+                console.error('Error parsing cached courses:', e);
+            }
+        }
+
+        fetchCourses(hasCache);
+        fetchVolunteers();
+        fetchTrainers();
+        fetchCommittees();
+        fetchRooms();
+    }, [isLoading, user?.id, profile?.committee_id, fetchCourses, fetchVolunteers, fetchTrainers, fetchCommittees, fetchRooms]);
 
     const fetchCourseAds = async (courseId: string) => {
         try {
@@ -1781,7 +1781,7 @@ export default function CourseManagement() {
 
     const exportCourseToExcel = async (course: Course) => {
         try {
-            const XLSX = await import('xlsx');
+            const XLSX = await import('@e965/xlsx');
 
             // Fetch organizers
             const { data: orgs } = await supabase
@@ -1905,7 +1905,7 @@ export default function CourseManagement() {
 
     const exportAllCourses = async () => {
         try {
-            const XLSX = await import('xlsx');
+            const XLSX = await import('@e965/xlsx');
 
             const allData = courses.map(c => ({
                 [isRTL ? 'اسم الكورس' : 'Course Name']: c.name,

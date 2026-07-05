@@ -34,7 +34,7 @@ export function NetworkStatus() {
       const timer = setTimeout(() => setShowSynced(false), 3000);
       return () => clearTimeout(timer);
     }
-  }, [state, pendingCount]);
+  }, [state, pendingCount, showSynced]);
 
   // Reset dismissed when going back offline
   useEffect(() => {

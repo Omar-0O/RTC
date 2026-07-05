@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +21,13 @@ interface MyEvent {
     description: string | null;
     committee_name?: string;
 }
+
+type MyEventQueryRow = MyEvent & {
+    committees?: {
+        name: string | null;
+        name_ar: string | null;
+    } | null;
+};
 
 interface Speaker {
     id: string;
@@ -53,28 +60,8 @@ export default function MyEvents() {
     const [speakersOpen, setSpeakersOpen] = useState(false);
     const [eventSpeakers, setEventSpeakers] = useState<Speaker[]>([]);
 
-    useEffect(() => {
-        if (user) {
-            const cacheKey = `rtc_my_events_data_${user.id}`;
-            const cached = localStorage.getItem(cacheKey);
-            let hasCache = false;
-            if (cached) {
-                try {
-                    const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed)) {
-                        setEvents(parsed);
-                        setLoading(false);
-                        hasCache = true;
-                    }
-                } catch (e) {
-                    console.error('Error parsing cached my events:', e);
-                }
-            }
-            fetchMyEvents(hasCache);
-        }
-    }, [user]);
-
-    const fetchMyEvents = async (hasCache = false) => {
+    const fetchMyEvents = useCallback(async (hasCache = false) => {
+        if (!user?.id) return;
         if (!hasCache) {
             setLoading(true);
         }
@@ -82,7 +69,7 @@ export default function MyEvents() {
             const { data: orgData, error: orgError } = await supabase
                 .from('event_organizers')
                 .select('event_id')
-                .eq('volunteer_id', user!.id);
+                .eq('volunteer_id', user.id);
 
             if (orgError) throw orgError;
             if (!orgData || orgData.length === 0) {
@@ -102,7 +89,7 @@ export default function MyEvents() {
 
             if (error) throw error;
 
-            const eventsData = (data || []).map((e: any) => ({
+            const eventsData = ((data || []) as MyEventQueryRow[]).map((e) => ({
                 ...e,
                 committee_name: e.committees?.name_ar || e.committees?.name || ''
             }));
@@ -116,7 +103,28 @@ export default function MyEvents() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [user?.id, isRTL]);
+
+    useEffect(() => {
+        if (user) {
+            const cacheKey = `rtc_my_events_data_${user.id}`;
+            const cached = localStorage.getItem(cacheKey);
+            let hasCache = false;
+            if (cached) {
+                try {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) {
+                        setEvents(parsed);
+                        setLoading(false);
+                        hasCache = true;
+                    }
+                } catch (e) {
+                    console.error('Error parsing cached my events:', e);
+                }
+            }
+            fetchMyEvents(hasCache);
+        }
+    }, [user, fetchMyEvents]);
 
     const openBeneficiaries = async (event: MyEvent) => {
         setSelectedEvent(event);
@@ -172,7 +180,7 @@ export default function MyEvents() {
             toast.error(isRTL ? 'لا توجد بيانات' : 'No data to export');
             return;
         }
-        const XLSX = await import('xlsx');
+        const XLSX = await import('@e965/xlsx');
         const rows = beneficiaries.map(b => ({
             [isRTL ? 'الاسم' : 'Name']: b.name,
             [isRTL ? 'الهاتف' : 'Phone']: b.phone || ''

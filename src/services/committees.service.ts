@@ -13,7 +13,7 @@ export interface Committee {
 }
 
 export async function getCommittees(branchId?: string): Promise<Committee[]> {
-  let query: any = supabase
+  let query = supabase
     .from('committees')
     .select('id, name, name_ar');
 

@@ -29,9 +29,42 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import type ExcelJSTypes from 'exceljs';
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear, getDaysInMonth } from 'date-fns';
 import { normalizePhoneE164 } from '@/utils/phoneUtils';
+import type { Database } from '@/integrations/supabase/types';
+
+type FollowupUserRow = Database['public']['Tables']['users_followup']['Row'];
+type FollowupUserInsert = Database['public']['Tables']['users_followup']['Insert'];
+type CsvValue = string | number | boolean | null | undefined;
+type CsvRow = Record<string, CsvValue>;
+
+type PieLabelProps = {
+  cx?: number | string;
+  cy?: number | string;
+  midAngle?: number | string;
+  innerRadius?: number | string;
+  outerRadius?: number | string;
+  value?: number | string;
+  name?: number | string;
+};
+
+type SupervisorAverageTrendDatum = {
+  month: string;
+  average: number;
+  supervisorsCount: number;
+  totalCappedParticipations: number;
+  totalUncappedParticipations: number;
+  monthKey: string;
+};
+
+type TooltipPayload<T> = {
+  payload: T;
+};
+
+type SupervisorAverageTooltipProps = {
+  active?: boolean;
+  payload?: TooltipPayload<SupervisorAverageTrendDatum>[];
+};
 
 interface Profile {
   id: string;
@@ -95,14 +128,6 @@ const ENGLISH_MONTHS = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-/**
- * Download the yearly attendance matrix as a fully styled Excel file (ExcelJS).
- * - RTL sheet direction
- * - Dark-blue header with white bold text for month names
- * - Light-blue day-number row with bold text
- * - Thick black borders separating each month
- * - Thin borders on all cells
- */
 async function downloadAttendanceMatrix(
   year: number,
   volunteers: { id: string | number; name: string; phone: string; phone2?: string | null }[],
@@ -111,7 +136,6 @@ async function downloadAttendanceMatrix(
   profilesMap: Map<string, Profile>,
   trainers: { id: string; user_id: string | null; phone: string | null }[]
 ) {
-  // ── Pre-compute participation days per volunteer ───────────────────────────
   const phoneToUserId = new Map<string, string>();
   volunteers.forEach(v => {
     const p1 = normalizePhoneE164(v.phone || '');
@@ -120,6 +144,12 @@ async function downloadAttendanceMatrix(
     if (p2) phoneToUserId.set(p2, v.id.toString());
   });
 
+  const trainerById = new Map(trainers.map(trainer => [trainer.id, trainer]));
+  const trainerByUserId = new Map(
+    trainers
+      .filter((trainer): trainer is { id: string; user_id: string; phone: string | null } => Boolean(trainer.user_id))
+      .map(trainer => [trainer.user_id, trainer]),
+  );
   const volunteerDays = new Map<string, Set<string>>();
   submissions.forEach(s => {
     const d = new Date(s.submitted_at);
@@ -134,10 +164,10 @@ async function downloadAttendanceMatrix(
        if (p && p.phone) phones.push(p.phone);
     }
     if (s.trainer_id) {
-       const tr = trainers.find(t => t.id === s.trainer_id);
+       const tr = trainerById.get(s.trainer_id);
        if (tr && tr.phone) phones.push(tr.phone);
     } else if (s.volunteer_id) {
-       const tr = trainers.find(t => t.user_id === s.volunteer_id);
+       const tr = trainerByUserId.get(s.volunteer_id);
        if (tr && tr.phone) phones.push(tr.phone);
     }
 
@@ -161,93 +191,31 @@ async function downloadAttendanceMatrix(
   const monthNames = lang === 'ar' ? ARABIC_MONTHS : ENGLISH_MONTHS;
   const fixedCols = 3; // م, الاسم, التليفون (1-indexed in ExcelJS: cols 1, 2, 3)
 
-  // ── Pre-compute month boundary columns (1-indexed) ────────────────────────
-  const monthFirstCols = new Set<number>(); // first col of each month except Jan
-  const monthLastCols  = new Set<number>(); // last  col of each month except Dec
-  let cOff = fixedCols + 1;
-  for (let m = 0; m < 12; m++) {
-    if (m > 0)  monthFirstCols.add(cOff);
-    if (m < 11) monthLastCols.add(cOff + monthDaysCounts[m] - 1);
-    cOff += monthDaysCounts[m];
-  }
-
-  const { default: ExcelJS } = await import('exceljs');
-
-  // ── Create workbook & RTL worksheet ───────────────────────────────────────
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'RTC';
-  const ws = wb.addWorksheet(
-    lang === 'ar' ? 'شيت المتابعة السنوي' : 'Yearly Attendance',
-    { views: [{ rightToLeft: true, state: 'frozen', xSplit: fixedCols, ySplit: 2 }] },
-  );
-
-  // ── Column widths ─────────────────────────────────────────────────────────
-  ws.getColumn(1).width = 5;
-  ws.getColumn(2).width = 28;
-  ws.getColumn(3).width = 16;
-  let dayColIdx = 4;
-  for (let m = 0; m < 12; m++) {
-    for (let d = 0; d < monthDaysCounts[m]; d++) ws.getColumn(dayColIdx++).width = 4;
-  }
-
-  // ── Border helper ─────────────────────────────────────────────────────────
-  const thin:  ExcelJSTypes.Border = { style: 'thin',  color: { argb: 'FF000000' } };
-  const thick: ExcelJSTypes.Border = { style: 'thick', color: { argb: 'FF000000' } };
-  const getBorder = (col: number): Partial<ExcelJSTypes.Borders> => ({
-    top:    thin,
-    bottom: thin,
-    left:   monthFirstCols.has(col) ? thick : thin,
-    right:  monthLastCols.has(col)  ? thick : thin,
-  });
-
-  // ── Row 1: Month name headers ─────────────────────────────────────────────
-  const r1Vals: (string | number | null)[] = [
+  const rows: (string | number | null)[][] = [];
+  const monthMerges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = [];
+  const headerRow: (string | number | null)[] = [
     lang === 'ar' ? 'م' : '#',
     lang === 'ar' ? 'الاسم' : 'Name',
     lang === 'ar' ? 'التليفون' : 'Phone',
   ];
+  let monthStart = fixedCols;
   for (let m = 0; m < 12; m++) {
-    r1Vals.push(monthNames[m]);
-    for (let d = 1; d < monthDaysCounts[m]; d++) r1Vals.push(null);
+    headerRow.push(monthNames[m]);
+    for (let d = 1; d < monthDaysCounts[m]; d++) headerRow.push(null);
+    monthMerges.push({
+      s: { r: 0, c: monthStart },
+      e: { r: 0, c: monthStart + monthDaysCounts[m] - 1 },
+    });
+    monthStart += monthDaysCounts[m];
   }
-  const row1 = ws.addRow(r1Vals);
-  row1.height = 35;
+  rows.push(headerRow);
 
-  // ── Row 2: Day numbers ────────────────────────────────────────────────────
-  const r2Vals: (string | number | null)[] = [null, null, null];
+  const dayRow: (string | number | null)[] = [null, null, null];
   for (let m = 0; m < 12; m++) {
-    for (let d = 1; d <= monthDaysCounts[m]; d++) r2Vals.push(d);
+    for (let d = 1; d <= monthDaysCounts[m]; d++) dayRow.push(d);
   }
-  const row2 = ws.addRow(r2Vals);
-  row2.height = 22;
+  rows.push(dayRow);
 
-  // ── Merge cells ───────────────────────────────────────────────────────────
-  // Fixed cols (م / الاسم / التليفون): merge rows 1-2 vertically
-  for (let c = 1; c <= fixedCols; c++) ws.mergeCells(1, c, 2, c);
-  // Month name cells: merge horizontally across all day columns
-  let mStart = fixedCols + 1;
-  for (let m = 0; m < 12; m++) {
-    if (monthDaysCounts[m] > 1) ws.mergeCells(1, mStart, 1, mStart + monthDaysCounts[m] - 1);
-    mStart += monthDaysCounts[m];
-  }
-
-  // ── Style row 1 (dark-blue background, white bold text, centered) ─────────
-  row1.eachCell({ includeEmpty: true }, (cell, cn) => {
-    cell.font      = { bold: true, size: 13, color: { argb: 'FFFFFFFF' } };
-    cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
-    cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2E4A8C' } };
-    cell.border    = getBorder(cn);
-  });
-
-  // ── Style row 2 (light-blue background, bold, centered) ──────────────────
-  row2.eachCell({ includeEmpty: true }, (cell, cn) => {
-    cell.font      = { bold: true, size: 11 };
-    cell.alignment = { horizontal: 'center', vertical: 'middle' };
-    cell.fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFB8CCE4' } };
-    cell.border    = getBorder(cn);
-  });
-
-  // ── Data rows ─────────────────────────────────────────────────────────────
   volunteers.forEach((vol, idx) => {
     const rowVals: (string | number)[] = [idx + 1, vol.name, vol.phone || ''];
     const days = volunteerDays.get(vol.id.toString());
@@ -257,26 +225,34 @@ async function downloadAttendanceMatrix(
         rowVals.push(days?.has(ds) ? 1 : '');
       }
     }
-    const dr = ws.addRow(rowVals);
-    dr.eachCell({ includeEmpty: true }, (cell, cn) => {
-      cell.alignment = { horizontal: cn === 2 ? 'right' : 'center', vertical: 'middle' };
-      cell.border    = getBorder(cn);
-    });
+    rows.push(rowVals);
   });
 
-  // ── Download ──────────────────────────────────────────────────────────────
-  const buffer = await wb.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `attendance_matrix_${year}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  const { utils, writeFile } = await import('@e965/xlsx');
+  const wb = utils.book_new();
+  const ws = utils.aoa_to_sheet(rows) as ReturnType<typeof utils.aoa_to_sheet> & {
+    '!cols'?: { wch: number }[];
+    '!merges'?: { s: { r: number; c: number }; e: { r: number; c: number } }[];
+    '!rows'?: { hpt: number }[];
+  };
+
+  ws['!cols'] = [
+    { wch: 5 },
+    { wch: 28 },
+    { wch: 16 },
+    ...Array.from({ length: monthDaysCounts.reduce((total, days) => total + days, 0) }, () => ({ wch: 4 })),
+  ];
+  ws['!rows'] = [{ hpt: 35 }, { hpt: 22 }];
+  ws['!merges'] = [
+    ...Array.from({ length: fixedCols }, (_, col) => ({
+      s: { r: 0, c: col },
+      e: { r: 1, c: col },
+    })),
+    ...monthMerges,
+  ];
+
+  utils.book_append_sheet(wb, ws, lang === 'ar' ? 'شيت المتابعة السنوي' : 'Yearly Attendance');
+  writeFile(wb, `attendance_matrix_${year}.xlsx`);
 }
 
 
@@ -297,10 +273,10 @@ async function fetchAllRows(table: 'activity_submissions', pageSize = 500) {
   if (cntError || count === null) {
     // Fallback: simple select
     const { data, error } = await supabase.from(table).select('*');
-    return { data: data || [], error };
+    return { data: (data || []) as ActivitySubmission[], error };
   }
   // Step 2: paginate using the known count
-  let allData: any[] = [];
+  let allData: ActivitySubmission[] = [];
   for (let from = 0; from < count; from += pageSize) {
     const to = Math.min(from + pageSize - 1, count - 1);
     const { data, error } = await supabase
@@ -308,7 +284,7 @@ async function fetchAllRows(table: 'activity_submissions', pageSize = 500) {
       .select('*')
       .range(from, to);
     if (error) return { data: allData, error };
-    if (data) allData = allData.concat(data);
+    if (data) allData = allData.concat(data as ActivitySubmission[]);
   }
   return { data: allData, error: null };
 }
@@ -501,7 +477,17 @@ export default function Reports() {
     ].filter(l => l.value > 0);
   }, [profiles, t]);
 
-  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name, fill }: any) => {
+  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name }: PieLabelProps) => {
+    if (
+      typeof cx !== 'number' ||
+      typeof cy !== 'number' ||
+      typeof midAngle !== 'number' ||
+      typeof innerRadius !== 'number' ||
+      typeof outerRadius !== 'number'
+    ) {
+      return null;
+    }
+
     const RADIAN = Math.PI / 180;
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5 + (outerRadius - innerRadius);
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -525,7 +511,7 @@ export default function Reports() {
         dominantBaseline="central"
         fontSize={12}
       >
-        {`${name}: ${value}`}
+        {`${name ?? ''}: ${value ?? ''}`}
       </text>
     );
   };
@@ -583,7 +569,7 @@ export default function Reports() {
   }, [profiles, filteredSubmissions]);
 
   // Monthly average supervisor participations over last 6 months (capped at 8 per supervisor)
-  const supervisorAverageTrend = useMemo(() => Array.from({ length: 6 }, (_, i) => {
+  const supervisorAverageTrend = useMemo<SupervisorAverageTrendDatum[]>(() => Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
     const monthStart = startOfMonth(date);
     const monthEnd = endOfMonth(date);
@@ -635,7 +621,7 @@ export default function Reports() {
   }, [activityTypes, filteredSubmissions, language]);
 
   // CSV Export functions
-  const downloadCSV = (data: any[], filename: string) => {
+  const downloadCSV = (data: CsvRow[], filename: string) => {
     if (data.length === 0) {
       toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
       return;
@@ -894,7 +880,7 @@ export default function Reports() {
           });
 
         try {
-          const { utils, writeFile } = await import('xlsx');
+          const { utils, writeFile } = await import('@e965/xlsx');
           const wb = utils.book_new();
 
           const allWs = utils.json_to_sheet(allReportData);
@@ -1254,7 +1240,7 @@ export default function Reports() {
                       <XAxis dataKey="month" className="text-xs" />
                       <YAxis className="text-xs" />
                       <Tooltip
-                        content={({ active, payload }: any) => {
+                        content={({ active, payload }: SupervisorAverageTooltipProps) => {
                           if (active && payload && payload.length) {
                             const data = payload[0].payload;
                             return (
@@ -1337,18 +1323,18 @@ export default function Reports() {
                     const matrixYear = new Date().getFullYear();
                     
                     // Fetch ALL users_followup rows (paginated to bypass 1000-row limit)
-                    const { count: fuCount } = await (supabase as any)
+                    const { count: fuCount } = await supabase
                       .from('users_followup')
                       .select('*', { count: 'exact', head: true });
                     
-                    let followupUsers: any[] = [];
+                    let followupUsers: FollowupUserRow[] = [];
                     const fuTotal = fuCount ?? 0;
                     const fuPageSize = 1000;
                     const promises = [];
                     for (let from = 0; from < fuTotal; from += fuPageSize) {
                       const to = Math.min(from + fuPageSize - 1, fuTotal - 1);
                       promises.push(
-                        (supabase as any)
+                        supabase
                           .from('users_followup')
                           .select('*')
                           .order('id', { ascending: true })
@@ -1364,7 +1350,7 @@ export default function Reports() {
                     if (!followupUsers) throw new Error('fetch error');
                     
                     const currentUsers = followupUsers || [];
-                    const newUsersToInsert: any[] = [];
+                    const newUsersToInsert: FollowupUserInsert[] = [];
                     // Map phone → existing user name (to preserve original names)
                     const phoneToExistingUser = new Map<string, string>();
                     
@@ -1715,7 +1701,7 @@ export default function Reports() {
                               });
 
                             try {
-                              const { utils, writeFile } = await import('xlsx');
+                              const { utils, writeFile } = await import('@e965/xlsx');
                               const wb = utils.book_new();
 
                               const wsAll = utils.json_to_sheet(allReportData);

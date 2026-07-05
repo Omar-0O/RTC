@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
-import { LevelBadge, getLevelProgress } from '@/components/ui/level-badge';
+import { LevelBadge } from '@/components/ui/level-badge';
+import { getLevelProgress } from '@/components/ui/level-progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, Mail, Award, Loader2, Camera, Upload, Check, X, MessageSquare, Plus, AlertCircle, Pencil, Trash2, Star, Trophy, Medal, Crown, Heart, Zap, Target, Copy, Phone, MapPin, Users, Cake, MessageCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -40,6 +41,7 @@ import {
   type VolunteerFeedback,
   type VolunteerProfileView,
 } from './hooks/useVolunteerProfile';
+import { COVER_IMAGES } from '@/constants/profileCovers';
 
 const BADGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   award: Award,
@@ -57,13 +59,19 @@ const getBadgeIcon = (iconName: string) => {
   return <IconComponent className="h-8 w-8" />;
 };
 
+const AVATAR_BUCKET = 'avatars';
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+const AVATAR_MAX_DIMENSION = 1200;
+const AVATAR_CONTENT_TYPE = 'image/jpeg';
+const ALLOWED_AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const LEGACY_AVATAR_PATHS = ['avatar.jpeg', 'avatar.png', 'avatar.webp', 'avatar.gif'];
 
 interface ProfileProps {
   userId?: string;
   onEdit?: () => void;
 }
 
-const compressImage = async (file: File): Promise<File> => {
+const createAvatarJpeg = async (file: File): Promise<File> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -75,17 +83,15 @@ const compressImage = async (file: File): Promise<File> => {
         let width = img.width;
         let height = img.height;
 
-        // Max dimension 1200px (good for avatars)
-        const MAX_DIMENSION = 1200;
         if (width > height) {
-          if (width > MAX_DIMENSION) {
-            height *= MAX_DIMENSION / width;
-            width = MAX_DIMENSION;
+          if (width > AVATAR_MAX_DIMENSION) {
+            height *= AVATAR_MAX_DIMENSION / width;
+            width = AVATAR_MAX_DIMENSION;
           }
         } else {
-          if (height > MAX_DIMENSION) {
-            width *= MAX_DIMENSION / height;
-            height = MAX_DIMENSION;
+          if (height > AVATAR_MAX_DIMENSION) {
+            width *= AVATAR_MAX_DIMENSION / height;
+            height = AVATAR_MAX_DIMENSION;
           }
         }
 
@@ -101,14 +107,14 @@ const compressImage = async (file: File): Promise<File> => {
               reject(new Error('Image compression failed'));
               return;
             }
-            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
-              type: 'image/jpeg',
+            const compressedFile = new File([blob], 'avatar.jpg', {
+              type: AVATAR_CONTENT_TYPE,
               lastModified: Date.now(),
             });
             resolve(compressedFile);
           },
-          'image/jpeg',
-          0.7
+          AVATAR_CONTENT_TYPE,
+          0.82
         );
       };
       img.onerror = (error) => reject(error);
@@ -116,8 +122,6 @@ const compressImage = async (file: File): Promise<File> => {
     reader.onerror = (error) => reject(error);
   });
 };
-
-import { COVER_IMAGES } from '@/constants/profileCovers';
 
 const getDefaultCover = (uid: string) => {
   let hash = 0;
@@ -127,6 +131,10 @@ const getDefaultCover = (uid: string) => {
   const index = Math.abs(hash) % COVER_IMAGES.length;
   return COVER_IMAGES[index];
 };
+
+const toOptionalImageUrl = (value: unknown) => (
+  typeof value === 'string' && value.trim().length > 0 ? value : null
+);
 
 type CreatedByRelation = { created_by: string | null } | { created_by: string | null }[] | null | undefined;
 
@@ -196,8 +204,12 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
   // Use the fetched profile if available. If viewing another user, do not fallback to authProfile (logged-in user)
   const displayProfile = isViewOnly ? viewedProfile : (viewedProfile || authProfileView);
-  const displayAvatar = isViewOnly ? viewedAvatarUrl : (viewedAvatarUrl || (authProfile?.avatar_url || null));
-  const displayCover = isViewOnly ? viewedProfile?.cover_url : (viewedProfile?.cover_url || authProfile?.cover_url);
+  const displayAvatar = toOptionalImageUrl(
+    isViewOnly ? viewedAvatarUrl : (viewedAvatarUrl || authProfile?.avatar_url),
+  );
+  const displayCover = toOptionalImageUrl(
+    isViewOnly ? viewedProfile?.cover_url : (viewedProfile?.cover_url || authProfile?.cover_url),
+  );
   const isAshbal = displayProfile?.is_ashbal;
 
 
@@ -261,9 +273,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast.error(isRTL ? 'يرجى اختيار صورة فقط' : 'Please select an image file');
+    if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
+      toast.error(isRTL ? 'يرجى اختيار صورة JPG أو PNG أو WebP' : 'Please select a JPG, PNG, or WebP image');
       return;
     }
 
@@ -280,61 +291,51 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     if (!selectedFile || !user) return;
 
     setUploading(true);
-    let processedFile = selectedFile;
-
-    // Validate file size (max 2MB)
-    if (selectedFile.size > 2 * 1024 * 1024) {
-      toast.info(isRTL ? 'جاري ضغط الصورة لتناسب الحجم المسموح...' : 'Compressing image to fit size limit...');
-      try {
-        processedFile = await compressImage(selectedFile);
-      } catch (error) {
-        console.error('Compression error:', error);
-        toast.error(isRTL ? 'فشل ضغط الصورة' : 'Failed to compress image');
-        setUploading(false);
-        return;
-      }
-    }
 
     try {
-      let fileExt = processedFile.name.split('.').pop()?.toLowerCase();
-      if (!fileExt || (processedFile.type === 'image/jpeg' && fileExt !== 'jpg' && fileExt !== 'jpeg')) {
-        fileExt = 'jpg';
+      if (selectedFile.size > AVATAR_MAX_BYTES) {
+        toast.info(isRTL ? 'جاري ضغط الصورة لتناسب الحجم المسموح...' : 'Compressing image to fit size limit...');
       }
 
-      const fileName = `${user.id}/avatar.${fileExt}`;
+      const avatarFile = await createAvatarJpeg(selectedFile);
 
-      // Delete old avatar if exists - comprehensive list
-      const extensionsToRemove = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
-      const filesToRemove = extensionsToRemove.map(ext => `${user.id}/avatar.${ext}`);
+      if (avatarFile.size > AVATAR_MAX_BYTES) {
+        throw new Error('Avatar image is still too large after compression');
+      }
 
-      await supabase.storage.from('avatars').remove(filesToRemove);
+      const fileName = `${user.id}/avatar.jpg`;
 
-      // Upload new avatar
       const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, processedFile, { upsert: true, cacheControl: '3600' });
+        .from(AVATAR_BUCKET)
+        .upload(fileName, avatarFile, {
+          upsert: true,
+          cacheControl: '3600',
+          contentType: AVATAR_CONTENT_TYPE,
+        });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
-      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
+      const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(fileName);
+      const avatarUrl = `${data.publicUrl}?v=${Date.now()}`;
 
-      // Update profile with new avatar URL
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ avatar_url: `${data.publicUrl}?t=${new Date().getTime()}` })
+        .update({ avatar_url: avatarUrl })
         .eq('id', user.id);
 
       if (updateError) throw updateError;
 
-      // Add a small delay to ensure DB propagation before refreshing
-      setTimeout(async () => {
-        await refreshProfile();
-      }, 500);
+      setViewedAvatarUrl(avatarUrl);
+      await refreshProfile();
+
+      const staleAvatarPaths = LEGACY_AVATAR_PATHS.map(path => `${user.id}/${path}`);
+      const { error: cleanupError } = await supabase.storage.from(AVATAR_BUCKET).remove(staleAvatarPaths);
+      if (cleanupError) {
+        console.warn('Avatar cleanup skipped:', cleanupError.message);
+      }
 
       toast.success(isRTL ? 'تم تحديث الصورة الشخصية' : 'Profile picture updated');
 
-      // Cleanup
       setAvatarPreview(null);
       setSelectedFile(null);
     } catch (error: unknown) {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -43,32 +43,60 @@ import {
     AlertCircle, FileSpreadsheet, Building2, User
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { Database, Json } from '@/integrations/supabase/types';
+
+type QuranTeacherRow = Database['public']['Tables']['quran_teachers']['Row'];
+type QuranTeacherInsert = Database['public']['Tables']['quran_teachers']['Insert'];
+type QuranTeacherUpdate = Database['public']['Tables']['quran_teachers']['Update'];
+type QuranCircleRow = Pick<Database['public']['Tables']['quran_circles']['Row'], 'id' | 'teacher_id' | 'is_active' | 'schedule'>;
+type QuranEnrollmentRow = Pick<Database['public']['Tables']['quran_enrollments']['Row'], 'circle_id'>;
+type ProfileRow = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'full_name_ar' | 'email'>;
+
+type LinkedUser = Pick<ProfileRow, 'full_name' | 'full_name_ar' | 'email'>;
+type QuranTeacherRecord = QuranTeacherRow & {
+    profiles?: LinkedUser | null;
+};
+
+type CircleStats = {
+    activeCirclesByTeacher: Map<string, number>;
+    activeStudentsByTeacher: Map<string, number>;
+};
+
+type ScheduleEntry = {
+    day: number;
+    time: string;
+};
+
+const getErrorMessage = (error: unknown) => (
+    error instanceof Error ? error.message : 'Error occurred'
+);
+
+const isScheduleEntry = (value: Json): value is ScheduleEntry => {
+    if (!value || Array.isArray(value) || typeof value !== 'object') return false;
+    const entry = value as Record<string, Json | undefined>;
+    return typeof entry.day === 'number' && typeof entry.time === 'string';
+};
 
 interface QuranTeacher {
     id: string;
     name: string;
     phone: string;
-    user_id?: string;
+    user_id?: string | null;
+    branch_id?: string | null;
     linked_user?: {
         full_name: string;
         full_name_ar: string;
         email: string;
     };
     created_at: string;
-    teaching_mode: string;
-    target_gender: string;
-    specialization: string;
-    // Stats
+    teaching_mode: string | null;
+    target_gender: string | null;
+    specialization: string | null;
     active_circles_count?: number;
     total_students_count?: number;
 }
 
-interface Profile {
-    id: string;
-    full_name: string;
-    full_name_ar: string;
-    email: string;
-}
+type Profile = ProfileRow;
 
 export default function QuranTeachers() {
     const { isRTL } = useLanguage();
@@ -92,14 +120,68 @@ export default function QuranTeachers() {
         branch_id: '',
     });
 
-    useEffect(() => {
-        fetchTeachers();
-        fetchProfiles();
-    }, [activeBranch?.id]);
+    const loadTeacherStats = useCallback(async (teacherIds: string[]): Promise<CircleStats> => {
+        const emptyStats = {
+            activeCirclesByTeacher: new Map<string, number>(),
+            activeStudentsByTeacher: new Map<string, number>(),
+        };
 
-    const fetchProfiles = async () => {
+        if (teacherIds.length === 0) return emptyStats;
+
+        const { data: circles, error: circlesError } = await supabase
+            .from('quran_circles')
+            .select('id, teacher_id, is_active')
+            .in('teacher_id', teacherIds);
+
+        if (circlesError) throw circlesError;
+
+        const circleRows = (circles ?? []) as QuranCircleRow[];
+        const activeCirclesByTeacher = new Map<string, number>();
+        const teacherByCircle = new Map<string, string>();
+
+        circleRows.forEach((circle) => {
+            if (!circle.teacher_id) return;
+            teacherByCircle.set(circle.id, circle.teacher_id);
+            if (circle.is_active) {
+                activeCirclesByTeacher.set(
+                    circle.teacher_id,
+                    (activeCirclesByTeacher.get(circle.teacher_id) ?? 0) + 1
+                );
+            }
+        });
+
+        const circleIds = circleRows.map((circle) => circle.id);
+        if (circleIds.length === 0) {
+            return {
+                activeCirclesByTeacher,
+                activeStudentsByTeacher: emptyStats.activeStudentsByTeacher,
+            };
+        }
+
+        const { data: enrollments, error: enrollmentsError } = await supabase
+            .from('quran_enrollments')
+            .select('circle_id')
+            .in('circle_id', circleIds)
+            .eq('status', 'active');
+
+        if (enrollmentsError) throw enrollmentsError;
+
+        const activeStudentsByTeacher = new Map<string, number>();
+        ((enrollments ?? []) as QuranEnrollmentRow[]).forEach((enrollment) => {
+            const teacherId = teacherByCircle.get(enrollment.circle_id);
+            if (!teacherId) return;
+            activeStudentsByTeacher.set(
+                teacherId,
+                (activeStudentsByTeacher.get(teacherId) ?? 0) + 1
+            );
+        });
+
+        return { activeCirclesByTeacher, activeStudentsByTeacher };
+    }, []);
+
+    const fetchProfiles = useCallback(async () => {
         try {
-            let query: any = supabase
+            let query = supabase
                 .from('profiles')
                 .select('id, full_name, full_name_ar, email');
 
@@ -108,16 +190,16 @@ export default function QuranTeachers() {
             }
 
             const { data } = await query.order('full_name');
-            setProfiles(data || []);
+            setProfiles((data ?? []) as Profile[]);
         } catch (error) {
             console.error('Error fetching profiles:', error);
         }
-    };
+    }, [activeBranch?.id]);
 
-    const fetchTeachers = async () => {
+    const fetchTeachers = useCallback(async () => {
         setLoading(true);
         try {
-            let query: any = supabase
+            let query = supabase
                 .from('quran_teachers')
                 .select('*, profiles!quran_teachers_user_id_fkey(full_name, full_name_ar, email)');
 
@@ -131,43 +213,16 @@ export default function QuranTeachers() {
 
             console.log('Teachers fetched successfully', data?.length);
 
-            // Fetch stats for each teacher
-            const teachersWithStats = await Promise.all((data || []).map(async (t: any) => {
-                // Map profiles to linked_user
-                const linked_user = t.profiles || null;
-
-                // Active Circles
-                const { count: circlesCount } = await supabase
-                    .from('quran_circles')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('teacher_id', t.id)
-                    .eq('is_active', true);
-
-                // Total Students (Enrollments)
-                // We need to find all circles for this teacher, then count enrollments in those circles
-                const { data: circles } = await supabase
-                    .from('quran_circles')
-                    .select('id')
-                    .eq('teacher_id', t.id);
-
-                let studentsCount = 0;
-                if (circles && circles.length > 0) {
-                    const circleIds = circles.map(c => c.id);
-                    const { count } = await supabase
-                        .from('quran_enrollments')
-                        .select('id', { count: 'exact', head: true })
-                        .in('circle_id', circleIds)
-                        .eq('status', 'active');
-                    studentsCount = count || 0;
-                }
-
+            const rows = (data ?? []) as QuranTeacherRecord[];
+            const stats = await loadTeacherStats(rows.map((teacher) => teacher.id));
+            const teachersWithStats = rows.map((teacher): QuranTeacher => {
                 return {
-                    ...t,
-                    linked_user, // Manual mapping
-                    active_circles_count: circlesCount || 0,
-                    total_students_count: studentsCount
+                    ...teacher,
+                    linked_user: teacher.profiles ?? undefined,
+                    active_circles_count: stats.activeCirclesByTeacher.get(teacher.id) ?? 0,
+                    total_students_count: stats.activeStudentsByTeacher.get(teacher.id) ?? 0
                 };
-            }));
+            });
 
             setTeachers(teachersWithStats);
         } catch (error) {
@@ -176,7 +231,12 @@ export default function QuranTeachers() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeBranch?.id, isRTL, loadTeacherStats]);
+
+    useEffect(() => {
+        fetchTeachers();
+        fetchProfiles();
+    }, [fetchTeachers, fetchProfiles]);
 
     const handleSave = async () => {
         if (!formData.name || !formData.phone) {
@@ -185,7 +245,7 @@ export default function QuranTeachers() {
         }
 
         try {
-            const commonData = {
+            const commonData: QuranTeacherInsert & QuranTeacherUpdate = {
                 name: formData.name,
                 phone: formData.phone,
                 user_id: formData.volunteer_id === 'none' ? null : formData.volunteer_id,
@@ -215,9 +275,9 @@ export default function QuranTeachers() {
             setIsCreateOpen(false);
             resetForm();
             fetchTeachers();
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error saving:', error);
-            toast.error(error.message || 'Error occurred');
+            toast.error(getErrorMessage(error));
         }
     };
 
@@ -267,7 +327,7 @@ export default function QuranTeachers() {
             teaching_mode: t.teaching_mode || 'both',
             target_gender: t.target_gender || 'men',
             specialization: t.specialization || '',
-            branch_id: (t as any).branch_id || '',
+            branch_id: t.branch_id || '',
         });
         setSelectedId(t.id);
         setIsEditMode(true);
@@ -281,7 +341,7 @@ export default function QuranTeachers() {
     const handleExportTeacher = async (teacher: QuranTeacher) => {
         try {
             toast.info(isRTL ? 'جاري تحضير التقرير...' : 'Preparing report...');
-            const { utils, writeFile } = await import('xlsx');
+            const { utils, writeFile } = await import('@e965/xlsx');
 
             // Fetch circles for this teacher
             const { data: circles, error } = await supabase
@@ -335,12 +395,12 @@ export default function QuranTeachers() {
             ];
 
             // Helper for schedule string
-            const getScheduleStr = (schedule: any) => {
+            const getScheduleStr = (schedule: Json | null) => {
                 if (!schedule || !Array.isArray(schedule)) return '-';
                 const days = isRTL
                     ? ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
                     : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                return schedule.map((s: any) => {
+                return schedule.filter(isScheduleEntry).map((s) => {
                     const dayIdx = s.day % 7; // Ensure valid index
                     return `${days[dayIdx]} ${s.time}`;
                 }).join(', ');
@@ -373,7 +433,7 @@ export default function QuranTeachers() {
 
     const handleExportAllTeachers = async () => {
         try {
-            const { utils, writeFile } = await import('xlsx');
+            const { utils, writeFile } = await import('@e965/xlsx');
 
             const allTeachersData = [
                 // Headers
@@ -660,7 +720,7 @@ export default function QuranTeachers() {
                                             </span>
                                             {canViewAllBranches && (
                                                 <span className="bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 px-1.5 py-0.5 rounded text-xs border border-orange-200 dark:border-orange-900">
-                                                    {branches.find(b => b.id === (t as any).branch_id)?.[isRTL ? 'name_ar' : 'name'] || (isRTL ? 'بدون فرع' : 'No Branch')}
+                                                    {branches.find(b => b.id === t.branch_id)?.[isRTL ? 'name_ar' : 'name'] || (isRTL ? 'بدون فرع' : 'No Branch')}
                                                 </span>
                                             )}
                                         </div>

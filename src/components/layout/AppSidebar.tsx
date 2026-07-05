@@ -61,7 +61,7 @@ import { useState, useEffect } from 'react';
 export function AppSidebar() {
   const { user, profile, signOut, primaryRole, features = [] } = useAuth();
   const { t, language, setLanguage, isRTL } = useLanguage();
-  const { activeBranch, branches, setActiveBranch } = useBranch();
+  const { activeBranch, branches, setActiveBranch, canViewAllBranches } = useBranch();
   const { setTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -123,7 +123,7 @@ export function AppSidebar() {
       }
 
       // Check if assigned as circle marketer
-      const { data: marketerData } = await (supabase as any)
+      const { data: marketerData } = await supabase
         .from('quran_circle_marketers')
         .select('id')
         .eq('volunteer_id', user.id)
@@ -477,7 +477,9 @@ export function AppSidebar() {
           />
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="font-semibold text-sidebar-foreground">RTC {activeBranch ? (language === 'ar' ? activeBranch.name_ar : activeBranch.name) : 'Mohandseen'}</span>
+              <span className="font-semibold text-sidebar-foreground">
+                RTC {activeBranch ? (language === 'ar' ? activeBranch.name_ar : activeBranch.name) : (language === 'ar' ? 'كل الفروع' : 'All Branches')}
+              </span>
               <span className="text-xs text-muted-foreground">{t('app.tagline')}</span>
             </div>
           )}
@@ -507,7 +509,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {primaryRole === 'admin' && (
+        {canViewAllBranches && (
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
@@ -516,11 +518,17 @@ export function AppSidebar() {
                     <DropdownMenuTrigger asChild>
                       <SidebarMenuButton tooltip={language === 'ar' ? 'اختر الفرع' : 'Select Branch'}>
                         <Building2 className="h-4 w-4" />
-                        <span>{activeBranch ? (language === 'ar' ? activeBranch.name_ar : activeBranch.name) : (language === 'ar' ? 'الفرع' : 'Branch')}</span>
+                        <span>{activeBranch ? (language === 'ar' ? activeBranch.name_ar : activeBranch.name) : (language === 'ar' ? 'كل الفروع' : 'All Branches')}</span>
                         <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground ml-auto rtl:mr-auto rtl:ml-0" />
                       </SidebarMenuButton>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
+                      <DropdownMenuItem onClick={() => setActiveBranch(null)}>
+                        <span className={!activeBranch ? 'font-bold' : ''}>
+                          {language === 'ar' ? 'كل الفروع' : 'All Branches'}
+                        </span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       {branches.map(branch => (
                         <DropdownMenuItem key={branch.id} onClick={() => setActiveBranch(branch)}>
                           <span className={activeBranch?.id === branch.id ? 'font-bold' : ''}>

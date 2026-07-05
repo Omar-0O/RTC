@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -10,6 +10,36 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Loader2, Megaphone, CheckCircle2, Circle, ChevronRight, ChevronLeft, Calendar, FileText, ImageIcon } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths, parseISO, differenceInCalendarDays } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
+import type { Database } from '@/integrations/supabase/types';
+
+type CourseAdRow = Database['public']['Tables']['course_ads']['Row'];
+type QuranCircleAdRow = Database['public']['Tables']['quran_circle_ads']['Row'];
+type ProfileSummary = Pick<Database['public']['Tables']['profiles']['Row'], 'full_name' | 'full_name_ar' | 'phone' | 'avatar_url'>;
+
+type CourseSummary = {
+    name: string;
+    start_date?: string | null;
+    has_interview?: boolean | null;
+    interview_date?: string | null;
+    branch_id?: string | null;
+};
+
+type CourseAdRecord = Pick<CourseAdRow, 'id' | 'course_id' | 'ad_number' | 'ad_date' | 'poster_done' | 'content_done'> & {
+    course: CourseSummary | null;
+};
+
+type QuranCircleAdRecord = Pick<QuranCircleAdRow, 'id' | 'circle_id' | 'ad_number' | 'ad_date' | 'poster_done' | 'content_done'> & {
+    quran_circles?: {
+        teacher_id: string | null;
+        branch_id: string | null;
+        quran_teachers?: { name: string } | null;
+    } | null;
+};
+
+type Marketer = {
+    id: string;
+    profiles: ProfileSummary | null;
+};
 
 interface CourseAd {
     id: string;
@@ -22,14 +52,13 @@ interface CourseAd {
     ad_type?: 'course' | 'circle';
     course?: {
         name: string;
-        start_date: string;
-        has_interview: boolean;
+        start_date?: string | null;
+        has_interview?: boolean | null;
         interview_date: string | null;
     };
     circle?: {
         teacher_name: string;
     };
-    [key: string]: any; // Allow other properties
 }
 
 interface CourseAdsTableProps {
@@ -69,7 +98,7 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
     const [loading, setLoading] = useState(!propAds);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [selectedAd, setSelectedAd] = useState<CourseAd | null>(null);
-    const [marketers, setMarketers] = useState<any[]>([]);
+    const [marketers, setMarketers] = useState<Marketer[]>([]);
     const [loadingMarketers, setLoadingMarketers] = useState(false);
 
     useEffect(() => {
@@ -82,21 +111,21 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
 
                 if (selectedAd.ad_type === 'circle' && selectedAd.circle_id) {
                     // Fetch circle marketers
-                    const result: any = await supabase
+                    const result = await supabase
                         .from('quran_circle_marketers')
                         .select('id, profiles:volunteer_id(full_name, full_name_ar, phone, avatar_url)')
                         .eq('circle_id', selectedAd.circle_id);
 
-                    data = result.data;
+                    data = result.data as Marketer[] | null;
                     error = result.error;
                 } else if (selectedAd.course_id) {
                     // Fetch course marketers
-                    const result: any = await supabase
+                    const result = await supabase
                         .from('course_marketers')
                         .select('id, profiles:volunteer_id(full_name, full_name_ar, phone, avatar_url)')
                         .eq('course_id', selectedAd.course_id);
 
-                    data = result.data;
+                    data = result.data as Marketer[] | null;
                     error = result.error;
                 }
 
@@ -116,26 +145,7 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
         }
     }, [selectedAd]);
 
-    useEffect(() => {
-        if (propAds) {
-            setAds(propAds);
-            setLoading(false);
-        } else if (user?.id) {
-            const cacheKey = `rtc_course_ads_${user.id}_${activeBranch?.id || 'all'}`;
-            const cached = localStorage.getItem(cacheKey);
-            if (cached) {
-                try {
-                    setAds(JSON.parse(cached));
-                    setLoading(false);
-                } catch (e) {
-                    console.error('Error parsing cached course ads:', e);
-                }
-            }
-            fetchAds(!!cached);
-        }
-    }, [propAds, user?.id, activeBranch?.id]);
-
-    const fetchAds = async (hasCache = false) => {
+    const fetchAds = useCallback(async (hasCache = false) => {
         if (!hasCache) {
             setLoading(true);
         }
@@ -189,14 +199,14 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
             if (circleError) console.error('Error fetching circle ads:', circleError);
 
             // Format course ads
-            const formattedCourseAds = (courseAdsData || []).map((item: any) => ({
+            const formattedCourseAds: CourseAd[] = ((courseAdsData || []) as CourseAdRecord[]).map((item) => ({
                 ...item,
                 ad_type: 'course',
                 course: item.course || { name: 'Unknown Course' }
             }));
 
             // Format circle ads
-            const formattedCircleAds = (circleAdsData || []).map((item: any) => {
+            const formattedCircleAds: CourseAd[] = ((circleAdsData || []) as QuranCircleAdRecord[]).map((item) => {
                 const teacherName = item.quran_circles?.quran_teachers?.name || 'Unknown Teacher';
                 return {
                     ...item,
@@ -228,7 +238,26 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [activeBranch?.id, canViewAllBranches, user?.id]);
+
+    useEffect(() => {
+        if (propAds) {
+            setAds(propAds);
+            setLoading(false);
+        } else if (user?.id) {
+            const cacheKey = `rtc_course_ads_${user.id}_${activeBranch?.id || 'all'}`;
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                try {
+                    setAds(JSON.parse(cached) as CourseAd[]);
+                    setLoading(false);
+                } catch (e) {
+                    console.error('Error parsing cached course ads:', e);
+                }
+            }
+            fetchAds(!!cached);
+        }
+    }, [propAds, user?.id, activeBranch?.id, fetchAds]);
 
     // Filter ads for specific date
     const getAdsForDate = (date: Date) => {

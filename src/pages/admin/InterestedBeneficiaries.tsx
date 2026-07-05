@@ -44,7 +44,36 @@ interface InterestedBeneficiary {
 }
 
 interface Course { id: string; name: string; }
-interface CourseBeneficiary { id: string; name: string; phone: string; }
+
+type InterestedBeneficiaryInsert = {
+    name: string;
+    phone: string;
+    notes: string | null;
+    committee_category: CommitteeCategory;
+    gender_age_group: string | null;
+    production_committee_id: string | null;
+    created_by: string | undefined;
+    branch_id: string | null;
+};
+
+type MutationResult = Promise<{ error: { code?: string; message?: string } | null }>;
+type SelectResult = Promise<{ data: unknown[] | null; error: { code?: string; message?: string } | null }>;
+type InterestedBeneficiarySelectBuilder = {
+    eq: (column: string, value: string) => InterestedBeneficiarySelectBuilder;
+    order: (column: string, options?: { ascending?: boolean }) => SelectResult;
+};
+type InterestedBeneficiaryDeleteBuilder = {
+    eq: (column: string, value: string) => MutationResult;
+};
+type InterestedBeneficiaryTable = {
+    select: (columns: string) => InterestedBeneficiarySelectBuilder;
+    insert: (payload: InterestedBeneficiaryInsert) => MutationResult;
+    delete: () => InterestedBeneficiaryDeleteBuilder;
+};
+
+const interestedBeneficiariesTable = () =>
+    (supabase as unknown as { from: (table: 'interested_beneficiaries') => InterestedBeneficiaryTable })
+        .from('interested_beneficiaries');
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -92,8 +121,7 @@ export default function InterestedBeneficiaries() {
     const fetchBeneficiaries = useCallback(async () => {
         setLoading(true);
         try {
-            let query: any = (supabase as any)
-                .from('interested_beneficiaries')
+            let query = interestedBeneficiariesTable()
                 .select(`
                     *,
                     source_course:source_course_id(name),
@@ -125,7 +153,7 @@ export default function InterestedBeneficiaries() {
     }, []);
 
     const fetchCourses = useCallback(async () => {
-        let query: any = supabase
+        let query = supabase
             .from('courses')
             .select('id, name');
 
@@ -206,7 +234,7 @@ export default function InterestedBeneficiaries() {
         }
         setAddSaving(true);
         try {
-            const { error } = await (supabase as any).from('interested_beneficiaries').insert({
+            const { error } = await interestedBeneficiariesTable().insert({
                 name: addForm.name.trim(),
                 phone: addForm.phone.trim(),
                 notes: addForm.notes.trim() || null,
@@ -241,7 +269,7 @@ export default function InterestedBeneficiaries() {
         if (!deleteId) return;
         setDeleting(true);
         try {
-            const { error } = await (supabase as any).from('interested_beneficiaries').delete().eq('id', deleteId);
+            const { error } = await interestedBeneficiariesTable().delete().eq('id', deleteId);
             if (error) throw error;
             toast.success(isRTL ? 'تم الحذف' : 'Deleted');
             setDeleteId(null);
@@ -261,7 +289,7 @@ export default function InterestedBeneficiaries() {
             toast.error(isRTL ? 'لا توجد بيانات للتصدير' : 'No data to export');
             return;
         }
-        const XLSX = await import('xlsx');
+        const XLSX = await import('@e965/xlsx');
         const rows = currentlyVisible.map((b, i) => ({
             '#': i + 1,
             [isRTL ? 'الاسم' : 'Name']: b.name,

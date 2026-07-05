@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -80,7 +80,7 @@ export default function AshbalManagement() {
     const [isRenewing, setIsRenewing] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const fetchAshbalUsers = async () => {
+    const fetchAshbalUsers = useCallback(async () => {
         try {
             setLoading(true);
             const { data, error } = await supabase
@@ -103,11 +103,11 @@ export default function AshbalManagement() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [isRTL]);
 
     useEffect(() => {
         fetchAshbalUsers();
-    }, []);
+    }, [fetchAshbalUsers]);
 
     const filteredUsers = users.filter(u =>
         u.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||

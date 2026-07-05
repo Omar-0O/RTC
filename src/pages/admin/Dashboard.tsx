@@ -1,16 +1,53 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Users, Activity, Award, Building2, TrendingUp, Bell } from 'lucide-react';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { LevelBadge } from '@/components/ui/level-badge';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import CourseSchedule from '@/components/courses/CourseSchedule';
+import type { Database } from '@/integrations/supabase/types';
+
+type ProfileSummary = Pick<
+  Database['public']['Tables']['profiles']['Row'],
+  'id' | 'full_name' | 'full_name_ar' | 'avatar_url' | 'total_points' | 'level' | 'committee_id'
+>;
+type ParticipationSummary = Pick<Database['public']['Tables']['activity_submissions']['Row'], 'points_awarded'>;
+type CommitteeSummary = Pick<Database['public']['Tables']['committees']['Row'], 'id' | 'name' | 'name_ar'>;
+type LeaderboardRow = Database['public']['Functions']['get_leaderboard']['Returns'][number];
+
+type PersonRelation = {
+  full_name?: string | null;
+  full_name_ar?: string | null;
+  name_en?: string | null;
+  name_ar?: string | null;
+} | null;
+
+type NamedRelation = {
+  name: string;
+  name_ar: string;
+} | null;
+
+type SubmissionRow = Pick<
+  Database['public']['Tables']['activity_submissions']['Row'],
+  'id' | 'points_awarded' | 'status' | 'submitted_at' | 'participant_type' | 'guest_name' | 'trainer_id'
+> & {
+  volunteer?: PersonRelation;
+  trainer?: PersonRelation;
+  activity?: NamedRelation;
+  committee?: NamedRelation;
+};
+
+type DashboardCache = {
+  stats?: DashboardStats;
+  recentSubmissions?: RecentSubmission[];
+  topVolunteers?: TopVolunteer[];
+  committeeStats?: CommitteeStat[];
+};
 
 type DashboardStats = {
   totalVolunteers: number;
@@ -61,32 +98,7 @@ export default function AdminDashboard() {
   const [topVolunteers, setTopVolunteers] = useState<TopVolunteer[]>([]);
   const [committeeStats, setCommitteeStats] = useState<CommitteeStat[]>([]);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    const cacheKey = `rtc_admin_dashboard_data_${user.id}_${activeBranch?.id || 'all'}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        setStats(parsed.stats || {
-          totalVolunteers: 0,
-          totalParticipations: 0,
-          totalPointsAwarded: 0,
-          activeCommittees: 0,
-        });
-        setRecentSubmissions(parsed.recentSubmissions || []);
-        setTopVolunteers(parsed.topVolunteers || []);
-        setCommitteeStats(parsed.committeeStats || []);
-        setLoading(false);
-      } catch (e) {
-        console.error('Error parsing cached admin dashboard data:', e);
-      }
-    }
-    fetchDashboardData(!!cached);
-    // Re-fetch when branch changes (admin switching active branch)
-  }, [user?.id, activeBranch?.id]);
-
-  const fetchDashboardData = async (hasCache = false) => {
+  const fetchDashboardData = useCallback(async (hasCache = false) => {
     if (!hasCache) {
       setLoading(true);
     }
@@ -100,22 +112,22 @@ export default function AdminDashboard() {
       ] = await Promise.all([
         // RLS auto-filters for non-admin; admin can scope via activeBranch
         (() => {
-          let q: any = supabase.from('profiles').select('id, full_name, full_name_ar, total_points, level, committee_id');
+          let q = supabase.from('profiles').select('id, full_name, full_name_ar, avatar_url, total_points, level, committee_id');
           if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
           return q;
         })(),
         (() => {
-          let q: any = supabase.from('activity_submissions').select('points_awarded');
+          let q = supabase.from('activity_submissions').select('points_awarded');
           if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
           return q;
         })(),
         (() => {
-          let q: any = supabase.from('committees').select('id, name, name_ar');
+          let q = supabase.from('committees').select('id, name, name_ar');
           if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
           return q;
         })(),
         (() => {
-          let q = (supabase.from('activity_submissions')
+          let q = supabase.from('activity_submissions')
             .select(`
               id,
               points_awarded,
@@ -128,7 +140,7 @@ export default function AdminDashboard() {
               trainer:trainers(name_en, name_ar),
               activity:activity_types!activity_submissions_activity_type_id_fkey(name, name_ar),
               committee:committees!activity_submissions_committee_id_fkey(name, name_ar)
-            `) as any)
+            `)
             .neq('participant_type', 'guest')
             .order('submitted_at', { ascending: false })
             .limit(5);
@@ -138,9 +150,9 @@ export default function AdminDashboard() {
       ]);
 
       // Calculate stats
-      const profiles = profilesRes.data || [];
-      const participations = participationsRes.data || [];
-      const committees = committeesRes.data || [];
+      const profiles = (profilesRes.data ?? []) as ProfileSummary[];
+      const participations = (participationsRes.data ?? []) as ParticipationSummary[];
+      const committees = (committeesRes.data ?? []) as CommitteeSummary[];
 
       const totalPoints = participations.reduce((sum, a) => sum + (a.points_awarded || 0), 0);
 
@@ -154,7 +166,7 @@ export default function AdminDashboard() {
 
       // Top volunteers (of the month)
       // RPC function defined in types.ts as existing in Database definition
-      let processedTopVolunteers = topVolunteers;
+      let processedTopVolunteers: TopVolunteer[] = [];
       const { data: topVolunteersData } = await supabase.rpc('get_leaderboard', {
         period_type: 'month',
         target_date: new Date().toISOString(),
@@ -163,52 +175,53 @@ export default function AdminDashboard() {
 
       if (topVolunteersData) {
         const validProfileIds = new Set(profiles.map(p => p.id));
-        const filteredTopVolunteers = topVolunteersData.filter((v: any) => validProfileIds.has(v.volunteer_id));
+        const filteredTopVolunteers = (topVolunteersData as LeaderboardRow[])
+          .filter((volunteer) => validProfileIds.has(volunteer.volunteer_id));
 
-        processedTopVolunteers = filteredTopVolunteers.slice(0, 5).map((v: any) => ({
-          id: v.volunteer_id,
-          full_name: isRTL ? (v.full_name_ar || v.full_name || '') : v.full_name || '',
-          avatar_url: v.avatar_url,
-          total_points: v.total_points,
-          level: v.level || 'under_follow_up'
+        processedTopVolunteers = filteredTopVolunteers.slice(0, 5).map((volunteer) => ({
+          id: volunteer.volunteer_id,
+          full_name: isRTL ? (volunteer.full_name_ar || volunteer.full_name || '') : volunteer.full_name || '',
+          avatar_url: volunteer.avatar_url,
+          total_points: volunteer.total_points,
+          level: volunteer.level || 'under_follow_up'
         }));
         setTopVolunteers(processedTopVolunteers);
       }
 
       // Recent submissions
-      const submissions = (submissionsRes.data || []).map((s: any) => {
+      const submissions = ((submissionsRes.data ?? []) as SubmissionRow[]).map((submission) => {
         // Determine participant name and type label
         let volunteerName = '';
         let participantLabel = '';
 
-        if (s.participant_type === 'trainer' || s.trainer_id) {
+        if (submission.participant_type === 'trainer' || submission.trainer_id) {
           // Use fetched trainer name, falling back to other fields
           volunteerName = isRTL
-            ? (s.trainer?.name_ar || s.trainer?.name_en || s.guest_name || 'مدرب')
-            : (s.trainer?.name_en || s.trainer?.name_ar || s.guest_name || 'Trainer');
+            ? (submission.trainer?.name_ar || submission.trainer?.name_en || submission.guest_name || 'مدرب')
+            : (submission.trainer?.name_en || submission.trainer?.name_ar || submission.guest_name || 'Trainer');
           participantLabel = isRTL ? 'مدرب' : 'Trainer';
-        } else if (s.participant_type === 'guest' || (!s.volunteer && s.guest_name)) {
-          volunteerName = s.guest_name || (isRTL ? 'ضيف' : 'Guest');
+        } else if (submission.participant_type === 'guest' || (!submission.volunteer && submission.guest_name)) {
+          volunteerName = submission.guest_name || (isRTL ? 'ضيف' : 'Guest');
           participantLabel = isRTL ? 'ضيف' : 'Guest';
         } else {
           volunteerName = isRTL
-            ? (s.volunteer?.full_name_ar || s.volunteer?.full_name || '')
-            : (s.volunteer?.full_name || '');
+            ? (submission.volunteer?.full_name_ar || submission.volunteer?.full_name || '')
+            : (submission.volunteer?.full_name || '');
         }
 
         return {
-          id: s.id,
+          id: submission.id,
           volunteer_name: volunteerName,
           participant_label: participantLabel,
           activity_name: isRTL
-            ? (s.activity?.name_ar || s.activity?.name || '')
-            : (s.activity?.name || ''),
+            ? (submission.activity?.name_ar || submission.activity?.name || '')
+            : (submission.activity?.name || ''),
           committee_name: isRTL
-            ? (s.committee?.name_ar || s.committee?.name || '')
-            : (s.committee?.name || ''),
-          points: s.points_awarded || 0,
-          status: s.status,
-          submitted_at: s.submitted_at,
+            ? (submission.committee?.name_ar || submission.committee?.name || '')
+            : (submission.committee?.name || ''),
+          points: submission.points_awarded || 0,
+          status: submission.status,
+          submitted_at: submission.submitted_at,
         };
       });
       setRecentSubmissions(submissions);
@@ -243,7 +256,31 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeBranch?.id, canViewAllBranches, isRTL, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const cacheKey = `rtc_admin_dashboard_data_${user.id}_${activeBranch?.id || 'all'}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as DashboardCache;
+        setStats(parsed.stats || {
+          totalVolunteers: 0,
+          totalParticipations: 0,
+          totalPointsAwarded: 0,
+          activeCommittees: 0,
+        });
+        setRecentSubmissions(parsed.recentSubmissions || []);
+        setTopVolunteers(parsed.topVolunteers || []);
+        setCommitteeStats(parsed.committeeStats || []);
+        setLoading(false);
+      } catch (e) {
+        console.error('Error parsing cached admin dashboard data:', e);
+      }
+    }
+    fetchDashboardData(!!cached);
+  }, [user?.id, activeBranch?.id, fetchDashboardData]);
 
   const requestNotificationPermission = async () => {
     if (!('Notification' in window)) {
@@ -420,7 +457,6 @@ export default function AdminDashboard() {
                       <p className="font-medium truncate">{volunteer.full_name || (isRTL ? 'متطوع' : 'Volunteer')}</p>
                       <p className="text-xs text-muted-foreground">{volunteer.total_points} {t('common.points')}</p>
                     </div>
-                    {/* <LevelBadge level={volunteer.level as any} size="sm" /> */}
                   </div>
                 ))
               )}

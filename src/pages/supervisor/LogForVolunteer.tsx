@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -56,6 +56,13 @@ interface ActivityType {
   committee_ids: string[];
 }
 
+type ActivityTypeRow = Omit<ActivityType, 'committee_ids'>;
+
+interface ActivityTypeCommitteeRow {
+  activity_type_id: string;
+  committee_id: string;
+}
+
 interface TargetVolunteer {
   id: string;
   full_name: string | null;
@@ -96,25 +103,19 @@ export default function LogForVolunteer() {
         month: 'short',
         day: 'numeric',
       });
-    } catch (e) {
+    } catch {
       return '-';
     }
   };
 
-  useEffect(() => {
-    if (volunteerId) {
-      fetchVolunteer();
-      fetchFormData();
-    }
-  }, [volunteerId]);
-
-  const fetchVolunteer = async () => {
+  const fetchVolunteer = useCallback(async () => {
+    if (!volunteerId) return;
     setLoadingVolunteer(true);
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, full_name_ar, avatar_url, committee_id, branch_id')
-        .eq('id', volunteerId!)
+        .eq('id', volunteerId)
         .single();
       if (error) throw error;
       setTargetVolunteer(data);
@@ -125,9 +126,9 @@ export default function LogForVolunteer() {
     } finally {
       setLoadingVolunteer(false);
     }
-  };
+  }, [volunteerId, isRTL, navigate]);
 
-  const fetchFormData = async () => {
+  const fetchFormData = useCallback(async () => {
     setLoading(true);
     try {
       const [cr, ar, acr] = await Promise.all([
@@ -137,18 +138,26 @@ export default function LogForVolunteer() {
       ]);
       if (cr.data) setCommittees(cr.data);
       const map = new Map<string, string[]>();
-      acr.data?.forEach((ac: any) => {
+      const activityCommitteeRows = (acr.data || []) as ActivityTypeCommitteeRow[];
+      activityCommitteeRows.forEach((ac) => {
         if (!map.has(ac.activity_type_id)) map.set(ac.activity_type_id, []);
         map.get(ac.activity_type_id)!.push(ac.committee_id);
       });
       if (ar.data)
-        setActivityTypes(ar.data.map((a: any) => ({ ...a, committee_ids: map.get(a.id) || [] })));
+        setActivityTypes((ar.data as ActivityTypeRow[]).map((a) => ({ ...a, committee_ids: map.get(a.id) || [] })));
     } catch {
       /* silent */
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (volunteerId) {
+      fetchVolunteer();
+      fetchFormData();
+    }
+  }, [volunteerId, fetchVolunteer, fetchFormData]);
 
   const filteredActivities = activityTypes.filter(
     a =>

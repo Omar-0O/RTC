@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -227,31 +227,15 @@ export default function MyQuranCircles() {
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
     const [beneficiaryToDelete, setBeneficiaryToDelete] = useState<Beneficiary | null>(null);
 
-    useEffect(() => {
-        if (user) fetchMyCircles();
-    }, [user]);
-
-    // Auto-open circle details if navigated from admin with circle ID
-    useEffect(() => {
-        const circleId = searchParams.get('circle');
-        if (circleId && circles.length > 0) {
-            const circle = circles.find(c => c.id === circleId);
-            if (circle) {
-                openCircleDetails(circle);
-                // Remove the query param after opening
-                setSearchParams({});
-            }
-        }
-    }, [searchParams, circles]);
-
-    const fetchMyCircles = async () => {
+    const fetchMyCircles = useCallback(async () => {
+        if (!user?.id) return;
         setLoading(true);
         try {
             // Fetch circles I'm an organizer of
             const { data: organizerData, error: orgError } = await supabase
                 .from('quran_circle_organizers')
                 .select('circle_id')
-                .eq('volunteer_id', user?.id);
+                .eq('volunteer_id', user.id);
 
             if (orgError) throw orgError;
 
@@ -259,7 +243,7 @@ export default function MyQuranCircles() {
             const { data: marketerData } = await supabase
                 .from('quran_circle_marketers')
                 .select('circle_id')
-                .eq('volunteer_id', user?.id);
+                .eq('volunteer_id', user.id);
 
             const orgCircleIds = (organizerData || []).map((organizer) => organizer.circle_id);
             const marketerIds = (marketerData || []).map((marketer) => marketer.circle_id);
@@ -348,9 +332,9 @@ export default function MyQuranCircles() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [user?.id, isRTL]);
 
-    const openCircleDetails = async (circle: QuranCircle) => {
+    const openCircleDetails = useCallback(async (circle: QuranCircle) => {
         setSelectedCircle(circle);
         const isMarketerOnly = marketerCircleIds.has(circle.id) && !organizerCircleIds.has(circle.id);
         setActiveTab(isMarketerOnly ? 'ads' : 'sessions');
@@ -371,7 +355,24 @@ export default function MyQuranCircles() {
         setAdsLoading(true);
         setCircleAds(await getCircleAds(circle.id));
         setAdsLoading(false);
-    };
+    }, [marketerCircleIds, organizerCircleIds]);
+
+    useEffect(() => {
+        if (user) fetchMyCircles();
+    }, [user, fetchMyCircles]);
+
+    // Auto-open circle details if navigated from admin with circle ID
+    useEffect(() => {
+        const circleId = searchParams.get('circle');
+        if (circleId && circles.length > 0) {
+            const circle = circles.find(c => c.id === circleId);
+            if (circle) {
+                openCircleDetails(circle);
+                // Remove the query param after opening
+                setSearchParams({});
+            }
+        }
+    }, [searchParams, circles, openCircleDetails, setSearchParams]);
 
     const handleCreateSession = async () => {
         if (!selectedCircle) return;
@@ -801,7 +802,7 @@ export default function MyQuranCircles() {
     const exportCircleToExcel = async (circle: QuranCircle) => {
         try {
             toast.info(isRTL ? 'جاري إعداد الملف...' : 'Preparing file...');
-            const XLSX = await import('xlsx');
+            const XLSX = await import('@e965/xlsx');
 
             const sessionsData = await getCircleSessions(circle.id);
             const sortedSessions = [...sessionsData].sort((a, b) => a.session_date.localeCompare(b.session_date));

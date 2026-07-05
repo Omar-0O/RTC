@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, UserMinus, User, Phone, Mail, Calendar, Loader2, Check, ChevronsUpDown, Eye, MoreVertical, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
@@ -61,20 +61,22 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { waPhoneLink } from '@/utils/phoneUtils';
+import type { Database } from '@/integrations/supabase/types';
 
-interface Profile {
-    id: string;
-    full_name: string | null;
-    full_name_ar: string | null;
-    email: string;
-    phone: string | null;
-    total_points: number;
-    level: string;
-    activities_count: number;
-    avatar_url: string | null;
-    committee_id: string | null;
-    created_at: string;
-}
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
+type ActivitySubmissionSummary = Pick<
+    Database['public']['Tables']['activity_submissions']['Row'],
+    'points_awarded' | 'committee_id'
+>;
+type ProfileWithSubmissions = ProfileRow & {
+    activity_submissions?: ActivitySubmissionSummary[] | null;
+};
+
+const getErrorMessage = (error: unknown, fallback: string) => (
+    error instanceof Error ? error.message : fallback
+);
+
+type Profile = ProfileRow;
 
 interface MembersProps {
     committeeId?: string;
@@ -97,7 +99,7 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
 
     const committeeId = propCommitteeId || profile?.committee_id;
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         if (!committeeId) return;
         setIsLoading(true);
 
@@ -112,13 +114,13 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
 
             let membersWithStats: Profile[] = [];
             if (membersData) {
-                membersWithStats = membersData.map((member: any) => {
+                membersWithStats = (membersData as ProfileWithSubmissions[]).map((member) => {
                     const committeeSubmissions = member.activity_submissions?.filter(
-                        (sub: any) => sub.committee_id === committeeId
+                        (submission) => submission.committee_id === committeeId
                     ) || [];
 
                     const committeePoints = committeeSubmissions.reduce(
-                        (sum: number, sub: any) => sum + (sub.points_awarded || 0), 0
+                        (sum, submission) => sum + (submission.points_awarded || 0), 0
                     );
 
                     return {
@@ -141,25 +143,25 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
             if (volunteersError) throw volunteersError;
 
             if (volunteersData) {
-                const volunteers: Profile[] = volunteersData.map((v: any) => ({
-                    ...v,
+                const volunteers: Profile[] = (volunteersData as Profile[]).map((volunteer) => ({
+                    ...volunteer,
                     activities_count: 0,
                     total_points: 0
                 }));
                 setAvailableVolunteers(volunteers);
             }
 
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error fetching data:', error);
-            toast.error(error.message || (language === 'ar' ? 'فشل في تحميل الأعضاء' : 'Failed to load members'));
+            toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في تحميل الأعضاء' : 'Failed to load members'));
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [committeeId, language]);
 
     useEffect(() => {
         fetchData();
-    }, [committeeId]);
+    }, [fetchData]);
 
     const handleAddMember = async () => {
         if (selectedVolunteerIds.length === 0 || !committeeId) {
@@ -180,8 +182,8 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
             setIsAddDialogOpen(false);
             setSelectedVolunteerIds([]);
             fetchData();
-        } catch (error: any) {
-            toast.error(error.message);
+        } catch (error) {
+            toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في إضافة الأعضاء' : 'Failed to add members'));
         } finally {
             setIsActionLoading(false);
         }
@@ -211,8 +213,8 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
             setIsRemoveDialogOpen(false);
             setSelectedMember(null);
             fetchData();
-        } catch (error: any) {
-            toast.error(error.message);
+        } catch (error) {
+            toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في إزالة العضو' : 'Failed to remove member'));
         } finally {
             setIsActionLoading(false);
         }

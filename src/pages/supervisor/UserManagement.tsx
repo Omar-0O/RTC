@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Search, User, Pencil, Save, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -34,14 +34,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
 import Profile from '@/pages/volunteer/Profile';
+import type { Database } from '@/integrations/supabase/types';
+import type { UserRole } from '@/types';
 
-interface Committee {
-    id: string;
-    name: string;
-    name_ar: string;
-}
+type Committee = Pick<Database['public']['Tables']['committees']['Row'], 'id' | 'name' | 'name_ar'>;
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
+type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
+type UserRoleRow = Pick<Database['public']['Tables']['user_roles']['Row'], 'user_id' | 'role'>;
 
-type AppRole = 'admin' | 'supervisor' | 'volunteer' | 'committee_leader' | 'hr' | 'head_hr' | 'head_production' | 'head_fourth_year' | 'head_caravans' | 'head_events' | 'head_ethics' | 'head_quran' | 'head_marketing' | 'head_ashbal' | 'marketing_member';
+const getErrorMessage = (error: unknown, fallback: string) => (
+    error instanceof Error ? error.message : fallback
+);
 
 interface UserWithDetails {
     id: string;
@@ -49,13 +52,13 @@ interface UserWithDetails {
     full_name: string | null;
     full_name_ar: string | null;
     avatar_url: string | null;
-    role: AppRole;
+    role: UserRole;
     committee_id: string | null;
     committee_name?: string;
     total_points: number;
     level: string;
     join_date: string;
-    phone?: string;
+    phone: string | null;
     attended_mini_camp?: boolean;
     attended_camp?: boolean;
     last_seen_at?: string | null;
@@ -86,7 +89,7 @@ export default function SupervisorUserManagement() {
     const [formAttendedCamp, setFormAttendedCamp] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
             const { data: committeesData } = await supabase
@@ -107,16 +110,16 @@ export default function SupervisorUserManagement() {
                 .from('user_roles')
                 .select('user_id, role');
 
-            const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role]) || []);
+            const rolesMap = new Map((rolesData as UserRoleRow[] | null)?.map(r => [r.user_id, r.role as UserRole]) || []);
             const committeesMap = new Map(committeesData?.map(c => [c.id, language === 'ar' ? c.name_ar : c.name]) || []);
 
-            const usersWithDetails: UserWithDetails[] = (profilesData || []).map(profile => ({
+            const usersWithDetails: UserWithDetails[] = ((profilesData || []) as ProfileRow[]).map(profile => ({
                 id: profile.id,
                 email: profile.email,
                 full_name: profile.full_name,
                 full_name_ar: profile.full_name_ar,
                 avatar_url: profile.avatar_url,
-                role: (rolesMap.get(profile.id) as any) || 'volunteer',
+                role: rolesMap.get(profile.id) || 'volunteer',
                 committee_id: profile.committee_id,
                 committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
                 total_points: profile.total_points || 0,
@@ -126,7 +129,7 @@ export default function SupervisorUserManagement() {
                 attended_mini_camp: profile.attended_mini_camp || false,
                 attended_camp: profile.attended_camp || false,
                 last_seen_at: profile.last_seen_at || null,
-                is_active: (profile as any).is_active !== false, // default true if column not yet set
+                is_active: profile.is_active !== false,
             }));
 
             setUsers(usersWithDetails);
@@ -136,11 +139,11 @@ export default function SupervisorUserManagement() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [isRTL, language]);
 
     useEffect(() => {
         fetchData();
-    }, [language]);
+    }, [fetchData]);
 
     const handleEditUser = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -148,7 +151,7 @@ export default function SupervisorUserManagement() {
 
         setIsSubmitting(true);
         try {
-            const updates: any = {
+            const updates: ProfileUpdate = {
                 full_name: formName,
                 full_name_ar: formNameAr,
                 phone: formPhone,
@@ -178,9 +181,9 @@ export default function SupervisorUserManagement() {
             toast.success(language === 'ar' ? 'تم تحديث البيانات بنجاح' : 'User updated successfully');
             setIsEditDialogOpen(false);
             fetchData();
-        } catch (error: any) {
+        } catch (error) {
             console.error('Error updating user:', error);
-            toast.error(error.message);
+            toast.error(getErrorMessage(error, language === 'ar' ? 'فشل تحديث المستخدم' : 'Failed to update user'));
         } finally {
             setIsSubmitting(false);
         }
@@ -189,7 +192,7 @@ export default function SupervisorUserManagement() {
     const handleToggleActive = async (user: UserWithDetails) => {
         const newStatus = !user.is_active;
         try {
-            const { error } = await (supabase as any)
+            const { error } = await supabase
                 .from('profiles')
                 .update({ is_active: newStatus })
                 .eq('id', user.id);
@@ -200,8 +203,8 @@ export default function SupervisorUserManagement() {
                     : (language === 'ar' ? `🚫 تم تعطيل ${user.full_name}` : `🚫 ${user.full_name} deactivated`)
             );
             fetchData();
-        } catch (err: any) {
-            toast.error(err.message || (language === 'ar' ? 'فشل في تغيير الحالة' : 'Failed to change status'));
+        } catch (error) {
+            toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في تغيير الحالة' : 'Failed to change status'));
         }
     };
 

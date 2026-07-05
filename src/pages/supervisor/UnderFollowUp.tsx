@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -37,6 +37,15 @@ interface Volunteer {
   current_month_count: number;
 }
 
+interface UnderFollowUpProfile {
+  id: string;
+  full_name: string | null;
+  full_name_ar: string | null;
+  avatar_url: string | null;
+  phone: string | null;
+  committee_id: string | null;
+}
+
 // Random pleasant gradient backgrounds for avatar fallbacks
 const avatarGradients = [
   'from-violet-500 to-purple-600',
@@ -62,15 +71,11 @@ export default function UnderFollowUp() {
   const [search, setSearch] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchVolunteers();
-  }, [activeBranch?.id]);
-
-  const fetchVolunteers = async (silent = false) => {
+  const fetchVolunteers = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      let query = (supabase as any)
+      let query = supabase
         .from('profiles')
         .select('id, full_name, full_name_ar, avatar_url, phone, committee_id')
         .eq('level', 'under_follow_up')
@@ -84,9 +89,10 @@ export default function UnderFollowUp() {
 
       if (error) throw error;
 
-      const profileIds = (profiles || []).map(p => p.id);
+      const profileRows = (profiles || []) as UnderFollowUpProfile[];
+      const profileIds = profileRows.map(p => p.id);
 
-      const committeeIds = [...new Set((profiles || []).map(p => p.committee_id).filter(Boolean))];
+      const committeeIds = [...new Set(profileRows.map(p => p.committee_id).filter(Boolean))];
       let committeesMap: Record<string, string> = {};
 
       if (committeeIds.length > 0) {
@@ -99,7 +105,7 @@ export default function UnderFollowUp() {
         );
       }
 
-      let submissionCounts = new Map<string, number>();
+      const submissionCounts = new Map<string, number>();
       if (profileIds.length > 0) {
         const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
         const { data: monthSubmissions } = await supabase
@@ -114,7 +120,7 @@ export default function UnderFollowUp() {
       }
 
       setVolunteers(
-        (profiles || []).map(p => ({
+        profileRows.map(p => ({
           id: p.id,
           full_name: p.full_name,
           full_name_ar: p.full_name_ar,
@@ -130,7 +136,11 @@ export default function UnderFollowUp() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [activeBranch?.id, isRTL]);
+
+  useEffect(() => {
+    fetchVolunteers();
+  }, [fetchVolunteers]);
 
   const getPortalLink = (id: string) => `${window.location.origin}/volunteer-portal/${id}`;
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -32,24 +32,13 @@ import { Plus, Search, Award, Trash2, MessageSquarePlus, User, Phone, Camera, Lo
 import { format, parse, subMonths } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ar, enUS } from 'date-fns/locale';
+import type { Tables } from '@/integrations/supabase/types';
 
-interface Participant {
-    id: string;
-    name: string;
-    phone: string | null;
-    image_url: string | null;
-    created_at: string;
-    month_year?: string;
+type Participant = Tables<'competition_participants'> & {
     entries_count?: number;
-}
+};
 
-interface Entry {
-    id: string;
-    participant_id: string;
-    description: string;
-    created_at: string;
-    month_year?: string;
-}
+type Entry = Tables<'competition_entries'>;
 
 // Helper to get current month in YYYY-MM format
 const getCurrentMonthYear = () => format(new Date(), 'yyyy-MM');
@@ -63,6 +52,10 @@ const formatMonthDisplay = (monthYear: string, isRTL: boolean) => {
         return monthYear;
     }
 };
+
+const formatNullableDate = (date: string | null) => (
+    date ? format(new Date(date), 'yyyy-MM-dd') : ''
+);
 
 export default function IndividualCompetition() {
     const { user } = useAuth();
@@ -99,15 +92,7 @@ export default function IndividualCompetition() {
     const [participantEntries, setParticipantEntries] = useState<Entry[]>([]);
     const [participantToDelete, setParticipantToDelete] = useState<Participant | null>(null);
 
-    useEffect(() => {
-        fetchAvailableMonths();
-    }, []);
-
-    useEffect(() => {
-        fetchParticipants();
-    }, []);
-
-    const fetchAvailableMonths = async () => {
+    const fetchAvailableMonths = useCallback(async () => {
         try {
             // Get distinct months from participants
             const { data: participantMonths } = await supabase
@@ -123,8 +108,8 @@ export default function IndividualCompetition() {
             const allMonths = new Set<string>();
             allMonths.add(getCurrentMonthYear()); // Always include current month
 
-            participantMonths?.forEach((p: any) => p.month_year && allMonths.add(p.month_year));
-            entryMonths?.forEach((e: any) => e.month_year && allMonths.add(e.month_year));
+            participantMonths?.forEach((p) => p.month_year && allMonths.add(p.month_year));
+            entryMonths?.forEach((e) => e.month_year && allMonths.add(e.month_year));
 
             const sortedMonths = Array.from(allMonths).sort().reverse();
             setAvailableMonths(sortedMonths);
@@ -140,9 +125,9 @@ export default function IndividualCompetition() {
         } catch (error) {
             console.error('Error fetching available months:', error);
         }
-    };
+    }, []);
 
-    const fetchParticipants = async (month: string = getCurrentMonthYear()) => {
+    const fetchParticipants = useCallback(async (month: string = getCurrentMonthYear()) => {
         setLoading(true);
         try {
             // Step 1: Fetch all participants for the selected month (Query 1)
@@ -171,7 +156,7 @@ export default function IndividualCompetition() {
             });
 
             // Step 4: Map participants with their corresponding counts from the Map
-            const participantsWithCount = (participantsData || []).map((p: any) => ({
+            const participantsWithCount = (participantsData || []).map((p) => ({
                 ...p,
                 entries_count: entriesCountMap.get(p.id) || 0
             }));
@@ -196,7 +181,15 @@ export default function IndividualCompetition() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [isRTL]);
+
+    useEffect(() => {
+        fetchAvailableMonths();
+    }, [fetchAvailableMonths]);
+
+    useEffect(() => {
+        fetchParticipants();
+    }, [fetchParticipants]);
 
     const downloadArchive = async (month: string) => {
         try {
@@ -214,15 +207,15 @@ export default function IndividualCompetition() {
 
             if (eError) throw eError;
 
-            const participantsMap = new Map((participantsData || []).map((p: any) => [p.id, p]));
+            const participantsMap = new Map((participantsData || []).map((p) => [p.id, p]));
 
-            const exportData = (entriesData || []).map((entry: any) => {
+            const exportData = (entriesData || []).map((entry) => {
                 const participant = participantsMap.get(entry.participant_id);
                 return {
                     [isRTL ? 'الاسم' : 'Name']: participant?.name || 'Unknown',
                     [isRTL ? 'الهاتف' : 'Phone']: participant?.phone || '',
                     [isRTL ? 'الوصف' : 'Description']: entry.description,
-                    [isRTL ? 'التاريخ' : 'Date']: format(new Date(entry.created_at), 'yyyy-MM-dd'),
+                    [isRTL ? 'التاريخ' : 'Date']: formatNullableDate(entry.created_at),
                 };
             });
 
@@ -239,7 +232,7 @@ export default function IndividualCompetition() {
                     if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
                         return `"${value.replace(/"/g, '""')}"`;
                     }
-                    return value ?? '';
+                    return String(value ?? '');
                 }).join(','))
             ].join('\n');
 

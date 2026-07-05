@@ -746,7 +746,7 @@ export default function MyCourses() {
 
     const exportCourseToExcel = async (course: Course) => {
         try {
-            const XLSX = await import('xlsx');
+            const XLSX = await import('@e965/xlsx');
 
             // Fetch organizers
             const { data: orgs } = await supabase

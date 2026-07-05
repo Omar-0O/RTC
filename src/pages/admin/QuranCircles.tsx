@@ -1020,7 +1020,7 @@ export default function QuranCircles() {
     const exportCircleToExcel = async (circle: QuranCircle) => {
         try {
             toast.info(isRTL ? 'جاري إعداد الملف...' : 'Preparing file...');
-            const XLSX = await import('xlsx');
+            const XLSX = await import('@e965/xlsx');
 
             const sessionsData = await getCircleSessions(circle.id);
             const bens = await getCircleEnrollments(circle.id);

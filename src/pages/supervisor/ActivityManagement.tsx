@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, MoreHorizontal, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -94,11 +94,7 @@ export default function ActivityManagement() {
     committee_id: '',
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [activitiesRes, committeesRes] = await Promise.all([
@@ -111,13 +107,17 @@ export default function ActivityManagement() {
 
       setActivities(activitiesRes.data || []);
       setCommittees(committeesRes.data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(isRTL ? 'فشل في تحميل البيانات' : 'Failed to fetch data');
       console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [isRTL]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const getCommitteeName = (committeeId: string | null) => {
     if (!committeeId) return isRTL ? 'جميع اللجان' : 'All Committees';
@@ -171,7 +171,7 @@ export default function ActivityManagement() {
       setIsAddDialogOpen(false);
       resetForm();
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(isRTL ? 'فشل في إنشاء نوع المهمة' : 'Failed to create task type');
       console.error(error);
     } finally {
@@ -203,7 +203,7 @@ export default function ActivityManagement() {
       setSelectedActivity(null);
       resetForm();
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error(isRTL ? 'فشل في تحديث نوع المهمة' : 'Failed to update task type');
       console.error(error);
     } finally {
@@ -226,7 +226,7 @@ export default function ActivityManagement() {
       setIsDeleteDialogOpen(false);
       setSelectedActivity(null);
       fetchData();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to delete activity:', error);
       toast.error(isRTL ? 'فشل في حذف نوع المهمة. قد يكون هناك مشاركات مرتبطة به.' : 'Failed to delete task type. There might be submissions linked to it.');
     } finally {
