@@ -9,6 +9,7 @@ import { LevelBadge } from '@/components/ui/level-badge';
 import { Trophy, Loader2, Calendar, Users, Star, Crown, Medal, Award } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
+import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 
 type LeaderboardEntry = {
   volunteer_id: string;
@@ -28,6 +29,14 @@ type Committee = {
   name: string;
   name_ar: string;
 };
+
+type LeaderboardCache = {
+  leaderboard?: LeaderboardEntry[];
+  committees?: Committee[];
+};
+
+const isLeaderboardCache = (value: unknown): value is LeaderboardCache =>
+  typeof value === 'object' && value !== null;
 
 const LEVELS = [
   { value: 'all', labelEn: 'All Levels', labelAr: 'كل الدرجات', icon: '🏆' },
@@ -81,11 +90,10 @@ export default function Leaderboard() {
       setLeaderboard(finalLeaderboard);
 
       if (cachedKey) {
-        localStorage.setItem(cachedKey, JSON.stringify({
+        setLocalCache(cachedKey, {
           leaderboard: finalLeaderboard,
           committees: currentCommittees,
-          cachedAt: Date.now()
-        }));
+        }, CACHE_TTL.short);
       }
 
     } catch (error) {
@@ -98,16 +106,11 @@ export default function Leaderboard() {
   useEffect(() => {
     if (!user?.id) return;
     const cacheKey = `rtc_leaderboard_data_${user.id}_${timeFilter}_${selectedCommittee}_${activeBranch?.id || 'all'}`;
-    const cached = localStorage.getItem(cacheKey);
+    const cached = getLocalCache<LeaderboardCache>(cacheKey, isLeaderboardCache);
     if (cached) {
-      try {
-        const parsed = JSON.parse(cached);
-        setLeaderboard(parsed.leaderboard || []);
-        setCommittees(parsed.committees || []);
-        setLoading(false);
-      } catch (e) {
-        console.error('Error parsing cached leaderboard:', e);
-      }
+      setLeaderboard(cached.leaderboard || []);
+      setCommittees(cached.committees || []);
+      setLoading(false);
     }
     fetchData(!!cached);
   }, [user?.id, timeFilter, selectedCommittee, activeBranch?.id, fetchData]);

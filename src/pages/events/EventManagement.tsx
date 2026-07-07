@@ -32,6 +32,7 @@ import { format } from 'date-fns';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 
 interface Committee {
     id: string;
@@ -104,6 +105,8 @@ type EventOrganizerWithProfile = Tables['event_organizers']['Row'] & {
 
 const getErrorMessage = (error: unknown, fallback = 'Error occurred') =>
     error instanceof Error ? error.message : fallback;
+
+const isEventCache = (value: unknown): value is Event[] => Array.isArray(value);
 
 export default function EventManagement() {
     const { user, hasRole, primaryRole } = useAuth();
@@ -244,7 +247,7 @@ export default function EventManagement() {
             setEvents(eventsData);
 
             const cacheKey = `rtc_events_data_${user?.id}_${activeBranch?.id || 'all'}`;
-            localStorage.setItem(cacheKey, JSON.stringify(eventsData));
+            setLocalCache(cacheKey, eventsData, CACHE_TTL.short);
         } catch (error) {
             console.error('Error fetching events:', error);
             toast.error(isRTL ? 'فشل تحميل الإيفينتات' : 'Failed to load events');
@@ -278,19 +281,12 @@ export default function EventManagement() {
     useEffect(() => {
         const loadData = async () => {
             const cacheKey = `rtc_events_data_${user?.id}_${activeBranch?.id || 'all'}`;
-            const cached = localStorage.getItem(cacheKey);
+            const cached = getLocalCache<Event[]>(cacheKey, isEventCache);
             let hasCache = false;
             if (cached) {
-                try {
-                    const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed)) {
-                        setEvents(parsed);
-                        setLoading(false);
-                        hasCache = true;
-                    }
-                } catch (e) {
-                    console.error('Error parsing cached events:', e);
-                }
+                setEvents(cached);
+                setLoading(false);
+                hasCache = true;
             }
 
             fetchVolunteers();

@@ -54,6 +54,7 @@ import {
     CommandList,
 } from '@/components/ui/command';
 import { Switch } from '@/components/ui/switch';
+import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 
 type CertificateStatus = 'pending' | 'printing' | 'ready' | 'delivered';
 
@@ -80,6 +81,8 @@ interface Course {
     has_certificates: boolean;
     certificate_status: CertificateStatus;
 }
+
+const isCourseCache = (value: unknown): value is Course[] => Array.isArray(value);
 
 interface CourseOrganizer {
     id?: string;
@@ -577,7 +580,7 @@ export default function CourseManagement() {
             setCourses(coursesData);
 
             const cacheKey = `rtc_courses_${user?.id}_${profile?.committee_id || 'all'}`;
-            localStorage.setItem(cacheKey, JSON.stringify(coursesData));
+            setLocalCache(cacheKey, coursesData, CACHE_TTL.short);
         } catch (error) {
             console.error('Error fetching courses:', error);
             toast.error(isRTL ? 'فشل في تحميل الكورسات' : 'Failed to fetch courses');
@@ -590,19 +593,12 @@ export default function CourseManagement() {
         if (isLoading) return; // Wait for auth
 
         const cacheKey = `rtc_courses_${user?.id}_${profile?.committee_id || 'all'}`;
-        const cached = localStorage.getItem(cacheKey);
+        const cached = getLocalCache<Course[]>(cacheKey, isCourseCache);
         let hasCache = false;
         if (cached) {
-            try {
-                const parsed = JSON.parse(cached);
-                if (Array.isArray(parsed)) {
-                    setCourses(parsed);
-                    setLoading(false);
-                    hasCache = true;
-                }
-            } catch (e) {
-                console.error('Error parsing cached courses:', e);
-            }
+            setCourses(cached);
+            setLoading(false);
+            hasCache = true;
         }
 
         fetchCourses(hasCache);
@@ -1703,7 +1699,6 @@ export default function CourseManagement() {
                     submitted_at: lectureDate ? new Date(lectureDate + 'T12:00:00').toISOString() : new Date().toISOString()
                 });
                 if (error) console.error('خطأ في activity_submissions:', error);
-                else console.log(`✅ نقاط مسجلة لـ ${volunteerId}`);
             };
 
             // --- Collect trainers list (name, phone, potential profile) ---
@@ -1766,7 +1761,6 @@ export default function CourseManagement() {
             for (const trainer of trainers) {
                 // 1. Always log in trainer_lecture_records
                 await logTrainerRecord(trainer.name, trainer.phone, trainer.volunteerId);
-                console.log(`📋 تم تسجيل مشاركة "${trainer.name}" في محاضرة ${lectureNum}`);
 
                 // 2. If has profile + committee + activity type AND is external → also log points
                 // Internal trainers with trainer_id are logged automatically by the database trigger

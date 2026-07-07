@@ -39,6 +39,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 
 type CaravanRow = Database['public']['Tables']['caravans']['Row'];
 type CaravanInsert = Database['public']['Tables']['caravans']['Insert'];
@@ -78,6 +79,8 @@ interface Caravan {
     total_bags?: number | null;
     bag_contents?: string[] | null;
 }
+
+const isCaravanCache = (value: unknown): value is Caravan[] => Array.isArray(value);
 
 interface Participant {
     id?: string; // DB ID if exists
@@ -399,19 +402,12 @@ export default function CaravanManagement() {
 
     useEffect(() => {
         const cacheKey = `rtc_caravans_data_${user?.id}`;
-        const cached = localStorage.getItem(cacheKey);
+        const cached = getLocalCache<Caravan[]>(cacheKey, isCaravanCache);
         let hasCache = false;
         if (cached) {
-            try {
-                const parsed = JSON.parse(cached);
-                if (Array.isArray(parsed)) {
-                    setCaravans(parsed);
-                    setLoading(false);
-                    hasCache = true;
-                }
-            } catch (e) {
-                console.error('Error parsing cached caravans:', e);
-            }
+            setCaravans(cached);
+            setLoading(false);
+            hasCache = true;
         }
 
         fetchCaravans(hasCache);
@@ -444,7 +440,7 @@ export default function CaravanManagement() {
             setCaravans(caravansData);
 
             const cacheKey = `rtc_caravans_data_${user?.id}`;
-            localStorage.setItem(cacheKey, JSON.stringify(caravansData));
+            setLocalCache(cacheKey, caravansData, CACHE_TTL.short);
         } catch (error) {
             console.error('Error fetching caravans:', error);
             toast.error(isRTL ? 'فشل في تحميل القوافل' : 'Failed to fetch caravans');
@@ -473,7 +469,6 @@ export default function CaravanManagement() {
             .select('id')
             .ilike('name', 'Caravans') // Match name used in migration
             .maybeSingle();
-        console.log('Fetched Caravans Committee:', data);
         if (data) setCaravansCommitteeId(data.id);
     };
 

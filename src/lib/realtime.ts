@@ -79,9 +79,7 @@ export function subscribeToTable(
         }
       }
     )
-    .subscribe((status) => {
-      console.log(`[Realtime] ${config.table}: ${status}`);
-    });
+    .subscribe();
 
   activeChannels.set(channelName, channel);
 
@@ -132,8 +130,6 @@ function handleChange(
   payload: RealtimePostgresChangesPayload<RealtimeRecord>
 ): void {
   const { eventType, new: newRecord, old: oldRecord } = payload;
-
-  console.log(`[Realtime] ${config.table} ${eventType}:`, newRecord?.id || oldRecord?.id);
 
   switch (eventType) {
     case 'INSERT':

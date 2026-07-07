@@ -126,7 +126,7 @@ async function executeMutation(item: QueueItem): Promise<void> {
       break;
 
     default:
-      console.warn(`[SyncManager] Unknown mutation type: ${type}`);
+      throw new Error(`Unknown mutation type: ${type}`);
   }
 }
 
@@ -140,7 +140,6 @@ const MAX_RETRIES = 3;
  */
 export async function flushQueue(): Promise<{ synced: number; failed: number }> {
   if (isSyncing) {
-    console.log('[SyncManager] Already syncing, skipping...');
     return { synced: 0, failed: 0 };
   }
 
@@ -152,63 +151,71 @@ export async function flushQueue(): Promise<{ synced: number; failed: number }> 
   isSyncing = true;
   emit('syncing');
 
-  const items = await getPendingItems();
+  let items: QueueItem[] = [];
   let synced = 0;
   let failed = 0;
 
-  for (const item of items) {
-    // Skip items that have exceeded max retries
-    if (item.retryCount >= MAX_RETRIES) {
-      await updateItemStatus(item.id, 'failed', `Exceeded max retries (${MAX_RETRIES})`);
-      failed++;
-      continue;
-    }
+  try {
+    items = await getPendingItems();
 
-    // Mark as processing to prevent duplicate execution
-    await updateItemStatus(item.id, 'processing');
-
-    try {
-      await executeMutation(item);
-      await updateItemStatus(item.id, 'synced');
-      synced++;
-    } catch (err: unknown) {
-      const errMsg = getErrorMessage(err);
-
-      // Conflict detection: if server returns 409 or duplicate error
-      if (errMsg.includes('duplicate') || errMsg.includes('conflict') || errMsg.includes('23505')) {
-        console.warn(`[SyncManager] Conflict detected for ${item.type}:`, errMsg);
-        // Mark as synced (server already has the data)
-        await updateItemStatus(item.id, 'synced', `Conflict resolved: ${errMsg}`);
-        synced++;
-        continue;
-      }
-
-      // Non-retryable errors (permission, validation)
-      if (errMsg.includes('permission') || errMsg.includes('not found')) {
-        await updateItemStatus(item.id, 'failed', errMsg);
+    for (const item of items) {
+      // Skip items that have exceeded max retries
+      if (item.retryCount >= MAX_RETRIES) {
+        await updateItemStatus(item.id, 'failed', `Exceeded max retries (${MAX_RETRIES})`);
         failed++;
         continue;
       }
 
-      // Retryable error — mark as pending for next sync cycle
-      await updateItemStatus(item.id, 'pending', errMsg);
-      failed++;
+      // Mark as processing to prevent duplicate execution
+      await updateItemStatus(item.id, 'processing');
 
-      // If we hit a network error, stop processing (we're offline again)
-      if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError')) {
-        emit('offline');
-        break;
+      try {
+        await executeMutation(item);
+        await updateItemStatus(item.id, 'synced');
+        synced++;
+      } catch (err: unknown) {
+        const errMsg = getErrorMessage(err);
+
+        // Conflict detection: if server returns 409 or duplicate error
+        if (errMsg.includes('duplicate') || errMsg.includes('conflict') || errMsg.includes('23505')) {
+          // Mark as synced (server already has the data)
+          await updateItemStatus(item.id, 'synced', `Conflict resolved: ${errMsg}`);
+          synced++;
+          continue;
+        }
+
+        // Non-retryable errors (permission, validation)
+        if (errMsg.includes('permission') || errMsg.includes('not found')) {
+          await updateItemStatus(item.id, 'failed', errMsg);
+          failed++;
+          continue;
+        }
+
+        // Retryable error — mark as pending for next sync cycle
+        await updateItemStatus(item.id, 'pending', errMsg);
+        failed++;
+
+        // If we hit a network error, stop processing (we're offline again)
+        if (errMsg.includes('Failed to fetch') || errMsg.includes('NetworkError')) {
+          emit('offline');
+          break;
+        }
       }
     }
+
+    // Cleanup synced items
+    await clearSynced();
+
+    emit(failed > 0 ? 'error' : 'idle', { pending: Math.max(items.length - synced - failed, 0), synced, failed });
+
+    return { synced, failed };
+  } catch {
+    failed = Math.max(failed, 1);
+    emit('error', { pending: Math.max(items.length - synced - failed, 0), synced, failed });
+    return { synced, failed };
+  } finally {
+    isSyncing = false;
   }
-
-  // Cleanup synced items
-  await clearSynced();
-
-  isSyncing = false;
-  emit(failed > 0 ? 'error' : 'idle', { pending: items.length - synced - failed, synced, failed });
-
-  return { synced, failed };
 }
 
 // ─── Auto-Sync on Connectivity Change ───────────────────────────────
@@ -225,7 +232,6 @@ export function initSyncManager(): void {
 
   // Sync when coming back online
   window.addEventListener('online', () => {
-    console.log('[SyncManager] Online detected, flushing queue...');
     // Small delay to ensure connection is stable
     setTimeout(() => flushQueue(), 1500);
   });

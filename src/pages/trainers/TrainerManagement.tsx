@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Database } from '@/integrations/supabase/types';
+import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
 
 // Image compression utility
 const compressImage = async (file: File): Promise<File> => {
@@ -333,8 +334,8 @@ export default function TrainerManagement(): JSX.Element {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        if (!file.type.startsWith('image/')) {
-            toast.error(isRTL ? 'يرجى اختيار صورة فقط' : 'Please select an image file');
+        if (!isSafeImageFile(file)) {
+            toast.error(isRTL ? 'يرجى اختيار صورة JPG أو PNG أو WebP' : 'Please select a JPG, PNG, or WebP image');
             return;
         }
 
@@ -372,19 +373,27 @@ export default function TrainerManagement(): JSX.Element {
             if (imageFile) {
                 setIsUploading(true);
                 try {
-                    const fileExt = imageFile.name.split('.').pop() || 'jpg';
+                    const fileExt = getSafeImageExtension(imageFile);
                     const fileName = `trainer_${Date.now()}.${fileExt}`;
 
                     // Try trainers bucket first
                     const { error: uploadError } = await supabase.storage
                         .from('trainers')
-                        .upload(fileName, imageFile, { upsert: true });
+                        .upload(fileName, imageFile, {
+                            upsert: true,
+                            contentType: imageFile.type,
+                            cacheControl: '3600',
+                        });
 
                     if (uploadError) {
                         // Try avatars bucket as fallback
                         const { error: uploadError2 } = await supabase.storage
                             .from('avatars')
-                            .upload(`trainers/${fileName}`, imageFile, { upsert: true });
+                            .upload(`trainers/${fileName}`, imageFile, {
+                                upsert: true,
+                                contentType: imageFile.type,
+                                cacheControl: '3600',
+                            });
 
                         if (!uploadError2) {
                             const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(`trainers/${fileName}`);
@@ -1113,7 +1122,7 @@ export default function TrainerManagement(): JSX.Element {
                                 <input
                                     ref={fileInputRef}
                                     type="file"
-                                    accept="image/*"
+                                    accept={SAFE_IMAGE_ACCEPT}
                                     onChange={handleImageChange}
                                     className="hidden"
                                 />

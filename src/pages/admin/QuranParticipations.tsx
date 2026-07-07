@@ -19,7 +19,6 @@ export default function QuranParticipations() {
                     .or('name.ilike.%Quran%,name.ilike.%Ahl al-Quran%,name_ar.ilike.%قرآن%,name_ar.ilike.%أهل القرآن%');
 
                 if (data && data.length > 0) {
-                    console.log('Found Quran Committee IDs:', data.map(c => c.id));
                     setQuranCommitteeIds(data.map(c => c.id));
                 } else {
                     // Fallback to profile committee if search fails

@@ -36,6 +36,17 @@ export interface QueueItem {
 const DB_NAME = 'rtc_offline_queue';
 const DB_VERSION = 1;
 const STORE_NAME = 'mutations';
+const SENSITIVE_MUTATION_TYPES = new Set<MutationType>([
+  'CREATE_USER',
+  'UPDATE_USER',
+  'DELETE_USER',
+  'TOGGLE_USER_ACTIVE',
+  'UPDATE_ROLE',
+]);
+
+export function canQueueOfflineMutation(type: MutationType): boolean {
+  return !SENSITIVE_MUTATION_TYPES.has(type);
+}
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -66,6 +77,10 @@ function generateId(): string {
  * Returns the queue item ID for tracking.
  */
 export async function enqueue(type: MutationType, payload: QueuePayload): Promise<string> {
+  if (!canQueueOfflineMutation(type)) {
+    throw new Error(`Offline queue disabled for sensitive mutation: ${type}`);
+  }
+
   const db = await openDB();
   const id = generateId();
   const item: QueueItem = {

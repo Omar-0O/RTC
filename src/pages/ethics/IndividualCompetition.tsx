@@ -33,6 +33,7 @@ import { format, parse, subMonths } from 'date-fns';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ar, enUS } from 'date-fns/locale';
 import type { Tables } from '@/integrations/supabase/types';
+import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
 
 type Participant = Tables<'competition_participants'> & {
     entries_count?: number;
@@ -317,8 +318,8 @@ export default function IndividualCompetition() {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        if (!file.type.startsWith('image/')) {
-            toast.error(isRTL ? 'يرجى اختيار صورة فقط' : 'Please select an image file');
+        if (!isSafeImageFile(file)) {
+            toast.error(isRTL ? 'يرجى اختيار صورة بصيغة JPG أو PNG أو WebP' : 'Please select a JPG, PNG, or WebP image');
             return;
         }
 
@@ -348,12 +349,16 @@ export default function IndividualCompetition() {
 
             // Upload image if selected
             if (imageFile) {
-                const fileExt = imageFile.name.split('.').pop() || 'jpg';
+                const fileExt = getSafeImageExtension(imageFile);
                 const fileName = `competition_${Date.now()}.${fileExt}`;
 
                 const { error: uploadError } = await supabase.storage
                     .from('avatars')
-                    .upload(`competition/${fileName}`, imageFile, { upsert: true });
+                    .upload(`competition/${fileName}`, imageFile, {
+                        upsert: true,
+                        contentType: imageFile.type,
+                        cacheControl: '3600',
+                    });
 
                 if (!uploadError) {
                     const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(`competition/${fileName}`);
@@ -807,7 +812,7 @@ export default function IndividualCompetition() {
                                 <input
                                     ref={fileInputRef}
                                     type="file"
-                                    accept="image/*"
+                                    accept={SAFE_IMAGE_ACCEPT}
                                     className="hidden"
                                     onChange={handleImageChange}
                                 />

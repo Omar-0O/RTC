@@ -45,8 +45,6 @@ class ErrorBoundary extends Component<Props, State> {
                 return;
             }
 
-            console.log('Chunk loading error detected, attempting auto-recovery...');
-
             // Build cleanup tasks and await them before reloading
             const cleanupTasks: Promise<unknown>[] = [];
 
@@ -75,7 +73,6 @@ class ErrorBoundary extends Component<Props, State> {
             error.message.includes('Network request failed')
         ) {
             if (this.state.retryCount < 3) {
-                console.log(`Network error detected, auto-retrying... (attempt ${this.state.retryCount + 1}/3)`);
                 setTimeout(() => {
                     this.setState(prev => ({
                         hasError: false,

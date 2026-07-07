@@ -54,7 +54,6 @@ const triggerChunkErrorReload = () => {
   // 10 seconds cooldown to prevent infinite reload loops
   if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
     localStorage.setItem('last-chunk-error-reload', now.toString());
-    console.log('Chunk loading error detected. Clearing cache and reloading...');
 
     // Build an array of cleanup promises to await before reloading
     const cleanupTasks: Promise<unknown>[] = [];

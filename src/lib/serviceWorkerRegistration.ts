@@ -7,7 +7,6 @@
 
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) {
-    console.log('[SW] Service workers not supported');
     return null;
   }
 
@@ -15,8 +14,6 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
     const registration = await navigator.serviceWorker.register('/sw.js', {
       scope: '/',
     });
-
-    console.log('[SW] Registered with scope:', registration.scope);
 
     // Check for updates periodically (every 30 min)
     setInterval(() => {
@@ -31,7 +28,6 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
       newWorker.addEventListener('statechange', () => {
         if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
           // New version ready — tell it to activate immediately (no popup)
-          console.log('[SW] New version installed, activating silently...');
           newWorker.postMessage({ type: 'SKIP_WAITING' });
         }
       });
@@ -42,7 +38,6 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (refreshing) return;
       refreshing = true;
-      console.log('[SW] Controller changed, reloading page...');
       window.location.reload();
     });
 

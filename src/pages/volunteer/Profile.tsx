@@ -42,6 +42,7 @@ import {
   type VolunteerProfileView,
 } from './hooks/useVolunteerProfile';
 import { COVER_IMAGES } from '@/constants/profileCovers';
+import { SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
 
 const BADGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   award: Award,
@@ -678,7 +679,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept={SAFE_IMAGE_ACCEPT}
                     onChange={handleFileSelect}
                     className="hidden"
                   />

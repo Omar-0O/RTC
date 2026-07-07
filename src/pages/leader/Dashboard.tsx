@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
+import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 
 
 interface Profile {
@@ -65,6 +66,9 @@ type CachedLeaderDashboard = {
   committeeMembers?: Profile[];
   trainersMap?: TrainersMap;
 };
+
+const isCachedLeaderDashboard = (value: unknown): value is CachedLeaderDashboard =>
+  typeof value === 'object' && value !== null;
 
 interface Submission {
   id: string;
@@ -237,7 +241,6 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
 
       const { data: submissionsData, error } = await query;
 
-      console.log('Submissions fetched:', submissionsData?.length, 'for IDs:', effectiveCommitteeIds);
       if (error) {
         console.error('Supabase Error:', error);
         throw error;
@@ -249,13 +252,12 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
       // Save to cache
       if (user?.id) {
         const cacheKey = `rtc_leader_dashboard_data_${user.id}_${effectiveCommitteeIdsKey}_${selectedMonth}`;
-        localStorage.setItem(cacheKey, JSON.stringify({
+        setLocalCache(cacheKey, {
           committee: committeeData || null,
           submissions: finalSubmissions,
           committeeMembers: membersData || [],
           trainersMap: tMap,
-          cachedAt: Date.now()
-        }));
+        }, CACHE_TTL.short);
       }
     } catch (error: unknown) {
       console.error('Error fetching data:', error);
@@ -268,18 +270,13 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
   useEffect(() => {
     if (!user?.id || !hasCommitteeScope) return;
     const cacheKey = `rtc_leader_dashboard_data_${user.id}_${effectiveCommitteeIdsKey}_${selectedMonth}`;
-    const cached = localStorage.getItem(cacheKey);
+    const cached = getLocalCache<CachedLeaderDashboard>(cacheKey, isCachedLeaderDashboard);
     if (cached) {
-      try {
-        const parsed = JSON.parse(cached) as CachedLeaderDashboard;
-        setCommittee(parsed.committee || null);
-        setSubmissions(parsed.submissions || []);
-        setCommitteeMembers(parsed.committeeMembers || []);
-        setTrainersMap(parsed.trainersMap || {});
-        setIsLoading(false);
-      } catch (e) {
-        console.error('Error parsing cached leader dashboard data:', e);
-      }
+      setCommittee(cached.committee || null);
+      setSubmissions(cached.submissions || []);
+      setCommitteeMembers(cached.committeeMembers || []);
+      setTrainersMap(cached.trainersMap || {});
+      setIsLoading(false);
     }
     fetchData(!!cached);
   }, [effectiveCommitteeIdsKey, fetchData, hasCommitteeScope, selectedMonth, user?.id]);

@@ -123,13 +123,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (mounted) {
           if (initialSession) {
-            console.log('Initial session found:', initialSession.user.id);
             setSession(initialSession);
             setUser(initialSession.user);
             // Verify profile immediately if we have a session
             fetchProfile(initialSession.user.id);
-          } else {
-            console.log('No initial session found');
           }
         }
       } catch (error) {
@@ -146,8 +143,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent | string, session) => {
         if (!mounted) return;
-
-        console.log('Auth state change:', event);
 
         if (event === 'TokenRefreshed' || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
           setSession(session);

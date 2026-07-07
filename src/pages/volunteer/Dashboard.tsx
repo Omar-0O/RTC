@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import CourseSchedule from '@/components/courses/CourseSchedule';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
+import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 
 type RecentSubmission = {
   id: string;
@@ -31,6 +32,15 @@ type RecentSubmissionRow = {
     name_ar: string | null;
   } | null;
 };
+
+type VolunteerDashboardCache = {
+  recentSubmissions?: RecentSubmission[];
+  impact?: number;
+  monthlyActivities?: number;
+};
+
+const isVolunteerDashboardCache = (value: unknown): value is VolunteerDashboardCache =>
+  typeof value === 'object' && value !== null;
 
 export default function VolunteerDashboard() {
   const { user, profile, refreshProfile, primaryRole } = useAuth();
@@ -86,7 +96,6 @@ export default function VolunteerDashboard() {
       setLoading(true);
     }
     try {
-      console.log('Fetching dashboard data for user:', user.id);
       const now = new Date();
 
       const [submissionsRes, badgesRes, allActivitiesRes] = await Promise.all([
@@ -143,7 +152,6 @@ export default function VolunteerDashboard() {
           }
         });
 
-        console.log('Monthly impact calculated:', monthlyImpactSum, 'Monthly activities:', monthlyCount);
         setImpact(monthlyImpactSum);
         setMonthlyActivities(monthlyCount);
       } else {
@@ -154,12 +162,11 @@ export default function VolunteerDashboard() {
       }
 
       // Save to cache
-      localStorage.setItem(`rtc_dashboard_data_${user.id}`, JSON.stringify({
+      setLocalCache(`rtc_dashboard_data_${user.id}`, {
         recentSubmissions: updatedRecentSubmissions,
         impact: monthlyImpactSum,
         monthlyActivities: monthlyCount,
-        cachedAt: Date.now()
-      }));
+      }, CACHE_TTL.short);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
@@ -170,17 +177,12 @@ export default function VolunteerDashboard() {
   useEffect(() => {
     if (user?.id) {
       const cacheKey = `rtc_dashboard_data_${user.id}`;
-      const cached = localStorage.getItem(cacheKey);
+      const cached = getLocalCache<VolunteerDashboardCache>(cacheKey, isVolunteerDashboardCache);
       if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          setRecentSubmissions(parsed.recentSubmissions || []);
-          setImpact(parsed.impact || 0);
-          setMonthlyActivities(parsed.monthlyActivities || 0);
-          setLoading(false);
-        } catch (e) {
-          console.error('Error parsing cached dashboard data:', e);
-        }
+        setRecentSubmissions(cached.recentSubmissions || []);
+        setImpact(cached.impact || 0);
+        setMonthlyActivities(cached.monthlyActivities || 0);
+        setLoading(false);
       }
 
       refreshProfile();

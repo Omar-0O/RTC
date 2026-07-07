@@ -45,7 +45,6 @@ Deno.serve(async (req: Request) => {
             throw new Error(`Failed to delete user: ${deleteError.message}`)
         }
 
-        console.log(`User ${userId} successfully deleted by ${requester.id}`)
         return json({ success: true, message: 'User deleted successfully' })
     } catch (error: unknown) {
         const errorMessage = getErrorMessage(error)

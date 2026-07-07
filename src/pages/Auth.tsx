@@ -36,7 +36,6 @@ export default function Auth() {
 
     // Clean input
     const cleanEmail = email.trim();
-    console.log('Attempting login with:', cleanEmail);
 
     // Save remember me preference before login
     localStorage.setItem('rememberMe', String(rememberMe));
@@ -66,28 +65,20 @@ export default function Auth() {
 
         const userRoles = roles?.map(r => r.role) || [];
 
-        console.log('Login successful. User ID:', data.user.id);
-        console.log('Fetched roles:', roles);
-        console.log('User roles array:', userRoles);
-
         toast({
           title: t('welcomeBack'),
           description: t('loginSuccess'),
         });
 
-        if (userRoles.includes('admin')) {
-          console.log('Redirecting to /admin');
-          navigate('/admin');
-        } else if (userRoles.includes('supervisor')) {
-          console.log('Redirecting to /supervisor');
-          navigate('/supervisor');
-        } else if (userRoles.includes('committee_leader')) {
-          console.log('Redirecting to /leader');
-          navigate('/leader');
-        } else {
-          console.log('Redirecting to /dashboard');
-          navigate('/dashboard');
-        }
+        const destination = userRoles.includes('admin')
+          ? '/admin'
+          : userRoles.includes('supervisor')
+            ? '/supervisor'
+            : userRoles.includes('committee_leader')
+              ? '/leader'
+              : '/dashboard';
+
+        navigate(destination);
       }
     } catch (error) {
       toast({

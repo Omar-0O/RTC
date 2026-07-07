@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from 'sonner';
 import { Calendar, Clock, MapPin, Users, Sparkles, Download, Plus, Trash2, Mic, Link as LinkIcon } from 'lucide-react';
 import { format } from 'date-fns';
+import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 
 interface MyEvent {
     id: string;
@@ -28,6 +29,8 @@ type MyEventQueryRow = MyEvent & {
         name_ar: string | null;
     } | null;
 };
+
+const isMyEventCache = (value: unknown): value is MyEvent[] => Array.isArray(value);
 
 interface Speaker {
     id: string;
@@ -75,7 +78,7 @@ export default function MyEvents() {
             if (!orgData || orgData.length === 0) {
                 setEvents([]);
                 const cacheKey = `rtc_my_events_data_${user?.id}`;
-                localStorage.setItem(cacheKey, JSON.stringify([]));
+                setLocalCache(cacheKey, [], CACHE_TTL.short);
                 setLoading(false);
                 return;
             }
@@ -96,7 +99,7 @@ export default function MyEvents() {
             setEvents(eventsData);
 
             const cacheKey = `rtc_my_events_data_${user?.id}`;
-            localStorage.setItem(cacheKey, JSON.stringify(eventsData));
+            setLocalCache(cacheKey, eventsData, CACHE_TTL.short);
         } catch (error) {
             console.error('Error fetching my events:', error);
             toast.error(isRTL ? 'فشل تحميل إيفينتاتي' : 'Failed to load my events');
@@ -108,19 +111,12 @@ export default function MyEvents() {
     useEffect(() => {
         if (user) {
             const cacheKey = `rtc_my_events_data_${user.id}`;
-            const cached = localStorage.getItem(cacheKey);
+            const cached = getLocalCache<MyEvent[]>(cacheKey, isMyEventCache);
             let hasCache = false;
             if (cached) {
-                try {
-                    const parsed = JSON.parse(cached);
-                    if (Array.isArray(parsed)) {
-                        setEvents(parsed);
-                        setLoading(false);
-                        hasCache = true;
-                    }
-                } catch (e) {
-                    console.error('Error parsing cached my events:', e);
-                }
+                setEvents(cached);
+                setLoading(false);
+                hasCache = true;
             }
             fetchMyEvents(hasCache);
         }

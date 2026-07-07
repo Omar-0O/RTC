@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import type { Database } from '@/integrations/supabase/types';
+import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 
 type ProfileSummary = Pick<
     Database['public']['Tables']['profiles']['Row'],
@@ -47,6 +48,9 @@ type DashboardCache = {
     topVolunteers?: TopVolunteer[];
     committeeStats?: CommitteeStat[];
 };
+
+const isDashboardCache = (value: unknown): value is DashboardCache =>
+    typeof value === 'object' && value !== null;
 
 type DashboardStats = {
     totalVolunteers: number;
@@ -234,13 +238,12 @@ export default function SupervisorDashboard() {
             // Save to cache
             if (user?.id) {
                 const cacheKey = `rtc_supervisor_dashboard_data_${user.id}_${activeBranch?.id || 'all'}`;
-                localStorage.setItem(cacheKey, JSON.stringify({
+                setLocalCache(cacheKey, {
                     stats: updatedStats,
                     recentSubmissions: submissions,
                     topVolunteers: processedTopVolunteers,
                     committeeStats: committeeStatsData,
-                    cachedAt: Date.now()
-                }));
+                }, CACHE_TTL.short);
             }
         } catch (error) {
             console.error('Error fetching dashboard data:', error);
@@ -252,23 +255,18 @@ export default function SupervisorDashboard() {
     useEffect(() => {
         if (!user?.id) return;
         const cacheKey = `rtc_supervisor_dashboard_data_${user.id}_${activeBranch?.id || 'all'}`;
-        const cached = localStorage.getItem(cacheKey);
+        const cached = getLocalCache<DashboardCache>(cacheKey, isDashboardCache);
         if (cached) {
-            try {
-                const parsed = JSON.parse(cached) as DashboardCache;
-                setStats(parsed.stats || {
-                    totalVolunteers: 0,
-                    totalParticipations: 0,
-                    totalPointsAwarded: 0,
-                    activeCommittees: 0,
-                });
-                setRecentSubmissions(parsed.recentSubmissions || []);
-                setTopVolunteers(parsed.topVolunteers || []);
-                setCommitteeStats(parsed.committeeStats || []);
-                setLoading(false);
-            } catch (e) {
-                console.error('Error parsing cached supervisor dashboard data:', e);
-            }
+            setStats(cached.stats || {
+                totalVolunteers: 0,
+                totalParticipations: 0,
+                totalPointsAwarded: 0,
+                activeCommittees: 0,
+            });
+            setRecentSubmissions(cached.recentSubmissions || []);
+            setTopVolunteers(cached.topVolunteers || []);
+            setCommitteeStats(cached.committeeStats || []);
+            setLoading(false);
         }
         fetchDashboardData(!!cached);
     }, [user?.id, activeBranch?.id, fetchDashboardData]);
@@ -408,9 +406,6 @@ export default function SupervisorDashboard() {
                                                 <p className="text-xs text-muted-foreground mt-0.5">
                                                     {volunteer.total_points} {t('common.points')}
                                                 </p>
-                                            </div>
-                                            <div className="shrink-0">
-                                                {/* <LevelBadge level={volunteer.level as any} size="sm" /> */}
                                             </div>
                                         </div>
                                     );

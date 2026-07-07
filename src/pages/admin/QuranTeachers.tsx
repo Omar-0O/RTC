@@ -211,8 +211,6 @@ export default function QuranTeachers() {
 
             if (error) throw error;
 
-            console.log('Teachers fetched successfully', data?.length);
-
             const rows = (data ?? []) as QuranTeacherRecord[];
             const stats = await loadTeacherStats(rows.map((teacher) => teacher.id));
             const teachersWithStats = rows.map((teacher): QuranTeacher => {

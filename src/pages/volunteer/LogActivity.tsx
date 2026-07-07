@@ -19,6 +19,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { generateGroupSubmissionCSV } from '@/utils/excel';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
 
 interface Committee {
   id: string;
@@ -82,15 +83,6 @@ interface Volunteer {
   phone?: string;
   avatar_url?: string | null;
 }
-
-const PROOF_BUCKET = 'activity-proofs';
-const PROOF_MAX_BYTES = 5 * 1024 * 1024;
-const ALLOWED_PROOF_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const PROOF_FILE_EXTENSIONS: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-};
 
 export default function LogActivity() {
   const { user, profile, refreshProfile, primaryRole } = useAuth();
@@ -269,12 +261,12 @@ export default function LogActivity() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!ALLOWED_PROOF_TYPES.has(file.type)) {
-      toast.error(isRTL ? 'يرجى اختيار صورة JPG أو PNG أو WebP' : 'Please select a JPG, PNG, or WebP image');
+    if (!isSafeImageFile(file)) {
+      toast.error(isRTL ? 'يرجى اختيار صورة بصيغة JPG أو PNG أو WebP' : 'Please select a JPG, PNG, or WebP image');
       return;
     }
 
-    if (file.size > PROOF_MAX_BYTES) {
+    if (file.size > 5 * 1024 * 1024) {
       toast.error(isRTL ? 'حجم الصورة يجب أن يكون أقل من 5 ميجابايت' : 'Image must be less than 5MB');
       return;
     }
@@ -295,22 +287,19 @@ export default function LogActivity() {
     }
   };
 
-  const uploadProof = async (): Promise<string | null> => {
+  const uploadProof = async (pathPrefix: string = 'activity-proofs'): Promise<string | null> => {
     if (!proofFile || !user) return null;
 
     setIsUploading(true);
     try {
-      const fileExt = PROOF_FILE_EXTENSIONS[proofFile.type];
-      if (!fileExt) {
-        throw new Error('Unsupported proof file type');
-      }
+      const fileExt = getSafeImageExtension(proofFile);
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
-        .from(PROOF_BUCKET)
+        .from(pathPrefix)
         .upload(fileName, proofFile, {
-          contentType: proofFile.type,
           cacheControl: '3600',
+          contentType: proofFile.type,
         });
 
       if (uploadError) throw uploadError;
@@ -328,17 +317,18 @@ export default function LogActivity() {
   const uploadExcel = async (excelBlob: Blob, activityName: string, date: string): Promise<string | null> => {
     if (!user) return null;
     try {
+      // Sanitize activity name for filename (remove special characters)
       let sanitizedName = activityName.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
       if (!sanitizedName || sanitizedName.length < 3) sanitizedName = 'activity_report';
       const timestamp = new Date().getTime();
       const fileName = `${user.id}/group-reports/${sanitizedName}_${date}_${timestamp}.xlsx`;
 
       const { error: uploadError } = await supabase.storage
-        .from(PROOF_BUCKET)
+        .from('activity-proofs') // Reusing same bucket or create new one
         .upload(fileName, excelBlob, {
           upsert: true,
-          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           cacheControl: '3600',
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         });
 
       if (uploadError) throw uploadError;
@@ -1228,7 +1218,7 @@ export default function LogActivity() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/jpeg,image/png,image/webp"
+                      accept={SAFE_IMAGE_ACCEPT}
                       onChange={handleFileSelect}
                       className="hidden"
                     />

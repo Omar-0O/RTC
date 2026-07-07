@@ -35,6 +35,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 
 type RoomRow = Database['public']['Tables']['rooms']['Row'];
 type TrainerRow = Database['public']['Tables']['trainers']['Row'];
@@ -118,6 +119,15 @@ interface CourseAd {
     updater?: { full_name: string | null, full_name_ar: string | null } | null;
 }
 
+type MyCoursesCache = {
+    courses?: Course[];
+    organizerCourseIds?: string[];
+    marketerCourseIds?: string[];
+};
+
+const isMyCoursesCache = (value: unknown): value is MyCoursesCache =>
+    typeof value === 'object' && value !== null;
+
 const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
     'saturday': { en: 'Sat', ar: 'سبت' },
     'sunday': { en: 'Sun', ar: 'أحد' },
@@ -166,21 +176,14 @@ export default function MyCourses() {
     useEffect(() => {
         if (user) {
             const cacheKey = `rtc_my_courses_data_${user.id}`;
-            const cached = localStorage.getItem(cacheKey);
+            const cached = getLocalCache<MyCoursesCache>(cacheKey, isMyCoursesCache);
             let hasCache = false;
             if (cached) {
-                try {
-                    const parsed = JSON.parse(cached);
-                    if (parsed && Array.isArray(parsed.courses)) {
-                        setCourses(parsed.courses);
-                        setOrganizerCourseIds(new Set(parsed.organizerCourseIds || []));
-                        setMarketerCourseIds(new Set(parsed.marketerCourseIds || []));
-                        setLoading(false);
-                        hasCache = true;
-                    }
-                } catch (e) {
-                    console.error('Error parsing cached my courses:', e);
-                }
+                setCourses(cached.courses || []);
+                setOrganizerCourseIds(new Set(cached.organizerCourseIds || []));
+                setMarketerCourseIds(new Set(cached.marketerCourseIds || []));
+                setLoading(false);
+                hasCache = true;
             }
 
             fetchMyCourses(hasCache);
@@ -270,11 +273,11 @@ export default function MyCourses() {
                 setCourses([]);
                 
                 const cacheKey = `rtc_my_courses_data_${user?.id}`;
-                localStorage.setItem(cacheKey, JSON.stringify({
+                setLocalCache(cacheKey, {
                     courses: [],
                     organizerCourseIds: [],
                     marketerCourseIds: []
-                }));
+                }, CACHE_TTL.short);
 
                 setLoading(false);
                 return;
@@ -291,11 +294,11 @@ export default function MyCourses() {
             setCourses(coursesData);
 
             const cacheKey = `rtc_my_courses_data_${user?.id}`;
-            localStorage.setItem(cacheKey, JSON.stringify({
+            setLocalCache(cacheKey, {
                 courses: coursesData,
                 organizerCourseIds: Array.from(orgIdsSet),
                 marketerCourseIds: Array.from(mktIdsSet)
-            }));
+            }, CACHE_TTL.short);
         } catch (error) {
             console.error('Error fetching courses:', error);
             toast.error(isRTL ? 'فشل في تحميل الكورسات' : 'Failed to fetch courses');
@@ -571,7 +574,6 @@ export default function MyCourses() {
             for (const trainer of trainers) {
                 // 1. Always record with name + phone (no account needed)
                 await logTrainerRecord(trainer.name, trainer.phone, trainer.volunteerId);
-                console.log(`📋 تم تسجيل مشاركة "${trainer.name}" في محاضرة ${lectureNum}`);
 
                 // 2. If has profile + committee + activity AND is external → also record points
                 // Internal trainers with trainer_id are logged automatically by the database trigger
@@ -586,7 +588,6 @@ export default function MyCourses() {
                         submitted_at: lectureDate ? new Date(lectureDate + 'T12:00:00').toISOString() : new Date().toISOString()
                     });
                     if (error) console.error('خطأ في activity_submissions:', error);
-                    else console.log(`✅ نقاط مسجلة لـ ${trainer.name}`);
                 }
             }
         } catch (error) {

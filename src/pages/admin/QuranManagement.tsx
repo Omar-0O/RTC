@@ -52,6 +52,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { format } from 'date-fns';
 import { compressImage } from '@/utils/imageCompression';
 import { waPhoneLink } from '@/utils/phoneUtils';
+import { isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
 import type { TablesUpdate } from '@/integrations/supabase/types';
 
 interface Beneficiary {
@@ -127,6 +128,12 @@ export default function QuranManagement() {
     const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
+            if (!isSafeImageFile(file)) {
+                toast.error(isRTL ? 'يرجى اختيار صورة بصيغة JPG أو PNG أو WebP' : 'Please select a JPG, PNG, or WebP image');
+                e.target.value = '';
+                return;
+            }
+
             setSelectedImage(file);
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -172,6 +179,7 @@ export default function QuranManagement() {
                         .from('avatars')
                         .upload(fileName, compressedFile, {
                             cacheControl: '3600',
+                            contentType: compressedFile.type || 'image/jpeg',
                             upsert: false
                         });
 
@@ -469,7 +477,7 @@ export default function QuranManagement() {
                                     <Input
                                         id="image-upload"
                                         type="file"
-                                        accept="image/*"
+                                        accept={SAFE_IMAGE_ACCEPT}
                                         className="hidden"
                                         onChange={handleImageSelect}
                                     />

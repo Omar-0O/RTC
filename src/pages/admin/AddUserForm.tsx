@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Slider } from '@/components/ui/slider';
 import type { Database } from '@/integrations/supabase/types';
+import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
 
 type CommitteeOption = Pick<Database['public']['Tables']['committees']['Row'], 'id' | 'name' | 'name_ar'>;
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
@@ -171,8 +172,8 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error(language === 'ar' ? 'يرجى اختيار صورة فقط' : 'Please select an image file');
+    if (!isSafeImageFile(file)) {
+      toast.error(language === 'ar' ? 'يرجى اختيار صورة JPG أو PNG أو WebP' : 'Please select a JPG, PNG, or WebP image');
       return;
     }
 
@@ -215,12 +216,16 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
     if (!formAvatarFile) return null;
 
     try {
-      const fileExt = formAvatarFile.name.split('.').pop();
+      const fileExt = getSafeImageExtension(formAvatarFile);
       const fileName = `${userId}/avatar.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, formAvatarFile, { upsert: true });
+        .upload(fileName, formAvatarFile, {
+          upsert: true,
+          contentType: formAvatarFile.type,
+          cacheControl: '3600',
+        });
 
       if (uploadError) throw uploadError;
 
@@ -475,7 +480,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
             <div className="flex-1">
               <Input
                 type="file"
-                accept="image/*"
+                accept={SAFE_IMAGE_ACCEPT}
                 ref={fileInputRef}
                 onChange={handleAvatarSelect}
                 className="cursor-pointer"

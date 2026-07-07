@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar, Clock, MapPin, User, Users, Phone, FileSpreadsheet, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
+import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 
 interface Course {
     id: string;
@@ -39,6 +40,14 @@ interface QuranCircle {
     is_active: boolean;
     time?: string;
 }
+
+type CourseScheduleCache = {
+    courses?: Course[];
+    circles?: QuranCircle[];
+};
+
+const isCourseScheduleCache = (value: unknown): value is CourseScheduleCache =>
+    typeof value === 'object' && value !== null;
 
 type QuranCircleRow = {
     id: string;
@@ -166,10 +175,10 @@ export default function CourseSchedule() {
 
             if (user?.id) {
                 const cacheKey = `rtc_course_schedule_${user.id}_${activeBranch?.id || 'all'}`;
-                localStorage.setItem(cacheKey, JSON.stringify({
+                setLocalCache(cacheKey, {
                     courses: coursesList,
                     circles: circlesList
-                }));
+                }, CACHE_TTL.short);
             }
         } catch (e) {
             console.error('Error fetching course schedule data:', e);
@@ -181,16 +190,11 @@ export default function CourseSchedule() {
     useEffect(() => {
         if (!user?.id) return;
         const cacheKey = `rtc_course_schedule_${user.id}_${activeBranch?.id || 'all'}`;
-        const cached = localStorage.getItem(cacheKey);
+        const cached = getLocalCache<CourseScheduleCache>(cacheKey, isCourseScheduleCache);
         if (cached) {
-            try {
-                const parsed = JSON.parse(cached) as { courses?: Course[]; circles?: QuranCircle[] };
-                setCourses(parsed.courses || []);
-                setCircles(parsed.circles || []);
-                setLoading(false);
-            } catch (e) {
-                console.error('Error parsing cached course schedule:', e);
-            }
+            setCourses(cached.courses || []);
+            setCircles(cached.circles || []);
+            setLoading(false);
         }
         fetchData(!!cached);
     }, [activeBranch?.id, fetchData, user?.id]);

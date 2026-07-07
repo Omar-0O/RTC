@@ -80,6 +80,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { waPhoneLink } from '@/utils/phoneUtils';
 import { VolunteerProfilePreview } from '@/components/volunteer/VolunteerProfilePreview';
+import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
 
 // Image utilities extracted to @/utils/imageCrop
 
@@ -360,8 +361,8 @@ export default function UserManagement() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error(language === 'ar' ? 'يرجى اختيار صورة فقط' : 'Please select an image file');
+    if (!isSafeImageFile(file)) {
+      toast.error(language === 'ar' ? 'يرجى اختيار صورة JPG أو PNG أو WebP' : 'Please select a JPG, PNG, or WebP image');
       return;
     }
 
@@ -409,12 +410,16 @@ export default function UserManagement() {
     if (!formAvatarFile) return null;
 
     try {
-      const fileExt = formAvatarFile.name.split('.').pop();
+      const fileExt = getSafeImageExtension(formAvatarFile);
       const fileName = `${userId}/avatar.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, formAvatarFile, { upsert: true });
+        .upload(fileName, formAvatarFile, {
+          upsert: true,
+          contentType: formAvatarFile.type,
+          cacheControl: '3600',
+        });
 
       if (uploadError) throw uploadError;
 
@@ -474,16 +479,12 @@ export default function UserManagement() {
         throw error;
       }
 
-      console.log('Create user response:', data);
-
       // Check for errors returned from the Edge Function
       if (!data?.user) {
         const errorMsg = data?.error || 'Failed to create user - no user returned';
         console.error('Create user failed:', errorMsg);
         throw new Error(errorMsg);
       }
-
-      console.log('User created successfully:', data.user.id);
 
       // Upload avatar if provided
       if (formAvatarFile && data.user) {
@@ -608,8 +609,6 @@ export default function UserManagement() {
         .select();
 
       if (profileError) throw profileError;
-
-      console.log('Update response:', profileData);
 
       if (!profileData || profileData.length === 0) {
         throw new Error('Update failed - no changes applied (check permissions)');
@@ -1100,7 +1099,7 @@ export default function UserManagement() {
                     <div className="flex-1">
                       <Input
                         type="file"
-                        accept="image/*"
+                        accept={SAFE_IMAGE_ACCEPT}
                         ref={fileInputRef}
                         onChange={handleAvatarSelect}
                         className="cursor-pointer"
@@ -1340,7 +1339,7 @@ export default function UserManagement() {
                   <div className="flex-1">
                     <Input
                       type="file"
-                      accept="image/*"
+                      accept={SAFE_IMAGE_ACCEPT}
                       ref={fileInputRef}
                       onChange={handleAvatarSelect}
                       className="cursor-pointer"

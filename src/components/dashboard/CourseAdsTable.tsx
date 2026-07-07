@@ -11,6 +11,7 @@ import { Loader2, Megaphone, CheckCircle2, Circle, ChevronRight, ChevronLeft, Ca
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths, parseISO, differenceInCalendarDays } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import type { Database } from '@/integrations/supabase/types';
+import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 
 type CourseAdRow = Database['public']['Tables']['course_ads']['Row'];
 type QuranCircleAdRow = Database['public']['Tables']['quran_circle_ads']['Row'];
@@ -65,6 +66,8 @@ interface CourseAdsTableProps {
     ads?: CourseAd[];
     title?: string;
 }
+
+const isCourseAdCache = (value: unknown): value is CourseAd[] => Array.isArray(value);
 
 const DAY_MAP: Record<number, string> = {
     0: 'sunday',
@@ -231,7 +234,7 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
 
             if (user?.id) {
                 const cacheKey = `rtc_course_ads_${user.id}_${activeBranch?.id || 'all'}`;
-                localStorage.setItem(cacheKey, JSON.stringify(allAds));
+                setLocalCache(cacheKey, allAds, CACHE_TTL.short);
             }
         } catch (error) {
             console.error('Error fetching ads:', error);
@@ -246,14 +249,10 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
             setLoading(false);
         } else if (user?.id) {
             const cacheKey = `rtc_course_ads_${user.id}_${activeBranch?.id || 'all'}`;
-            const cached = localStorage.getItem(cacheKey);
+            const cached = getLocalCache<CourseAd[]>(cacheKey, isCourseAdCache);
             if (cached) {
-                try {
-                    setAds(JSON.parse(cached) as CourseAd[]);
-                    setLoading(false);
-                } catch (e) {
-                    console.error('Error parsing cached course ads:', e);
-                }
+                setAds(cached);
+                setLoading(false);
             }
             fetchAds(!!cached);
         }

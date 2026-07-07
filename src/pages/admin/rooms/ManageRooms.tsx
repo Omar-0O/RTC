@@ -34,11 +34,27 @@ interface Room {
   } | null;
 }
 
+type RoomInsert = Pick<Room, "id" | "name" | "name_ar" | "branch_id">;
+type RoomUpdate = Pick<Room, "name" | "name_ar" | "branch_id">;
+type SupabaseRoomsClient = {
+  from(table: "rooms"): {
+    select(columns: string): {
+      order(column: string, options: { ascending: boolean }): Promise<{ data: Room[] | null; error: Error | null }>;
+    };
+    update(values: RoomUpdate): {
+      eq(column: "id", value: string): Promise<{ error: Error | null }>;
+    };
+    insert(values: RoomInsert[]): Promise<{ error: Error | null }>;
+    delete(): {
+      eq(column: "id", value: string): Promise<{ error: Error | null }>;
+    };
+  };
+};
+
 export default function ManageRooms() {
   const { isRTL } = useLanguage();
   const { activeBranch, branches, canViewAllBranches } = useBranch();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const supabaseClient = supabase as any;
+  const supabaseClient = supabase as unknown as SupabaseRoomsClient;
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -60,7 +76,7 @@ export default function ManageRooms() {
       console.error("Error fetching rooms:", error);
       toast.error(isRTL ? "فشل تحميل القاعات" : "Failed to fetch rooms");
     } else {
-      setRooms((data as unknown as Room[]) || []);
+      setRooms(data || []);
     }
     setLoading(false);
   };

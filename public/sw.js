@@ -5,7 +5,7 @@
  *  • App Shell (HTML, critical CSS)  → Stale-While-Revalidate
  *  • Static Assets (JS, CSS, fonts)  → Cache First (versioned)
  *  • Images/Media                    → Cache First (long TTL)
- *  • API requests (Supabase)         → Network First, cache fallback for GETs
+ *  • API requests (Supabase)         → Network Only (private user data)
  *  • Auth endpoints                  → Network Only (NEVER cache)
  *  • Edge Functions                  → Network Only (mutations)
  *
@@ -15,10 +15,8 @@
 const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `rtc-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `rtc-dynamic-${CACHE_VERSION}`;
-const API_CACHE = `rtc-api-${CACHE_VERSION}`;
 
 // Maximum entries per cache to prevent unbounded growth
-const MAX_API_CACHE_ENTRIES = 100;
 const MAX_DYNAMIC_CACHE_ENTRIES = 200;
 
 // Pre-cache these during install (app shell)
@@ -32,7 +30,6 @@ const APP_SHELL = [
 // ─── Install: pre-cache app shell & auto-activate ───────────────────
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing version:', CACHE_VERSION);
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => cache.addAll(APP_SHELL))
@@ -50,7 +47,6 @@ self.addEventListener('message', (event) => {
 // ─── Activate: clean old caches & claim clients immediately ─────────
 
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating version:', CACHE_VERSION);
   event.waitUntil(
     Promise.all([
       self.clients.claim(),
@@ -59,10 +55,7 @@ self.addEventListener('activate', (event) => {
         return Promise.all(
           cacheNames
             .filter((name) => !name.includes(CACHE_VERSION))
-            .map((name) => {
-              console.log('[SW] Deleting old cache:', name);
-              return caches.delete(name);
-            })
+            .map((name) => caches.delete(name))
         );
       }),
     ]).then(() => {
@@ -101,9 +94,9 @@ self.addEventListener('fetch', (event) => {
   // Supabase Edge Functions → Network Only (never cache)
   if (url.pathname.includes('/functions/v1/')) return;
 
-  // Supabase REST API (PostgREST) → Network First with GET cache fallback
+  // Supabase REST API (PostgREST/Storage) → Network Only.
+  // Responses can contain role/branch-scoped private data and must not be cached.
   if (url.hostname.includes('supabase')) {
-    event.respondWith(networkFirstWithCache(request, API_CACHE));
     return;
   }
 
@@ -135,6 +128,9 @@ async function cacheFirst(request, cacheName) {
     if (response.ok) {
       const cache = await caches.open(cacheName);
       cache.put(request, response.clone());
+      if (cacheName === DYNAMIC_CACHE) {
+        trimCache(cacheName, MAX_DYNAMIC_CACHE_ENTRIES);
+      }
     }
     return response;
   } catch (err) {
@@ -148,31 +144,6 @@ async function cacheFirst(request, cacheName) {
       });
     }
     throw err;
-  }
-}
-
-/** Network First: try network, fallback to cache */
-async function networkFirstWithCache(request, cacheName) {
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(cacheName);
-      cache.put(request, response.clone());
-      // Trim cache if it gets too large
-      trimCache(cacheName, MAX_API_CACHE_ENTRIES);
-    }
-    return response;
-  } catch (err) {
-    const cached = await caches.match(request);
-    if (cached) {
-      console.log('[SW] Serving API from cache:', request.url);
-      return cached;
-    }
-    // Return an empty JSON response for offline API calls
-    return new Response(JSON.stringify({ data: [], error: 'offline' }), {
-      status: 503,
-      headers: { 'Content-Type': 'application/json' },
-    });
   }
 }
 

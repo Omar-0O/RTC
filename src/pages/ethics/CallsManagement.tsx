@@ -218,12 +218,10 @@ export default function CallsManagement() {
 
 
     const awardPoints = async (participantsList: Participant[], callName: string) => {
-        console.log('Awarding points for:', callName, participantsList);
         const activityTypeId = await getEthicsActivityTypeId();
 
         // Filter valid volunteers
         const validParticipants = participantsList.filter(isVolunteerParticipant);
-        console.log('Valid volunteers found:', validParticipants.length, validParticipants);
 
         if (!activityTypeId) {
             console.error('Ethics Publishing activity type not found');
@@ -236,8 +234,6 @@ export default function CallsManagement() {
             if (hasVolunteers) {
                 console.error('Volunteers found but missing IDs. Raw list:', participantsList);
                 toast.error(isRTL ? 'خطأ: بيانات المتطوعين غير مكتملة' : 'Error: Volunteer data incomplete');
-            } else {
-                console.log('No volunteers to award points to.');
             }
             return;
         }
@@ -259,8 +255,6 @@ export default function CallsManagement() {
             };
         });
 
-        console.log('Submitting RPC payload:', submissions);
-
         // Use RPC to bypass RLS issues cleanly
         const { error } = await supabase.rpc('award_ethics_call_points', {
             participants: submissions
@@ -270,7 +264,6 @@ export default function CallsManagement() {
             console.error('Error awarding points:', error);
             toast.error(isRTL ? `خطأ في تسجيل النقاط: ${error.message}` : `Error awarding points: ${error.message}`);
         } else {
-            console.log('Points awarded successfully');
             toast.success(isRTL ? `تم تسجيل 10 أثر للمتطوعين` : `Awarded 10 points to volunteers`);
         }
     };

@@ -7,7 +7,7 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { onSyncStateChange, flushQueue, type SyncState } from '@/lib/syncManager';
-import { enqueue, getPendingCount, type MutationType } from '@/lib/offlineQueue';
+import { canQueueOfflineMutation, enqueue, getPendingCount, type MutationType } from '@/lib/offlineQueue';
 
 // ─── useOfflineStatus ───────────────────────────────────────────────
 
@@ -90,6 +90,9 @@ const isNetworkError = (error: unknown): boolean => {
 const toError = (error: unknown): Error =>
   error instanceof Error ? error : new Error(String(error));
 
+const createQueueBlockedError = (type: MutationType) =>
+  new Error(`Offline queue disabled for sensitive mutation: ${type}`);
+
 export function useOfflineMutation<TPayload, TResult = unknown>(
   type: MutationType,
   onlineFn: (payload: TPayload) => Promise<TResult>,
@@ -117,7 +120,12 @@ export function useOfflineMutation<TPayload, TResult = unknown>(
       } catch (err: unknown) {
         // If it's a network error, queue it instead
         if (isNetworkError(err)) {
-          console.log('[OfflineMutation] Network error, queueing...');
+          if (!canQueueOfflineMutation(type)) {
+            const queueError = createQueueBlockedError(type);
+            options?.onRollback?.(payload);
+            options?.onError?.(queueError);
+            throw queueError;
+          }
           await enqueue(type, payload);
           return;
         }
@@ -129,7 +137,12 @@ export function useOfflineMutation<TPayload, TResult = unknown>(
       }
     } else {
       // Offline: queue for later sync
-      console.log(`[OfflineMutation] Offline, queueing ${type}...`);
+      if (!canQueueOfflineMutation(type)) {
+        const queueError = createQueueBlockedError(type);
+        options?.onRollback?.(payload);
+        options?.onError?.(queueError);
+        throw queueError;
+      }
       await enqueue(type, payload);
     }
   }, [isOnline, type, onlineFn, options]);

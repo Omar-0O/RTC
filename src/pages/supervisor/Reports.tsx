@@ -191,9 +191,6 @@ export default function Reports() {
 
       if (committeesRes.data) setCommittees(committeesRes.data);
       if (submissionsRes.data) {
-        console.log('DEBUG: Fetched Submissions:', submissionsRes.data.length);
-        const guestSubs = submissionsRes.data.filter(s => s.participant_type === 'guest' || s.guest_name);
-        console.log('DEBUG: Guest Submissions Sample:', guestSubs.slice(0, 3));
         setSubmissions(submissionsRes.data);
       }
       if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
@@ -530,7 +527,6 @@ export default function Reports() {
             [language === 'ar' ? 'رابط الإثبات' : 'Proof Link']: s.proof_url || '',
           };
         });
-        console.log('DEBUG: Mapped Report Data Sample:', reportData.slice(0, 3));
         // Use 'participation_log' filename, filtered by current month
         downloadCSV(reportData, `participation_log_${dateRange}`);
         break;

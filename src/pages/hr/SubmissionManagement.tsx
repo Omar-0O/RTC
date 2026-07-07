@@ -165,6 +165,11 @@ const getSourceRelation = <TSource extends string>(
     return Array.isArray(source) ? source[0] : source;
 };
 
+const escapeCsvCell = (value: string | number | boolean | null | undefined) => {
+    const text = String(value ?? '');
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
 export default function SubmissionManagement() {
     const { user, primaryRole } = useAuth();
     const { t, language } = useLanguage();
@@ -478,41 +483,36 @@ export default function SubmissionManagement() {
                 });
             }
 
-            // Fetch call participants (guests)
-            const callQuery = supabase
-                .from('ethics_calls_participants')
-                .select(`
-                    id,
-                    name,
-                    phone,
-                    is_volunteer,
-                    ethics_calls!inner (name, date, branch_id)
-                `)
-                .eq('is_volunteer', false)
-                .gte('ethics_calls.date', startDate.toISOString().split('T')[0])
-                .lte('ethics_calls.date', endDate.toISOString().split('T')[0]);
+            if (!activeBranch?.id) {
+                const { data: callParticipants } = await supabase
+                    .from('ethics_calls_participants')
+                    .select(`
+                        id,
+                        name,
+                        phone,
+                        is_volunteer,
+                        ethics_calls!inner (name, date)
+                    `)
+                    .eq('is_volunteer', false)
+                    .gte('ethics_calls.date', startDate.toISOString().split('T')[0])
+                    .lte('ethics_calls.date', endDate.toISOString().split('T')[0]);
 
-            const { data: callParticipants } = await (
-                activeBranch?.id
-                    ? callQuery.eq('ethics_calls.branch_id', activeBranch.id)
-                    : callQuery
-            );
-
-            if (callParticipants) {
-                (callParticipants as GuestParticipantRow<'ethics_calls'>[]).forEach((p) => {
-                    const ethicsCall = getSourceRelation(p, 'ethics_calls');
-                    if (ethicsCall) {
-                        guestData.push({
-                            id: p.id,
-                            name: p.name || '',
-                            phone: p.phone,
-                            source: 'call',
-                            source_name: ethicsCall.name || '',
-                            date: ethicsCall.date || '',
-                            type: 'guest'
-                        });
-                    }
-                });
+                if (callParticipants) {
+                    (callParticipants as GuestParticipantRow<'ethics_calls'>[]).forEach((p) => {
+                        const ethicsCall = getSourceRelation(p, 'ethics_calls');
+                        if (ethicsCall) {
+                            guestData.push({
+                                id: p.id,
+                                name: p.name || '',
+                                phone: p.phone,
+                                source: 'call',
+                                source_name: ethicsCall.name || '',
+                                date: ethicsCall.date || '',
+                                type: 'guest'
+                            });
+                        }
+                    });
+                }
             }
 
             setGuestParticipations(guestData);
@@ -616,22 +616,16 @@ export default function SubmissionManagement() {
         const headers = Object.keys(safeReportData[0]);
         const csvContent = [
             headers.join(','),
-            ...safeReportData.map(row => headers.map(header => {
-                const value = row[header];
-                // Escape commas and quotes in values
-                if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-                    return `"${value.replace(/"/g, '""')}"`;
-                }
-                return value ?? '';
-            }).join(','))
+            ...safeReportData.map(row => headers.map(header => escapeCsvCell(row[header])).join(','))
         ].join('\n');
 
         const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
+        const objectUrl = URL.createObjectURL(blob);
+        link.href = objectUrl;
         link.download = `participation_log_${selectedMonth}.csv`;
         link.click();
-        URL.revokeObjectURL(link.href);
+        URL.revokeObjectURL(objectUrl);
 
         toast.success(isRTL ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
     };
