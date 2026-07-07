@@ -83,6 +83,15 @@ interface Volunteer {
   avatar_url?: string | null;
 }
 
+const PROOF_BUCKET = 'activity-proofs';
+const PROOF_MAX_BYTES = 5 * 1024 * 1024;
+const ALLOWED_PROOF_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const PROOF_FILE_EXTENSIONS: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+
 export default function LogActivity() {
   const { user, profile, refreshProfile, primaryRole } = useAuth();
   const { t, isRTL, language } = useLanguage();
@@ -260,12 +269,12 @@ export default function LogActivity() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      toast.error(isRTL ? 'يرجى اختيار صورة فقط' : 'Please select an image file');
+    if (!ALLOWED_PROOF_TYPES.has(file.type)) {
+      toast.error(isRTL ? 'يرجى اختيار صورة JPG أو PNG أو WebP' : 'Please select a JPG, PNG, or WebP image');
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
+    if (file.size > PROOF_MAX_BYTES) {
       toast.error(isRTL ? 'حجم الصورة يجب أن يكون أقل من 5 ميجابايت' : 'Image must be less than 5MB');
       return;
     }
@@ -286,17 +295,23 @@ export default function LogActivity() {
     }
   };
 
-  const uploadProof = async (pathPrefix: string = 'activity-proofs'): Promise<string | null> => {
+  const uploadProof = async (): Promise<string | null> => {
     if (!proofFile || !user) return null;
 
     setIsUploading(true);
     try {
-      const fileExt = proofFile.name.split('.').pop();
+      const fileExt = PROOF_FILE_EXTENSIONS[proofFile.type];
+      if (!fileExt) {
+        throw new Error('Unsupported proof file type');
+      }
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
-        .from(pathPrefix)
-        .upload(fileName, proofFile);
+        .from(PROOF_BUCKET)
+        .upload(fileName, proofFile, {
+          contentType: proofFile.type,
+          cacheControl: '3600',
+        });
 
       if (uploadError) throw uploadError;
 
@@ -313,18 +328,18 @@ export default function LogActivity() {
   const uploadExcel = async (excelBlob: Blob, activityName: string, date: string): Promise<string | null> => {
     if (!user) return null;
     try {
-      // Sanitize activity name for filename (remove special characters)
-      console.log('Original activity name:', activityName);
       let sanitizedName = activityName.replace(/[^a-zA-Z0-9\s]/g, '').replace(/\s+/g, '_');
-      console.log('Sanitized name:', sanitizedName);
-      if (!sanitizedName || sanitizedName.length < 3) sanitizedName = 'activity_report';
       if (!sanitizedName || sanitizedName.length < 3) sanitizedName = 'activity_report';
       const timestamp = new Date().getTime();
       const fileName = `${user.id}/group-reports/${sanitizedName}_${date}_${timestamp}.xlsx`;
 
       const { error: uploadError } = await supabase.storage
-        .from('activity-proofs') // Reusing same bucket or create new one
-        .upload(fileName, excelBlob, { upsert: true });
+        .from(PROOF_BUCKET)
+        .upload(fileName, excelBlob, {
+          upsert: true,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          cacheControl: '3600',
+        });
 
       if (uploadError) throw uploadError;
 
@@ -1213,7 +1228,7 @@ export default function LogActivity() {
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp"
                       onChange={handleFileSelect}
                       className="hidden"
                     />

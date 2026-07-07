@@ -33,7 +33,7 @@ import { LevelBadge } from '@/components/ui/level-badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { toast } from 'sonner';
-import Profile from '@/pages/volunteer/Profile';
+import { VolunteerProfilePreview } from '@/components/volunteer/VolunteerProfilePreview';
 import type { Database } from '@/integrations/supabase/types';
 import type { UserRole } from '@/types';
 
@@ -628,7 +628,7 @@ export default function SupervisorUserManagement() {
                     <DialogTitle className="sr-only">
                         {language === 'ar' ? 'الملف الشخصي للمتطوع' : "Volunteer Profile"}
                     </DialogTitle>
-                    {viewProfileUser && <Profile userId={viewProfileUser.id} />}
+                    {viewProfileUser && <VolunteerProfilePreview userId={viewProfileUser.id} />}
                 </DialogContent>
             </Dialog>
         </div>

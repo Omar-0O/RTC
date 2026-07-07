@@ -29,7 +29,7 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import Profile from '@/pages/volunteer/Profile';
+import { VolunteerProfilePreview } from '@/components/volunteer/VolunteerProfilePreview';
 import { EditAshbalDialog } from "./EditAshbalDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { waPhoneLink } from '@/utils/phoneUtils';
@@ -452,7 +452,7 @@ export default function AshbalManagement() {
                     <DialogDescription className="sr-only">
                         {isRTL ? 'عرض تفاصيل الملف الشخصي' : "View profile details"}
                     </DialogDescription>
-                    {viewProfileUser && <Profile userId={viewProfileUser.id} />}
+                    {viewProfileUser && <VolunteerProfilePreview userId={viewProfileUser.id} />}
                 </DialogContent>
             </Dialog>
 

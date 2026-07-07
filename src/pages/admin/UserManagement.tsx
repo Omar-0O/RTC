@@ -76,10 +76,10 @@ type AppRole = UserRole;
 
 // UserWithDetails interface imported from useUsers hook
 
-import Profile from '@/pages/volunteer/Profile';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { waPhoneLink } from '@/utils/phoneUtils';
+import { VolunteerProfilePreview } from '@/components/volunteer/VolunteerProfilePreview';
 
 // Image utilities extracted to @/utils/imageCrop
 
@@ -1912,7 +1912,7 @@ export default function UserManagement() {
           <DialogDescription className="sr-only">
             {language === 'ar' ? 'عرض تفاصيل الملف الشخصي' : "View profile details"}
           </DialogDescription>
-          {viewProfileUser && <Profile userId={viewProfileUser.id} />}
+          {viewProfileUser && <VolunteerProfilePreview userId={viewProfileUser.id} />}
         </DialogContent>
       </Dialog >
 

@@ -32,11 +32,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear, getDaysInMonth } from 'date-fns';
 import { normalizePhoneE164 } from '@/utils/phoneUtils';
 import type { Database } from '@/integrations/supabase/types';
+import { sanitizeSpreadsheetRows, type SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 type FollowupUserRow = Database['public']['Tables']['users_followup']['Row'];
 type FollowupUserInsert = Database['public']['Tables']['users_followup']['Insert'];
-type CsvValue = string | number | boolean | null | undefined;
-type CsvRow = Record<string, CsvValue>;
 
 type PieLabelProps = {
   cx?: number | string;
@@ -305,6 +304,11 @@ export default function Reports() {
   const profilesMap = useMemo(() => new Map(profiles.map(p => [p.id, p])), [profiles]);
   const activityTypesMap = useMemo(() => new Map(activityTypes.map(a => [a.id, a])), [activityTypes]);
   const committeesMap = useMemo(() => new Map(committees.map(c => [c.id, c])), [committees]);
+  const trainersById = useMemo(() => new Map(trainers.map(trainer => [trainer.id, trainer])), [trainers]);
+  const trainersByUserId = useMemo(
+    () => new Map(trainers.filter(trainer => trainer.user_id).map(trainer => [trainer.user_id as string, trainer])),
+    [trainers],
+  );
 
   useEffect(() => {
     fetchData();
@@ -362,7 +366,7 @@ export default function Reports() {
 
       // Fetch trainers
       const { data: trainersData } = await supabase.from('trainers').select('id, user_id, name_en, name_ar, phone');
-      if (trainersData) setTrainers(trainersData as unknown as Trainer[]);
+      if (trainersData) setTrainers(trainersData as Trainer[]);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -621,19 +625,19 @@ export default function Reports() {
   }, [activityTypes, filteredSubmissions, language]);
 
   // CSV Export functions
-  const downloadCSV = (data: CsvRow[], filename: string) => {
+  const downloadCSV = (data: SpreadsheetRow[], filename: string) => {
     if (data.length === 0) {
       toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
       return;
     }
 
-    const headers = Object.keys(data[0]);
+    const safeRows = sanitizeSpreadsheetRows(data);
+    const headers = Object.keys(safeRows[0]);
     const csvContent = [
       headers.join(','),
-      ...data.map(row => headers.map(header => {
-        let value = row[header];
+      ...safeRows.map(row => headers.map(header => {
+        const value = row[header];
         if (typeof value === 'string') {
-          value = value.replace(/[\r\n]+/g, ' ');
           if (value.includes(',') || value.includes('"')) {
             return `"${value.replace(/"/g, '""')}"`;
           }
@@ -682,7 +686,7 @@ export default function Reports() {
             [language === 'ar' ? 'حضر الكامب' : 'Attended Camp']: campAttendance,
             [language === 'ar' ? 'الأثر' : 'Impact']: p.total_points,
             [language === 'ar' ? 'عدد المشاركات' : 'Participations Count']: p.activities_count,
-            [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'اللجنة' : 'Committee']: (p.committee_id ? committeesMap.get(p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] : '') || '',
           };
         });
         downloadCSV(volunteersData, 'volunteers');
@@ -716,13 +720,13 @@ export default function Reports() {
           if (s.participant_type === 'trainer' || s.trainer_id) {
             participantType = language === 'ar' ? 'مدرب' : 'Trainer';
             // Try to find trainer by trainer_id first
-            const linkedTrainer = s.trainer_id ? trainers.find(t => t.id === s.trainer_id) : null;
+            const linkedTrainer = s.trainer_id ? trainersById.get(s.trainer_id) : null;
             if (linkedTrainer) {
               participantName = language === 'ar' ? linkedTrainer.name_ar : linkedTrainer.name_en;
               participantPhone = linkedTrainer.phone || '';
             } else if (volunteer) {
               // Fallback to volunteer profile if trainer record not found
-              const trainerByUserId = trainers.find(t => t.user_id === s.volunteer_id);
+              const trainerByUserId = s.volunteer_id ? trainersByUserId.get(s.volunteer_id) : null;
               if (trainerByUserId) {
                 participantName = language === 'ar' ? trainerByUserId.name_ar : trainerByUserId.name_en;
                 participantPhone = trainerByUserId.phone || '';
@@ -840,12 +844,12 @@ export default function Reports() {
             let participantPhone = '';
             if (s.participant_type === 'trainer' || s.trainer_id) {
               participantType = language === 'ar' ? 'مدرب' : 'Trainer';
-              const linkedTrainer = s.trainer_id ? trainers.find(t => t.id === s.trainer_id) : null;
+              const linkedTrainer = s.trainer_id ? trainersById.get(s.trainer_id) : null;
               if (linkedTrainer) {
                 participantName = language === 'ar' ? linkedTrainer.name_ar : linkedTrainer.name_en;
                 participantPhone = linkedTrainer.phone || '';
               } else if (volunteer) {
-                const trainerByUser = trainers.find(t => t.user_id === s.volunteer_id);
+                const trainerByUser = s.volunteer_id ? trainersByUserId.get(s.volunteer_id) : null;
                 participantName = trainerByUser
                   ? (language === 'ar' ? trainerByUser.name_ar : trainerByUser.name_en)
                   : ((language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName));
@@ -883,16 +887,16 @@ export default function Reports() {
           const { utils, writeFile } = await import('@e965/xlsx');
           const wb = utils.book_new();
 
-          const allWs = utils.json_to_sheet(allReportData);
+          const allWs = utils.json_to_sheet(sanitizeSpreadsheetRows(allReportData));
           utils.book_append_sheet(wb, allWs, language === 'ar' ? 'مشاركات كلي' : 'All Participations');
 
           if (volReportData.length > 0) {
-            const volWs = utils.json_to_sheet(volReportData);
+            const volWs = utils.json_to_sheet(sanitizeSpreadsheetRows(volReportData));
             utils.book_append_sheet(wb, volWs, language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations');
           }
 
           if (oneDayReportData.length > 0) {
-            const oneDayWs = utils.json_to_sheet(oneDayReportData);
+            const oneDayWs = utils.json_to_sheet(sanitizeSpreadsheetRows(oneDayReportData));
             utils.book_append_sheet(wb, oneDayWs, 'مشاركة اليوم الواحد');
           }
 
@@ -1380,13 +1384,13 @@ export default function Reports() {
                         
                         // trainer
                         if (s.trainer_id) {
-                           const tr = trainers.find(t => t.id === s.trainer_id);
+                           const tr = trainersById.get(s.trainer_id);
                            if (tr) {
                              if (!participantName) participantName = tr.name_ar || tr.name_en;
                              if (tr.phone) phones.push(tr.phone);
                            }
                         } else if (s.volunteer_id) {
-                           const tr = trainers.find(t => t.user_id === s.volunteer_id);
+                           const tr = trainersByUserId.get(s.volunteer_id);
                            if (tr) {
                              if (!participantName) participantName = tr.name_ar || tr.name_en;
                              if (tr.phone) phones.push(tr.phone);
@@ -1555,12 +1559,12 @@ export default function Reports() {
                                 participantPhone = s.guest_phone || '';
                               } else if (s.participant_type === 'trainer' || s.trainer_id) {
                                 participantType = language === 'ar' ? 'مدرب' : 'Trainer';
-                                const linkedTrainer = s.trainer_id ? trainers.find(t => t.id === s.trainer_id) : null;
+                                const linkedTrainer = s.trainer_id ? trainersById.get(s.trainer_id) : null;
                                 if (linkedTrainer) {
                                   participantName = language === 'ar' ? linkedTrainer.name_ar : linkedTrainer.name_en;
                                   participantPhone = linkedTrainer.phone || '';
                                 } else if (volunteer) {
-                                  const trainerByUserId = trainers.find(t => t.user_id === s.volunteer_id);
+                                  const trainerByUserId = s.volunteer_id ? trainersByUserId.get(s.volunteer_id) : null;
                                   if (trainerByUserId) {
                                     participantName = language === 'ar' ? trainerByUserId.name_ar : trainerByUserId.name_en;
                                     participantPhone = trainerByUserId.phone || '';
@@ -1668,12 +1672,12 @@ export default function Reports() {
                                   participantPhone = s.guest_phone || '';
                                 } else if (s.participant_type === 'trainer' || s.trainer_id) {
                                   participantType = language === 'ar' ? 'مدرب' : 'Trainer';
-                                  const linkedTrainer = s.trainer_id ? trainers.find(t => t.id === s.trainer_id) : null;
+                                  const linkedTrainer = s.trainer_id ? trainersById.get(s.trainer_id) : null;
                                   if (linkedTrainer) {
                                     participantName = language === 'ar' ? linkedTrainer.name_ar : linkedTrainer.name_en;
                                     participantPhone = linkedTrainer.phone || '';
                                   } else if (volunteer) {
-                                    const trainerByUser = trainers.find(t => t.user_id === s.volunteer_id);
+                                    const trainerByUser = s.volunteer_id ? trainersByUserId.get(s.volunteer_id) : null;
                                     participantName = trainerByUser
                                       ? (language === 'ar' ? trainerByUser.name_ar : trainerByUser.name_en)
                                       : ((language === 'ar' && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || participantName));
@@ -1704,8 +1708,10 @@ export default function Reports() {
                               const { utils, writeFile } = await import('@e965/xlsx');
                               const wb = utils.book_new();
 
-                              const wsAll = utils.json_to_sheet(allReportData);
-                              const wsVol = utils.json_to_sheet(volReportData);
+                              const safeAllReportData = sanitizeSpreadsheetRows(allReportData);
+                              const safeVolReportData = sanitizeSpreadsheetRows(volReportData);
+                              const wsAll = utils.json_to_sheet(safeAllReportData);
+                              const wsVol = utils.json_to_sheet(safeVolReportData);
 
                               const colWidthsAll = Object.keys(allReportData[0] || {}).map(k => ({ wch: 20 }));
                               wsAll['!cols'] = colWidthsAll;
@@ -1717,7 +1723,7 @@ export default function Reports() {
                               utils.book_append_sheet(wb, wsVol, language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations');
 
                               if (archiveOneDayData.length > 0) {
-                                const wsOneDay = utils.json_to_sheet(archiveOneDayData);
+                                const wsOneDay = utils.json_to_sheet(sanitizeSpreadsheetRows(archiveOneDayData));
                                 const colWidthsOneDay = Object.keys(archiveOneDayData[0] || {}).map(() => ({ wch: 20 }));
                                 wsOneDay['!cols'] = colWidthsOneDay;
                                 utils.book_append_sheet(wb, wsOneDay, 'مشاركة اليوم الواحد');

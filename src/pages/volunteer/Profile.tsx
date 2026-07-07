@@ -132,17 +132,19 @@ const getDefaultCover = (uid: string) => {
   return COVER_IMAGES[index];
 };
 
-const toOptionalImageUrl = (value: unknown) => (
+type CreatedByRelation = { created_by?: unknown } | { created_by?: unknown }[] | null | undefined;
+
+const toOptionalString = (value: unknown) => (
   typeof value === 'string' && value.trim().length > 0 ? value : null
 );
 
-type CreatedByRelation = { created_by: string | null } | { created_by: string | null }[] | null | undefined;
+const toOptionalImageUrl = toOptionalString;
 
 const getCreatedByFromRelation = (relation: CreatedByRelation) => {
   if (Array.isArray(relation)) {
-    return relation[0]?.created_by ?? null;
+    return toOptionalString(relation[0]?.created_by);
   }
-  return relation?.created_by ?? null;
+  return toOptionalString(relation?.created_by);
 };
 
 export default function Profile({ userId: propUserId }: ProfileProps) {
@@ -437,35 +439,35 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           .select('created_by')
           .eq('id', fineId)
           .single();
-        creatorId = data?.created_by || null;
+        creatorId = toOptionalString(data?.created_by);
       } else if (sourceType === 'activity') {
         const { data } = await supabase
           .from('activity_submissions')
           .select('reviewed_by')
           .eq('id', fineId)
           .single();
-        creatorId = data?.reviewed_by || null;
+        creatorId = toOptionalString(data?.reviewed_by);
       } else if (sourceType === 'caravan') {
         const { data } = await supabase
           .from('caravan_participants')
           .select('caravans(created_by)')
           .eq('id', fineId)
           .single();
-        creatorId = getCreatedByFromRelation(data?.caravans as CreatedByRelation);
+        creatorId = getCreatedByFromRelation(data?.caravans);
       } else if (sourceType === 'event') {
         const { data } = await supabase
           .from('event_participants')
           .select('events(created_by)')
           .eq('id', fineId)
           .single();
-        creatorId = getCreatedByFromRelation(data?.events as CreatedByRelation);
+        creatorId = getCreatedByFromRelation(data?.events);
       } else if (sourceType === 'ethics_call') {
         const { data } = await supabase
           .from('ethics_calls_participants')
           .select('ethics_calls(created_by)')
           .eq('id', fineId)
           .single();
-        creatorId = getCreatedByFromRelation(data?.ethics_calls as CreatedByRelation);
+        creatorId = getCreatedByFromRelation(data?.ethics_calls);
       }
 
       // If we identified a creator and it's not the current user
