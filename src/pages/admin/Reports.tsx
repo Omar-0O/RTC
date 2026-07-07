@@ -34,6 +34,7 @@ import { normalizePhoneE164 } from '@/utils/phoneUtils';
 import type { Database } from '@/integrations/supabase/types';
 import { sanitizeSpreadsheetRows, type SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 import { downloadCsv as saveCsv } from '@/utils/csv';
+import { appendJsonSheet, ensureXlsxFilename, loadXlsx, safeSheetName, sanitizeAoaRows } from '@/utils/xlsx';
 
 type FollowupUserRow = Database['public']['Tables']['users_followup']['Row'];
 type FollowupUserInsert = Database['public']['Tables']['users_followup']['Insert'];
@@ -228,9 +229,9 @@ async function downloadAttendanceMatrix(
     rows.push(rowVals);
   });
 
-  const { utils, writeFile } = await import('@e965/xlsx');
+  const { utils, writeFile } = await loadXlsx();
   const wb = utils.book_new();
-  const ws = utils.aoa_to_sheet(rows) as ReturnType<typeof utils.aoa_to_sheet> & {
+  const ws = utils.aoa_to_sheet(sanitizeAoaRows(rows)) as ReturnType<typeof utils.aoa_to_sheet> & {
     '!cols'?: { wch: number }[];
     '!merges'?: { s: { r: number; c: number }; e: { r: number; c: number } }[];
     '!rows'?: { hpt: number }[];
@@ -251,8 +252,8 @@ async function downloadAttendanceMatrix(
     ...monthMerges,
   ];
 
-  utils.book_append_sheet(wb, ws, lang === 'ar' ? 'شيت المتابعة السنوي' : 'Yearly Attendance');
-  writeFile(wb, `attendance_matrix_${year}.xlsx`);
+  utils.book_append_sheet(wb, ws, safeSheetName(lang === 'ar' ? 'شيت المتابعة السنوي' : 'Yearly Attendance'));
+  writeFile(wb, ensureXlsxFilename(`attendance_matrix_${year}.xlsx`));
 }
 
 
@@ -865,20 +866,17 @@ export default function Reports() {
           });
 
         try {
-          const { utils, writeFile } = await import('@e965/xlsx');
+          const { utils, writeFile } = await loadXlsx();
           const wb = utils.book_new();
 
-          const allWs = utils.json_to_sheet(sanitizeSpreadsheetRows(allReportData));
-          utils.book_append_sheet(wb, allWs, language === 'ar' ? 'مشاركات كلي' : 'All Participations');
+          appendJsonSheet(utils, wb, allReportData, language === 'ar' ? 'مشاركات كلي' : 'All Participations');
 
           if (volReportData.length > 0) {
-            const volWs = utils.json_to_sheet(sanitizeSpreadsheetRows(volReportData));
-            utils.book_append_sheet(wb, volWs, language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations');
+            appendJsonSheet(utils, wb, volReportData, language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations');
           }
 
           if (oneDayReportData.length > 0) {
-            const oneDayWs = utils.json_to_sheet(sanitizeSpreadsheetRows(oneDayReportData));
-            utils.book_append_sheet(wb, oneDayWs, 'مشاركة اليوم الواحد');
+            appendJsonSheet(utils, wb, oneDayReportData, 'مشاركة اليوم الواحد');
           }
 
 
@@ -886,7 +884,7 @@ export default function Reports() {
           const { start: allStart, end: allEnd } = getDateRange();
           const allDateStr = `${format(allStart, 'yyyy-MM-dd')}_to_${format(allEnd, 'yyyy-MM-dd')}`;
 
-          writeFile(wb, `all_participations_${allDateStr}.xlsx`);
+          writeFile(wb, ensureXlsxFilename(`all_participations_${allDateStr}.xlsx`));
           toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
         } catch (error) {
           console.error('Export error:', error);
@@ -1686,7 +1684,7 @@ export default function Reports() {
                               });
 
                             try {
-                              const { utils, writeFile } = await import('@e965/xlsx');
+                              const { utils, writeFile } = await loadXlsx();
                               const wb = utils.book_new();
 
                               const safeAllReportData = sanitizeSpreadsheetRows(allReportData);
@@ -1700,20 +1698,20 @@ export default function Reports() {
                               const colWidthsVol = Object.keys(volReportData[0] || {}).map(k => ({ wch: 20 }));
                               wsVol['!cols'] = colWidthsVol;
 
-                              utils.book_append_sheet(wb, wsAll, language === 'ar' ? 'مشاركات كلي' : 'All Participations');
-                              utils.book_append_sheet(wb, wsVol, language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations');
+                              utils.book_append_sheet(wb, wsAll, safeSheetName(language === 'ar' ? 'مشاركات كلي' : 'All Participations'));
+                              utils.book_append_sheet(wb, wsVol, safeSheetName(language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations'));
 
                               if (archiveOneDayData.length > 0) {
                                 const wsOneDay = utils.json_to_sheet(sanitizeSpreadsheetRows(archiveOneDayData));
                                 const colWidthsOneDay = Object.keys(archiveOneDayData[0] || {}).map(() => ({ wch: 20 }));
                                 wsOneDay['!cols'] = colWidthsOneDay;
-                                utils.book_append_sheet(wb, wsOneDay, 'مشاركة اليوم الواحد');
+                                utils.book_append_sheet(wb, wsOneDay, safeSheetName('مشاركة اليوم الواحد'));
                               }
 
 
 
                               const fileName = `archive_report_${format(date, 'yyyy_MM')}.xlsx`;
-                              writeFile(wb, fileName);
+                              writeFile(wb, ensureXlsxFilename(fileName));
                               toast.success(language === 'ar' ? 'تم تصدير التقرير بنجاح' : 'Report exported successfully');
                             } catch (err) {
                               console.error(err);

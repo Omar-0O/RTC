@@ -34,6 +34,7 @@ import { useBranch } from '@/contexts/BranchContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { normalizePhoneE164, phonesAreEqual } from '@/utils/phoneUtils';
+import { ensureXlsxFilename, loadXlsx, safeSheetName, sanitizeAoaRows } from '@/utils/xlsx';
 import {
   addFollowUp,
   approveFollowUp,
@@ -422,7 +423,7 @@ export default function FollowUpManagement() {
   };
 
   const handleExportExcel = async () => {
-    const XLSX = await import('@e965/xlsx');
+    const XLSX = await loadXlsx();
 
     if (filtered.length === 0) {
       toast.error(ar('لا توجد بيانات للتصدير', 'No data to export'));
@@ -449,7 +450,7 @@ export default function FollowUpManagement() {
       u.linked_to ? (exportIdToRow.get(u.linked_to) ?? '') : '',
     ]);
 
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const ws = XLSX.utils.aoa_to_sheet(sanitizeAoaRows([headers, ...rows]));
     ws['!rtl'] = isRTL;
     ws['!cols'] = [
       { wch: 5 },  // م
@@ -461,21 +462,21 @@ export default function FollowUpManagement() {
     ];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, ar('شيت المتابعة', 'Follow-up'));
+    XLSX.utils.book_append_sheet(wb, ws, safeSheetName(ar('شيت المتابعة', 'Follow-up')));
 
-    XLSX.writeFile(wb, `followup_users_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, ensureXlsxFilename(`followup_users_${new Date().toISOString().slice(0, 10)}.xlsx`));
     toast.success(ar('تم التصدير بنجاح', 'Exported successfully'));
   };
 
   const downloadExcelTemplate = async () => {
-    const XLSX = await import('@e965/xlsx');
+    const XLSX = await loadXlsx();
 
     const headers = ['id', 'full_name', 'phone_1', 'phone_2', 'branch_id', 'linked_to'];
     const example1 = ['', 'أحمد محمد', '01012345678', '01123456789', 'ma', ''];
     const example2 = ['', 'محمود خليل', '01234567890', '', 'hq', ''];
     const example3 = ['', 'أحمد م. القديم', '01099999999', '', 'ma', '1'];
 
-    const ws = XLSX.utils.aoa_to_sheet([headers, example1, example2, example3]);
+    const ws = XLSX.utils.aoa_to_sheet(sanitizeAoaRows([headers, example1, example2, example3]));
     ws['!rtl'] = false; // System parser expects standard English columns for id mapping
     ws['!cols'] = [
       { wch: 10 }, // id
@@ -487,9 +488,9 @@ export default function FollowUpManagement() {
     ];
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.utils.book_append_sheet(wb, ws, safeSheetName('Template'));
 
-    XLSX.writeFile(wb, 'import_template.xlsx');
+    XLSX.writeFile(wb, ensureXlsxFilename('import_template.xlsx'));
   };
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -500,7 +501,7 @@ export default function FollowUpManagement() {
     toast.info(ar('جاري معالجة الملف...', 'Processing file...'));
 
     try {
-      const XLSX = await import('@e965/xlsx');
+      const XLSX = await loadXlsx();
       const reader = new FileReader();
       reader.onload = async (evt) => {
         try {

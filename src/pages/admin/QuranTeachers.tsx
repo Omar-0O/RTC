@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Database, Json } from '@/integrations/supabase/types';
+import { ensureXlsxFilename, loadXlsx, safeSheetName, sanitizeAoaRows } from '@/utils/xlsx';
 
 type QuranTeacherRow = Database['public']['Tables']['quran_teachers']['Row'];
 type QuranTeacherInsert = Database['public']['Tables']['quran_teachers']['Insert'];
@@ -339,7 +340,7 @@ export default function QuranTeachers() {
     const handleExportTeacher = async (teacher: QuranTeacher) => {
         try {
             toast.info(isRTL ? 'جاري تحضير التقرير...' : 'Preparing report...');
-            const { utils, writeFile } = await import('@e965/xlsx');
+            const { utils, writeFile } = await loadXlsx();
 
             // Fetch circles for this teacher
             const { data: circles, error } = await supabase
@@ -376,14 +377,14 @@ export default function QuranTeachers() {
                 ]
             ];
 
-            const wsInfo = utils.aoa_to_sheet(teacherInfoData);
+            const wsInfo = utils.aoa_to_sheet(sanitizeAoaRows(teacherInfoData));
 
             // Set widths
             wsInfo['!cols'] = [
                 { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
             ];
 
-            utils.book_append_sheet(wb, wsInfo, isRTL ? 'بيانات المحفظ' : 'Teacher Info');
+            utils.book_append_sheet(wb, wsInfo, safeSheetName(isRTL ? 'بيانات المحفظ' : 'Teacher Info'));
 
             // --- Sheet 2: Circles List ---
             const circlesHeader = [
@@ -410,17 +411,17 @@ export default function QuranTeachers() {
                 c.is_active ? (isRTL ? 'نشطة' : 'Active') : (isRTL ? 'متوقفة' : 'Inactive')
             ]);
 
-            const wsCircles = utils.aoa_to_sheet([circlesHeader, ...circlesData]);
+            const wsCircles = utils.aoa_to_sheet(sanitizeAoaRows([circlesHeader, ...circlesData]));
             wsCircles['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 10 }];
 
-            utils.book_append_sheet(wb, wsCircles, isRTL ? 'الحلقات' : 'Circles');
+            utils.book_append_sheet(wb, wsCircles, safeSheetName(isRTL ? 'الحلقات' : 'Circles'));
 
             // --- Export ---
             const dateStr = new Date().toISOString().split('T')[0];
             const safeName = teacher.name.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_'); // Allow Arabic chars
             const fileName = `Quran_Teacher_${safeName}_${dateStr}.xlsx`;
 
-            writeFile(wb, fileName);
+            writeFile(wb, ensureXlsxFilename(fileName));
             toast.success(isRTL ? 'تم تصدير التقرير بنجاح' : 'Report exported successfully');
 
         } catch (error) {
@@ -431,7 +432,7 @@ export default function QuranTeachers() {
 
     const handleExportAllTeachers = async () => {
         try {
-            const { utils, writeFile } = await import('@e965/xlsx');
+            const { utils, writeFile } = await loadXlsx();
 
             const allTeachersData = [
                 // Headers
@@ -459,18 +460,18 @@ export default function QuranTeachers() {
             ];
 
             const wb = utils.book_new();
-            const ws = utils.aoa_to_sheet(allTeachersData);
+            const ws = utils.aoa_to_sheet(sanitizeAoaRows(allTeachersData));
 
             ws['!cols'] = [
                 { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 20 }
             ];
 
-            utils.book_append_sheet(wb, ws, isRTL ? 'كل المحفظين' : 'All Teachers');
+            utils.book_append_sheet(wb, ws, safeSheetName(isRTL ? 'كل المحفظين' : 'All Teachers'));
 
             const dateStr = new Date().toISOString().split('T')[0];
             const fileName = `All_Quran_Teachers_${dateStr}.xlsx`;
 
-            writeFile(wb, fileName);
+            writeFile(wb, ensureXlsxFilename(fileName));
             toast.success(isRTL ? 'تم الددير بنجاح' : 'Export successful');
 
         } catch (error) {

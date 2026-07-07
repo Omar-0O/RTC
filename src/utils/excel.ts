@@ -1,3 +1,6 @@
+import { loadXlsx, safeSheetName } from '@/utils/xlsx';
+import { sanitizeSpreadsheetRows } from '@/utils/spreadsheetSecurity';
+
 interface Participant {
     name: string;
     phone: string;
@@ -15,7 +18,7 @@ interface GroupSubmissionData {
 }
 
 export const generateGroupSubmissionCSV = async (data: GroupSubmissionData): Promise<Blob> => {
-    const { utils, write } = await import('@e965/xlsx');
+    const { utils, write } = await loadXlsx();
 
     // Calculate totals
     const totalParticipants = data.participants.length;
@@ -49,16 +52,16 @@ export const generateGroupSubmissionCSV = async (data: GroupSubmissionData): Pro
     // Add Activity Info sheet
     utils.book_append_sheet(
         wb,
-        utils.json_to_sheet(activityInfo),
-        'معلومات المهمة'
+        utils.json_to_sheet(sanitizeSpreadsheetRows(activityInfo)),
+        safeSheetName('معلومات المهمة')
     );
 
     // Add Participants sheet
     if (participantsData.length > 0) {
         utils.book_append_sheet(
             wb,
-            utils.json_to_sheet(participantsData),
-            'المشاركين'
+            utils.json_to_sheet(sanitizeSpreadsheetRows(participantsData)),
+            safeSheetName('المشاركين')
         );
     }
 

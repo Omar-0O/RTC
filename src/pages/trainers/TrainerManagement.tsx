@@ -31,6 +31,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Database } from '@/integrations/supabase/types';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
+import { ensureXlsxFilename, loadXlsx, safeSheetName, sanitizeAoaRows } from '@/utils/xlsx';
 
 // Image compression utility
 const compressImage = async (file: File): Promise<File> => {
@@ -542,7 +543,7 @@ export default function TrainerManagement(): JSX.Element {
     const handleExportTrainer = async (trainer: Trainer) => {
         try {
             toast.info(isRTL ? 'جاري تحضير التقرير...' : 'Preparing report...');
-            const { utils, writeFile } = await import('@e965/xlsx');
+            const { utils, writeFile } = await loadXlsx();
 
             // Fetch comprehensive course history for this trainer with full beneficiary data
             const { data: courses, error } = await supabase
@@ -583,7 +584,7 @@ export default function TrainerManagement(): JSX.Element {
                 ]
             ];
 
-            const wsInfo = utils.aoa_to_sheet(trainerInfoData);
+            const wsInfo = utils.aoa_to_sheet(sanitizeAoaRows(trainerInfoData));
 
             // Set column widths
             wsInfo['!cols'] = [
@@ -598,7 +599,7 @@ export default function TrainerManagement(): JSX.Element {
                 { wch: 15 }  // Certs Delivered
             ];
 
-            utils.book_append_sheet(wb, wsInfo, isRTL ? 'تقرير المدرب' : 'Trainer Report');
+            utils.book_append_sheet(wb, wsInfo, safeSheetName(isRTL ? 'تقرير المدرب' : 'Trainer Report'));
 
 
             // --- Sheet 2: Work and Impact (عمله واثره) ---
@@ -632,7 +633,7 @@ export default function TrainerManagement(): JSX.Element {
                 ];
             });
 
-            const wsImpact = utils.aoa_to_sheet([impactHeader, ...impactData]);
+            const wsImpact = utils.aoa_to_sheet(sanitizeAoaRows([impactHeader, ...impactData]));
 
             // Set column widths for Impact sheet
             wsImpact['!cols'] = [
@@ -646,7 +647,7 @@ export default function TrainerManagement(): JSX.Element {
                 { wch: 20 }  // Org 2
             ];
 
-            utils.book_append_sheet(wb, wsImpact, isRTL ? 'عمله واثره' : 'Work and Impact');
+            utils.book_append_sheet(wb, wsImpact, safeSheetName(isRTL ? 'عمله واثره' : 'Work and Impact'));
 
             // --- Sheet 3: Certificates (الشهادات) ---
             const certHeader = [
@@ -685,7 +686,7 @@ export default function TrainerManagement(): JSX.Element {
             });
 
             if (certData.length > 0) {
-                const wsCerts = utils.aoa_to_sheet([certHeader, ...certData]);
+                const wsCerts = utils.aoa_to_sheet(sanitizeAoaRows([certHeader, ...certData]));
 
                 // Set column widths for Certificates sheet
                 wsCerts['!cols'] = [
@@ -697,7 +698,7 @@ export default function TrainerManagement(): JSX.Element {
                     { wch: 15 }  // Date
                 ];
 
-                utils.book_append_sheet(wb, wsCerts, isRTL ? 'الشهادات' : 'Certificates');
+                utils.book_append_sheet(wb, wsCerts, safeSheetName(isRTL ? 'الشهادات' : 'Certificates'));
             }
 
 
@@ -708,7 +709,7 @@ export default function TrainerManagement(): JSX.Element {
             const fileName = `Trainer_Report_${safeName}_${dateStr}_${timeStr}.xlsx`;
 
             // Download
-            writeFile(wb, fileName);
+            writeFile(wb, ensureXlsxFilename(fileName));
             toast.success(isRTL ? 'تم تصدير التقرير بنجاح' : 'Report exported successfully');
 
         } catch (error) {
@@ -719,7 +720,7 @@ export default function TrainerManagement(): JSX.Element {
 
     const handleExportAllTrainers = async (trainers: Trainer[], isRTL: boolean) => {
         try {
-            const { utils, writeFile } = await import('@e965/xlsx');
+            const { utils, writeFile } = await loadXlsx();
 
             const allTrainersData = [
                 // Headers
@@ -749,19 +750,19 @@ export default function TrainerManagement(): JSX.Element {
             ];
 
             const wb = utils.book_new();
-            const ws = utils.aoa_to_sheet(allTrainersData);
+            const ws = utils.aoa_to_sheet(sanitizeAoaRows(allTrainersData));
 
             // Set column widths
             ws['!cols'] = [
                 { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
             ];
 
-            utils.book_append_sheet(wb, ws, isRTL ? 'كل المدربين' : 'All Trainers');
+            utils.book_append_sheet(wb, ws, safeSheetName(isRTL ? 'كل المدربين' : 'All Trainers'));
 
             const dateStr = new Date().toISOString().split('T')[0];
             const fileName = `All_Trainers_Report_${dateStr}.xlsx`;
 
-            writeFile(wb, fileName);
+            writeFile(wb, ensureXlsxFilename(fileName));
             toast.success(isRTL ? 'تم تصدير بيانات المدربين بنجاح' : 'All trainers exported successfully');
 
         } catch (error) {
