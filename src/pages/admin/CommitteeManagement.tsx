@@ -63,6 +63,8 @@ interface CommitteeWithStats extends Committee {
   trainerCount: number;
 }
 
+type CommitteeStats = Pick<CommitteeWithStats, 'volunteerCount' | 'trainerCount' | 'totalPoints' | 'participationCount'>;
+
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error) return error.message;
   if (typeof error === 'object' && error !== null && 'message' in error) {
@@ -70,6 +72,70 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
     if (typeof message === 'string' && message.trim()) return message;
   }
   return fallback;
+};
+
+const createEmptyCommitteeStats = (): CommitteeStats => ({
+  volunteerCount: 0,
+  trainerCount: 0,
+  totalPoints: 0,
+  participationCount: 0,
+});
+
+const fetchCommitteeStats = async (
+  committeeIds: string[],
+  startDate: Date | null,
+  endDate: Date | null,
+) => {
+  const statsByCommitteeId = new Map<string, CommitteeStats>(
+    committeeIds.map(id => [id, createEmptyCommitteeStats()]),
+  );
+
+  if (committeeIds.length === 0) return statsByCommitteeId;
+
+  let submissionsQuery = supabase
+    .from('activity_submissions')
+    .select('committee_id, points_awarded')
+    .in('committee_id', committeeIds)
+    .eq('status', 'approved');
+
+  if (startDate && endDate) {
+    submissionsQuery = submissionsQuery
+      .gte('submitted_at', startDate.toISOString())
+      .lte('submitted_at', endDate.toISOString());
+  }
+
+  const [profilesResult, trainersResult, submissionsResult] = await Promise.all([
+    supabase.from('profiles').select('committee_id').in('committee_id', committeeIds),
+    supabase.from('trainers').select('committee_id').in('committee_id', committeeIds),
+    submissionsQuery,
+  ]);
+
+  if (profilesResult.error) throw profilesResult.error;
+  if (trainersResult.error) throw trainersResult.error;
+  if (submissionsResult.error) throw submissionsResult.error;
+
+  profilesResult.data?.forEach(profile => {
+    if (!profile.committee_id) return;
+    const stats = statsByCommitteeId.get(profile.committee_id);
+    if (stats) stats.volunteerCount += 1;
+  });
+
+  trainersResult.data?.forEach(trainer => {
+    if (!trainer.committee_id) return;
+    const stats = statsByCommitteeId.get(trainer.committee_id);
+    if (stats) stats.trainerCount += 1;
+  });
+
+  submissionsResult.data?.forEach(submission => {
+    if (!submission.committee_id) return;
+    const stats = statsByCommitteeId.get(submission.committee_id);
+    if (!stats) return;
+
+    stats.participationCount += 1;
+    stats.totalPoints += submission.points_awarded || 0;
+  });
+
+  return statsByCommitteeId;
 };
 
 export default function CommitteeManagement() {
@@ -174,49 +240,18 @@ export default function CommitteeManagement() {
 
       const { startDate, endDate } = getDateRange(timeFilter);
 
-      // Get stats for each committee
-      const committeesWithStats: CommitteeWithStats[] = await Promise.all(
-        (committeesData || []).map(async (committee) => {
-          // 1. Volunteer Count (Always total currently joined)
-          const { count: volunteerCount } = await supabase
-            .from('profiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('committee_id', committee.id);
-
-          // 2. Trainer Count
-          const { count: trainerCount } = await supabase
-            .from('trainers')
-            .select('*', { count: 'exact', head: true })
-            .eq('committee_id', committee.id);
-
-          // 3. Stats from Activities (Points & Participations) - Filtered by Time
-          let query = supabase
-            .from('activity_submissions')
-            .select('points_awarded')
-            .eq('committee_id', committee.id)
-            .eq('status', 'approved'); // Only approved points count
-
-          if (startDate && endDate) {
-            query = query
-              .gte('submitted_at', startDate.toISOString())
-              .lte('submitted_at', endDate.toISOString());
-          }
-
-          const { data: participationData } = await query;
-
-          const participationCount = participationData?.length || 0;
-          const totalPoints = participationData?.reduce((sum, p) => sum + (p.points_awarded || 0), 0) || 0;
-
-          return {
-            ...committee,
-            committee_type: committee.committee_type as 'production' | 'fourth_year',
-            volunteerCount: volunteerCount || 0,
-            trainerCount: trainerCount || 0,
-            totalPoints,
-            participationCount
-          };
-        })
+      const statsByCommitteeId = await fetchCommitteeStats(
+        (committeesData || []).map(committee => committee.id),
+        startDate,
+        endDate,
       );
+
+      const committeesWithStats: CommitteeWithStats[] = (committeesData || []).map(committee => ({
+        ...committee,
+        committee_type: committee.committee_type as 'production' | 'fourth_year',
+        ...createEmptyCommitteeStats(),
+        ...statsByCommitteeId.get(committee.id),
+      }));
 
       setCommittees(committeesWithStats);
     } catch (error) {
@@ -336,7 +371,6 @@ export default function CommitteeManagement() {
     try {
       const { startDate, endDate, label } = getDateRange(timeFilter);
 
-      // Fetch fresh data for export
       let exportQuery = supabase.from('committees').select('*');
       if (activeBranch?.id) {
         exportQuery = exportQuery.eq('branch_id', activeBranch.id);
@@ -344,35 +378,21 @@ export default function CommitteeManagement() {
       const { data: allCommittees } = await exportQuery;
       if (!allCommittees) return;
 
-      const reportData = await Promise.all(allCommittees.map(async (committee) => {
-        // 1. Volunteer Count (Total joined)
-        const { count: volCount } = await supabase
-          .from('profiles')
-          .select('*', { count: 'exact', head: true })
-          .eq('committee_id', committee.id);
+      const statsByCommitteeId = await fetchCommitteeStats(
+        allCommittees.map(committee => committee.id),
+        startDate,
+        endDate,
+      );
 
-        // 2. Participation Count (Filtered by time)
-        let participationQuery = supabase
-          .from('activity_submissions')
-          .select('*', { count: 'exact', head: true })
-          .eq('committee_id', committee.id)
-          .eq('status', 'approved'); // Consistency: only approved
-
-        if (startDate && endDate) {
-          participationQuery = participationQuery
-            .gte('submitted_at', startDate.toISOString())
-            .lte('submitted_at', endDate.toISOString());
-        }
-
-        const { count: partCount } = await participationQuery;
-
+      const reportData = allCommittees.map((committee) => {
+        const stats = statsByCommitteeId.get(committee.id) ?? createEmptyCommitteeStats();
         return {
           id: committee.id,
           name: language === 'ar' ? committee.name_ar : committee.name,
-          volunteers: volCount || 0,
-          participations: partCount || 0
+          volunteers: stats.volunteerCount,
+          participations: stats.participationCount
         };
-      }));
+      });
 
       // Format for Excel
       const excelRows = reportData.map(item => ({
