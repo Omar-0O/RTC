@@ -10,6 +10,8 @@ import { Calendar, Clock, MapPin, User, Users, Phone, FileSpreadsheet, BookOpen,
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
+import { downloadCsv as saveCsv } from '@/utils/csv';
+import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 interface Course {
     id: string;
@@ -56,8 +58,7 @@ type QuranCircleRow = {
     is_active: boolean | null;
 };
 
-type CsvValue = string | number | boolean | null | undefined;
-type CsvRow = Record<string, CsvValue>;
+type CsvRow = SpreadsheetRow;
 
 const ROOMS: Record<string, { en: string; ar: string; color: string; bg: string }> = {
     'lab_1': { en: 'Lab 1', ar: 'لاب 1', color: 'bg-blue-500', bg: 'bg-blue-100 dark:bg-blue-900/30 border-blue-300' },
@@ -237,22 +238,7 @@ export default function CourseSchedule() {
 
     const downloadCSV = (data: CsvRow[], filename: string) => {
         if (data.length === 0) return;
-        const headers = Object.keys(data[0]);
-        const csvContent = [
-            headers.join(','),
-            ...data.map(row => headers.map(h => {
-                const val = row[h];
-                if (typeof val === 'string' && (val.includes(',') || val.includes('"'))) {
-                    return `"${val.replace(/"/g, '""')}"`;
-                }
-                return String(val ?? '');
-            }).join(','))
-        ].join('\n');
-        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-        link.click();
+        saveCsv(data, `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`);
     };
 
     const exportAllCourses = () => {

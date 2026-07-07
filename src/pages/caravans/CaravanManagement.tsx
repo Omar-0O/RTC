@@ -40,6 +40,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
+import { buildCsv, downloadCsv as saveCsv, downloadCsvContent, escapeCsvCell } from '@/utils/csv';
+import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 type CaravanRow = Database['public']['Tables']['caravans']['Row'];
 type CaravanInsert = Database['public']['Tables']['caravans']['Insert'];
@@ -48,8 +50,7 @@ type CaravanParticipantRow = Database['public']['Tables']['caravan_participants'
 type CaravanParticipantInsert = Database['public']['Tables']['caravan_participants']['Insert'];
 type CaravanParticipantUpdate = Database['public']['Tables']['caravan_participants']['Update'];
 type ProfileVolunteerRow = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'phone' | 'committee_id' | 'avatar_url'>;
-type CsvValue = string | number | boolean | null | undefined;
-type CsvRow = Record<string, CsvValue>;
+type CsvRow = SpreadsheetRow;
 type CaravanWithCount = CaravanRow & { participants_count?: { count: number }[] };
 type CaravanWithParticipants = CaravanRow & { caravan_participants?: CaravanParticipantRow[] };
 
@@ -729,25 +730,7 @@ export default function CaravanManagement() {
             return;
         }
 
-        const headers = Object.keys(data[0]);
-        const csvContent = [
-            headers.join(','),
-            ...data.map(row => headers.map(header => {
-                const value = row[header];
-                // Escape commas and quotes in values
-                if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-                    return `"${value.replace(/"/g, '""')}"`;
-                }
-                return value ?? '';
-            }).join(','))
-        ].join('\n');
-
-        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `${filename}_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-        link.click();
-        URL.revokeObjectURL(link.href);
+        saveCsv(data, `${filename}_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`);
 
         toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
     };
@@ -851,41 +834,16 @@ export default function CaravanManagement() {
                 }
             });
 
-            // Add metadata row at the top
             const metadata = `${isRTL ? 'الفترة' : 'Period'}: ${getFilterDisplayLabel(timeFilter)}`;
-
-            // We need to modify downloadCSV to accept this or handle it here. 
-            // Let's handle it here by constructing CSV manually or modifying downloadCSV. 
-            // For simplicity, let's inject it into the first row's keys or just use a custom logic here.
-
-            // Better: Prepend the metadata to the CSV content.
-            // Since downloadCSV is generic, let's just pass the data and modify downloadCSV or handle it.
-            // I'll modify downloadCSV call slightly or just reimplement the simple join here for this specific export if needed.
-            // But downloadCSV is used by others.
-
-            // Let's just create the CSV string here and download it, to avoid breaking other calls or modifying downloadCSV signature too much.
-
-            const headers = Object.keys(flattenedData[0]);
-            const csvRows = flattenedData.map(row => headers.map(header => {
-                const value = row[header];
-                if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-                    return `"${value.replace(/"/g, '""')}"`;
-                }
-                return value ?? '';
-            }).join(','));
-
             const csvContent = [
-                metadata, // Add metadata as the first line
-                headers.join(','),
-                ...csvRows
+                '\ufeff' + escapeCsvCell(metadata),
+                buildCsv(flattenedData).replace(/^\ufeff/, ''),
             ].join('\n');
 
-            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `Caravans_Report_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-            link.click();
-            URL.revokeObjectURL(link.href);
+            downloadCsvContent(
+                csvContent,
+                `Caravans_Report_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`,
+            );
 
             toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
 

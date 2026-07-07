@@ -35,6 +35,8 @@ import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { Tables } from '@/integrations/supabase/types';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
+import { downloadCsv } from '@/utils/csv';
+import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 
 interface Profile {
@@ -56,8 +58,7 @@ interface Committee {
 }
 
 type MemberFilter = 'all' | 'members' | 'external';
-type CsvValue = string | number | boolean | null | undefined;
-type CsvRow = Record<string, CsvValue>;
+type CsvRow = SpreadsheetRow;
 type TrainerLookupRow = Pick<Tables<'trainers'>, 'id' | 'name_ar' | 'name_en' | 'phone' | 'image_url'>;
 type TrainersMap = Record<string, { ar: string; en: string; phone: string | null; image_url: string | null }>;
 type CachedLeaderDashboard = {
@@ -385,24 +386,7 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
       return;
     }
 
-    const headers = Object.keys(reportData[0]);
-    const csvContent = [
-      headers.join(','),
-      ...reportData.map(row => headers.map(header => {
-        const value = row[header as keyof typeof row];
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-          return `"${value.replace(/"/g, '""')}"`;
-        }
-        return String(value ?? '');
-      }).join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `committee_submissions_${selectedMonth}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    downloadCsv(reportData, `committee_submissions_${selectedMonth}.csv`);
 
     toast.success(isRTL ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
   };

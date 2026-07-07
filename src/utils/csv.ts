@@ -22,8 +22,7 @@ export const buildCsv = (rows: SpreadsheetRow[]) => {
   return ['\ufeff' + headers.join(','), ...csvRows].join('\n');
 };
 
-export const downloadCsv = (rows: SpreadsheetRow[], filename: string) => {
-  const csvContent = buildCsv(rows);
+export const downloadCsvContent = (csvContent: string, filename: string) => {
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
   const objectUrl = URL.createObjectURL(blob);
@@ -32,4 +31,8 @@ export const downloadCsv = (rows: SpreadsheetRow[], filename: string) => {
   link.download = filename.endsWith('.csv') ? filename : `${filename}.csv`;
   link.click();
   URL.revokeObjectURL(objectUrl);
+};
+
+export const downloadCsv = (rows: SpreadsheetRow[], filename: string) => {
+  downloadCsvContent(buildCsv(rows), filename);
 };

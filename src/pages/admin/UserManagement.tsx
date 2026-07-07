@@ -81,6 +81,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { waPhoneLink } from '@/utils/phoneUtils';
 import { VolunteerProfilePreview } from '@/components/volunteer/VolunteerProfilePreview';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
+import { downloadCsv as saveCsv } from '@/utils/csv';
+import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 // Image utilities extracted to @/utils/imageCrop
 
@@ -96,8 +98,7 @@ type UserFeatureInsert = Database['public']['Tables']['user_features']['Insert']
 type DeleteUserAccountResponse = { error?: string } | null;
 type CreateUserResponse = { user?: { id: string }; error?: string };
 type UpdatePasswordResponse = { error?: string };
-type CsvValue = string | number | boolean | null | undefined;
-type CsvRow = Record<string, CsvValue>;
+type CsvRow = SpreadsheetRow;
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error) return error.message;
@@ -817,25 +818,7 @@ export default function UserManagement() {
       return;
     }
 
-    const headers = Object.keys(data[0]);
-    const csvContent = [
-      headers.join(','),
-      ...data.map(row => headers.map(header => {
-        const value = row[header];
-        // Escape commas and quotes in values
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-          return `"${value.replace(/"/g, '""')}"`;
-        }
-        return value ?? '';
-      }).join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    saveCsv(data, `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`);
 
     toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
   };

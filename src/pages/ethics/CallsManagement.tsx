@@ -31,6 +31,8 @@ import { cn } from '@/lib/utils';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { Json } from '@/integrations/supabase/types';
+import { downloadCsv as saveCsv } from '@/utils/csv';
+import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 const ETHICS_COMMITTEE_ID = '722d7feb-0b46-48a8-8652-75c1e1a8487a';
 
@@ -76,8 +78,7 @@ interface EthicsCallParticipantRow {
     wore_vest: boolean | null;
 }
 
-type CsvValue = string | number | boolean | null | undefined;
-type CsvRow = Record<string, CsvValue>;
+type CsvRow = SpreadsheetRow;
 type VolunteerParticipant = Participant & { volunteer_id: string };
 
 const isVolunteerParticipant = (participant: Participant): participant is VolunteerParticipant =>
@@ -514,24 +515,7 @@ export default function CallsManagement() {
             return;
         }
 
-        const headers = Object.keys(data[0]);
-        const csvContent = [
-            headers.join(','),
-            ...data.map(row => headers.map(header => {
-                const value = row[header];
-                if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-                    return `"${value.replace(/"/g, '""')}"`;
-                }
-                return String(value ?? '');
-            }).join(','))
-        ].join('\n');
-
-        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-        link.click();
-        URL.revokeObjectURL(link.href);
+        saveCsv(data, `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`);
 
         toast.success(isRTL ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
     };

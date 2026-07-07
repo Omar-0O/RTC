@@ -31,9 +31,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
 import type { Database } from '@/integrations/supabase/types';
 import { downloadCsv as saveCsv } from '@/utils/csv';
-import type { SpreadsheetRow, SpreadsheetValue } from '@/utils/spreadsheetSecurity';
+import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
-type CsvValue = SpreadsheetValue;
 type CsvRow = SpreadsheetRow;
 type Trainer = Pick<Database['public']['Tables']['trainers']['Row'], 'id' | 'user_id' | 'name_ar' | 'name_en' | 'phone'>;
 

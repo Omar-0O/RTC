@@ -34,6 +34,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ar, enUS } from 'date-fns/locale';
 import type { Tables } from '@/integrations/supabase/types';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
+import { downloadCsv } from '@/utils/csv';
+import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 type Participant = Tables<'competition_participants'> & {
     entries_count?: number;
@@ -210,7 +212,7 @@ export default function IndividualCompetition() {
 
             const participantsMap = new Map((participantsData || []).map((p) => [p.id, p]));
 
-            const exportData = (entriesData || []).map((entry) => {
+            const exportData: SpreadsheetRow[] = (entriesData || []).map((entry) => {
                 const participant = participantsMap.get(entry.participant_id);
                 return {
                     [isRTL ? 'الاسم' : 'Name']: participant?.name || 'Unknown',
@@ -225,24 +227,7 @@ export default function IndividualCompetition() {
                 return;
             }
 
-            const headers = Object.keys(exportData[0]);
-            const csvContent = [
-                headers.join(','),
-                ...exportData.map(row => headers.map(header => {
-                    const value = row[header];
-                    if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-                        return `"${value.replace(/"/g, '""')}"`;
-                    }
-                    return String(value ?? '');
-                }).join(','))
-            ].join('\n');
-
-            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `competition_entries_${month}.csv`;
-            link.click();
-            URL.revokeObjectURL(link.href);
+            downloadCsv(exportData, `competition_entries_${month}.csv`);
 
             toast.success(isRTL ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
         } catch (error) {
