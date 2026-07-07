@@ -11,6 +11,8 @@ import { toast } from 'sonner';
 import { Calendar, Clock, MapPin, Users, Sparkles, Download, Plus, Trash2, Mic, Link as LinkIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
+import { exportXlsxSheets } from '@/utils/xlsx';
+import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 interface MyEvent {
     id: string;
@@ -176,15 +178,15 @@ export default function MyEvents() {
             toast.error(isRTL ? 'لا توجد بيانات' : 'No data to export');
             return;
         }
-        const XLSX = await import('@e965/xlsx');
-        const rows = beneficiaries.map(b => ({
+        const rows: SpreadsheetRow[] = beneficiaries.map(b => ({
             [isRTL ? 'الاسم' : 'Name']: b.name,
             [isRTL ? 'الهاتف' : 'Phone']: b.phone || ''
         }));
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, isRTL ? 'المستفيدين' : 'Beneficiaries');
-        XLSX.writeFile(wb, `${selectedEvent.name}_beneficiaries.xlsx`);
+
+        await exportXlsxSheets(
+            [{ name: isRTL ? 'المستفيدين' : 'Beneficiaries', rows }],
+            `${selectedEvent.name}_beneficiaries.xlsx`,
+        );
     };
 
     const formatTime = (timeStr: string | null) => {

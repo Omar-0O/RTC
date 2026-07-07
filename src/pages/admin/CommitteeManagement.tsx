@@ -43,6 +43,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { toast } from 'sonner';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, format } from 'date-fns';
+import { exportXlsxSheets } from '@/utils/xlsx';
 import CommitteeCard from './CommitteeCard';
 
 interface Committee {
@@ -333,7 +334,6 @@ export default function CommitteeManagement() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const { utils, writeFile } = await import('@e965/xlsx');
       const { startDate, endDate, label } = getDateRange(timeFilter);
 
       // Fetch fresh data for export
@@ -381,15 +381,11 @@ export default function CommitteeManagement() {
         [language === 'ar' ? 'عدد المشاركات' : 'Participations Count']: item.participations,
       }));
 
-      // Create Workbook
-      const ws = utils.json_to_sheet(excelRows);
-      const wb = utils.book_new();
-      utils.book_append_sheet(wb, ws, "Committees Report");
-
-      // Save File
-      // Format filename: Committees_Report_Label_YYYY-MM-DD.xlsx
       const filenameLabel = label.replace(/\s+/g, '_');
-      writeFile(wb, `Committees_Report_${filenameLabel}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+      await exportXlsxSheets(
+        [{ name: 'Committees Report', rows: excelRows }],
+        `Committees_Report_${filenameLabel}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`,
+      );
       toast.success(language === 'ar' ? 'تم تصدير التقرير بنجاح' : 'Report exported successfully');
 
     } catch (error) {

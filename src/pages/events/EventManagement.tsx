@@ -33,6 +33,8 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
+import { ensureXlsxFilename, exportXlsxSheets, loadXlsx, safeSheetName, sanitizeAoaRows } from '@/utils/xlsx';
+import { sanitizeSpreadsheetRows, type SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 interface Committee {
     id: string;
@@ -683,9 +685,7 @@ export default function EventManagement() {
             toast.error(isRTL ? 'لا توجد بيانات للتصدير' : 'No data to export');
             return;
         }
-        const XLSX = await import('@e965/xlsx');
-
-        const data = events.map(e => ({
+        const data: SpreadsheetRow[] = events.map(e => ({
             [isRTL ? 'الاسم' : 'Event Name']: e.name,
             [isRTL ? 'النوع' : 'Type']: e.type,
             [isRTL ? 'التاريخ' : 'Date']: e.date,
@@ -695,16 +695,16 @@ export default function EventManagement() {
             [isRTL ? 'الوصف' : 'Description']: e.description || ''
         }));
 
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Events");
-        XLSX.writeFile(wb, `Events_List_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+        await exportXlsxSheets(
+            [{ name: 'Events', rows: data }],
+            `Events_List_${format(new Date(), 'yyyy-MM-dd')}.xlsx`,
+        );
         toast.success(isRTL ? 'تم تصدير كل الايفينتات بنجاح' : 'All events exported successfully');
     };
 
     const handleExportSingleEvent = async (event: Event) => {
         try {
-            const XLSX = await import('@e965/xlsx');
+            const XLSX = await loadXlsx();
 
             // Fetch participants
             const { data: participantsData, error } = await supabase
@@ -716,7 +716,7 @@ export default function EventManagement() {
 
             // Prepare Data for Sheet
             // 1. Event Info Header
-            const eventInfo = [
+            const eventInfo = sanitizeAoaRows([
                 [isRTL ? 'اسم الايفينت' : 'Event Name', event.name],
                 [isRTL ? 'التاريخ' : 'Date', event.date],
                 [isRTL ? 'الوقت' : 'Time', formatTime(event.time)],
@@ -724,10 +724,10 @@ export default function EventManagement() {
                 [isRTL ? 'النوع' : 'Type', event.type],
                 [], // Empty row
                 [isRTL ? 'قائمة المشاركين' : 'Participants List']
-            ];
+            ]);
 
             // 2. Participants Table
-            const participantsList = (participantsData || []).map(p => ({
+            const participantsList: SpreadsheetRow[] = (participantsData || []).map(p => ({
                 [isRTL ? 'الاسم' : 'Name']: p.name,
                 [isRTL ? 'الهاتف' : 'Phone']: p.phone ? `'${p.phone}` : '', // Force string format
                 [isRTL ? 'النوع' : 'Type']: p.is_volunteer ? (isRTL ? 'متطوع' : 'Volunteer') : (isRTL ? 'ضيف' : 'Guest'),
@@ -738,11 +738,11 @@ export default function EventManagement() {
             const ws = XLSX.utils.aoa_to_sheet(eventInfo);
 
             // Append participants starting from row 8 (index 7)
-            XLSX.utils.sheet_add_json(ws, participantsList, { origin: "A8" });
+            XLSX.utils.sheet_add_json(ws, sanitizeSpreadsheetRows(participantsList), { origin: "A8" });
 
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Event Details");
-            XLSX.writeFile(wb, `${event.name.replace(/[^a-z0-9]/gi, '_')}_Details.xlsx`);
+            XLSX.utils.book_append_sheet(wb, ws, safeSheetName('Event Details'));
+            XLSX.writeFile(wb, ensureXlsxFilename(`${event.name.replace(/[^a-z0-9]/gi, '_')}_Details`));
             toast.success(isRTL ? 'تم تصدير تفاصيل الايفينت بنجاح' : 'Event details exported successfully');
 
         } catch (error) {

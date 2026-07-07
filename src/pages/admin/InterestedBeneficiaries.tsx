@@ -19,6 +19,8 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Plus, Trash2, Download, Users } from 'lucide-react';
 import { format } from 'date-fns';
+import { exportXlsxSheets } from '@/utils/xlsx';
+import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -289,8 +291,7 @@ export default function InterestedBeneficiaries() {
             toast.error(isRTL ? 'لا توجد بيانات للتصدير' : 'No data to export');
             return;
         }
-        const XLSX = await import('@e965/xlsx');
-        const rows = currentlyVisible.map((b, i) => ({
+        const rows: SpreadsheetRow[] = currentlyVisible.map((b, i) => ({
             '#': i + 1,
             [isRTL ? 'الاسم' : 'Name']: b.name,
             [isRTL ? 'الهاتف' : 'Phone']: b.phone,
@@ -298,10 +299,11 @@ export default function InterestedBeneficiaries() {
             [isRTL ? 'ملاحظات' : 'Notes']: b.notes || '',
             [isRTL ? 'تاريخ الإضافة' : 'Added At']: format(new Date(b.created_at), 'yyyy-MM-dd'),
         }));
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, exportLabel.slice(0, 31));
-        XLSX.writeFile(wb, `المهتمين_${exportLabel}.xlsx`);
+
+        await exportXlsxSheets(
+            [{ name: exportLabel, rows }],
+            `المهتمين_${exportLabel}.xlsx`,
+        );
     };
 
     // ── Shared Table ──────────────────────────────────────────────────────────
