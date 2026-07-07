@@ -377,7 +377,6 @@ export default function TrainerManagement(): JSX.Element {
                     const fileExt = getSafeImageExtension(imageFile);
                     const fileName = `trainer_${Date.now()}.${fileExt}`;
 
-                    // Try trainers bucket first
                     const { error: uploadError } = await supabase.storage
                         .from('trainers')
                         .upload(fileName, imageFile, {
@@ -387,29 +386,15 @@ export default function TrainerManagement(): JSX.Element {
                         });
 
                     if (uploadError) {
-                        // Try avatars bucket as fallback
-                        const { error: uploadError2 } = await supabase.storage
-                            .from('avatars')
-                            .upload(`trainers/${fileName}`, imageFile, {
-                                upsert: true,
-                                contentType: imageFile.type,
-                                cacheControl: '3600',
-                            });
-
-                        if (!uploadError2) {
-                            const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(`trainers/${fileName}`);
-                            imageUrl = `${urlData.publicUrl}?t=${Date.now()}`;
-                        } else {
-                            // Both failed, just log and continue without image
-                            console.warn('Image upload failed, saving trainer without image:', uploadError2);
-                        }
+                        toast.error(isRTL ? 'فشل رفع صورة المدرب' : 'Failed to upload trainer image');
+                        console.warn('Trainer image upload failed:', uploadError);
                     } else {
                         const { data: urlData } = supabase.storage.from('trainers').getPublicUrl(fileName);
                         imageUrl = `${urlData.publicUrl}?t=${Date.now()}`;
                     }
                 } catch (uploadErr) {
-                    // Log but don't fail the whole save
-                    console.warn('Image upload error, saving trainer without image:', uploadErr);
+                    toast.error(isRTL ? 'فشل رفع صورة المدرب' : 'Failed to upload trainer image');
+                    console.warn('Trainer image upload error:', uploadErr);
                 } finally {
                     setIsUploading(false);
                 }
