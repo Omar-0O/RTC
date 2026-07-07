@@ -33,6 +33,7 @@ import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { appendJsonSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -1775,7 +1776,7 @@ export default function CourseManagement() {
 
     const exportCourseToExcel = async (course: Course) => {
         try {
-            const XLSX = await import('@e965/xlsx');
+            const XLSX = await loadXlsx();
 
             // Fetch organizers
             const { data: orgs } = await supabase
@@ -1881,16 +1882,16 @@ export default function CourseManagement() {
             });
 
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(courseInfo), isRTL ? 'معلومات الكورس' : 'Course Info');
+            appendJsonSheet(XLSX.utils, wb, courseInfo, isRTL ? 'معلومات الكورس' : 'Course Info');
             if (organizersData.length > 0) {
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(organizersData), isRTL ? 'المنظمين' : 'Organizers');
+                appendJsonSheet(XLSX.utils, wb, organizersData, isRTL ? 'المنظمين' : 'Organizers');
             }
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lecturesData), isRTL ? 'المحاضرات' : 'Lectures');
+            appendJsonSheet(XLSX.utils, wb, lecturesData, isRTL ? 'المحاضرات' : 'Lectures');
             if (attendanceSheetValues.length > 0) {
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attendanceSheetValues), isRTL ? 'شيت الحضور' : 'Attendance Sheet');
+                appendJsonSheet(XLSX.utils, wb, attendanceSheetValues, isRTL ? 'شيت الحضور' : 'Attendance Sheet');
             }
 
-            XLSX.writeFile(wb, `${course.name}_Report.xlsx`);
+            XLSX.writeFile(wb, ensureXlsxFilename(`${course.name}_Report.xlsx`));
         } catch (error) {
             console.error('Export error:', error);
             toast.error(isRTL ? 'فشل التصدير' : 'Export failed');
@@ -1899,7 +1900,7 @@ export default function CourseManagement() {
 
     const exportAllCourses = async () => {
         try {
-            const XLSX = await import('@e965/xlsx');
+            const XLSX = await loadXlsx();
 
             const allData = courses.map(c => ({
                 [isRTL ? 'اسم الكورس' : 'Course Name']: c.name,
@@ -1916,10 +1917,9 @@ export default function CourseManagement() {
                 [isRTL ? 'تاريخ الانترفيو' : 'Interview Date']: c.interview_date || '-',
             }));
 
-            const ws = XLSX.utils.json_to_sheet(allData);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, isRTL ? 'كل الكورسات' : 'All Courses');
-            XLSX.writeFile(wb, `All_Courses_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+            appendJsonSheet(XLSX.utils, wb, allData, isRTL ? 'كل الكورسات' : 'All Courses');
+            XLSX.writeFile(wb, ensureXlsxFilename(`All_Courses_${format(new Date(), 'yyyy-MM-dd')}.xlsx`));
         } catch (error) {
             console.error('Export error:', error);
             toast.error(isRTL ? 'فشل التصدير' : 'Export failed');

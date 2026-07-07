@@ -32,6 +32,7 @@ import {
     DialogTrigger,
     DialogDescription
 } from '@/components/ui/dialog';
+import { appendJsonSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -1020,7 +1021,7 @@ export default function QuranCircles() {
     const exportCircleToExcel = async (circle: QuranCircle) => {
         try {
             toast.info(isRTL ? 'جاري إعداد الملف...' : 'Preparing file...');
-            const XLSX = await import('@e965/xlsx');
+            const XLSX = await loadXlsx();
 
             const sessionsData = await getCircleSessions(circle.id);
             const bens = await getCircleEnrollments(circle.id);
@@ -1098,14 +1099,14 @@ export default function QuranCircles() {
 
             // Create workbook
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(circleInfo), isRTL ? 'معلومات الحلقة' : 'Circle Info');
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sessionsSheet), isRTL ? 'الجلسات' : 'Sessions');
+            appendJsonSheet(XLSX.utils, wb, circleInfo, isRTL ? 'معلومات الحلقة' : 'Circle Info');
+            appendJsonSheet(XLSX.utils, wb, sessionsSheet, isRTL ? 'الجلسات' : 'Sessions');
             if (attendanceSheet.length > 0) {
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(attendanceSheet), isRTL ? 'شيت الحضور' : 'Attendance');
+                appendJsonSheet(XLSX.utils, wb, attendanceSheet, isRTL ? 'شيت الحضور' : 'Attendance');
             }
 
             const fileName = `${getCircleName(circle).replace(/[^a-zA-Z0-9أ-ي]/g, '_')}_Report.xlsx`;
-            XLSX.writeFile(wb, fileName);
+            XLSX.writeFile(wb, ensureXlsxFilename(fileName));
             toast.success(isRTL ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
         } catch (error) {
             console.error('Export error:', error);
