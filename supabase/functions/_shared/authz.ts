@@ -59,6 +59,25 @@ const DELEGATED_TARGET_ROLES = new Set<AppRole>([
   'committee_leader',
   'marketing_member',
 ])
+const VALID_APP_ROLES = new Set<AppRole>([
+  'admin',
+  'executive',
+  'branch_admin',
+  'head_hr',
+  'hr',
+  'supervisor',
+  'committee_leader',
+  'volunteer',
+  'head_production',
+  'head_fourth_year',
+  'head_caravans',
+  'head_events',
+  'head_ethics',
+  'head_quran',
+  'head_ashbal',
+  'head_marketing',
+  'marketing_member',
+])
 
 export function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -206,7 +225,11 @@ export function assertCanCreateUsers(requester: RequesterContext): void {
 }
 
 export function normalizeRole(role: string | undefined): AppRole {
-  return (role || 'volunteer') as AppRole
+  const normalizedRole = (role || 'volunteer') as AppRole
+  if (!VALID_APP_ROLES.has(normalizedRole)) {
+    throw httpError('Invalid role requested', 400)
+  }
+  return normalizedRole
 }
 
 export function assertCanAssignRole(requester: RequesterContext, targetRole: AppRole): void {
@@ -214,6 +237,12 @@ export function assertCanAssignRole(requester: RequesterContext, targetRole: App
 
   if (!DELEGATED_TARGET_ROLES.has(targetRole)) {
     throw httpError('Forbidden: only global admins can assign privileged roles', 403)
+  }
+}
+
+export function assertDelegatedRequesterHasBranch(requester: RequesterContext): void {
+  if (!isGlobalAdmin(requester.roles) && !requester.branchId) {
+    throw httpError('Forbidden: delegated user creation requires requester branch scope', 403)
   }
 }
 

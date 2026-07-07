@@ -3,6 +3,7 @@
 import {
     assertCanAssignRole,
     assertCanCreateUsers,
+    assertDelegatedRequesterHasBranch,
     assertJsonRequest,
     corsHeaders,
     createAdminClient,
@@ -68,6 +69,7 @@ Deno.serve(async (req: Request) => {
 
         assertCanCreateUsers(requester)
         assertCanAssignRole(requester, requestedRole)
+        assertDelegatedRequesterHasBranch(requester)
 
         const effectiveBranchId = isGlobalAdmin(requester.roles) && branchId
             ? branchId
