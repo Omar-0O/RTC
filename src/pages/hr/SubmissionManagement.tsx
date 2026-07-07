@@ -28,7 +28,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Search, FileSpreadsheet, Calendar, Award, Check, ChevronsUpDown, Trash2, AlertTriangle, Building2, Activity, Copy, MessageCircle, User } from 'lucide-react';
 import { waPhoneLink } from '@/utils/phoneUtils';
-import { sanitizeSpreadsheetRows } from '@/utils/spreadsheetSecurity';
+import { downloadCsv } from '@/utils/csv';
 import { startOfMonth, endOfMonth, format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { MonthPicker } from '@/components/ui/calendar';
@@ -163,11 +163,6 @@ const getSourceRelation = <TSource extends string>(
 ) => {
     const source = row[sourceKey];
     return Array.isArray(source) ? source[0] : source;
-};
-
-const escapeCsvCell = (value: string | number | boolean | null | undefined) => {
-    const text = String(value ?? '');
-    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 };
 
 export default function SubmissionManagement() {
@@ -612,20 +607,7 @@ export default function SubmissionManagement() {
             return;
         }
 
-        const safeReportData = sanitizeSpreadsheetRows(reportData);
-        const headers = Object.keys(safeReportData[0]);
-        const csvContent = [
-            headers.join(','),
-            ...safeReportData.map(row => headers.map(header => escapeCsvCell(row[header])).join(','))
-        ].join('\n');
-
-        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const objectUrl = URL.createObjectURL(blob);
-        link.href = objectUrl;
-        link.download = `participation_log_${selectedMonth}.csv`;
-        link.click();
-        URL.revokeObjectURL(objectUrl);
+        downloadCsv(reportData, `participation_log_${selectedMonth}.csv`);
 
         toast.success(isRTL ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
     };

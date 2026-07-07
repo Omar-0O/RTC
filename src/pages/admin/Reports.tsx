@@ -33,6 +33,7 @@ import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, st
 import { normalizePhoneE164 } from '@/utils/phoneUtils';
 import type { Database } from '@/integrations/supabase/types';
 import { sanitizeSpreadsheetRows, type SpreadsheetRow } from '@/utils/spreadsheetSecurity';
+import { downloadCsv as saveCsv } from '@/utils/csv';
 
 type FollowupUserRow = Database['public']['Tables']['users_followup']['Row'];
 type FollowupUserInsert = Database['public']['Tables']['users_followup']['Insert'];
@@ -631,27 +632,7 @@ export default function Reports() {
       return;
     }
 
-    const safeRows = sanitizeSpreadsheetRows(data);
-    const headers = Object.keys(safeRows[0]);
-    const csvContent = [
-      headers.join(','),
-      ...safeRows.map(row => headers.map(header => {
-        const value = row[header];
-        if (typeof value === 'string') {
-          if (value.includes(',') || value.includes('"')) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-        }
-        return value ?? '';
-      }).join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    saveCsv(data, `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`);
 
     toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
   };

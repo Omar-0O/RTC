@@ -30,9 +30,11 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear } from 'date-fns';
 import type { Database } from '@/integrations/supabase/types';
+import { downloadCsv as saveCsv } from '@/utils/csv';
+import type { SpreadsheetRow, SpreadsheetValue } from '@/utils/spreadsheetSecurity';
 
-type CsvValue = string | number | boolean | null | undefined;
-type CsvRow = Record<string, CsvValue>;
+type CsvValue = SpreadsheetValue;
+type CsvRow = SpreadsheetRow;
 type Trainer = Pick<Database['public']['Tables']['trainers']['Row'], 'id' | 'user_id' | 'name_ar' | 'name_en' | 'phone'>;
 
 type PieLabelProps = {
@@ -424,25 +426,7 @@ export default function Reports() {
       return;
     }
 
-    const headers = Object.keys(data[0]);
-    const csvContent = [
-      headers.join(','),
-      ...data.map(row => headers.map(header => {
-        const value = row[header];
-        // Escape commas and quotes in values
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-          return `"${value.replace(/"/g, '""')}"`;
-        }
-        return value ?? '';
-      }).join(','))
-    ].join('\n');
-
-    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    saveCsv(data, `${filename}_${format(new Date(), 'yyyy-MM-dd')}.csv`);
 
     toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
   };
