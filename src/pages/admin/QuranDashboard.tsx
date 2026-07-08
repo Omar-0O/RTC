@@ -31,6 +31,8 @@ type QuranCircle = {
 
 type QuranScheduleItem = { day: number; time: string };
 type QuranSessionRow = { id: string; circle_id: string | null };
+type QuranTeacherNameRow = { id: string; name: string | null };
+type QuranEnrollmentCircleRow = { circle_id: string | null };
 
 const CommitteeDashboard = () => {
     const { t, isRTL } = useLanguage();
@@ -127,32 +129,50 @@ const CommitteeDashboard = () => {
             });
 
             // 2. Active Circles Data
-            const circlesWithCounts = await Promise.all(
-                activeCirclesData.slice(0, 6).map(async (circle) => {
-                    const { count } = await supabase
-                        .from('quran_enrollments')
-                        .select('id', { count: 'exact', head: true })
-                        .eq('circle_id', circle.id);
+            const dashboardCircles = activeCirclesData.slice(0, 6);
+            const dashboardCircleIds = dashboardCircles.map(circle => circle.id);
+            const teacherIds = Array.from(new Set(dashboardCircles.map(circle => circle.teacher_id).filter(Boolean)));
 
-                    // Fetch teacher name
-                    let teacherName = 'Unknown';
-                    if (circle.teacher_id) {
-                        const { data: teacher } = await supabase.from('quran_teachers').select('name').eq('id', circle.teacher_id).single();
-                        if (teacher) teacherName = teacher.name;
-                    }
+            const [enrollmentsForDashboardRes, teachersForDashboardRes] = await Promise.all([
+                dashboardCircleIds.length
+                    ? supabase.from('quran_enrollments').select('circle_id').in('circle_id', dashboardCircleIds)
+                    : Promise.resolve({ data: [], error: null }),
+                teacherIds.length
+                    ? supabase.from('quran_teachers').select('id, name').in('id', teacherIds)
+                    : Promise.resolve({ data: [], error: null }),
+            ]);
 
-                    const sessCount = circleSessionCounts[circle.id] || 0;
+            if (enrollmentsForDashboardRes.error) throw enrollmentsForDashboardRes.error;
+            if (teachersForDashboardRes.error) throw teachersForDashboardRes.error;
 
-                    return {
-                        id: circle.id,
-                        teacher_name: teacherName,
-                        schedule: (circle.schedule as unknown as QuranScheduleItem[]) || [],
-                        is_active: circle.is_active,
-                        students_count: count || 0,
-                        sessions_count: sessCount,
-                    };
-                })
+            const enrollmentCountsByCircle = new Map<string, number>();
+            ((enrollmentsForDashboardRes.data || []) as QuranEnrollmentCircleRow[]).forEach(enrollment => {
+                if (!enrollment.circle_id) return;
+                enrollmentCountsByCircle.set(
+                    enrollment.circle_id,
+                    (enrollmentCountsByCircle.get(enrollment.circle_id) || 0) + 1,
+                );
+            });
+
+            const teacherNamesById = new Map(
+                ((teachersForDashboardRes.data || []) as QuranTeacherNameRow[]).map(teacher => [
+                    teacher.id,
+                    teacher.name || 'Unknown',
+                ]),
             );
+
+            const circlesWithCounts = dashboardCircles.map(circle => {
+                const sessCount = circleSessionCounts[circle.id] || 0;
+
+                return {
+                    id: circle.id,
+                    teacher_name: circle.teacher_id ? teacherNamesById.get(circle.teacher_id) || 'Unknown' : 'Unknown',
+                    schedule: (circle.schedule as unknown as QuranScheduleItem[]) || [],
+                    is_active: circle.is_active,
+                    students_count: enrollmentCountsByCircle.get(circle.id) || 0,
+                    sessions_count: sessCount,
+                };
+            });
 
             // Update most active circle name
             const mostActive = circlesWithCounts.find(c => c.id === mostActiveCircleId);
