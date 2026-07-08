@@ -32,9 +32,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { format, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, startOfQuarter, endOfQuarter, startOfYear, endOfYear, getDaysInMonth } from 'date-fns';
 import { normalizePhoneE164 } from '@/utils/phoneUtils';
 import type { Database } from '@/integrations/supabase/types';
-import { sanitizeSpreadsheetRows, type SpreadsheetRow } from '@/utils/spreadsheetSecurity';
+import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 import { downloadCsv as saveCsv } from '@/utils/csv';
-import { appendAoaSheet, appendJsonSheet, ensureXlsxFilename, loadXlsx, safeSheetName } from '@/utils/xlsx';
+import { appendAoaSheet, appendJsonSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
 
 type FollowupUserRow = Database['public']['Tables']['users_followup']['Row'];
 type FollowupUserInsert = Database['public']['Tables']['users_followup']['Insert'];
@@ -1681,25 +1681,35 @@ export default function Reports() {
                               const { utils, writeFile } = await loadXlsx();
                               const wb = utils.book_new();
 
-                              const safeAllReportData = sanitizeSpreadsheetRows(allReportData);
-                              const safeVolReportData = sanitizeSpreadsheetRows(volReportData);
-                              const wsAll = utils.json_to_sheet(safeAllReportData);
-                              const wsVol = utils.json_to_sheet(safeVolReportData);
-
-                              const colWidthsAll = Object.keys(allReportData[0] || {}).map(k => ({ wch: 20 }));
-                              wsAll['!cols'] = colWidthsAll;
-
-                              const colWidthsVol = Object.keys(volReportData[0] || {}).map(k => ({ wch: 20 }));
-                              wsVol['!cols'] = colWidthsVol;
-
-                              utils.book_append_sheet(wb, wsAll, safeSheetName(language === 'ar' ? 'مشاركات كلي' : 'All Participations'));
-                              utils.book_append_sheet(wb, wsVol, safeSheetName(language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations'));
+                              appendJsonSheet(
+                                utils,
+                                wb,
+                                allReportData,
+                                language === 'ar' ? 'مشاركات كلي' : 'All Participations',
+                                (ws) => {
+                                  ws['!cols'] = Object.keys(allReportData[0] || {}).map(() => ({ wch: 20 }));
+                                },
+                              );
+                              appendJsonSheet(
+                                utils,
+                                wb,
+                                volReportData,
+                                language === 'ar' ? 'مشاركات المتطوعين' : 'Volunteers Participations',
+                                (ws) => {
+                                  ws['!cols'] = Object.keys(volReportData[0] || {}).map(() => ({ wch: 20 }));
+                                },
+                              );
 
                               if (archiveOneDayData.length > 0) {
-                                const wsOneDay = utils.json_to_sheet(sanitizeSpreadsheetRows(archiveOneDayData));
-                                const colWidthsOneDay = Object.keys(archiveOneDayData[0] || {}).map(() => ({ wch: 20 }));
-                                wsOneDay['!cols'] = colWidthsOneDay;
-                                utils.book_append_sheet(wb, wsOneDay, safeSheetName('مشاركة اليوم الواحد'));
+                                appendJsonSheet(
+                                  utils,
+                                  wb,
+                                  archiveOneDayData,
+                                  'مشاركة اليوم الواحد',
+                                  (ws) => {
+                                    ws['!cols'] = Object.keys(archiveOneDayData[0] || {}).map(() => ({ wch: 20 }));
+                                  },
+                                );
                               }
 
 

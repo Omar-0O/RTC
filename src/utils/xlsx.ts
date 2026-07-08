@@ -44,9 +44,12 @@ export const appendJsonSheet = (
   workbook: WorkBook,
   rows: SpreadsheetRow[],
   sheetName: string,
+  configureWorksheet?: (worksheet: XlsxWorksheet) => void,
 ) => {
   const worksheet = utils.json_to_sheet(sanitizeSpreadsheetRows(rows));
+  configureWorksheet?.(worksheet);
   utils.book_append_sheet(workbook, worksheet, safeSheetName(sheetName));
+  return worksheet;
 };
 
 export const appendAoaSheet = (
