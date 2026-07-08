@@ -33,6 +33,7 @@ import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { exportCourseReportToXlsx, type CourseExportCourse } from '@/utils/courseExport';
 import { appendJsonSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
 import {
     DropdownMenu,
@@ -1774,124 +1775,28 @@ export default function CourseManagement() {
         }
     };
 
+    const getCertificateStatusLabel = (exportCourse: CourseExportCourse) => {
+        if (!exportCourse.has_certificates) {
+            return isRTL ? 'لا يوجد شهادات' : 'No Certificates';
+        }
+
+        if (!isRTL) return exportCourse.certificate_status || 'Pending';
+
+        if (exportCourse.certificate_status === 'printing') return 'جاري الطباعة';
+        if (exportCourse.certificate_status === 'ready') return 'جاهزة للتسليم';
+        if (exportCourse.certificate_status === 'delivered') return 'تم التسليم';
+        return 'انتظار';
+    };
+
     const exportCourseToExcel = async (course: Course) => {
         try {
-            const XLSX = await loadXlsx();
-
-            // Fetch organizers
-            const { data: orgs } = await supabase
-                .from('course_organizers')
-                .select('*')
-                .eq('course_id', course.id);
-
-            // Fetch lectures
-            const { data: lects } = await supabase
-                .from('course_lectures')
-                .select('*')
-                .eq('course_id', course.id)
-                .order('lecture_number');
-
-            // Fetch beneficiaries
-            const { data: beneficiariesData } = await supabase
-                .from('course_beneficiaries')
-                .select('*')
-                .eq('course_id', course.id)
-                .order('name') as { data: CourseBeneficiary[] | null };
-
-            // Fetch attendance
-            const lectureIds = (lects || []).map(l => l.id);
-            const { data: attendance } = await supabase
-                .from('course_attendance')
-                .select('*')
-                .in('lecture_id', lectureIds);
-
-            const completedLectures = (lects || []).filter(l => l.status === 'completed').length;
-            const cancelledLectures = (lects || []).filter(l => l.status === 'cancelled').length;
-
-            const courseInfo = [{
-                [isRTL ? 'اسم الكورس' : 'Course Name']: course.name,
-                [isRTL ? 'اسم المدرب' : 'Trainer Name']: course.trainer_name,
-                [isRTL ? 'رقم المدرب' : 'Trainer Phone']: course.trainer_phone || '-',
-                [isRTL ? 'القاعة' : 'Room']: rooms.find(r => r.value === course.room)?.label[language as 'en' | 'ar'] || course.room,
-                [isRTL ? 'الأيام' : 'Days']: course.schedule_days.map(d => DAYS.find(day => day.value === d)?.label[language as 'en' | 'ar']).join(', '),
-                [isRTL ? 'وقت البداية' : 'Start Time']: course.schedule_time,
-                [isRTL ? 'وقت الانتهاء' : 'End Time']: course.schedule_end_time || '-',
-                [isRTL ? 'عدد المحاضرات' : 'Total Lectures']: course.total_lectures,
-                [isRTL ? 'المحاضرات المكتملة' : 'Completed']: completedLectures,
-                [isRTL ? 'المحاضرات الملغية' : 'Cancelled']: cancelledLectures,
-                [isRTL ? 'تاريخ البداية' : 'Start Date']: course.start_date,
-                [isRTL ? 'تاريخ النهاية' : 'End Date']: course.end_date || '-',
-                [isRTL ? 'يوجد انترفيو' : 'Has Interview']: course.has_interview ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No'),
-                [isRTL ? 'تاريخ الانترفيو' : 'Interview Date']: course.interview_date || '-',
-                [isRTL ? 'عدد المستفيدين' : 'Beneficiaries Count']: beneficiariesData?.length || 0,
-                [isRTL ? 'حالة الشهادات' : 'Certificates Status']: course.has_certificates
-                    ? (isRTL
-                        ? (course.certificate_status === 'printing' ? 'جاري الطباعة' :
-                            course.certificate_status === 'ready' ? 'جاهزة للتسليم' :
-                                course.certificate_status === 'delivered' ? 'تم التسليم' : 'انتظار')
-                        : (course.certificate_status || 'Pending'))
-                    : (isRTL ? 'لا يوجد شهادات' : 'No Certificates'),
-            }];
-
-            const organizersData = (orgs || []).map(o => ({
-                [isRTL ? 'اسم المنظم' : 'Organizer Name']: o.name,
-                [isRTL ? 'رقم التليفون' : 'Phone']: o.phone || '-'
-            }));
-
-            const lecturesData = (lects || []).map(l => ({
-                [isRTL ? 'رقم المحاضرة' : 'Lecture #']: l.lecture_number,
-                [isRTL ? 'التاريخ' : 'Date']: l.date,
-                [isRTL ? 'الحالة' : 'Status']: l.status === 'completed' ? (isRTL ? 'تمت' : 'Completed') :
-                    l.status === 'cancelled' ? (isRTL ? 'ملغية' : 'Cancelled') : (isRTL ? 'مجدولة' : 'Scheduled')
-            }));
-
-            // Create attendance lookup
-            const attendanceByLecture: Record<string, Record<string, string>> = {};
-            (attendance || []).forEach((att) => {
-                if (!att.lecture_id) return;
-                if (!attendanceByLecture[att.lecture_id]) {
-                    attendanceByLecture[att.lecture_id] = {};
-                }
-                attendanceByLecture[att.lecture_id][att.student_phone] = att.status;
+            await exportCourseReportToXlsx({
+                course,
+                isRTL,
+                getRoomLabel: room => rooms.find(r => r.value === room)?.label[language as 'en' | 'ar'] || room,
+                getDayLabel: day => DAYS.find(d => d.value === day)?.label[language as 'en' | 'ar'],
+                getCertificateStatusLabel,
             });
-
-            // Create attendance sheet from beneficiaries
-            const attendanceSheetValues = (beneficiariesData || []).map(beneficiary => {
-                const row: Record<string, string | number> = {
-                    [isRTL ? 'الاسم' : 'Name']: beneficiary.name,
-                    [isRTL ? 'الرقم' : 'Phone']: beneficiary.phone
-                };
-                let attended = 0;
-                let missed = 0;
-                (lects || []).forEach(l => {
-                    const status = attendanceByLecture[l.id]?.[beneficiary.phone];
-                    const colName = isRTL ? `م${l.lecture_number}` : `L${l.lecture_number}`;
-                    if (status === 'present') {
-                        row[colName] = isRTL ? 'حضر' : 'Present';
-                        attended++;
-                    } else if (l.status === 'completed') {
-                        row[colName] = isRTL ? 'غائب' : 'Absent';
-                        missed++;
-                    } else {
-                        row[colName] = '-';
-                    }
-                });
-                row[isRTL ? 'عدد الحضور' : 'Total Attended'] = attended;
-                row[isRTL ? 'عدد الغياب' : 'Total Missed'] = missed;
-                return row;
-            });
-
-            const wb = XLSX.utils.book_new();
-            appendJsonSheet(XLSX.utils, wb, courseInfo, isRTL ? 'معلومات الكورس' : 'Course Info');
-            if (organizersData.length > 0) {
-                appendJsonSheet(XLSX.utils, wb, organizersData, isRTL ? 'المنظمين' : 'Organizers');
-            }
-            appendJsonSheet(XLSX.utils, wb, lecturesData, isRTL ? 'المحاضرات' : 'Lectures');
-            if (attendanceSheetValues.length > 0) {
-                appendJsonSheet(XLSX.utils, wb, attendanceSheetValues, isRTL ? 'شيت الحضور' : 'Attendance Sheet');
-            }
-
-            XLSX.writeFile(wb, ensureXlsxFilename(`${course.name}_Report.xlsx`));
         } catch (error) {
             console.error('Export error:', error);
             toast.error(isRTL ? 'فشل التصدير' : 'Export failed');
