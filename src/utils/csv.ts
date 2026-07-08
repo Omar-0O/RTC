@@ -1,4 +1,5 @@
 import { sanitizeSpreadsheetRows, type SpreadsheetRow, type SpreadsheetValue } from '@/utils/spreadsheetSecurity';
+import { safeDownloadFilename } from '@/utils/downloadFilename';
 
 const CSV_CELL_ESCAPE_PATTERN = /[",\r\n]/;
 
@@ -28,7 +29,7 @@ export const downloadCsvContent = (csvContent: string, filename: string) => {
   const objectUrl = URL.createObjectURL(blob);
 
   link.href = objectUrl;
-  link.download = filename.endsWith('.csv') ? filename : `${filename}.csv`;
+  link.download = safeDownloadFilename(filename, '.csv', 'export');
   link.click();
   URL.revokeObjectURL(objectUrl);
 };
