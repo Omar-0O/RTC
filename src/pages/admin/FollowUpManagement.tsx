@@ -34,7 +34,7 @@ import { useBranch } from '@/contexts/BranchContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { normalizePhoneE164, phonesAreEqual } from '@/utils/phoneUtils';
-import { ensureXlsxFilename, loadXlsx, safeSheetName, sanitizeAoaRows } from '@/utils/xlsx';
+import { appendAoaSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
 import {
   addFollowUp,
   approveFollowUp,
@@ -450,19 +450,18 @@ export default function FollowUpManagement() {
       u.linked_to ? (exportIdToRow.get(u.linked_to) ?? '') : '',
     ]);
 
-    const ws = XLSX.utils.aoa_to_sheet(sanitizeAoaRows([headers, ...rows]));
-    ws['!rtl'] = isRTL;
-    ws['!cols'] = [
-      { wch: 5 },  // م
-      { wch: 30 }, // الاسم
-      { wch: 15 }, // الهاتف الأول
-      { wch: 15 }, // الهاتف الثاني
-      { wch: 15 }, // الفرع
-      { wch: 15 }, // مرتبط بـ
-    ];
-
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, safeSheetName(ar('شيت المتابعة', 'Follow-up')));
+    appendAoaSheet(XLSX.utils, wb, [headers, ...rows], ar('شيت المتابعة', 'Follow-up'), (ws) => {
+      ws['!rtl'] = isRTL;
+      ws['!cols'] = [
+        { wch: 5 },  // م
+        { wch: 30 }, // الاسم
+        { wch: 15 }, // الهاتف الأول
+        { wch: 15 }, // الهاتف الثاني
+        { wch: 15 }, // الفرع
+        { wch: 15 }, // مرتبط بـ
+      ];
+    });
 
     XLSX.writeFile(wb, ensureXlsxFilename(`followup_users_${new Date().toISOString().slice(0, 10)}.xlsx`));
     toast.success(ar('تم التصدير بنجاح', 'Exported successfully'));
@@ -476,19 +475,18 @@ export default function FollowUpManagement() {
     const example2 = ['', 'محمود خليل', '01234567890', '', 'hq', ''];
     const example3 = ['', 'أحمد م. القديم', '01099999999', '', 'ma', '1'];
 
-    const ws = XLSX.utils.aoa_to_sheet(sanitizeAoaRows([headers, example1, example2, example3]));
-    ws['!rtl'] = false; // System parser expects standard English columns for id mapping
-    ws['!cols'] = [
-      { wch: 10 }, // id
-      { wch: 30 }, // full_name
-      { wch: 15 }, // phone_1
-      { wch: 15 }, // phone_2
-      { wch: 15 }, // branch_id
-      { wch: 15 }, // linked_to
-    ];
-
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, safeSheetName('Template'));
+    appendAoaSheet(XLSX.utils, wb, [headers, example1, example2, example3], 'Template', (ws) => {
+      ws['!rtl'] = false; // System parser expects standard English columns for id mapping
+      ws['!cols'] = [
+        { wch: 10 }, // id
+        { wch: 30 }, // full_name
+        { wch: 15 }, // phone_1
+        { wch: 15 }, // phone_2
+        { wch: 15 }, // branch_id
+        { wch: 15 }, // linked_to
+      ];
+    });
 
     XLSX.writeFile(wb, ensureXlsxFilename('import_template.xlsx'));
   };

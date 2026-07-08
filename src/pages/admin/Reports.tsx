@@ -34,7 +34,7 @@ import { normalizePhoneE164 } from '@/utils/phoneUtils';
 import type { Database } from '@/integrations/supabase/types';
 import { sanitizeSpreadsheetRows, type SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 import { downloadCsv as saveCsv } from '@/utils/csv';
-import { appendJsonSheet, ensureXlsxFilename, loadXlsx, safeSheetName, sanitizeAoaRows } from '@/utils/xlsx';
+import { appendAoaSheet, appendJsonSheet, ensureXlsxFilename, loadXlsx, safeSheetName } from '@/utils/xlsx';
 
 type FollowupUserRow = Database['public']['Tables']['users_followup']['Row'];
 type FollowupUserInsert = Database['public']['Tables']['users_followup']['Insert'];
@@ -231,28 +231,22 @@ async function downloadAttendanceMatrix(
 
   const { utils, writeFile } = await loadXlsx();
   const wb = utils.book_new();
-  const ws = utils.aoa_to_sheet(sanitizeAoaRows(rows)) as ReturnType<typeof utils.aoa_to_sheet> & {
-    '!cols'?: { wch: number }[];
-    '!merges'?: { s: { r: number; c: number }; e: { r: number; c: number } }[];
-    '!rows'?: { hpt: number }[];
-  };
-
-  ws['!cols'] = [
-    { wch: 5 },
-    { wch: 28 },
-    { wch: 16 },
-    ...Array.from({ length: monthDaysCounts.reduce((total, days) => total + days, 0) }, () => ({ wch: 4 })),
-  ];
-  ws['!rows'] = [{ hpt: 35 }, { hpt: 22 }];
-  ws['!merges'] = [
-    ...Array.from({ length: fixedCols }, (_, col) => ({
-      s: { r: 0, c: col },
-      e: { r: 1, c: col },
-    })),
-    ...monthMerges,
-  ];
-
-  utils.book_append_sheet(wb, ws, safeSheetName(lang === 'ar' ? 'شيت المتابعة السنوي' : 'Yearly Attendance'));
+  appendAoaSheet(utils, wb, rows, lang === 'ar' ? 'شيت المتابعة السنوي' : 'Yearly Attendance', (ws) => {
+    ws['!cols'] = [
+      { wch: 5 },
+      { wch: 28 },
+      { wch: 16 },
+      ...Array.from({ length: monthDaysCounts.reduce((total, days) => total + days, 0) }, () => ({ wch: 4 })),
+    ];
+    ws['!rows'] = [{ hpt: 35 }, { hpt: 22 }];
+    ws['!merges'] = [
+      ...Array.from({ length: fixedCols }, (_, col) => ({
+        s: { r: 0, c: col },
+        e: { r: 1, c: col },
+      })),
+      ...monthMerges,
+    ];
+  });
   writeFile(wb, ensureXlsxFilename(`attendance_matrix_${year}.xlsx`));
 }
 

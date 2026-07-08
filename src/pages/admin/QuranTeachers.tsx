@@ -44,7 +44,7 @@ import {
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Database, Json } from '@/integrations/supabase/types';
-import { ensureXlsxFilename, loadXlsx, safeSheetName, sanitizeAoaRows } from '@/utils/xlsx';
+import { appendAoaSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
 
 type QuranTeacherRow = Database['public']['Tables']['quran_teachers']['Row'];
 type QuranTeacherInsert = Database['public']['Tables']['quran_teachers']['Insert'];
@@ -377,14 +377,11 @@ export default function QuranTeachers() {
                 ]
             ];
 
-            const wsInfo = utils.aoa_to_sheet(sanitizeAoaRows(teacherInfoData));
-
-            // Set widths
-            wsInfo['!cols'] = [
-                { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
-            ];
-
-            utils.book_append_sheet(wb, wsInfo, safeSheetName(isRTL ? 'بيانات المحفظ' : 'Teacher Info'));
+            appendAoaSheet(utils, wb, teacherInfoData, isRTL ? 'بيانات المحفظ' : 'Teacher Info', (ws) => {
+                ws['!cols'] = [
+                    { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
+                ];
+            });
 
             // --- Sheet 2: Circles List ---
             const circlesHeader = [
@@ -411,10 +408,9 @@ export default function QuranTeachers() {
                 c.is_active ? (isRTL ? 'نشطة' : 'Active') : (isRTL ? 'متوقفة' : 'Inactive')
             ]);
 
-            const wsCircles = utils.aoa_to_sheet(sanitizeAoaRows([circlesHeader, ...circlesData]));
-            wsCircles['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 10 }];
-
-            utils.book_append_sheet(wb, wsCircles, safeSheetName(isRTL ? 'الحلقات' : 'Circles'));
+            appendAoaSheet(utils, wb, [circlesHeader, ...circlesData], isRTL ? 'الحلقات' : 'Circles', (ws) => {
+                ws['!cols'] = [{ wch: 30 }, { wch: 30 }, { wch: 10 }];
+            });
 
             // --- Export ---
             const dateStr = new Date().toISOString().split('T')[0];
@@ -460,13 +456,11 @@ export default function QuranTeachers() {
             ];
 
             const wb = utils.book_new();
-            const ws = utils.aoa_to_sheet(sanitizeAoaRows(allTeachersData));
-
-            ws['!cols'] = [
-                { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 20 }
-            ];
-
-            utils.book_append_sheet(wb, ws, safeSheetName(isRTL ? 'كل المحفظين' : 'All Teachers'));
+            appendAoaSheet(utils, wb, allTeachersData, isRTL ? 'كل المحفظين' : 'All Teachers', (ws) => {
+                ws['!cols'] = [
+                    { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 20 }
+                ];
+            });
 
             const dateStr = new Date().toISOString().split('T')[0];
             const fileName = `All_Quran_Teachers_${dateStr}.xlsx`;

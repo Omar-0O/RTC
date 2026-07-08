@@ -31,7 +31,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Database } from '@/integrations/supabase/types';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
-import { ensureXlsxFilename, loadXlsx, safeSheetName, sanitizeAoaRows } from '@/utils/xlsx';
+import { appendAoaSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
 
 // Image compression utility
 const compressImage = async (file: File): Promise<File> => {
@@ -569,22 +569,19 @@ export default function TrainerManagement(): JSX.Element {
                 ]
             ];
 
-            const wsInfo = utils.aoa_to_sheet(sanitizeAoaRows(trainerInfoData));
-
-            // Set column widths
-            wsInfo['!cols'] = [
-                { wch: 20 }, // Name Ar
-                { wch: 20 }, // Name En
-                { wch: 15 }, // Phone
-                { wch: 20 }, // Committee
-                { wch: 15 }, // Join Date
-                { wch: 10 }, // Status
-                { wch: 15 }, // Total Courses
-                { wch: 15 }, // Completed Courses
-                { wch: 15 }  // Certs Delivered
-            ];
-
-            utils.book_append_sheet(wb, wsInfo, safeSheetName(isRTL ? 'تقرير المدرب' : 'Trainer Report'));
+            appendAoaSheet(utils, wb, trainerInfoData, isRTL ? 'تقرير المدرب' : 'Trainer Report', (ws) => {
+                ws['!cols'] = [
+                    { wch: 20 }, // Name Ar
+                    { wch: 20 }, // Name En
+                    { wch: 15 }, // Phone
+                    { wch: 20 }, // Committee
+                    { wch: 15 }, // Join Date
+                    { wch: 10 }, // Status
+                    { wch: 15 }, // Total Courses
+                    { wch: 15 }, // Completed Courses
+                    { wch: 15 }  // Certs Delivered
+                ];
+            });
 
 
             // --- Sheet 2: Work and Impact (عمله واثره) ---
@@ -618,21 +615,18 @@ export default function TrainerManagement(): JSX.Element {
                 ];
             });
 
-            const wsImpact = utils.aoa_to_sheet(sanitizeAoaRows([impactHeader, ...impactData]));
-
-            // Set column widths for Impact sheet
-            wsImpact['!cols'] = [
-                { wch: 30 }, // Name
-                { wch: 10 }, // Cert?
-                { wch: 15 }, // Start
-                { wch: 15 }, // End
-                { wch: 20 }, // Time
-                { wch: 15 }, // Beneficiaries
-                { wch: 20 }, // Org 1
-                { wch: 20 }  // Org 2
-            ];
-
-            utils.book_append_sheet(wb, wsImpact, safeSheetName(isRTL ? 'عمله واثره' : 'Work and Impact'));
+            appendAoaSheet(utils, wb, [impactHeader, ...impactData], isRTL ? 'عمله واثره' : 'Work and Impact', (ws) => {
+                ws['!cols'] = [
+                    { wch: 30 }, // Name
+                    { wch: 10 }, // Cert?
+                    { wch: 15 }, // Start
+                    { wch: 15 }, // End
+                    { wch: 20 }, // Time
+                    { wch: 15 }, // Beneficiaries
+                    { wch: 20 }, // Org 1
+                    { wch: 20 }  // Org 2
+                ];
+            });
 
             // --- Sheet 3: Certificates (الشهادات) ---
             const certHeader = [
@@ -671,19 +665,16 @@ export default function TrainerManagement(): JSX.Element {
             });
 
             if (certData.length > 0) {
-                const wsCerts = utils.aoa_to_sheet(sanitizeAoaRows([certHeader, ...certData]));
-
-                // Set column widths for Certificates sheet
-                wsCerts['!cols'] = [
-                    { wch: 25 }, // Name
-                    { wch: 15 }, // Phone
-                    { wch: 30 }, // Course Name
-                    { wch: 15 }, // Attendance %
-                    { wch: 15 }, // Eligible
-                    { wch: 15 }  // Date
-                ];
-
-                utils.book_append_sheet(wb, wsCerts, safeSheetName(isRTL ? 'الشهادات' : 'Certificates'));
+                appendAoaSheet(utils, wb, [certHeader, ...certData], isRTL ? 'الشهادات' : 'Certificates', (ws) => {
+                    ws['!cols'] = [
+                        { wch: 25 }, // Name
+                        { wch: 15 }, // Phone
+                        { wch: 30 }, // Course Name
+                        { wch: 15 }, // Attendance %
+                        { wch: 15 }, // Eligible
+                        { wch: 15 }  // Date
+                    ];
+                });
             }
 
 
@@ -735,14 +726,11 @@ export default function TrainerManagement(): JSX.Element {
             ];
 
             const wb = utils.book_new();
-            const ws = utils.aoa_to_sheet(sanitizeAoaRows(allTrainersData));
-
-            // Set column widths
-            ws['!cols'] = [
-                { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
-            ];
-
-            utils.book_append_sheet(wb, ws, safeSheetName(isRTL ? 'كل المدربين' : 'All Trainers'));
+            appendAoaSheet(utils, wb, allTrainersData, isRTL ? 'كل المدربين' : 'All Trainers', (ws) => {
+                ws['!cols'] = [
+                    { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
+                ];
+            });
 
             const dateStr = new Date().toISOString().split('T')[0];
             const fileName = `All_Trainers_Report_${dateStr}.xlsx`;

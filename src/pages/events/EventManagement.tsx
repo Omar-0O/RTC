@@ -33,7 +33,7 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
-import { ensureXlsxFilename, exportXlsxSheets, loadXlsx, safeSheetName, sanitizeAoaRows } from '@/utils/xlsx';
+import { appendAoaSheet, ensureXlsxFilename, exportXlsxSheets, loadXlsx } from '@/utils/xlsx';
 import { sanitizeSpreadsheetRows, type SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 interface Committee {
@@ -716,7 +716,7 @@ export default function EventManagement() {
 
             // Prepare Data for Sheet
             // 1. Event Info Header
-            const eventInfo = sanitizeAoaRows([
+            const eventInfo = [
                 [isRTL ? 'اسم الايفينت' : 'Event Name', event.name],
                 [isRTL ? 'التاريخ' : 'Date', event.date],
                 [isRTL ? 'الوقت' : 'Time', formatTime(event.time)],
@@ -724,7 +724,7 @@ export default function EventManagement() {
                 [isRTL ? 'النوع' : 'Type', event.type],
                 [], // Empty row
                 [isRTL ? 'قائمة المشاركين' : 'Participants List']
-            ]);
+            ];
 
             // 2. Participants Table
             const participantsList: SpreadsheetRow[] = (participantsData || []).map(p => ({
@@ -734,14 +734,12 @@ export default function EventManagement() {
                 [isRTL ? 'كود التطوع' : 'Volunteer ID']: p.volunteer_id || ''
             }));
 
-            // Create Worksheet
-            const ws = XLSX.utils.aoa_to_sheet(eventInfo);
+            const wb = XLSX.utils.book_new();
+            const ws = appendAoaSheet(XLSX.utils, wb, eventInfo, 'Event Details');
 
             // Append participants starting from row 8 (index 7)
             XLSX.utils.sheet_add_json(ws, sanitizeSpreadsheetRows(participantsList), { origin: "A8" });
 
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, safeSheetName('Event Details'));
             XLSX.writeFile(wb, ensureXlsxFilename(`${event.name.replace(/[^a-z0-9]/gi, '_')}_Details`));
             toast.success(isRTL ? 'تم تصدير تفاصيل الايفينت بنجاح' : 'Event details exported successfully');
 
