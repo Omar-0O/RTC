@@ -45,7 +45,7 @@ import { format } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { appendJsonSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
+import { exportQuranCircleReportToXlsx } from '@/utils/quranCircleExport';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -803,92 +803,14 @@ export default function MyQuranCircles() {
     const exportCircleToExcel = async (circle: QuranCircle) => {
         try {
             toast.info(isRTL ? 'جاري إعداد الملف...' : 'Preparing file...');
-            const XLSX = await loadXlsx();
-
-            const sessionsData = await getCircleSessions(circle.id);
-            const sortedSessions = [...sessionsData].sort((a, b) => a.session_date.localeCompare(b.session_date));
-            const bens = await getCircleEnrollments(circle.id);
-            const attendanceMap = await getCircleAttendance(sortedSessions.map(s => s.id));
-
-            const attendanceBySession: Record<string, Record<string, string>> = {};
-            Object.entries(attendanceMap).forEach(([sessionId, records]) => {
-                attendanceBySession[sessionId] = {};
-                records.forEach((record) => {
-                    attendanceBySession[sessionId][record.beneficiary_id] = record.attendance_type;
-                });
+            await exportQuranCircleReportToXlsx({
+                circle,
+                isRTL,
+                getCircleName,
+                getScheduleDisplay,
+                getScheduleTime,
+                getSessionDayLabel: sessionDate => format(new Date(sessionDate), 'EEEE', { locale }),
             });
-
-            // Circle Info Sheet
-            const circleInfo = [{
-                [isRTL ? 'اسم الحلقة' : 'Circle Name']: getCircleName(circle),
-                [isRTL ? 'المحفظ' : 'Teacher']: circle.teacher_name || '-',
-                [isRTL ? 'الأيام' : 'Days']: getScheduleDisplay(circle.schedule),
-                [isRTL ? 'الوقت' : 'Time']: getScheduleTime(circle.schedule) || '-',
-                [isRTL ? 'عدد المسجلين' : 'Enrolled Count']: bens.length,
-                [isRTL ? 'عدد الجلسات' : 'Sessions Count']: sortedSessions.length
-            }];
-
-            // Sessions Sheet
-            const sessionsSheet = sortedSessions.map((s, idx: number) => {
-                const attCount = Object.keys(attendanceBySession[s.id] || {}).length;
-                return {
-                    [isRTL ? 'رقم الجلسة' : 'Session #']: idx + 1,
-                    [isRTL ? 'التاريخ' : 'Date']: s.session_date,
-                    [isRTL ? 'اليوم' : 'Day']: format(new Date(s.session_date), 'EEEE', { locale }),
-                    [isRTL ? 'عدد الحضور' : 'Attendees']: attCount,
-                    [isRTL ? 'ملاحظات' : 'Notes']: s.notes || '-'
-                };
-            });
-
-            // Attendance Sheet
-            const attendanceSheet = bens.map(ben => {
-                const row: Record<string, string | number> = {
-                    [isRTL ? 'الاسم' : 'Name']: ben.name_ar,
-                    [isRTL ? 'الاسم الانجليزي' : 'English Name']: ben.name_en || '-'
-                };
-
-                let totalAttended = 0;
-                let memorization = 0;
-                let revision = 0;
-
-                sortedSessions.forEach((s, idx: number) => {
-                    const colName = isRTL ? `ج${idx + 1}` : `S${idx + 1}`;
-                    const attType = attendanceBySession[s.id]?.[ben.id];
-
-                    if (attType) {
-                        totalAttended++;
-                        if (attType === 'memorization') {
-                            row[colName] = isRTL ? 'حفظ' : 'M';
-                            memorization++;
-                        } else {
-                            row[colName] = isRTL ? 'مراجعة' : 'R';
-                            revision++;
-                        }
-                    } else {
-                        row[colName] = '-';
-                    }
-                });
-
-                row[isRTL ? 'إجمالي الحضور' : 'Total'] = totalAttended;
-                row[isRTL ? 'حفظ' : 'Memorization'] = memorization;
-                row[isRTL ? 'مراجعة' : 'Revision'] = revision;
-                row[isRTL ? 'نسبة الحضور' : 'Attendance %'] = sessionsData?.length
-                    ? `${Math.round((totalAttended / sessionsData.length) * 100)}%`
-                    : '0%';
-
-                return row;
-            });
-
-            // Create workbook
-            const wb = XLSX.utils.book_new();
-            appendJsonSheet(XLSX.utils, wb, circleInfo, isRTL ? 'معلومات الحلقة' : 'Circle Info');
-            appendJsonSheet(XLSX.utils, wb, sessionsSheet, isRTL ? 'الجلسات' : 'Sessions');
-            if (attendanceSheet.length > 0) {
-                appendJsonSheet(XLSX.utils, wb, attendanceSheet, isRTL ? 'شيت الحضور' : 'Attendance');
-            }
-
-            const fileName = `${getCircleName(circle).replace(/[^a-zA-Z0-9أ-ي]/g, '_')}_Report.xlsx`;
-            XLSX.writeFile(wb, ensureXlsxFilename(fileName));
             toast.success(isRTL ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
         } catch (error) {
             console.error('Export error:', error);
