@@ -4,6 +4,16 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
+import {
+    getEventCommittees,
+    getEventSummaries,
+    getEventsCommitteeId,
+    getEventVolunteers,
+    type EventCommittee,
+    type EventParticipant,
+    type EventSummary,
+    type EventVolunteer,
+} from '@/services/events.service';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -33,36 +43,12 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
-import { addJsonRowsToSheet, appendAoaSheet, ensureXlsxFilename, exportXlsxSheets, loadXlsx } from '@/utils/xlsx';
-import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
+import { exportEventDetailsToXlsx, exportEventsListToXlsx } from '@/utils/eventExport';
 
-interface Committee {
-    id: string;
-    name: string;
-    name_ar: string;
-}
-
-interface Event {
-    id: string;
-    name: string;
-    type: string;
-    location: string;
-    date: string;
-    time: string | null;
-    description: string | null;
-    created_by: string;
-    committee_id: string | null;
-    committee_name?: string;
-    participants_count?: number;
-}
-
-interface Participant {
-    id?: string;
-    volunteer_id?: string;
-    name: string;
-    phone: string;
-    is_volunteer: boolean;
-}
+type Committee = EventCommittee;
+type Event = EventSummary;
+type Participant = EventParticipant;
+type Volunteer = EventVolunteer;
 
 interface Speaker {
     id?: string;
@@ -83,23 +69,11 @@ interface EventBeneficiary {
     phone: string;
 }
 
-interface Volunteer {
-    id: string;
-    full_name: string;
-    phone: string | null;
-    avatar_url?: string | null;
-}
-
 type Tables = Database['public']['Tables'];
 type EventBeneficiaryInsert = Tables['event_beneficiaries']['Insert'];
 type EventOrganizerInsert = Tables['event_organizers']['Insert'];
 type EventParticipantInsert = Tables['event_participants']['Insert'];
 type EventSpeakerInsert = Tables['event_speakers']['Insert'];
-
-type EventWithCounts = Tables['events']['Row'] & {
-    committees?: { name: string; name_ar: string } | null;
-    event_participants?: { count: number }[] | null;
-};
 
 type EventOrganizerWithProfile = Tables['event_organizers']['Row'] & {
     profiles?: { full_name: string | null } | null;
@@ -184,29 +158,21 @@ export default function EventManagement() {
     });
 
     const fetchEventsCommittee = useCallback(async () => {
-        const { data } = await supabase
-            .from('committees')
-            .select('id')
-            .ilike('name', 'Events')
-            .maybeSingle();
-        if (data) setEventsCommitteeId(data.id);
+        const id = await getEventsCommitteeId();
+        if (id) setEventsCommitteeId(id);
     }, []);
 
     const fetchCommittees = useCallback(async () => {
-        const { data } = await supabase
-            .from('committees')
-            .select('id, name, name_ar')
-            .order('name');
-        if (data) {
-            setCommittees(data);
-            // Auto-set committee_id for non-admin heads
-            if (!isAdmin && userCommitteeName) {
-                const match = data.find(c => c.name === userCommitteeName);
-                if (match) setFormData(prev => ({ ...prev, committee_id: match.id }));
-            }
-            return data;
+        const data = await getEventCommittees();
+        setCommittees(data);
+
+        // Auto-set committee_id for non-admin heads
+        if (!isAdmin && userCommitteeName) {
+            const match = data.find(c => c.name === userCommitteeName);
+            if (match) setFormData(prev => ({ ...prev, committee_id: match.id }));
         }
-        return [];
+
+        return data;
     }, [isAdmin, userCommitteeName]);
 
     const fetchEvents = useCallback(async (committeesList?: Committee[], hasCache = false) => {
@@ -214,37 +180,18 @@ export default function EventManagement() {
             setLoading(true);
         }
         try {
-            let query = supabase
-                .from('events')
-                .select(`
-                    *,
-                    committees(name, name_ar),
-                    event_participants (count)
-                `)
-                .order('date', { ascending: false });
-
-            // Branch scope: admin sees activeBranch; non-admin relies on RLS
-            if (canViewAllBranches && activeBranch?.id) {
-                query = query.eq('branch_id', activeBranch.id);
-            }
-
-            // Non-admin heads only see events for their committee
+            let committeeId: string | undefined;
             if (!isAdmin && userCommitteeName) {
                 const currentCommittees = committeesList || committeesRef.current;
                 const committeeMatch = currentCommittees.find(c => c.name === userCommitteeName);
-                if (committeeMatch) {
-                    query = query.eq('committee_id', committeeMatch.id);
-                }
+                committeeId = committeeMatch?.id;
             }
 
-            const { data, error } = await query;
-            if (error) throw error;
-
-            const eventsData = ((data || []) as unknown as EventWithCounts[]).map((event) => ({
-                ...event,
-                committee_name: event.committees?.name_ar || event.committees?.name || '',
-                participants_count: event.event_participants?.[0]?.count || 0
-            }));
+            const eventsData = await getEventSummaries({
+                activeBranchId: activeBranch?.id,
+                canViewAllBranches,
+                committeeId,
+            });
 
             setEvents(eventsData);
 
@@ -259,25 +206,11 @@ export default function EventManagement() {
     }, [activeBranch?.id, canViewAllBranches, isAdmin, isRTL, user?.id, userCommitteeName]);
 
     const fetchVolunteers = useCallback(async () => {
-        let q = supabase
-            .from('profiles')
-            .select('id, full_name, phone, avatar_url')
-            .order('full_name');
-
-        if (canViewAllBranches && activeBranch?.id) {
-            q = q.eq('branch_id', activeBranch.id);
-        }
-
-        const { data } = await q;
-
-        if (data) {
-            setVolunteers(data.map((p) => ({
-                id: p.id,
-                full_name: p.full_name || 'Unknown',
-                phone: p.phone,
-                avatar_url: p.avatar_url
-            })));
-        }
+        const data = await getEventVolunteers({
+            activeBranchId: activeBranch?.id,
+            canViewAllBranches,
+        });
+        setVolunteers(data);
     }, [activeBranch?.id, canViewAllBranches]);
 
     useEffect(() => {
@@ -685,63 +618,19 @@ export default function EventManagement() {
             toast.error(isRTL ? 'لا توجد بيانات للتصدير' : 'No data to export');
             return;
         }
-        const data: SpreadsheetRow[] = events.map(e => ({
-            [isRTL ? 'الاسم' : 'Event Name']: e.name,
-            [isRTL ? 'النوع' : 'Type']: e.type,
-            [isRTL ? 'التاريخ' : 'Date']: e.date,
-            [isRTL ? 'الوقت' : 'Time']: formatTime(e.time),
-            [isRTL ? 'المكان' : 'Location']: e.location,
-            [isRTL ? 'عدد المشاركين' : 'Participants Count']: e.participants_count,
-            [isRTL ? 'الوصف' : 'Description']: e.description || ''
-        }));
-
-        await exportXlsxSheets(
-            [{ name: 'Events', rows: data }],
-            `Events_List_${format(new Date(), 'yyyy-MM-dd')}.xlsx`,
-        );
-        toast.success(isRTL ? 'تم تصدير كل الايفينتات بنجاح' : 'All events exported successfully');
+        try {
+            await exportEventsListToXlsx({ events, isRTL, formatTime });
+            toast.success(isRTL ? 'تم تصدير كل الايفينتات بنجاح' : 'All events exported successfully');
+        } catch (error) {
+            console.error('Error exporting events:', error);
+            toast.error(isRTL ? 'فشل تصدير الإيفينتات' : 'Failed to export events');
+        }
     };
 
     const handleExportSingleEvent = async (event: Event) => {
         try {
-            const XLSX = await loadXlsx();
-
-            // Fetch participants
-            const { data: participantsData, error } = await supabase
-                .from('event_participants')
-                .select('*')
-                .eq('event_id', event.id);
-
-            if (error) throw error;
-
-            // Prepare Data for Sheet
-            // 1. Event Info Header
-            const eventInfo = [
-                [isRTL ? 'اسم الايفينت' : 'Event Name', event.name],
-                [isRTL ? 'التاريخ' : 'Date', event.date],
-                [isRTL ? 'الوقت' : 'Time', formatTime(event.time)],
-                [isRTL ? 'المكان' : 'Location', event.location],
-                [isRTL ? 'النوع' : 'Type', event.type],
-                [], // Empty row
-                [isRTL ? 'قائمة المشاركين' : 'Participants List']
-            ];
-
-            // 2. Participants Table
-            const participantsList: SpreadsheetRow[] = (participantsData || []).map(p => ({
-                [isRTL ? 'الاسم' : 'Name']: p.name,
-                [isRTL ? 'الهاتف' : 'Phone']: p.phone ? `'${p.phone}` : '', // Force string format
-                [isRTL ? 'النوع' : 'Type']: p.is_volunteer ? (isRTL ? 'متطوع' : 'Volunteer') : (isRTL ? 'ضيف' : 'Guest'),
-                [isRTL ? 'كود التطوع' : 'Volunteer ID']: p.volunteer_id || ''
-            }));
-
-            const wb = XLSX.utils.book_new();
-            const ws = appendAoaSheet(XLSX.utils, wb, eventInfo, 'Event Details');
-
-            addJsonRowsToSheet(XLSX.utils, ws, participantsList, { origin: "A8" });
-
-            XLSX.writeFile(wb, ensureXlsxFilename(`${event.name.replace(/[^a-z0-9]/gi, '_')}_Details`));
+            await exportEventDetailsToXlsx({ event, isRTL, formatTime });
             toast.success(isRTL ? 'تم تصدير تفاصيل الايفينت بنجاح' : 'Event details exported successfully');
-
         } catch (error) {
             console.error('Error exporting event:', error);
             toast.error(isRTL ? 'فشل تصدير تفاصيل الايفينت' : 'Failed to export event details');
