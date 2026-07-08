@@ -33,8 +33,8 @@ import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
-import { appendAoaSheet, ensureXlsxFilename, exportXlsxSheets, loadXlsx } from '@/utils/xlsx';
-import { sanitizeSpreadsheetRows, type SpreadsheetRow } from '@/utils/spreadsheetSecurity';
+import { addJsonRowsToSheet, appendAoaSheet, ensureXlsxFilename, exportXlsxSheets, loadXlsx } from '@/utils/xlsx';
+import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 interface Committee {
     id: string;
@@ -737,8 +737,7 @@ export default function EventManagement() {
             const wb = XLSX.utils.book_new();
             const ws = appendAoaSheet(XLSX.utils, wb, eventInfo, 'Event Details');
 
-            // Append participants starting from row 8 (index 7)
-            XLSX.utils.sheet_add_json(ws, sanitizeSpreadsheetRows(participantsList), { origin: "A8" });
+            addJsonRowsToSheet(XLSX.utils, ws, participantsList, { origin: "A8" });
 
             XLSX.writeFile(wb, ensureXlsxFilename(`${event.name.replace(/[^a-z0-9]/gi, '_')}_Details`));
             toast.success(isRTL ? 'تم تصدير تفاصيل الايفينت بنجاح' : 'Event details exported successfully');

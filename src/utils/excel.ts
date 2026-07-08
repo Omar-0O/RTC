@@ -1,5 +1,4 @@
-import { loadXlsx, safeSheetName } from '@/utils/xlsx';
-import { sanitizeSpreadsheetRows } from '@/utils/spreadsheetSecurity';
+import { appendJsonSheet, loadXlsx } from '@/utils/xlsx';
 
 interface Participant {
     name: string;
@@ -50,19 +49,11 @@ export const generateGroupSubmissionCSV = async (data: GroupSubmissionData): Pro
     const wb = utils.book_new();
 
     // Add Activity Info sheet
-    utils.book_append_sheet(
-        wb,
-        utils.json_to_sheet(sanitizeSpreadsheetRows(activityInfo)),
-        safeSheetName('معلومات المهمة')
-    );
+    appendJsonSheet(utils, wb, activityInfo, 'معلومات المهمة');
 
     // Add Participants sheet
     if (participantsData.length > 0) {
-        utils.book_append_sheet(
-            wb,
-            utils.json_to_sheet(sanitizeSpreadsheetRows(participantsData)),
-            safeSheetName('المشاركين')
-        );
+        appendJsonSheet(utils, wb, participantsData, 'المشاركين');
     }
 
     // Generate Excel file as array buffer

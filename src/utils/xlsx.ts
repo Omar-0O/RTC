@@ -10,6 +10,7 @@ import { safeDownloadFilename } from '@/utils/downloadFilename';
 type XlsxModule = typeof import('@e965/xlsx');
 type XlsxUtils = XlsxModule['utils'];
 type XlsxWorksheet = ReturnType<XlsxUtils['aoa_to_sheet']>;
+type SheetAddJsonOptions = Parameters<XlsxUtils['sheet_add_json']>[2];
 
 type XlsxSheet = {
   name: string;
@@ -62,6 +63,16 @@ export const appendAoaSheet = (
   const worksheet = utils.aoa_to_sheet(sanitizeAoaRows(rows));
   configureWorksheet?.(worksheet);
   utils.book_append_sheet(workbook, worksheet, safeSheetName(sheetName));
+  return worksheet;
+};
+
+export const addJsonRowsToSheet = (
+  utils: XlsxUtils,
+  worksheet: XlsxWorksheet,
+  rows: SpreadsheetRow[],
+  options?: SheetAddJsonOptions,
+) => {
+  utils.sheet_add_json(worksheet, sanitizeSpreadsheetRows(rows), options);
   return worksheet;
 };
 
