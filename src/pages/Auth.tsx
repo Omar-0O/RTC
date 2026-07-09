@@ -183,12 +183,12 @@ export default function Auth() {
             <form onSubmit={handleLogin} className="space-y-4" noValidate>
               <div className="space-y-2">
                 <Label htmlFor="email">
-                  {isRTL ? 'البريد الإلكتروني أو اسم الفرع' : 'Email or Branch name'}
+                  {isRTL ? 'البريد الإلكتروني' : 'Email'}
                 </Label>
                 <Input
                   id="email"
                   type="text"
-                  placeholder={isRTL ? 'you@example.com أو اسم الفرع' : 'you@example.com or branch name'}
+                  placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
