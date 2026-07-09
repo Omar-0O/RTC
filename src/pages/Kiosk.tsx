@@ -527,40 +527,30 @@ export default function Kiosk() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4 select-none" dir={isRTL ? 'rtl' : 'ltr'}>
-        <div className="max-w-2xl w-full bg-card border border-border shadow-2xl rounded-3xl overflow-hidden animate-slide-up">
+      <div className="max-w-2xl mx-auto animate-slide-up py-10" dir={isRTL ? 'rtl' : 'ltr'}>
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-card via-card to-secondary/5 border border-primary/20 shadow-2xl">
           <div className="absolute top-0 w-full h-2 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50" />
-          
+
           <div className="flex flex-col items-center justify-center p-12 text-center space-y-6">
             <div className="relative">
-              <div className="absolute inset-0 bg-success/20 blur-xl rounded-full p-4 animate-pulse" />
+              <div className="absolute inset-0 rounded-full bg-success/20 blur-xl p-4 animate-pulse" />
               <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-success to-emerald-600 flex items-center justify-center shadow-lg float-start ring-8 ring-success/10">
-                <CheckCircle2 className="h-12 w-12 text-white animate-bounce" />
+                <CheckCircle2 className="h-12 w-12 text-white" />
               </div>
             </div>
 
             <div className="space-y-2 max-w-lg">
               <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary via-success to-emerald-600">
-                {isRTL ? 'شكراً لأنك عضو فعال في شباب المحمدية ❤️' : 'Thank you for being an active member ❤️'}
+                {isRTL ? 'شكرا لأنك عضو فعال في RTC ❤️' : 'Thank you for being an active member in RTC ❤️'}
               </h2>
-              <p className="text-muted-foreground text-base">
-                {volunteer 
-                  ? (isRTL 
-                      ? `تم تسجيل مشاركتك بنجاح، ${volunteer.full_name_ar || volunteer.full_name}. جزاك الله خيراً!` 
-                      : `Your participation has been logged, ${volunteer.full_name}. May God reward you!`)
-                  : (isRTL 
-                      ? `تم تسجيل مشاركتك بنجاح، ${guestName}. جزاك الله خيراً!` 
-                      : `Your participation has been logged, ${guestName}. May God reward you!`)
-                }
-              </p>
             </div>
 
             <div className="pt-6 border-t border-dashed w-full flex flex-col items-center justify-center gap-4">
               <div className="text-sm text-muted-foreground flex items-center gap-2">
                 <RefreshCw className="h-4 w-4 animate-spin text-primary" />
                 <span>
-                  {isRTL 
-                    ? `ستتم إعادة التهيئة للعملية القادمة تلقائياً خلال ${countdown} ثوان...` 
+                  {isRTL
+                    ? `ستتم إعادة التهيئة للعملية القادمة تلقائياً خلال ${countdown} ثوان...`
                     : `Resetting for the next volunteer in ${countdown}s...`}
                 </span>
               </div>
@@ -571,7 +561,7 @@ export default function Kiosk() {
               >
                 <span className="flex items-center gap-2">
                   <ClipboardList className="h-5 w-5" />
-                  {isRTL ? 'تسجيل مشاركة أخرى الآن' : 'Log Another Participation'}
+                  {isRTL ? 'تسجيل مشاركة جديدة' : 'Log Another Participation'}
                 </span>
               </Button>
             </div>
@@ -733,11 +723,6 @@ export default function Kiosk() {
                         <h4 className="text-base font-bold text-warning">
                           {isRTL ? 'الرقم غير مسجل كمتطوع' : 'Phone not registered as volunteer'}
                         </h4>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {isRTL 
-                            ? 'هذا الرقم غير مرتبط بمتطوع مسجل. يرجى إدخال اسمك بالكامل أدناه لتسجيل المشاركة كزائر بالفرع اليوم.' 
-                            : 'This phone is not associated with a registered volunteer. Please write your full name below to log as a guest.'}
-                        </p>
                       </div>
                       
                       <div className="space-y-2.5">
