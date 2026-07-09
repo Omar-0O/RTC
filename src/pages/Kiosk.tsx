@@ -128,12 +128,13 @@ export default function Kiosk() {
         const { data: branchData } = await supabase.from('branches').select('*').order('name');
         setBranches(branchData || []);
 
-        // Retrieve branch ID from local storage
+        // Retrieve branch ID from local storage and validate it
         const savedBranchId = localStorage.getItem('rtc_kiosk_branch_id');
-        if (savedBranchId) {
+        const isValidBranch = savedBranchId && branchData && branchData.some(b => b.id === savedBranchId);
+        if (isValidBranch) {
           setSelectedBranchId(savedBranchId);
         } else if (branchData && branchData.length > 0) {
-          // Default to first branch if none saved
+          // Default to first branch if none saved or invalid
           const defaultBranch = branchData.find(b => b.is_default) || branchData[0];
           setSelectedBranchId(defaultBranch.id);
           localStorage.setItem('rtc_kiosk_branch_id', defaultBranch.id);
