@@ -231,7 +231,7 @@ export default function SubmissionManagement() {
                 .select('user_id')
                 .eq('role', 'admin');
 
-            const adminIds = adminRoles?.map(r => r.user_id) || [];
+            const adminIds = new Set(adminRoles?.map(r => r.user_id) || []);
 
             const profilesQuery = supabase
                 .from('profiles')
@@ -247,7 +247,7 @@ export default function SubmissionManagement() {
 
             // Filter out admins
             const filteredVolunteers = (data ?? []).filter((v) =>
-                !adminIds.includes(v.id)
+                !adminIds.has(v.id)
             );
             setVolunteers(filteredVolunteers);
         } catch (error) {
@@ -319,29 +319,33 @@ export default function SubmissionManagement() {
                 .gte('submitted_at', startDate.toISOString())
                 .lte('submitted_at', endDate.toISOString());
 
-            // Fetch all submissions for the month
-            const { data, error } = await (
+            const submissionsRequest = (
                 activeBranch?.id
                     ? query.eq('branch_id', activeBranch.id)
                     : query
             ).order('created_at', { ascending: false });
 
-            if (error) throw error;
-
-            // Fetch admin IDs to filter them out
-            const { data: adminRoles } = await supabase
+            const adminRolesRequest = supabase
                 .from('user_roles')
                 .select('user_id')
                 .eq('role', 'admin');
 
-            const adminIds = adminRoles?.map(r => r.user_id) || [];
+            const [{ data, error }, { data: adminRoles, error: adminError }] = await Promise.all([
+                submissionsRequest,
+                adminRolesRequest,
+            ]);
+
+            if (error) throw error;
+            if (adminError) throw adminError;
+
+            const adminIds = new Set(adminRoles?.map(r => r.user_id) || []);
 
             const submissionsData = (data ?? []) as Submission[];
 
             // Base valid submissions (exclude admins)
             const baseSubmissions = submissionsData.filter(s => {
                 if (s.volunteer_id) {
-                    const isAdmin = adminIds.includes(s.volunteer_id);
+                    const isAdmin = adminIds.has(s.volunteer_id);
                     if (isAdmin) return false;
                 }
                 return true;
@@ -418,11 +422,60 @@ export default function SubmissionManagement() {
                 .gte('events.date', startDate.toISOString().split('T')[0])
                 .lte('events.date', endDate.toISOString().split('T')[0]);
 
-            const { data: eventParticipants } = await (
+            const eventParticipantsRequest = (
                 activeBranch?.id
                     ? eventQuery.eq('events.branch_id', activeBranch.id)
                     : eventQuery
             );
+
+            // Fetch caravan participants (guests)
+            const caravanQuery = supabase
+                .from('caravan_participants')
+                .select(`
+                    id,
+                    name,
+                    phone,
+                    is_volunteer,
+                    caravans!inner (name, date, branch_id)
+                `)
+                .eq('is_volunteer', false)
+                .gte('caravans.date', startDate.toISOString().split('T')[0])
+                .lte('caravans.date', endDate.toISOString().split('T')[0]);
+
+            const caravanParticipantsRequest = (
+                activeBranch?.id
+                    ? caravanQuery.eq('caravans.branch_id', activeBranch.id)
+                    : caravanQuery
+            );
+
+            const callParticipantsRequest = !activeBranch?.id
+                ? supabase
+                    .from('ethics_calls_participants')
+                    .select(`
+                        id,
+                        name,
+                        phone,
+                        is_volunteer,
+                        ethics_calls!inner (name, date)
+                    `)
+                    .eq('is_volunteer', false)
+                    .gte('ethics_calls.date', startDate.toISOString().split('T')[0])
+                    .lte('ethics_calls.date', endDate.toISOString().split('T')[0])
+                : Promise.resolve({ data: null, error: null });
+
+            const [
+                { data: eventParticipants, error: eventError },
+                { data: caravanParticipants, error: caravanError },
+                { data: callParticipants, error: callError },
+            ] = await Promise.all([
+                eventParticipantsRequest,
+                caravanParticipantsRequest,
+                callParticipantsRequest,
+            ]);
+
+            if (eventError) throw eventError;
+            if (caravanError) throw caravanError;
+            if (callError) throw callError;
 
             if (eventParticipants) {
                 (eventParticipants as GuestParticipantRow<'events'>[]).forEach((p) => {
@@ -441,26 +494,6 @@ export default function SubmissionManagement() {
                 });
             }
 
-            // Fetch caravan participants (guests)
-            const caravanQuery = supabase
-                .from('caravan_participants')
-                .select(`
-                    id,
-                    name,
-                    phone,
-                    is_volunteer,
-                    caravans!inner (name, date, branch_id)
-                `)
-                .eq('is_volunteer', false)
-                .gte('caravans.date', startDate.toISOString().split('T')[0])
-                .lte('caravans.date', endDate.toISOString().split('T')[0]);
-
-            const { data: caravanParticipants } = await (
-                activeBranch?.id
-                    ? caravanQuery.eq('caravans.branch_id', activeBranch.id)
-                    : caravanQuery
-            );
-
             if (caravanParticipants) {
                 (caravanParticipants as GuestParticipantRow<'caravans'>[]).forEach((p) => {
                     const caravan = getSourceRelation(p, 'caravans');
@@ -478,36 +511,21 @@ export default function SubmissionManagement() {
                 });
             }
 
-            if (!activeBranch?.id) {
-                const { data: callParticipants } = await supabase
-                    .from('ethics_calls_participants')
-                    .select(`
-                        id,
-                        name,
-                        phone,
-                        is_volunteer,
-                        ethics_calls!inner (name, date)
-                    `)
-                    .eq('is_volunteer', false)
-                    .gte('ethics_calls.date', startDate.toISOString().split('T')[0])
-                    .lte('ethics_calls.date', endDate.toISOString().split('T')[0]);
-
-                if (callParticipants) {
-                    (callParticipants as GuestParticipantRow<'ethics_calls'>[]).forEach((p) => {
-                        const ethicsCall = getSourceRelation(p, 'ethics_calls');
-                        if (ethicsCall) {
-                            guestData.push({
-                                id: p.id,
-                                name: p.name || '',
-                                phone: p.phone,
-                                source: 'call',
-                                source_name: ethicsCall.name || '',
-                                date: ethicsCall.date || '',
-                                type: 'guest'
-                            });
-                        }
-                    });
-                }
+            if (callParticipants) {
+                (callParticipants as GuestParticipantRow<'ethics_calls'>[]).forEach((p) => {
+                    const ethicsCall = getSourceRelation(p, 'ethics_calls');
+                    if (ethicsCall) {
+                        guestData.push({
+                            id: p.id,
+                            name: p.name || '',
+                            phone: p.phone,
+                            source: 'call',
+                            source_name: ethicsCall.name || '',
+                            date: ethicsCall.date || '',
+                            type: 'guest'
+                        });
+                    }
+                });
             }
 
             setGuestParticipations(guestData);
