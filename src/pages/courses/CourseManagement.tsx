@@ -2326,23 +2326,52 @@ export default function CourseManagement() {
                 attendanceCount[att.student_phone] = (attendanceCount[att.student_phone] || 0) + 1;
             });
 
-            // Calculate eligibility and update each beneficiary
+            // Calculate eligibility and prepare grouped updates
             let eligibleCount = 0;
+            const updatesByPercentage = new Map<string, {
+                attendance_percentage: number;
+                certificate_eligible: boolean;
+                ids: string[];
+            }>();
+
             for (const beneficiary of courseBeneficiaries) {
                 const presentCount = attendanceCount[beneficiary.phone] || 0;
                 const percentage = totalLectures > 0 ? (presentCount / totalLectures) * 100 : 100;
+                const roundedPercentage = Math.round(percentage * 100) / 100;
                 const isEligible = percentage >= 75;
 
                 if (isEligible) eligibleCount++;
 
-                await supabase
-                    .from('course_beneficiaries')
-                    .update({
-                        attendance_percentage: Math.round(percentage * 100) / 100,
-                        certificate_eligible: isEligible
-                    } as any)
-                    .eq('id', beneficiary.id);
+                const groupKey = `${roundedPercentage}_${isEligible}`;
+                if (!updatesByPercentage.has(groupKey)) {
+                    updatesByPercentage.set(groupKey, {
+                        attendance_percentage: roundedPercentage,
+                        certificate_eligible: isEligible,
+                        ids: []
+                    });
+                }
+                updatesByPercentage.get(groupKey)!.ids.push(beneficiary.id);
             }
+
+            // Execute bulk updates
+            const updatePromises = Array.from(updatesByPercentage.values()).map(async (group) => {
+                // Batch in chunks of 500 to avoid URI too long errors in PostgREST
+                const chunkSize = 500;
+                for (let i = 0; i < group.ids.length; i += chunkSize) {
+                    const chunkIds = group.ids.slice(i, i + chunkSize);
+                    if (chunkIds.length > 0) {
+                        await supabase
+                            .from('course_beneficiaries')
+                            .update({
+                                attendance_percentage: group.attendance_percentage,
+                                certificate_eligible: group.certificate_eligible
+                            } as any)
+                            .in('id', chunkIds);
+                    }
+                }
+            });
+
+            await Promise.all(updatePromises);
 
             // Show summary toast
             toast.info(
