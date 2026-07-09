@@ -1,9 +1,6 @@
--- Update RLS policies for user_private_details to allow head_hr and hr to view passwords
-DROP POLICY IF EXISTS "Admins can view private details" ON public.user_private_details;
-
-CREATE POLICY "Privileged users can view private details" ON public.user_private_details
-    FOR SELECT USING (
-        auth.uid() IN (
-             SELECT user_id FROM user_roles WHERE role IN ('admin', 'head_hr', 'hr')
-        )
-    );
+-- Deprecated security migration.
+--
+-- user_private_details stored recoverable passwords and has been removed.
+-- Keep this migration as a no-op so historical migration order remains stable
+-- without recreating or granting access to unsafe password storage.
+SELECT 1;

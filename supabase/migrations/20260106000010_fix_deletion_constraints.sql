@@ -98,11 +98,13 @@ ALTER TABLE public.group_submissions
 -- 3. VOLUNTEER/PROFILE DELETION: Cascade delete all related records
 -- ============================================
 
--- user_private_details (CRITICAL - this was causing the error)
-ALTER TABLE public.user_private_details
+-- Historical compatibility: this table was removed because it stored
+-- recoverable passwords. Keep the constraint migration safe for databases that
+-- no longer have it.
+ALTER TABLE IF EXISTS public.user_private_details
   DROP CONSTRAINT IF EXISTS user_private_details_id_fkey;
 
-ALTER TABLE public.user_private_details
+ALTER TABLE IF EXISTS public.user_private_details
   ADD CONSTRAINT user_private_details_id_fkey
   FOREIGN KEY (id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
@@ -169,4 +171,3 @@ ALTER TABLE public.activity_submissions
 ALTER TABLE public.activity_submissions
   ADD CONSTRAINT activity_submissions_group_submission_id_fkey
   FOREIGN KEY (group_submission_id) REFERENCES public.group_submissions(id) ON DELETE CASCADE;
-
