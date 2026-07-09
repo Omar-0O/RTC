@@ -32,6 +32,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [features, setFeatures] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Ref to track current profile id — avoids stale closure inside onAuthStateChange
+  const profileIdRef = useRef<string | null>(null);
+
   const fetchProfile = useCallback(async (userId: string) => {
     try {
       const { data: profileData, error: profileError } = await supabase
@@ -47,6 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (profileData) {
         setProfile(profileData);
+        profileIdRef.current = profileData.id;
       }
 
       const { data: rolesData, error: rolesError } = await supabase
@@ -132,8 +136,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSession(session);
           setUser(session?.user ?? null);
           if (session?.user) {
-            // Only fetch profile if we don't have it or it's different
-            if (!profile || profile.id !== session.user.id) {
+            // Use ref to avoid stale closure — check if profile is already loaded for this user
+            if (!profileIdRef.current || profileIdRef.current !== session.user.id) {
               fetchProfile(session.user.id);
             }
           }
@@ -143,11 +147,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProfile(null);
           setRoles([]);
           setFeatures([]);
+          profileIdRef.current = null;
           setIsLoading(false);
         } else if (event === 'TOKEN_REFRESH_ERROR') {
-          console.error('Token refresh error occurred');
-          // Do not immediately sign out, let the session expire naturally or wait for next action
-          // but user might need to re-login next time they try an action
+          console.error('Token refresh error — session may have expired. User will need to log in again on next action.');
+          // Do not force sign out — let the session expire naturally.
+          // Supabase will fire SIGNED_OUT automatically if the refresh truly fails.
         }
 
         // Ensure loading is false after any auth event if it wasn't already

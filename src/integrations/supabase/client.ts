@@ -61,11 +61,18 @@ const customStorage = {
     // Always store in memory for maximum reliability
     supabaseMemoryStore.set(key, value);
 
+    // IMPORTANT: Default to localStorage (persistent) to avoid race conditions where
+    // rememberMe hasn't been written yet during initial login flow (token refresh, INITIAL_SESSION events).
+    // Only switch to sessionStorage when the user has *explicitly* chosen not to be remembered.
     let rememberMe = true;
     try {
-      rememberMe = localStorage.getItem('rememberMe') !== 'false';
+      const stored = localStorage.getItem('rememberMe');
+      // Only switch to session-only if explicitly set to 'false'
+      if (stored === 'false') {
+        rememberMe = false;
+      }
     } catch (e) {
-      // ignore
+      // If localStorage is unavailable, default to persistent memory only
     }
 
     try {

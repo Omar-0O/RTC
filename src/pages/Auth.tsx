@@ -32,11 +32,67 @@ export default function Auth() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
 
     // Clean input
     const cleanEmail = email.trim();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail) {
+      toast({
+        title: t('error'),
+        description: isRTL ? 'يرجى إدخال البريد الإلكتروني أو اسم الفرع' : 'Please enter your email or branch name',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsLoading(true);
     console.log('Attempting login with:', cleanEmail);
+
+    // If password is empty, attempt branch kiosk shortcut
+    if (!cleanPassword) {
+      try {
+        const { data: branches, error: branchError } = await supabase
+          .from('branches')
+          .select('*');
+        
+        if (!branchError && branches) {
+          const matchedBranch = branches.find(b => 
+            b.name?.toLowerCase().trim() === cleanEmail.toLowerCase() ||
+            b.name_ar?.toLowerCase().trim() === cleanEmail.toLowerCase() ||
+            b.name?.toLowerCase().includes(cleanEmail.toLowerCase()) ||
+            b.name_ar?.toLowerCase().includes(cleanEmail.toLowerCase())
+          );
+
+          if (matchedBranch) {
+            localStorage.setItem('rtc_kiosk_branch_id', matchedBranch.id);
+            
+            toast({
+              title: isRTL ? 'تم الدخول كشاشة تفاعلية' : 'Kiosk Access Granted',
+              description: isRTL 
+                ? `تم توجيهك إلى شاشة فرع ${matchedBranch.name_ar || matchedBranch.name}`
+                : `Redirecting to Kiosk for ${matchedBranch.name} branch`,
+            });
+            
+            navigate('/kiosk');
+            setIsLoading(false);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error('Error in branch login shortcut:', err);
+      }
+
+      toast({
+        title: t('error'),
+        description: isRTL 
+          ? 'يرجى إدخال كلمة المرور أو اسم فرع صحيح' 
+          : 'Please enter a password or a valid branch name',
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+      return;
+    }
 
     // Save remember me preference before login
     try {
@@ -48,7 +104,7 @@ export default function Auth() {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
-        password: password,
+        password: cleanPassword,
       });
 
       if (error) {
@@ -124,16 +180,17 @@ export default function Auth() {
             <CardDescription>{t('auth.loginSubtitle')}</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4" noValidate>
               <div className="space-y-2">
-                <Label htmlFor="email">{t('email')}</Label>
+                <Label htmlFor="email">
+                  {isRTL ? 'البريد الإلكتروني أو اسم الفرع' : 'Email or Branch name'}
+                </Label>
                 <Input
                   id="email"
-                  type="email"
-                  placeholder="you@example.com"
+                  type="text"
+                  placeholder={isRTL ? 'you@example.com أو اسم الفرع' : 'you@example.com or branch name'}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  required
                 />
               </div>
               <div className="space-y-2">
@@ -145,8 +202,6 @@ export default function Auth() {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
                     className="ltr:pr-10 rtl:pl-10"
                   />
                   <button
