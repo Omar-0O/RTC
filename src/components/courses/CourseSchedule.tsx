@@ -72,7 +72,12 @@ const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
 
 const HEAD_ROLES = ['admin', 'supervisor', 'head_production', 'head_fourth_year', 'head_events', 'head_caravans', 'committee_leader'];
 
-export default function CourseSchedule() {
+interface CourseScheduleProps {
+    isKiosk?: boolean;
+    branchId?: string;
+}
+
+export default function CourseSchedule({ isKiosk = false, branchId }: CourseScheduleProps) {
     const { primaryRole, user } = useAuth();
     const { isRTL, language } = useLanguage();
     const { activeBranch, canViewAllBranches } = useBranch();
@@ -85,12 +90,13 @@ export default function CourseSchedule() {
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
     const canViewDetails = true; // Everyone can view details now, but content varies
-    const isHead = HEAD_ROLES.includes(primaryRole || '');
+    const isHead = isKiosk ? false : HEAD_ROLES.includes(primaryRole || '');
     const locale = language === 'ar' ? ar : enUS;
 
     useEffect(() => {
-        if (!user?.id) return;
-        const cacheKey = `rtc_course_schedule_${user.id}_${activeBranch?.id || 'all'}`;
+        if (!isKiosk && !user?.id) return;
+        const cacheId = isKiosk ? (branchId || 'kiosk') : (user?.id || 'anonymous');
+        const cacheKey = `rtc_course_schedule_${cacheId}_${isKiosk ? (branchId || 'all') : (activeBranch?.id || 'all')}`;
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
             try {
@@ -103,7 +109,7 @@ export default function CourseSchedule() {
             }
         }
         fetchData(!!cached);
-    }, [user?.id, activeBranch?.id]);
+    }, [user?.id, activeBranch?.id, isKiosk, branchId]);
 
     const fetchData = async (hasCache = false) => {
         if (!hasCache) {
@@ -118,8 +124,9 @@ export default function CourseSchedule() {
             setCourses(coursesList);
             setCircles(circlesList);
 
-            if (user?.id) {
-                const cacheKey = `rtc_course_schedule_${user.id}_${activeBranch?.id || 'all'}`;
+            if (isKiosk || user?.id) {
+                const cacheId = isKiosk ? (branchId || 'kiosk') : (user?.id || 'anonymous');
+                const cacheKey = `rtc_course_schedule_${cacheId}_${isKiosk ? (branchId || 'all') : (activeBranch?.id || 'all')}`;
                 localStorage.setItem(cacheKey, JSON.stringify({
                     courses: coursesList,
                     circles: circlesList
@@ -139,7 +146,10 @@ export default function CourseSchedule() {
                 .select('*')
                 .order('schedule_time', { ascending: true });
             
-            if (canViewAllBranches && activeBranch?.id) q = (q as any).eq('branch_id', activeBranch.id);
+            const branchToFilter = isKiosk ? branchId : (canViewAllBranches && activeBranch?.id ? activeBranch.id : undefined);
+            if (branchToFilter) {
+                q = q.eq('branch_id', branchToFilter);
+            }
 
             const { data, error } = await q;
             if (error) throw error;
@@ -157,7 +167,10 @@ export default function CourseSchedule() {
                 .select('id, schedule, is_active, teacher_id')
                 .eq('is_active', true);
             
-            if (canViewAllBranches && activeBranch?.id) circlesQuery = (circlesQuery as any).eq('branch_id', activeBranch.id);
+            const branchToFilter = isKiosk ? branchId : (canViewAllBranches && activeBranch?.id ? activeBranch.id : undefined);
+            if (branchToFilter) {
+                circlesQuery = circlesQuery.eq('branch_id', branchToFilter);
+            }
 
             const { data: circlesData, error: circlesError } = await circlesQuery;
             if (circlesError) throw circlesError;

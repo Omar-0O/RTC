@@ -41,6 +41,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import logo from '@/assets/logo.png';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import CourseSchedule from '@/components/courses/CourseSchedule';
 
 interface VolunteerProfile {
   id: string;
@@ -141,10 +142,26 @@ export default function Kiosk() {
         // Fetch committees
         const { data: committeeData } = await supabase.from('committees').select('*').order('name');
         setCommittees(committeeData || []);
+      } catch (err) {
+        console.error('Error loading kiosk config:', err);
+      }
+    }
+    loadConfig();
+  }, []);
 
-        // Fetch activity types
-        const { data: activityData } = await supabase.from('activity_types').select('*').order('name');
+  // Fetch activity types when branch changes
+  useEffect(() => {
+    async function fetchBranchActivityTypes() {
+      try {
+        let query = supabase.from('activity_types').select('*').order('name');
         
+        if (selectedBranchId) {
+          query = query.or(`branch_id.eq.${selectedBranchId},branch_id.is.null`);
+        }
+
+        const { data: activityData, error } = await query;
+        if (error) throw error;
+
         // Fetch activity type-committee mapping
         const { data: mappingData } = await supabase.from('activity_type_committees').select('*');
         const mappingMap = new Map<string, string[]>();
@@ -166,11 +183,12 @@ export default function Kiosk() {
           );
         }
       } catch (err) {
-        console.error('Error loading kiosk config:', err);
+        console.error('Error fetching activity types:', err);
       }
     }
-    loadConfig();
-  }, []);
+
+    fetchBranchActivityTypes();
+  }, [selectedBranchId]);
 
   // Save selected branch to local storage
   const handleBranchChange = (id: string) => {
@@ -1016,6 +1034,11 @@ export default function Kiosk() {
           </CardContent>
         </Card>
 
+      </div>
+
+      {/* Monthly Course Schedule Section */}
+      <div className="max-w-6xl mx-auto w-full">
+        <CourseSchedule isKiosk={true} branchId={selectedBranchId} />
       </div>
 
     </div>
