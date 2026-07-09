@@ -4,6 +4,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
+import {
+    getGuestParticipations,
+    getHrVolunteers,
+    getMonthlySubmissions,
+    getTrainerSummaries,
+    type GuestParticipation,
+    type Profile,
+    type Submission,
+    type TrainerSummary,
+} from '@/services/hrSubmissions.service';
 import { ProofImagePreview } from '@/components/ProofImagePreview';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,7 +39,7 @@ import { toast } from 'sonner';
 import { Search, FileSpreadsheet, Calendar, Award, Check, ChevronsUpDown, Trash2, AlertTriangle, Building2, Activity, Copy, MessageCircle, User } from 'lucide-react';
 import { waPhoneLink } from '@/utils/phoneUtils';
 import { downloadCsv } from '@/utils/csv';
-import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { MonthPicker } from '@/components/ui/calendar';
 import { cn } from "@/lib/utils";
@@ -75,57 +85,6 @@ import {
 } from "@/components/ui/sheet"
 import { VolunteerProfilePreview } from '@/components/volunteer/VolunteerProfilePreview';
 
-interface Profile {
-    id: string;
-    full_name: string | null;
-    full_name_ar: string | null;
-    level: string;
-    avatar_url: string | null;
-    phone: string | null;
-}
-
-type TrainerSummary = {
-    ar: string;
-    en: string;
-    phone: string | null;
-    image_url: string | null;
-};
-
-type TrainerRow = {
-    id: string | null;
-    name_ar: string | null;
-    name_en: string | null;
-    phone: string | null;
-    image_url: string | null;
-};
-
-interface Submission {
-    id: string;
-    volunteer_id: string | null;
-    activity_type_id: string;
-    submitted_at: string;
-    created_at: string;
-    points_awarded: number;
-    status: string;
-    location?: string;
-    wore_vest?: boolean;
-    description?: string;
-    proof_url?: string;
-    participant_type?: 'volunteer' | 'guest' | 'trainer';
-    guest_name?: string | null;
-    guest_phone?: string | null;
-    trainer_id?: string | null;
-    profiles: Profile | null;
-    activity_types: {
-        name: string;
-        name_ar: string;
-    };
-    committees: {
-        name: string;
-        name_ar: string;
-    };
-}
-
 interface VolunteerSummary {
     volunteer: Profile;
     submission_count: number;
@@ -133,37 +92,6 @@ interface VolunteerSummary {
     last_active: string | null;
     submissions: Submission[];
 }
-
-// Guest participation interface for head_hr
-interface GuestParticipation {
-    id: string;
-    name: string;
-    phone: string | null;
-    source: 'event' | 'caravan' | 'call';
-    source_name: string;
-    date: string;
-    type: 'guest' | 'trainer';
-}
-
-type SourceRelation = {
-    name: string | null;
-    date: string | null;
-    branch_id?: string | null;
-};
-
-type GuestParticipantRow<TSource extends string> = {
-    id: string;
-    name: string | null;
-    phone: string | null;
-} & Record<TSource, SourceRelation | SourceRelation[] | null>;
-
-const getSourceRelation = <TSource extends string>(
-    row: GuestParticipantRow<TSource>,
-    sourceKey: TSource,
-) => {
-    const source = row[sourceKey];
-    return Array.isArray(source) ? source[0] : source;
-};
 
 export default function SubmissionManagement() {
     const { user, primaryRole } = useAuth();
@@ -225,31 +153,7 @@ export default function SubmissionManagement() {
 
     const fetchVolunteers = async () => {
         try {
-            // Fetch admin IDs
-            const { data: adminRoles } = await supabase
-                .from('user_roles')
-                .select('user_id')
-                .eq('role', 'admin');
-
-            const adminIds = new Set(adminRoles?.map(r => r.user_id) || []);
-
-            const profilesQuery = supabase
-                .from('profiles')
-                .select('id, full_name, full_name_ar, level, avatar_url, phone');
-
-            const { data, error } = await (
-                activeBranch?.id
-                    ? profilesQuery.eq('branch_id', activeBranch.id)
-                    : profilesQuery
-            ).order('full_name', { ascending: true });
-
-            if (error) throw error;
-
-            // Filter out admins
-            const filteredVolunteers = (data ?? []).filter((v) =>
-                !adminIds.has(v.id)
-            );
-            setVolunteers(filteredVolunteers);
+            setVolunteers(await getHrVolunteers(activeBranch?.id));
         } catch (error) {
             console.error('Error fetching volunteers:', error);
         }
@@ -257,30 +161,7 @@ export default function SubmissionManagement() {
 
     const fetchTrainers = async () => {
         try {
-            const trainersQuery = supabase
-                .from('trainers')
-                .select('id, user_id, name_ar, name_en, phone, image_url');
-
-            const { data, error } = await (
-                activeBranch?.id
-                    ? trainersQuery.eq('branch_id', activeBranch.id)
-                    : trainersQuery
-            );
-
-            if (error) throw error;
-
-            const map: Record<string, TrainerSummary> = {};
-            (data as TrainerRow[] | null)?.forEach((t) => {
-                if (t.id) {
-                    map[t.id] = {
-                        ar: t.name_ar || '',
-                        en: t.name_en || '',
-                        phone: t.phone,
-                        image_url: t.image_url,
-                    };
-                }
-            });
-            setTrainersMap(map);
+            setTrainersMap(await getTrainerSummaries(activeBranch?.id));
         } catch (error) {
             console.error('Error fetching trainers:', error);
         }
@@ -289,68 +170,11 @@ export default function SubmissionManagement() {
     const fetchSubmissions = async () => {
         setIsLoading(true);
         try {
-            const [year, month] = selectedMonth.split('-');
-            const monthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-            const startDate = startOfMonth(monthDate);
-            const endDate = endOfMonth(monthDate);
-
-            const query = supabase
-                .from('activity_submissions')
-                .select(`
-                    id,
-                    volunteer_id,
-                    activity_type_id,
-                    submitted_at,
-                    created_at,
-                    points_awarded,
-                    status,
-                    location,
-                    wore_vest,
-                    description,
-                    proof_url,
-                    participant_type,
-                    guest_name,
-                    guest_phone,
-                    trainer_id,
-                    profiles:profiles!activity_submissions_volunteer_id_fkey (id, full_name, full_name_ar, level, avatar_url, phone),
-                    activity_types (name, name_ar),
-                    committees (name, name_ar)
-                `)
-                .gte('submitted_at', startDate.toISOString())
-                .lte('submitted_at', endDate.toISOString());
-
-            const submissionsRequest = (
-                activeBranch?.id
-                    ? query.eq('branch_id', activeBranch.id)
-                    : query
-            ).order('created_at', { ascending: false });
-
-            const adminRolesRequest = supabase
-                .from('user_roles')
-                .select('user_id')
-                .eq('role', 'admin');
-
-            const [{ data, error }, { data: adminRoles, error: adminError }] = await Promise.all([
-                submissionsRequest,
-                adminRolesRequest,
-            ]);
-
-            if (error) throw error;
-            if (adminError) throw adminError;
-
-            const adminIds = new Set(adminRoles?.map(r => r.user_id) || []);
-
-            const submissionsData = (data ?? []) as Submission[];
-
-            // Base valid submissions (exclude admins)
-            const baseSubmissions = submissionsData.filter(s => {
-                if (s.volunteer_id) {
-                    const isAdmin = adminIds.has(s.volunteer_id);
-                    if (isAdmin) return false;
-                }
-                return true;
+            const baseSubmissions = await getMonthlySubmissions({
+                selectedMonth,
+                activeBranchId: activeBranch?.id,
             });
-            
+
             setAllSubmissions(baseSubmissions);
 
             // Filter for the list view
@@ -401,134 +225,10 @@ export default function SubmissionManagement() {
         if (!isHeadHR) return;
 
         try {
-            const [year, month] = selectedMonth.split('-');
-            const monthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
-            const startDate = startOfMonth(monthDate);
-            const endDate = endOfMonth(monthDate);
-
-            const guestData: GuestParticipation[] = [];
-
-            // Fetch event participants (guests)
-            const eventQuery = supabase
-                .from('event_participants')
-                .select(`
-                    id,
-                    name,
-                    phone,
-                    is_volunteer,
-                    events!inner (name, date, branch_id)
-                `)
-                .eq('is_volunteer', false)
-                .gte('events.date', startDate.toISOString().split('T')[0])
-                .lte('events.date', endDate.toISOString().split('T')[0]);
-
-            const eventParticipantsRequest = (
-                activeBranch?.id
-                    ? eventQuery.eq('events.branch_id', activeBranch.id)
-                    : eventQuery
-            );
-
-            // Fetch caravan participants (guests)
-            const caravanQuery = supabase
-                .from('caravan_participants')
-                .select(`
-                    id,
-                    name,
-                    phone,
-                    is_volunteer,
-                    caravans!inner (name, date, branch_id)
-                `)
-                .eq('is_volunteer', false)
-                .gte('caravans.date', startDate.toISOString().split('T')[0])
-                .lte('caravans.date', endDate.toISOString().split('T')[0]);
-
-            const caravanParticipantsRequest = (
-                activeBranch?.id
-                    ? caravanQuery.eq('caravans.branch_id', activeBranch.id)
-                    : caravanQuery
-            );
-
-            const callParticipantsRequest = !activeBranch?.id
-                ? supabase
-                    .from('ethics_calls_participants')
-                    .select(`
-                        id,
-                        name,
-                        phone,
-                        is_volunteer,
-                        ethics_calls!inner (name, date)
-                    `)
-                    .eq('is_volunteer', false)
-                    .gte('ethics_calls.date', startDate.toISOString().split('T')[0])
-                    .lte('ethics_calls.date', endDate.toISOString().split('T')[0])
-                : Promise.resolve({ data: null, error: null });
-
-            const [
-                { data: eventParticipants, error: eventError },
-                { data: caravanParticipants, error: caravanError },
-                { data: callParticipants, error: callError },
-            ] = await Promise.all([
-                eventParticipantsRequest,
-                caravanParticipantsRequest,
-                callParticipantsRequest,
-            ]);
-
-            if (eventError) throw eventError;
-            if (caravanError) throw caravanError;
-            if (callError) throw callError;
-
-            if (eventParticipants) {
-                (eventParticipants as GuestParticipantRow<'events'>[]).forEach((p) => {
-                    const event = getSourceRelation(p, 'events');
-                    if (event) {
-                        guestData.push({
-                            id: p.id,
-                            name: p.name || '',
-                            phone: p.phone,
-                            source: 'event',
-                            source_name: event.name || '',
-                            date: event.date || '',
-                            type: 'guest'
-                        });
-                    }
-                });
-            }
-
-            if (caravanParticipants) {
-                (caravanParticipants as GuestParticipantRow<'caravans'>[]).forEach((p) => {
-                    const caravan = getSourceRelation(p, 'caravans');
-                    if (caravan) {
-                        guestData.push({
-                            id: p.id,
-                            name: p.name || '',
-                            phone: p.phone,
-                            source: 'caravan',
-                            source_name: caravan.name || '',
-                            date: caravan.date || '',
-                            type: 'guest'
-                        });
-                    }
-                });
-            }
-
-            if (callParticipants) {
-                (callParticipants as GuestParticipantRow<'ethics_calls'>[]).forEach((p) => {
-                    const ethicsCall = getSourceRelation(p, 'ethics_calls');
-                    if (ethicsCall) {
-                        guestData.push({
-                            id: p.id,
-                            name: p.name || '',
-                            phone: p.phone,
-                            source: 'call',
-                            source_name: ethicsCall.name || '',
-                            date: ethicsCall.date || '',
-                            type: 'guest'
-                        });
-                    }
-                });
-            }
-
-            setGuestParticipations(guestData);
+            setGuestParticipations(await getGuestParticipations({
+                selectedMonth,
+                activeBranchId: activeBranch?.id,
+            }));
         } catch (error) {
             console.error('Error fetching guest participations:', error);
         }
