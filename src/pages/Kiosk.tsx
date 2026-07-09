@@ -231,14 +231,14 @@ export default function Kiosk() {
       // NOTE: Using .in() instead of .or() because .or() doesn't properly
       // URL-encode the '+' sign in E.164 numbers in production environments,
       // causing '+201...' to be interpreted as ' 201...' (space instead of plus).
-      // Also filtering by selectedBranchId to find the volunteer in the correct branch.
+      // Also filtering by selectedBranchId or null to find the volunteer in the correct branch or if unassigned.
       let dbQuery = supabase
         .from('profiles')
         .select('id, full_name, full_name_ar, phone, total_points, level, committee_id, avatar_url, branch_id')
         .in('phone', allFormats);
 
       if (selectedBranchId) {
-        dbQuery = dbQuery.eq('branch_id', selectedBranchId);
+        dbQuery = dbQuery.or(`branch_id.eq.${selectedBranchId},branch_id.is.null`);
       }
 
       const { data, error, status } = await dbQuery.maybeSingle();
