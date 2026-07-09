@@ -478,9 +478,8 @@ export function AppSidebar() {
             className="h-10 w-10 shrink-0 rounded-lg object-cover"
           />
           {!collapsed && (
-            <div className="flex flex-col">
+            <div className="flex flex-col justify-center">
               <span className="font-semibold text-sidebar-foreground">RTC {activeBranch ? (language === 'ar' ? activeBranch.name_ar : activeBranch.name) : 'Mohandseen'}</span>
-              <span className="text-xs text-muted-foreground">{t('app.tagline')}</span>
             </div>
           )}
         </div>

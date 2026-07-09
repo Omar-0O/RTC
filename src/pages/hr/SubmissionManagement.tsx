@@ -1170,16 +1170,16 @@ export default function SubmissionManagement() {
                                                 +{submission.points_awarded} {isRTL ? 'أثر' : 'Impact'}
                                             </span>
                                             
-                                            <span className={cn(
-                                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs sm:text-sm font-semibold shadow-sm border",
-                                                submission.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                                                submission.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                                                'bg-amber-50 text-amber-700 border-amber-200'
-                                            )}>
-                                                {submission.status === 'approved' ? (isRTL ? 'مقبول' : 'Approved') :
-                                                 submission.status === 'rejected' ? (isRTL ? 'مرفوض' : 'Rejected') :
-                                                 (isRTL ? 'قيد المراجعة' : 'Pending')}
-                                            </span>
+                                            {submission.status !== 'approved' && (
+                                                <span className={cn(
+                                                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs sm:text-sm font-semibold shadow-sm border",
+                                                    submission.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                                                    'bg-amber-50 text-amber-700 border-amber-200'
+                                                )}>
+                                                    {submission.status === 'rejected' ? (isRTL ? 'مرفوض' : 'Rejected') :
+                                                     (isRTL ? 'قيد المراجعة' : 'Pending')}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </CardContent>

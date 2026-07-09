@@ -143,7 +143,7 @@ const translations: Record<Language, Record<string, string>> = {
     'dashboard.currentLevel': 'Volunteer Grade',
     'dashboard.recentActivity': 'Recent Activity',
     'dashboard.logNewActivity': 'Log New Activity',
-    'dashboard.verse': '﴿وَمَنْ تَطَوَّعَ خَيْرًا فَإِنَّ اللَّهَ شَاكِرٌ عَلِيمٌ﴾',
+    'dashboard.verse': '﴿فَمَن تَطَوَّعَ خَيْرًا فَهُوَ خَيْرٌ لَّهُ ۚ﴾',
 
 
     // Admin Dashboard
@@ -417,7 +417,7 @@ const translations: Record<Language, Record<string, string>> = {
     'dashboard.currentLevel': 'الدرجة التطوعية',
     'dashboard.recentActivity': 'النشاط الأخير',
      'dashboard.logNewActivity': 'تسجيل مشاركة جديدة',
-    'dashboard.verse': '﴿وَمَنْ تَطَوَّعَ خَيْرًا فَإِنَّ اللَّهَ شَاكِرٌ عَلِيمٌ﴾',
+    'dashboard.verse': '﴿فَمَن تَطَوَّعَ خَيْرًا فَهُوَ خَيْرٌ لَّهُ ۚ﴾',
 
 
     // Admin Dashboard
@@ -568,7 +568,7 @@ const LanguageContext = createContext<LanguageContextType | null>(null);
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>(() => {
     const saved = localStorage.getItem('rtc-language');
-    return (saved as Language) || 'en';
+    return (saved as Language) || 'ar';
   });
 
   const setLanguage = (lang: Language) => {
