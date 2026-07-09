@@ -205,14 +205,47 @@ export default function Kiosk() {
         return;
       }
 
-      // Query profiles by phone
-      const { data, error } = await supabase
+      // Build all possible formats the number could be stored as in the DB
+      const allFormats: string[] = [];
+
+      // 1. E.164 canonical form: +201XXXXXXXXX
+      if (normalized) allFormats.push(normalized);
+
+      // 2. Without + prefix: 201XXXXXXXXX
+      if (normalized.startsWith('+')) {
+        allFormats.push(normalized.slice(1));
+      }
+
+      // 3. Local Egyptian format: 01XXXXXXXXX (strip country code 20)
+      if (normalized.startsWith('+20')) {
+        allFormats.push('0' + normalized.slice(3));
+      }
+
+      // 4. Strip all non-digits as a last fallback (pure digit string)
+      const digitsOnly = normalized.replace(/\D/g, '');
+      if (digitsOnly && !allFormats.includes(digitsOnly)) {
+        allFormats.push(digitsOnly);
+      }
+
+      // Query profiles matching ANY of the possible phone formats
+      const { data, error, status } = await supabase
         .from('profiles')
         .select('id, full_name, full_name_ar, phone, total_points, level, committee_id, avatar_url')
-        .eq('phone', normalized)
+        .or(allFormats.map(f => `phone.eq.${f}`).join(','))
         .maybeSingle();
 
+      // Detect server-side errors (503, 500, etc.) even when Supabase client
+      // silently returns null data instead of populating the error field
       if (error) throw error;
+      if (status >= 500) {
+        toast.error(
+          isRTL
+            ? 'تعذّر الاتصال بالخادم، يرجى المحاولة مرة أخرى بعد قليل'
+            : 'Server unavailable, please try again in a moment'
+        );
+        setSearchLoading(false);
+        return;
+      }
 
       if (data) {
         setVolunteer(data as VolunteerProfile);
@@ -239,9 +272,15 @@ export default function Kiosk() {
         loadSubmissions(null, normalized);
       }
       setHasSearched(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error querying volunteer profile:', err);
-      toast.error(isRTL ? 'خطأ أثناء البحث عن الحساب' : 'Error searching for profile');
+      // Detect network/server errors specifically
+      const isServerError = err?.status >= 500 || err?.code === 'PGRST301' || err?.message?.includes('503') || err?.message?.includes('fetch');
+      toast.error(
+        isServerError
+          ? (isRTL ? 'تعذّر الاتصال بالخادم، يرجى المحاولة مرة أخرى بعد قليل' : 'Server unavailable, please try again in a moment')
+          : (isRTL ? 'خطأ أثناء البحث عن الحساب' : 'Error searching for profile')
+      );
     } finally {
       setSearchLoading(false);
     }
