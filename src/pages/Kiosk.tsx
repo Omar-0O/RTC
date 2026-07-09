@@ -228,10 +228,13 @@ export default function Kiosk() {
       }
 
       // Query profiles matching ANY of the possible phone formats
+      // NOTE: Using .in() instead of .or() because .or() doesn't properly
+      // URL-encode the '+' sign in E.164 numbers in production environments,
+      // causing '+201...' to be interpreted as ' 201...' (space instead of plus).
       const { data, error, status } = await supabase
         .from('profiles')
         .select('id, full_name, full_name_ar, phone, total_points, level, committee_id, avatar_url')
-        .or(allFormats.map(f => `phone.eq.${f}`).join(','))
+        .in('phone', allFormats)
         .maybeSingle();
 
       // Detect server-side errors (503, 500, etc.) even when Supabase client
