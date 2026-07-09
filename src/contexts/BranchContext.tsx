@@ -51,7 +51,7 @@ export const BranchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setIsLoading(true);
       const { data, error } = await supabase
         .from('branches')
-        .select('*');
+        .select('id, name, name_ar, is_default, code');
 
       if (error) throw error;
       
