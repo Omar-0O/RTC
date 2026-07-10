@@ -36,6 +36,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { exportCourseReportToXlsx, type CourseExportCourse } from '@/utils/courseExport';
 import { updateCourseCertificateEligibility } from '@/services/courseCertificates.service';
 import { createCourseTrainerParticipation } from '@/services/courseParticipation.service';
+import { getCourseDetails, getCourseEditRelations } from '@/services/courseDetails.service';
 import { appendJsonSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
 import {
     DropdownMenu,
@@ -241,6 +242,12 @@ const getErrorMessage = (error: unknown, fallback = 'Error occurred') =>
 const getErrorCode = (error: unknown) =>
     typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : '';
 
+const requireAffectedRow = (data: { id: string }[] | null) => {
+    if (!data?.length) {
+        throw new Error('NOT_FOUND_OR_FORBIDDEN');
+    }
+};
+
 const DAYS = [
     { value: 'saturday', label: { en: 'Saturday', ar: 'السبت' } },
     { value: 'sunday', label: { en: 'Sunday', ar: 'الأحد' } },
@@ -315,7 +322,7 @@ export default function CourseManagement() {
         !roles.some(r => ['admin', 'supervisor', 'head_production', 'head_fourth_year', 'head_events', 'head_caravans', 'head_hr', 'head_marketing'].includes(r));
 
     // First: Filter by active/past status
-    const statusFilteredCourses = courses.filter(course => {
+    const statusFilteredCourses = useMemo(() => courses.filter(course => {
         if (showPastCourses) return true;
 
         const remainingLectures = Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0));
@@ -328,10 +335,10 @@ export default function CourseManagement() {
         }
 
         return true;
-    });
+    }), [courses, showPastCourses]);
 
     // Second: Apply search text and month calendar filters
-    const filteredCoursesList = statusFilteredCourses.filter(course => {
+    const filteredCoursesList = useMemo(() => statusFilteredCourses.filter(course => {
         // 1. Text Search Filter
         if (filterSearch) {
             const query = filterSearch.toLowerCase().trim();
@@ -373,10 +380,10 @@ export default function CourseManagement() {
         }
 
         return true;
-    });
+    }), [filterDate, filterSearch, statusFilteredCourses]);
 
     // Third: Sort the filtered courses list
-    const activeCourses = [...filteredCoursesList].sort((a, b) => {
+    const activeCourses = useMemo(() => [...filteredCoursesList].sort((a, b) => {
         if (sortBy === 'name-asc') {
             return a.name.localeCompare(b.name, isRTL ? 'ar' : 'en');
         }
@@ -400,7 +407,42 @@ export default function CourseManagement() {
             return remA - remB;
         }
         return 0;
-    });
+    }), [filteredCoursesList, isRTL, sortBy]);
+
+    const studentStatsByPhone = useMemo(() => {
+        const completedLectureIds = new Set(
+            lectures
+                .filter((lecture) => lecture.status === 'completed')
+                .map((lecture) => lecture.id),
+        );
+        const attendedCountByPhone = new Map<string, number>();
+
+        for (const lectureId of completedLectureIds) {
+            const presentPhones = new Set(
+                (attendanceData[lectureId] ?? [])
+                    .filter((attendance) => attendance.status === 'present')
+                    .map((attendance) => attendance.student_phone),
+            );
+            for (const phone of presentPhones) {
+                attendedCountByPhone.set(
+                    phone,
+                    (attendedCountByPhone.get(phone) ?? 0) + 1,
+                );
+            }
+        }
+
+        return new Map(beneficiaries.map((beneficiary) => {
+            const attended = attendedCountByPhone.get(beneficiary.phone) ?? 0;
+            const totalCompleted = completedLectureIds.size;
+            const rate = totalCompleted > 0 ? Math.round((attended / totalCompleted) * 100) : 0;
+
+            return [beneficiary.phone, {
+                attended,
+                missed: totalCompleted - attended,
+                rate,
+            }];
+        }));
+    }, [attendanceData, beneficiaries, lectures]);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -698,11 +740,11 @@ export default function CourseManagement() {
                     name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
                     phone: volunteer.phone || null,
                 })
-                .select()
+                .select('id, course_id, volunteer_id, name, phone')
                 .single();
 
             if (error) throw error;
-            setDetailsMarketers([...detailsMarketers, {
+            setDetailsMarketers((current) => [...current, {
                 ...data,
                 name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
                 phone: volunteer.phone || ''
@@ -722,7 +764,7 @@ export default function CourseManagement() {
                 .eq('id', marketerId);
 
             if (error) throw error;
-            setDetailsMarketers(detailsMarketers.filter(m => m.id !== marketerId));
+            setDetailsMarketers((current) => current.filter((marketer) => marketer.id !== marketerId));
             toast.success(isRTL ? 'تم حذف المسوق' : 'Marketer removed');
         } catch (error) {
             console.error('Error removing marketer:', error);
@@ -1051,7 +1093,7 @@ export default function CourseManagement() {
         }
     };
 
-    const openEditDialog = (course: Course) => {
+    const openEditDialog = async (course: Course) => {
         setEditingCourseId(course.id);
         setFormData({
             name: course.name,
@@ -1071,76 +1113,37 @@ export default function CourseManagement() {
         });
         setSelectedTrainerId(course.trainer_id || '');
 
-        // Fetch organizers for this course
-        const fetchCourseOrganizers = async () => {
-            const { data } = await supabase
-                .from('course_organizers')
-                .select('id, course_id, volunteer_id, name, phone')
-                .eq('course_id', course.id);
-
-            if (data) {
-                setOrganizers(data);
-            }
-        };
-        fetchCourseOrganizers();
-
-        // Fetch marketers for this course
-        const fetchCourseMarketers = async () => {
-            const { data: marketersData } = await supabase
-                .from('course_marketers')
-                .select(`
-                    id,
-                    course_id,
-                    volunteer_id,
-                    profiles (
-                        full_name,
-                        full_name_ar,
-                        phone
-                    )
-                `)
-                .eq('course_id', course.id);
-
-            if (marketersData) {
-                const formattedMarketers = (marketersData as unknown as CourseMarketerWithProfile[]).map((m) => ({
-                    id: m.id,
-                    course_id: m.course_id,
-                    volunteer_id: m.volunteer_id || undefined,
-                    name: isRTL && m.profiles?.full_name_ar ? m.profiles.full_name_ar : m.profiles?.full_name || '',
-                    phone: m.profiles?.phone || ''
-                }));
-                setMarketers(formattedMarketers);
-            }
-        };
-        fetchCourseMarketers();
-
-        // Fetch course trainers (multi-trainer)
-        const fetchCourseTrainersForEdit = async () => {
-            const { data: ctData } = await supabase
-                .from('course_trainers')
-                .select('id, course_id, trainer_id')
-                .eq('course_id', course.id);
-
-            if (ctData && ctData.length > 0) {
-                const enriched = ctData.map((ct) => ({
-                    id: ct.id,
-                    course_id: ct.course_id,
-                    trainer_id: ct.trainer_id,
-                    trainer: trainers.find(t => t.id === ct.trainer_id)
-                }));
-                setCourseTrainers(enriched);
-            } else {
-                // Fallback: if course has a single trainer_id, seed it
-                if (course.trainer_id) {
-                    const t = trainers.find(t => t.id === course.trainer_id);
-                    setCourseTrainers(t ? [{ trainer_id: course.trainer_id, trainer: t }] : []);
-                } else {
-                    setCourseTrainers([]);
-                }
-            }
-        };
-        fetchCourseTrainersForEdit();
-
         setIsEditOpen(true);
+
+        try {
+            const relations = await getCourseEditRelations(course.id);
+            setOrganizers(relations.organizers);
+            setMarketers((relations.marketers as unknown as CourseMarketerWithProfile[]).map((marketer) => ({
+                id: marketer.id,
+                course_id: marketer.course_id,
+                volunteer_id: marketer.volunteer_id || undefined,
+                name: isRTL && marketer.profiles?.full_name_ar
+                    ? marketer.profiles.full_name_ar
+                    : marketer.profiles?.full_name || '',
+                phone: marketer.profiles?.phone || '',
+            })));
+
+            const trainerIds = relations.trainerIds;
+            if (trainerIds.length > 0) {
+                setCourseTrainers(trainerIds.map((trainerId) => ({
+                    trainer_id: trainerId,
+                    trainer: trainers.find((trainer) => trainer.id === trainerId),
+                })));
+            } else if (course.trainer_id) {
+                const trainer = trainers.find((item) => item.id === course.trainer_id);
+                setCourseTrainers(trainer ? [{ trainer_id: course.trainer_id, trainer }] : []);
+            } else {
+                setCourseTrainers([]);
+            }
+        } catch (error) {
+            console.error('Error fetching course edit relations:', error);
+            toast.error(isRTL ? 'فشل تحميل بيانات تعديل الكورس' : 'Failed to load course edit data');
+        }
     };
 
     const handleUpdateCourse = async () => {
@@ -1548,83 +1551,16 @@ export default function CourseManagement() {
         setNewBeneficiary({ name: '', phone: '', national_id: '' });
         setEditingBeneficiary(null);
         try {
-            const [lecturesResult, adsResult, beneficiariesResult, organizersResult, marketersResult] = await Promise.all([
-                supabase
-                    .from('course_lectures')
-                    .select('id, course_id, lecture_number, date, status')
-                    .eq('course_id', course.id)
-                    .order('lecture_number'),
-                supabase
-                    .from('course_ads')
-                    .select(COURSE_AD_SELECT)
-                    .eq('course_id', course.id)
-                    .order('ad_number'),
-                supabase
-                    .from('course_beneficiaries')
-                    .select('id, course_id, name, phone, certificate_eligible, attendance_percentage, national_id')
-                    .eq('course_id', course.id)
-                    .order('name'),
-                supabase
-                    .from('course_organizers')
-                    .select('id, course_id, volunteer_id, name, phone')
-                    .eq('course_id', course.id),
-                supabase
-                    .from('course_marketers')
-                    .select(`
-                        id,
-                        course_id,
-                        volunteer_id,
-                        profiles:volunteer_id (
-                            full_name,
-                            full_name_ar,
-                            phone
-                        )
-                    `)
-                    .eq('course_id', course.id),
-            ]);
+            const details = await getCourseDetails(course.id);
 
-            const { data: lecturesData } = lecturesResult;
-            const { data: adsData } = adsResult;
-            const { data: beneficiariesData } = beneficiariesResult;
-            const { data: organizersData } = organizersResult;
-            const { data: marketersData } = marketersResult;
+            setCourseAds(details.ads as unknown as CourseAd[]);
+            setBeneficiaries(details.beneficiaries);
+            setLectures(details.lectures);
+            setAttendanceData(details.attendanceByLecture);
+            setDetailsOrganizers(details.organizers);
 
-            if (adsData) {
-                setCourseAds(adsData as unknown as CourseAd[]);
-            }
-
-            if (beneficiariesData) {
-                setBeneficiaries(beneficiariesData);
-            }
-
-            if (lecturesData) {
-                setLectures(lecturesData as CourseLecture[]);
-                // Fetch attendance for all these lectures
-                const lectureIds = lecturesData.map(l => l.id);
-                const { data: attendance } = await supabase
-                    .from('course_attendance')
-                    .select('id, lecture_id, student_name, student_phone, status')
-                    .in('lecture_id', lectureIds);
-
-                if (attendance) {
-                    const grouped = attendance.reduce((acc, curr) => {
-                        if (!acc[curr.lecture_id]) acc[curr.lecture_id] = [];
-                        acc[curr.lecture_id].push({
-                            ...curr,
-                            status: curr.status as Attendance['status']
-                        });
-                        return acc;
-                    }, {} as Record<string, Attendance[]>);
-                    setAttendanceData(grouped);
-                }
-            }
-
-            if (organizersData) {
-                setDetailsOrganizers(organizersData);
-            }
-
-            if (marketersData) {
-                const formattedMarketers = (marketersData as unknown as CourseMarketerWithProfile[]).map((m) => ({
+            if (details.marketers.length > 0) {
+                const formattedMarketers = (details.marketers as unknown as CourseMarketerWithProfile[]).map((m) => ({
                     id: m.id,
                     course_id: m.course_id,
                     volunteer_id: m.volunteer_id || undefined,
@@ -1637,6 +1573,7 @@ export default function CourseManagement() {
             setIsDetailsOpen(true);
         } catch (error) {
             console.error('Error fetching details:', error);
+            toast.error(isRTL ? 'فشل تحميل تفاصيل الكورس' : 'Failed to load course details');
         }
     };
 
@@ -1757,20 +1694,10 @@ export default function CourseManagement() {
         return now >= lectureDate;
     };
 
-    const getStudentStats = (studentPhone: string) => {
-        const completedLectures = lectures.filter(l => l.status === 'completed');
-        let attendedCount = 0;
-        completedLectures.forEach(l => {
-            const isPresent = attendanceData[l.id]?.some(a => a.student_phone === studentPhone && a.status === 'present');
-            if (isPresent) attendedCount++;
-        });
-        const totalCompleted = completedLectures.length;
-        const rate = totalCompleted > 0 ? Math.round((attendedCount / totalCompleted) * 100) : 0;
-        return {
-            attended: attendedCount,
-            missed: totalCompleted - attendedCount,
-            rate
-        };
+    const getStudentStats = (studentPhone: string) => studentStatsByPhone.get(studentPhone) ?? {
+        attended: 0,
+        missed: lectures.filter((lecture) => lecture.status === 'completed').length,
+        rate: 0,
     };
 
     const registerAttendance = async (lectureId: string, name: string, phone: string) => {
@@ -1830,12 +1757,12 @@ export default function CourseManagement() {
                     national_id: newBeneficiary.national_id || null,
                     created_by: user?.id
                 })
-                .select()
+                .select('id, course_id, name, phone, certificate_eligible, attendance_percentage, national_id')
                 .single();
 
             if (error) throw error;
 
-            setBeneficiaries([...beneficiaries, data]);
+            setBeneficiaries((current) => [...current, data]);
             setNewBeneficiary({ name: '', phone: '', national_id: '' });
             toast.success(isRTL ? 'تم إضافة المستفيد' : 'Beneficiary added');
         } catch (error: unknown) {
@@ -1852,19 +1779,21 @@ export default function CourseManagement() {
         if (!editingBeneficiary) return;
 
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('course_beneficiaries')
                 .update({
                     name: editingBeneficiary.name,
                     phone: editingBeneficiary.phone,
                     national_id: editingBeneficiary.national_id || null
                 })
-                .eq('id', editingBeneficiary.id);
+                .eq('id', editingBeneficiary.id)
+                .select('id');
 
             if (error) throw error;
+            requireAffectedRow(data);
 
-            setBeneficiaries(beneficiaries.map(b =>
-                b.id === editingBeneficiary.id ? editingBeneficiary : b
+            setBeneficiaries((current) => current.map((beneficiary) =>
+                beneficiary.id === editingBeneficiary.id ? editingBeneficiary : beneficiary
             ));
             setEditingBeneficiary(null);
             toast.success(isRTL ? 'تم تحديث البيانات' : 'Beneficiary updated');
@@ -1882,14 +1811,16 @@ export default function CourseManagement() {
     const deleteBeneficiary = async () => {
         if (!beneficiaryToDelete) return;
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('course_beneficiaries')
                 .delete()
-                .eq('id', beneficiaryToDelete.id);
+                .eq('id', beneficiaryToDelete.id)
+                .select('id');
 
             if (error) throw error;
+            requireAffectedRow(data);
 
-            setBeneficiaries(beneficiaries.filter(b => b.id !== beneficiaryToDelete.id));
+            setBeneficiaries((current) => current.filter((beneficiary) => beneficiary.id !== beneficiaryToDelete.id));
             toast.success(isRTL ? 'تم حذف المستفيد' : 'Beneficiary deleted');
         } catch (error) {
             console.error('Error deleting beneficiary:', error);
@@ -1906,12 +1837,14 @@ export default function CourseManagement() {
         try {
             if (existingAttendance) {
                 // Remove attendance
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('course_attendance')
                     .delete()
-                    .eq('id', existingAttendance.id);
+                    .eq('id', existingAttendance.id)
+                    .select('id');
 
                 if (error) throw error;
+                requireAffectedRow(data);
 
                 setAttendanceData(prev => ({
                     ...prev,
@@ -1928,7 +1861,7 @@ export default function CourseManagement() {
                         status: 'present',
                         created_by: user?.id
                     })
-                    .select()
+                    .select('id, lecture_id, student_name, student_phone, status')
                     .single();
 
                 if (error) throw error;
@@ -1949,12 +1882,14 @@ export default function CourseManagement() {
 
         setIsDeleting(true);
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('courses')
                 .delete()
-                .eq('id', courseToDelete.id);
+                .eq('id', courseToDelete.id)
+                .select('id');
 
             if (error) throw error;
+            requireAffectedRow(data);
 
             toast.success(isRTL ? 'تم حذف الكورس بنجاح' : 'Course deleted successfully');
             setIsDeleteDialogOpen(false);
@@ -1970,19 +1905,23 @@ export default function CourseManagement() {
 
     const updateCertificateStatus = async (courseId: string, status: CertificateStatus) => {
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('courses')
                 .update({ certificate_status: status })
-                .eq('id', courseId);
+                .eq('id', courseId)
+                .select('id');
 
             if (error) throw error;
+            requireAffectedRow(data);
 
             // If status is 'delivered', calculate eligibility for all beneficiaries
             if (status === 'delivered') {
                 await calculateCertificateEligibility(courseId);
             }
 
-            setCourses(courses.map(c => c.id === courseId ? { ...c, certificate_status: status } : c));
+            setCourses((current) => current.map((course) => (
+                course.id === courseId ? { ...course, certificate_status: status } : course
+            )));
             if (selectedCourse?.id === courseId) {
                 setSelectedCourse({ ...selectedCourse, certificate_status: status });
             }
@@ -2029,12 +1968,12 @@ export default function CourseManagement() {
             const { data, error } = await supabase
                 .from('course_organizers')
                 .insert(newOrganizer)
-                .select()
+                .select('id, course_id, volunteer_id, name, phone')
                 .single();
 
             if (error) throw error;
 
-            setDetailsOrganizers([...detailsOrganizers, data]);
+            setDetailsOrganizers((current) => [...current, data]);
             toast.success(isRTL ? 'تم إضافة المنظم' : 'Organizer added');
         } catch (error) {
             console.error('Error adding organizer:', error);
@@ -2046,14 +1985,16 @@ export default function CourseManagement() {
         if (!organizerId) return;
 
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('course_organizers')
                 .delete()
-                .eq('id', organizerId);
+                .eq('id', organizerId)
+                .select('id');
 
             if (error) throw error;
+            requireAffectedRow(data);
 
-            setDetailsOrganizers(detailsOrganizers.filter(o => o.id !== organizerId));
+            setDetailsOrganizers((current) => current.filter((organizer) => organizer.id !== organizerId));
             toast.success(isRTL ? 'تم حذف المنظم' : 'Organizer removed');
         } catch (error) {
             console.error('Error removing organizer:', error);
