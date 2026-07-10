@@ -188,6 +188,11 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
   // If userId is provided and different from current user, we are in view-only mode
   const isViewOnly = userId && userId !== user?.id;
   const targetUserId = userId || user?.id;
+  const canManageCover = Boolean(
+    user
+    && targetUserId
+    && (!isViewOnly || hasRole('admin') || hasRole('head_hr') || hasRole('hr')),
+  );
 
   const {
     loading,
@@ -218,7 +223,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
 
   const handleRandomCover = async () => {
-    if (!user) return;
+    if (!canManageCover || !targetUserId) return;
 
     // Get a random image that's different from the current one
     let randomImage = COVER_IMAGES[Math.floor(Math.random() * COVER_IMAGES.length)];
@@ -652,7 +657,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
 
           {/* Random Cover Button */}
-          {(!isViewOnly || (hasRole('admin') || hasRole('head_hr') || hasRole('hr'))) && (
+          {canManageCover && (
             <Button
               size="sm"
               variant="secondary"

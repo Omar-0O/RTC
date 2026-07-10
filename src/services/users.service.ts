@@ -10,6 +10,7 @@ import type { UserRole } from '@/types';
 import type { Branch } from '@/contexts/BranchContext';
 import type { Database } from '@/integrations/supabase/types';
 import { getPrimaryRole } from '@/utils/roles';
+import { getSafeImageExtension, isSafeImageFile } from '@/utils/safeImages';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -103,6 +104,44 @@ type CreateUserResponse = { user?: { id: string }; error?: string };
 type UpdatePasswordResponse = { error?: string };
 type DeleteUserAccountResponse = { error?: string } | null;
 
+const AVATAR_BUCKET = 'avatars';
+const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+
+// ─── Avatar upload ──────────────────────────────────────────────────
+
+function validateAvatarFile(file: File) {
+  if (!isSafeImageFile(file)) {
+    throw new Error('Avatar must be a JPG, PNG, or WebP image');
+  }
+
+  if (file.size > AVATAR_MAX_BYTES) {
+    throw new Error('Avatar image must be 5MB or smaller');
+  }
+}
+
+async function uploadAvatar(userId: string, file: File): Promise<void> {
+  validateAvatarFile(file);
+
+  const fileName = `${userId}/avatar.${getSafeImageExtension(file)}`;
+  const { error: uploadError } = await supabase.storage
+    .from(AVATAR_BUCKET)
+    .upload(fileName, file, {
+      upsert: true,
+      cacheControl: '3600',
+      contentType: file.type,
+    });
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(fileName);
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({ avatar_url: data.publicUrl })
+    .eq('id', userId);
+
+  if (profileError) throw profileError;
+}
+
 // ─── Queries ────────────────────────────────────────────────────────
 
 export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
@@ -113,7 +152,10 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
   // 1. Paginated profiles
   let profilesQuery = supabase
     .from('profiles')
-    .select('*', { count: 'exact' })
+    .select(
+      'id, email, full_name, full_name_ar, avatar_url, committee_id, branch_id, total_points, level, join_date, created_at, phone, attended_mini_camp, attended_camp, is_ashbal, birth_date, last_seen_at, is_active',
+      { count: 'exact' },
+    )
     .order('full_name')
     .range(from, to);
 
@@ -125,34 +167,39 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
     }
   }
 
-  // 2. Lightweight lookup tables in parallel
-  const [profilesRes, rolesRes, committeesRes] = await Promise.all([
+  // 2. Lightweight lookup tables
+  const [profilesRes, committeesRes] = await Promise.all([
     profilesQuery,
-    supabase.from('user_roles').select('user_id, role'),
     supabase.from('committees').select('id, name, name_ar'),
   ]);
 
   if (profilesRes.error) throw profilesRes.error;
-  if (rolesRes.error) throw rolesRes.error;
   if (committeesRes.error) throw committeesRes.error;
 
   const profilesData = (profilesRes.data ?? []) as LegacyProfileRow[];
-  const rolesData = (rolesRes.data ?? []) as Pick<UserRoleRow, 'user_id' | 'role'>[];
   const committeesData = (committeesRes.data ?? []) as Pick<CommitteeRow, 'id' | 'name' | 'name_ar'>[];
   const totalCount = profilesRes.count ?? 0;
 
-  // 3. Participation counts — scoped to current page only
+  // 3. Page-scoped roles and participation counts
   const userIds = profilesData.map(profile => profile.id);
   const participationMap = new Map<string, number>();
+  let rolesData: Pick<UserRoleRow, 'user_id' | 'role'>[] = [];
 
   if (userIds.length > 0) {
-    const { data: actData } = await supabase
-      .from('activity_submissions')
-      .select('volunteer_id, status')
-      .in('volunteer_id', userIds)
-      .neq('status', 'rejected');
+    const [rolesRes, submissionsRes] = await Promise.all([
+      supabase.from('user_roles').select('user_id, role').in('user_id', userIds),
+      supabase
+        .from('activity_submissions')
+        .select('volunteer_id, status')
+        .in('volunteer_id', userIds)
+        .neq('status', 'rejected'),
+    ]);
 
-    const submissions = (actData ?? []) as Pick<ActivitySubmissionRow, 'volunteer_id' | 'status'>[];
+    if (rolesRes.error) throw rolesRes.error;
+    if (submissionsRes.error) throw submissionsRes.error;
+
+    rolesData = (rolesRes.data ?? []) as Pick<UserRoleRow, 'user_id' | 'role'>[];
+    const submissions = (submissionsRes.data ?? []) as Pick<ActivitySubmissionRow, 'volunteer_id' | 'status'>[];
     submissions.forEach(submission => {
       if (submission.volunteer_id) {
         participationMap.set(
@@ -241,15 +288,7 @@ export async function createUser(payload: CreateUserPayload): Promise<{ userId: 
   const userId = data.user.id;
 
   if (payload.avatarFile) {
-    const ext = payload.avatarFile.name.split('.').pop();
-    const fileName = `${userId}/avatar.${ext}`;
-    const { error: uploadErr } = await supabase.storage
-      .from('avatars')
-      .upload(fileName, payload.avatarFile, { upsert: true });
-    if (!uploadErr) {
-      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      await supabase.from('profiles').update({ avatar_url: urlData.publicUrl }).eq('id', userId);
-    }
+    await uploadAvatar(userId, payload.avatarFile);
   }
 
   const updates: ProfileUpdate = {};
@@ -293,15 +332,7 @@ export async function updateUser(payload: UpdateUserPayload): Promise<void> {
   }
 
   if (payload.avatarFile) {
-    const ext = payload.avatarFile.name.split('.').pop();
-    const fileName = `${payload.userId}/avatar.${ext}`;
-    const { error: uploadErr } = await supabase.storage
-      .from('avatars')
-      .upload(fileName, payload.avatarFile, { upsert: true });
-    if (!uploadErr) {
-      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      await supabase.from('profiles').update({ avatar_url: urlData.publicUrl }).eq('id', payload.userId);
-    }
+    await uploadAvatar(payload.userId, payload.avatarFile);
   }
 
   if (payload.role !== payload.previousRole) {
