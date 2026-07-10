@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
-import type { Database } from '@/integrations/supabase/types';
+import type { Database, Json } from '@/integrations/supabase/types';
 import { useBranch } from '@/contexts/BranchContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -37,6 +37,7 @@ import { exportCourseReportToXlsx, type CourseExportCourse } from '@/utils/cours
 import { updateCourseCertificateEligibility } from '@/services/courseCertificates.service';
 import { createCourseTrainerParticipation } from '@/services/courseParticipation.service';
 import { getCourseDetails, getCourseEditRelations } from '@/services/courseDetails.service';
+import { saveCourseWithRelations } from '@/services/courseMutations.service';
 import { appendJsonSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
 import {
     DropdownMenu,
@@ -219,8 +220,6 @@ interface CourseMarketer {
 
 type Tables = Database['public']['Tables'];
 type CourseOrganizerInsert = Tables['course_organizers']['Insert'];
-type CourseMarketerInsert = Tables['course_marketers']['Insert'];
-type CourseTrainerInsert = Tables['course_trainers']['Insert'];
 type CourseAdInsert = Tables['course_ads']['Insert'];
 
 interface ProfileSummary {
@@ -1029,70 +1028,23 @@ export default function CourseManagement() {
                 branch_id: activeBranch?.id || null
             };
 
-            // Create course
-            const { data: course, error: courseError } = await supabase
-                .from('courses')
-                .insert(courseData)
-                .select()
-                .single();
-
-            if (courseError) throw courseError;
-
-            // Add organizers
-            if (organizers.length > 0) {
-                const organizerRows: CourseOrganizerInsert[] = organizers.map(o => ({
-                    course_id: course.id,
-                    volunteer_id: o.volunteer_id || null,
-                    name: o.name,
-                    phone: o.phone
-                }));
-                const { error: orgError } = await supabase
-                    .from('course_organizers')
-                    .insert(organizerRows);
-
-                if (orgError) throw orgError;
-            }
-
-            const marketerRows: CourseMarketerInsert[] = marketers.map(m => ({
-                course_id: course.id,
-                volunteer_id: m.volunteer_id || null,
-                name: m.name,
-                phone: m.phone,
-            }));
-            const courseTrainerRows: CourseTrainerInsert[] = courseTrainers.map(ct => ({
-                course_id: course.id,
-                trainer_id: ct.trainer_id,
-            }));
-            const adEntries: CourseAdInsert[] = plannedAds.map((date, index) => ({
-                course_id: course.id,
-                ad_number: index + 1,
-                ad_date: date,
-                created_by: user?.id || null,
-            }));
-            const lectureEntries = lectureDates.map((date, index) => ({
-                course_id: course.id,
-                lecture_number: index + 1,
-                date: format(date, 'yyyy-MM-dd'),
-                status: 'scheduled' as 'scheduled' | 'completed' | 'cancelled',
-            }));
-
-            const [marketerResult, trainerResult, adsResult, lectureResult] = await Promise.all([
-                marketerRows.length > 0
-                    ? supabase.from('course_marketers').insert(marketerRows)
-                    : Promise.resolve({ error: null }),
-                courseTrainerRows.length > 0
-                    ? supabase.from('course_trainers').insert(courseTrainerRows)
-                    : Promise.resolve({ error: null }),
-                adEntries.length > 0
-                    ? supabase.from('course_ads').insert(adEntries)
-                    : Promise.resolve({ error: null }),
-                supabase.from('course_lectures').insert(lectureEntries),
-            ]);
-
-            if (marketerResult.error) throw marketerResult.error;
-            if (trainerResult.error) throw trainerResult.error;
-            if (adsResult.error) throw adsResult.error;
-            if (lectureResult.error) throw lectureResult.error;
+            await saveCourseWithRelations({
+                courseId: null,
+                course: courseData as unknown as Json,
+                organizers: organizers.map((organizer) => ({
+                    volunteer_id: organizer.volunteer_id || null,
+                    name: organizer.name,
+                    phone: organizer.phone || null,
+                })),
+                marketers: marketers.map((marketer) => ({
+                    volunteer_id: marketer.volunteer_id || null,
+                    name: marketer.name,
+                    phone: marketer.phone || null,
+                })),
+                trainerIds: courseTrainers.map((trainer) => trainer.trainer_id),
+                lectureDates: lectureDates.map((date) => format(date, 'yyyy-MM-dd')),
+                adDates: plannedAds,
+            });
 
             toast.success(isRTL ? 'تم إنشاء الكورس بنجاح' : 'Course created successfully');
             setIsCreateOpen(false);
@@ -1203,100 +1155,22 @@ export default function CourseManagement() {
                 committee_id: formData.committee_id
             };
 
-            const { error } = await supabase
-                .from('courses')
-                .update(courseData)
-                .eq('id', editingCourseId);
-
-            if (error) throw error;
-
-            const organizerRows: CourseOrganizerInsert[] = organizers.map(organizer => ({
-                course_id: editingCourseId,
-                volunteer_id: organizer.volunteer_id || null,
-                name: organizer.name,
-                phone: organizer.phone,
-            }));
-            const marketerRows: CourseMarketerInsert[] = marketers.map(marketer => ({
-                course_id: editingCourseId,
-                volunteer_id: marketer.volunteer_id || null,
-                name: marketer.name,
-                phone: marketer.phone,
-            }));
-            const courseTrainerRows: CourseTrainerInsert[] = courseTrainers.map(courseTrainer => ({
-                course_id: editingCourseId,
-                trainer_id: courseTrainer.trainer_id,
-            }));
-
-            const [organizerDelete, marketerDelete, trainerDelete, existingLecturesResult] = await Promise.all([
-                supabase.from('course_organizers').delete().eq('course_id', editingCourseId),
-                supabase.from('course_marketers').delete().eq('course_id', editingCourseId),
-                supabase.from('course_trainers').delete().eq('course_id', editingCourseId),
-                supabase
-                    .from('course_lectures')
-                    .select('id, lecture_number, date, status')
-                    .eq('course_id', editingCourseId)
-                    .order('lecture_number', { ascending: true }),
-            ]);
-
-            if (organizerDelete.error) throw organizerDelete.error;
-            if (marketerDelete.error) throw marketerDelete.error;
-            if (trainerDelete.error) throw trainerDelete.error;
-            if (existingLecturesResult.error) throw existingLecturesResult.error;
-
-            const existing = existingLecturesResult.data ?? [];
-
-            const lectureDateUpdates = existing
-                .slice(0, lectureDates.length)
-                .flatMap((lecture, index) => {
-                    const date = format(lectureDates[index], 'yyyy-MM-dd');
-                    return lecture.date === date
-                        ? []
-                        : [{
-                            id: lecture.id,
-                            course_id: editingCourseId,
-                            lecture_number: lecture.lecture_number,
-                            date,
-                            status: lecture.status,
-                        }];
-                });
-
-            const newLectures = lectureDates.slice(existing.length).map((date, index) => ({
-                course_id: editingCourseId,
-                lecture_number: existing.length + index + 1,
-                date: format(date, 'yyyy-MM-dd'),
-                status: 'scheduled',
-            }));
-            const lectureIdsToDelete = existing
-                .slice(lectureDates.length)
-                .map(lecture => lecture.id);
-
-            const [organizerInsert, marketerInsert, trainerInsert, lectureUpdate, lectureInsert, lectureDelete] = await Promise.all([
-                organizerRows.length > 0
-                    ? supabase.from('course_organizers').insert(organizerRows)
-                    : Promise.resolve({ error: null }),
-                marketerRows.length > 0
-                    ? supabase.from('course_marketers').insert(marketerRows)
-                    : Promise.resolve({ error: null }),
-                courseTrainerRows.length > 0
-                    ? supabase.from('course_trainers').insert(courseTrainerRows)
-                    : Promise.resolve({ error: null }),
-                lectureDateUpdates.length > 0
-                    ? supabase.from('course_lectures').upsert(lectureDateUpdates, { onConflict: 'id' })
-                    : Promise.resolve({ error: null }),
-                newLectures.length > 0
-                    ? supabase.from('course_lectures').insert(newLectures)
-                    : Promise.resolve({ error: null }),
-                lectureIdsToDelete.length > 0
-                    ? supabase.from('course_lectures').delete().in('id', lectureIdsToDelete)
-                    : Promise.resolve({ error: null }),
-            ]);
-
-            if (organizerInsert.error) throw organizerInsert.error;
-            if (marketerInsert.error) throw marketerInsert.error;
-            if (trainerInsert.error) throw trainerInsert.error;
-            if (lectureUpdate.error) throw lectureUpdate.error;
-            if (lectureInsert.error) throw lectureInsert.error;
-            if (lectureDelete.error) throw lectureDelete.error;
+            await saveCourseWithRelations({
+                courseId: editingCourseId,
+                course: courseData as unknown as Json,
+                organizers: organizers.map((organizer) => ({
+                    volunteer_id: organizer.volunteer_id || null,
+                    name: organizer.name,
+                    phone: organizer.phone || null,
+                })),
+                marketers: marketers.map((marketer) => ({
+                    volunteer_id: marketer.volunteer_id || null,
+                    name: marketer.name,
+                    phone: marketer.phone || null,
+                })),
+                trainerIds: courseTrainers.map((trainer) => trainer.trainer_id),
+                lectureDates: lectureDates.map((date) => format(date, 'yyyy-MM-dd')),
+            });
 
             toast.success(isRTL ? 'تم تحديث الكورس بنجاح' : 'Course updated successfully');
             setIsEditOpen(false);

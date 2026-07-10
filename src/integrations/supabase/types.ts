@@ -2159,6 +2159,18 @@ export type Database = {
           user_id: string | null
         }[]
       }
+      save_course_with_relations: {
+        Args: {
+          p_ad_dates?: string[]
+          p_course: Json
+          p_course_id: string | null
+          p_lecture_dates: string[]
+          p_marketers?: Json
+          p_organizers?: Json
+          p_trainer_ids?: string[]
+        }
+        Returns: string
+      }
       get_user_committee_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
