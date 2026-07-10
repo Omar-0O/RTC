@@ -1169,57 +1169,40 @@ export default function CourseManagement() {
 
             if (error) throw error;
 
-            // Update organizers - delete all and re-insert (simplest for now)
-            await supabase.from('course_organizers').delete().eq('course_id', editingCourseId);
+            const organizerRows: CourseOrganizerInsert[] = organizers.map(organizer => ({
+                course_id: editingCourseId,
+                volunteer_id: organizer.volunteer_id || null,
+                name: organizer.name,
+                phone: organizer.phone,
+            }));
+            const marketerRows: CourseMarketerInsert[] = marketers.map(marketer => ({
+                course_id: editingCourseId,
+                volunteer_id: marketer.volunteer_id || null,
+                name: marketer.name,
+                phone: marketer.phone,
+            }));
+            const courseTrainerRows: CourseTrainerInsert[] = courseTrainers.map(courseTrainer => ({
+                course_id: editingCourseId,
+                trainer_id: courseTrainer.trainer_id,
+            }));
 
-            if (organizers.length > 0) {
-                const organizerRows: CourseOrganizerInsert[] = organizers.map(o => ({
-                    course_id: editingCourseId,
-                    volunteer_id: o.volunteer_id || null,
-                    name: o.name,
-                    phone: o.phone
-                }));
-                await supabase
-                    .from('course_organizers')
-                    .insert(organizerRows);
-            }
+            const [organizerDelete, marketerDelete, trainerDelete, existingLecturesResult] = await Promise.all([
+                supabase.from('course_organizers').delete().eq('course_id', editingCourseId),
+                supabase.from('course_marketers').delete().eq('course_id', editingCourseId),
+                supabase.from('course_trainers').delete().eq('course_id', editingCourseId),
+                supabase
+                    .from('course_lectures')
+                    .select('id, lecture_number, date, status')
+                    .eq('course_id', editingCourseId)
+                    .order('lecture_number', { ascending: true }),
+            ]);
 
-            // Update marketers - delete all and re-insert
-            await supabase.from('course_marketers').delete().eq('course_id', editingCourseId);
+            if (organizerDelete.error) throw organizerDelete.error;
+            if (marketerDelete.error) throw marketerDelete.error;
+            if (trainerDelete.error) throw trainerDelete.error;
+            if (existingLecturesResult.error) throw existingLecturesResult.error;
 
-            if (marketers.length > 0) {
-                const marketerRows: CourseMarketerInsert[] = marketers.map(m => ({
-                    course_id: editingCourseId,
-                    volunteer_id: m.volunteer_id || null,
-                    name: m.name,
-                    phone: m.phone
-                }));
-                await supabase
-                    .from('course_marketers')
-                    .insert(marketerRows);
-            }
-
-            // Update course trainers - delete all and re-insert
-            await supabase.from('course_trainers').delete().eq('course_id', editingCourseId);
-            if (courseTrainers.length > 0) {
-                const courseTrainerRows: CourseTrainerInsert[] = courseTrainers.map(ct => ({
-                    course_id: editingCourseId,
-                    trainer_id: ct.trainer_id
-                }));
-                await supabase
-                    .from('course_trainers')
-                    .insert(courseTrainerRows);
-            }
-
-            // Fetch existing lectures
-
-            const { data: existingLectures } = await supabase
-                .from('course_lectures')
-                .select('id, lecture_number, date, status')
-                .eq('course_id', editingCourseId)
-                .order('lecture_number', { ascending: true });
-
-            const existing = existingLectures || [];
+            const existing = existingLecturesResult.data ?? [];
 
             const lectureDateUpdates = existing
                 .slice(0, lectureDates.length)
@@ -1236,43 +1219,43 @@ export default function CourseManagement() {
                         }];
                 });
 
-            if (lectureDateUpdates.length > 0) {
-                const { error: updateError } = await supabase
-                    .from('course_lectures')
-                    .upsert(lectureDateUpdates, { onConflict: 'id' });
+            const newLectures = lectureDates.slice(existing.length).map((date, index) => ({
+                course_id: editingCourseId,
+                lecture_number: existing.length + index + 1,
+                date: format(date, 'yyyy-MM-dd'),
+                status: 'scheduled',
+            }));
+            const lectureIdsToDelete = existing
+                .slice(lectureDates.length)
+                .map(lecture => lecture.id);
 
-                if (updateError) throw updateError;
-            }
+            const [organizerInsert, marketerInsert, trainerInsert, lectureUpdate, lectureInsert, lectureDelete] = await Promise.all([
+                organizerRows.length > 0
+                    ? supabase.from('course_organizers').insert(organizerRows)
+                    : Promise.resolve({ error: null }),
+                marketerRows.length > 0
+                    ? supabase.from('course_marketers').insert(marketerRows)
+                    : Promise.resolve({ error: null }),
+                courseTrainerRows.length > 0
+                    ? supabase.from('course_trainers').insert(courseTrainerRows)
+                    : Promise.resolve({ error: null }),
+                lectureDateUpdates.length > 0
+                    ? supabase.from('course_lectures').upsert(lectureDateUpdates, { onConflict: 'id' })
+                    : Promise.resolve({ error: null }),
+                newLectures.length > 0
+                    ? supabase.from('course_lectures').insert(newLectures)
+                    : Promise.resolve({ error: null }),
+                lectureIdsToDelete.length > 0
+                    ? supabase.from('course_lectures').delete().in('id', lectureIdsToDelete)
+                    : Promise.resolve({ error: null }),
+            ]);
 
-            // 2. Add new lectures if total increased
-            if (lectureDates.length > existing.length) {
-                const newLectures = lectureDates.slice(existing.length).map((date, index) => ({
-                    course_id: editingCourseId,
-                    lecture_number: existing.length + index + 1,
-                    date: format(date, 'yyyy-MM-dd'),
-                    status: 'scheduled'
-                }));
-
-                const { error: lectError } = await supabase.from('course_lectures').insert(newLectures);
-                if (lectError) {
-                    console.error('Error creating new lectures:', lectError);
-                    toast.error(isRTL ? 'حدث خطأ أثناء إضافة المحاضرات الجديدة' : 'Error adding new lectures');
-                }
-            }
-
-            // 3. Delete excess lectures if total decreased
-            if (existing.length > lectureDates.length) {
-                const idsToDelete = existing.slice(lectureDates.length).map((lecture) => lecture.id);
-                const { error: delError } = await supabase
-                    .from('course_lectures')
-                    .delete()
-                    .in('id', idsToDelete);
-
-                if (delError) {
-                    console.error('Error deleting excess lectures:', delError);
-                    toast.error(isRTL ? 'حدث خطأ أثناء حذف المحاضرات الزائدة' : 'Error deleting excess lectures');
-                }
-            }
+            if (organizerInsert.error) throw organizerInsert.error;
+            if (marketerInsert.error) throw marketerInsert.error;
+            if (trainerInsert.error) throw trainerInsert.error;
+            if (lectureUpdate.error) throw lectureUpdate.error;
+            if (lectureInsert.error) throw lectureInsert.error;
+            if (lectureDelete.error) throw lectureDelete.error;
 
             toast.success(isRTL ? 'تم تحديث الكورس بنجاح' : 'Course updated successfully');
             setIsEditOpen(false);
