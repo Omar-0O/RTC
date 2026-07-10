@@ -1215,21 +1215,33 @@ export default function CourseManagement() {
 
             const { data: existingLectures } = await supabase
                 .from('course_lectures')
-                .select('id, lecture_number, date')
+                .select('id, lecture_number, date, status')
                 .eq('course_id', editingCourseId)
                 .order('lecture_number', { ascending: true });
 
             const existing = existingLectures || [];
-            
-            // 1. Update existing lectures dates
-            for (let i = 0; i < Math.min(existing.length, lectureDates.length); i++) {
-                const newDateStr = format(lectureDates[i], 'yyyy-MM-dd');
-                if (existing[i].date !== newDateStr) {
-                    await supabase
-                        .from('course_lectures')
-                        .update({ date: newDateStr })
-                        .eq('id', existing[i].id);
-                }
+
+            const lectureDateUpdates = existing
+                .slice(0, lectureDates.length)
+                .flatMap((lecture, index) => {
+                    const date = format(lectureDates[index], 'yyyy-MM-dd');
+                    return lecture.date === date
+                        ? []
+                        : [{
+                            id: lecture.id,
+                            course_id: editingCourseId,
+                            lecture_number: lecture.lecture_number,
+                            date,
+                            status: lecture.status,
+                        }];
+                });
+
+            if (lectureDateUpdates.length > 0) {
+                const { error: updateError } = await supabase
+                    .from('course_lectures')
+                    .upsert(lectureDateUpdates, { onConflict: 'id' });
+
+                if (updateError) throw updateError;
             }
 
             // 2. Add new lectures if total increased
