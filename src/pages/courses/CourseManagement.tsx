@@ -290,6 +290,7 @@ export default function CourseManagement() {
     const [detailsMarketers, setDetailsMarketers] = useState<CourseMarketer[]>([]);
     const [detailsOrganizerPopoverOpen, setDetailsOrganizerPopoverOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isSavingCourse, setIsSavingCourse] = useState(false);
     const [trainers, setTrainers] = useState<Trainer[]>([]);
     const [selectedTrainerId, setSelectedTrainerId] = useState<string>('');
     const [committees, setCommittees] = useState<{ id: string, name: string, name_ar: string, committee_type?: string | null }[]>([]);
@@ -956,6 +957,7 @@ export default function CourseManagement() {
             return;
         }
 
+        setIsSavingCourse(true);
         try {
             // Smart Date Calculation
             const start = parseISO(formData.start_date);
@@ -1078,9 +1080,9 @@ export default function CourseManagement() {
                 supabase.from('course_lectures').insert(lectureEntries),
             ]);
 
-            if (marketerResult.error) console.error('Error adding marketers:', marketerResult.error);
-            if (trainerResult.error) console.error('Error adding course trainers:', trainerResult.error);
-            if (adsResult.error) console.error('Error adding planned ads:', adsResult.error);
+            if (marketerResult.error) throw marketerResult.error;
+            if (trainerResult.error) throw trainerResult.error;
+            if (adsResult.error) throw adsResult.error;
             if (lectureResult.error) throw lectureResult.error;
 
             toast.success(isRTL ? 'تم إنشاء الكورس بنجاح' : 'Course created successfully');
@@ -1090,6 +1092,8 @@ export default function CourseManagement() {
         } catch (error) {
             console.error('Error creating course:', error);
             toast.error(isRTL ? 'حدث خطأ أثناء إنشاء الكورس' : 'Error creating course');
+        } finally {
+            setIsSavingCourse(false);
         }
     };
 
@@ -1154,6 +1158,7 @@ export default function CourseManagement() {
             return;
         }
 
+        setIsSavingCourse(true);
         try {
             // Smart Date Calculation (Same as create)
             const start = parseISO(formData.start_date);
@@ -1311,6 +1316,8 @@ export default function CourseManagement() {
         } catch (error) {
             console.error('Error updating course:', error);
             toast.error(isRTL ? 'حدث خطأ أثناء تحديث الكورس' : 'Error updating course');
+        } finally {
+            setIsSavingCourse(false);
         }
     };
 
@@ -2457,7 +2464,9 @@ export default function CourseManagement() {
 
                                 <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
                                     <Button variant="outline" onClick={() => { setIsCreateOpen(false); resetForm(); }} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
-                                    <Button onClick={handleCreateCourse} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'إنشاء الكورس' : 'Create Course'}</Button>
+                                    <Button onClick={handleCreateCourse} disabled={isSavingCourse} className="h-12 px-6 w-full sm:w-auto">
+                                        {isSavingCourse ? '...' : (isRTL ? 'إنشاء الكورس' : 'Create Course')}
+                                    </Button>
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
@@ -3043,7 +3052,9 @@ export default function CourseManagement() {
 
                     <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 mt-6">
                         <Button variant="outline" onClick={() => setIsEditOpen(false)} className="h-12 px-6 w-full sm:w-auto mt-2 sm:mt-0">{isRTL ? 'إلغاء' : 'Cancel'}</Button>
-                        <Button onClick={handleUpdateCourse} className="h-12 px-6 w-full sm:w-auto">{isRTL ? 'حفظ التعديلات' : 'Save Changes'}</Button>
+                        <Button onClick={handleUpdateCourse} disabled={isSavingCourse} className="h-12 px-6 w-full sm:w-auto">
+                            {isSavingCourse ? '...' : (isRTL ? 'حفظ التعديلات' : 'Save Changes')}
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog >
