@@ -425,6 +425,11 @@ export default function EventManagement() {
 
             if (eventError) throw eventError;
 
+            const targetCommitteeId = formData.committee_id || eventsCommitteeId;
+            const activityTypeId = speakers.length > 0 || organizers.length > 0
+                ? await ensureEventActivityType()
+                : undefined;
+
             // 2. Add Participants & Award Points
             if (participants.length > 0) {
                 const participantRows: EventParticipantInsert[] = participants.map(p => ({
@@ -447,7 +452,8 @@ export default function EventManagement() {
                         name: s.name, phone: s.phone || null,
                         social_media_link: s.social_media_link || null
                     }));
-                await supabase.from('event_speakers').insert(speakerRows);
+                const { error: speakersError } = await supabase.from('event_speakers').insert(speakerRows);
+                if (speakersError) throw speakersError;
 
                 // Award points to speakers who match existing volunteers
                 const matchedVolunteers = speakers.map(s => 
@@ -459,11 +465,8 @@ export default function EventManagement() {
                 
                 const uniqueSpeakerIds = Array.from(new Set(matchedVolunteers.map(v => v!.id)));
                 
-                const activityTypeId = await ensureEventActivityType();
-                const targetCommitteeId = formData.committee_id || eventsCommitteeId;
-
                 if (activityTypeId && targetCommitteeId && uniqueSpeakerIds.length > 0) {
-                    await supabase.from('activity_submissions').insert(
+                    const { error: speakerParticipationError } = await supabase.from('activity_submissions').insert(
                         uniqueSpeakerIds.map(volunteerId => ({
                             volunteer_id: volunteerId,
                             activity_type_id: activityTypeId,
@@ -474,19 +477,19 @@ export default function EventManagement() {
                             description: `Event Speaker: ${formData.name}`,
                         }))
                     );
+                    if (speakerParticipationError) throw speakerParticipationError;
                 }
             }
 
             // 4. Save organizers & award participation
             if (organizers.length > 0) {
                 const organizerRows: EventOrganizerInsert[] = organizers.map(o => ({ event_id: event.id, volunteer_id: o.volunteer_id }));
-                await supabase.from('event_organizers').insert(organizerRows);
+                const { error: organizersError } = await supabase.from('event_organizers').insert(organizerRows);
+                if (organizersError) throw organizersError;
 
                 // Award points to organizers
-                const activityTypeId = await ensureEventActivityType();
-                const targetCommitteeId = formData.committee_id || eventsCommitteeId;
                 if (activityTypeId && targetCommitteeId) {
-                    await supabase.from('activity_submissions').insert(
+                    const { error: organizerParticipationError } = await supabase.from('activity_submissions').insert(
                         organizers.map(o => ({
                             volunteer_id: o.volunteer_id,
                             activity_type_id: activityTypeId,
@@ -497,6 +500,7 @@ export default function EventManagement() {
                             description: `Event: ${formData.name}`,
                         }))
                     );
+                    if (organizerParticipationError) throw organizerParticipationError;
                 }
             }
 

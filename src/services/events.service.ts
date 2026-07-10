@@ -105,7 +105,15 @@ export async function getEventSummaries({
   let query = supabase
     .from('events')
     .select(`
-      *,
+      id,
+      name,
+      type,
+      location,
+      date,
+      time,
+      description,
+      created_by,
+      committee_id,
       committees(name, name_ar),
       event_participants (count)
     `)
@@ -132,7 +140,7 @@ export async function getEventSummaries({
 export async function getEventParticipants(eventId: string): Promise<EventParticipant[]> {
   const { data, error } = await supabase
     .from('event_participants')
-    .select('*')
+    .select('id, volunteer_id, name, phone, is_volunteer')
     .eq('event_id', eventId);
 
   if (error) throw error;
