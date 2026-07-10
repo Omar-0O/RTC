@@ -33,6 +33,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { Json } from '@/integrations/supabase/types';
 import { downloadCsv as saveCsv } from '@/utils/csv';
 import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
+import { toSafeExternalUrl } from '@/utils/safeUrls';
 
 const ETHICS_COMMITTEE_ID = '722d7feb-0b46-48a8-8652-75c1e1a8487a';
 
@@ -275,6 +276,12 @@ export default function CallsManagement() {
             return;
         }
 
+        const driveLink = toSafeExternalUrl(formData.drive_link.trim());
+        if (formData.drive_link.trim() && !driveLink) {
+            toast.error(isRTL ? 'رابط الدرايف يجب أن يبدأ بـ HTTP أو HTTPS' : 'Drive link must use HTTP or HTTPS');
+            return;
+        }
+
         try {
             // 1. Create Call
             const { data: call, error: callError } = await supabase
@@ -284,7 +291,7 @@ export default function CallsManagement() {
                     date: formData.date,
                     calls_count: formData.calls_count || 0,
                     accepted_count: formData.accepted_count || 0,
-                    drive_link: formData.drive_link || null,
+                    drive_link: driveLink,
                     created_by: user?.id
                 })
                 .select()
@@ -333,21 +340,25 @@ export default function CallsManagement() {
             drive_link: call.drive_link || ''
         });
 
-        // Fetch participants
-        const { data: participantsData } = await supabase
-            .from('ethics_calls_participants')
-            .select('*')
-            .eq('call_id', call.id);
+        try {
+            const { data: participantsData, error } = await supabase
+                .from('ethics_calls_participants')
+                .select('id, volunteer_id, name, phone, is_volunteer, wore_vest')
+                .eq('call_id', call.id);
+            if (error) throw error;
 
-        if (participantsData) {
-            setParticipants(participantsData.map(p => ({
-                id: p.id,
-                volunteer_id: p.volunteer_id,
-                name: p.name,
-                phone: p.phone,
-                is_volunteer: p.is_volunteer,
-                wore_vest: p.wore_vest
+            setParticipants((participantsData ?? []).map((participant) => ({
+                id: participant.id,
+                volunteer_id: participant.volunteer_id,
+                name: participant.name,
+                phone: participant.phone,
+                is_volunteer: participant.is_volunteer,
+                wore_vest: participant.wore_vest,
             })));
+        } catch (error) {
+            console.error('Error fetching call participants:', error);
+            toast.error(isRTL ? 'فشل تحميل المشاركين' : 'Failed to load participants');
+            return;
         }
 
         setIsCreateOpen(true);
@@ -356,6 +367,12 @@ export default function CallsManagement() {
     const handleUpdateCall = async () => {
         if (!formData.name || !formData.date || !selectedCallId) {
             toast.error(isRTL ? 'يرجى ملء البيانات الأساسية' : 'Please fill basic details');
+            return;
+        }
+
+        const driveLink = toSafeExternalUrl(formData.drive_link.trim());
+        if (formData.drive_link.trim() && !driveLink) {
+            toast.error(isRTL ? 'رابط الدرايف يجب أن يبدأ بـ HTTP أو HTTPS' : 'Drive link must use HTTP or HTTPS');
             return;
         }
 
@@ -368,7 +385,7 @@ export default function CallsManagement() {
                     date: formData.date,
                     calls_count: formData.calls_count || 0,
                     accepted_count: formData.accepted_count || 0,
-                    drive_link: formData.drive_link || null,
+                    drive_link: driveLink,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', selectedCallId);
@@ -376,11 +393,12 @@ export default function CallsManagement() {
             if (updateError) throw updateError;
 
             // 2. Manage Participants
-            const { data: existingParticipants } = await supabase
+            const { data: existingParticipants, error: existingParticipantsError } = await supabase
                 .from('ethics_calls_participants')
-                .select('*')
+                .select('id, volunteer_id, is_volunteer')
                 .eq('call_id', selectedCallId)
                 .returns<EthicsCallParticipantRow[]>();
+            if (existingParticipantsError) throw existingParticipantsError;
 
             const currentIds = participants.filter(p => p.id).map(p => p.id);
 
@@ -388,7 +406,11 @@ export default function CallsManagement() {
             const toRemove = existingParticipants?.filter(p => !currentIds.includes(p.id)) || [];
             if (toRemove.length > 0) {
                 const removeIds = toRemove.map(p => p.id);
-                await supabase.from('ethics_calls_participants').delete().in('id', removeIds);
+                const { error: removeParticipantsError } = await supabase
+                    .from('ethics_calls_participants')
+                    .delete()
+                    .in('id', removeIds);
+                if (removeParticipantsError) throw removeParticipantsError;
 
                 // Remove points for removed volunteers
                 const volIdsToRemove = toRemove
@@ -399,25 +421,29 @@ export default function CallsManagement() {
                     const originalCall = calls.find(c => c.id === selectedCallId);
                     const originalName = originalCall?.name || formData.name;
 
-                    await supabase
+                    const { error: removePointsError } = await supabase
                         .from('activity_submissions')
                         .delete()
                         .in('volunteer_id', volIdsToRemove)
                         .eq('description', `مكالمات: ${originalName}`);
+                    if (removePointsError) throw removePointsError;
                 }
             }
 
             // Add new participants
             const toInsert = participants.filter(p => !p.id);
             if (toInsert.length > 0) {
-                await supabase.from('ethics_calls_participants').insert(toInsert.map(p => ({
-                    call_id: selectedCallId,
-                    volunteer_id: p.volunteer_id || null,
-                    name: p.name,
-                    phone: p.phone,
-                    is_volunteer: p.is_volunteer,
-                    wore_vest: p.wore_vest
-                })));
+                const { error: addParticipantsError } = await supabase
+                    .from('ethics_calls_participants')
+                    .insert(toInsert.map(p => ({
+                        call_id: selectedCallId,
+                        volunteer_id: p.volunteer_id || null,
+                        name: p.name,
+                        phone: p.phone,
+                        is_volunteer: p.is_volunteer,
+                        wore_vest: p.wore_vest,
+                    })));
+                if (addParticipantsError) throw addParticipantsError;
 
                 // Award points to new volunteers
                 if (toInsert.some(p => p.is_volunteer)) {
@@ -835,7 +861,10 @@ export default function CallsManagement() {
 
                         return (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {currentMonthCalls.map(call => (
+                                {currentMonthCalls.map(call => {
+                                    const driveLink = toSafeExternalUrl(call.drive_link);
+
+                                    return (
                                     <Card key={call.id} className="hover:shadow-md transition-shadow">
                                         <CardHeader className="pb-2">
                                             <div className="flex justify-between items-start">
@@ -881,9 +910,9 @@ export default function CallsManagement() {
                                                 </div>
                                             </div>
 
-                                            {call.drive_link && (
+                                            {driveLink && (
                                                 <a
-                                                    href={call.drive_link}
+                                                    href={driveLink}
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     className="flex items-center gap-2 text-sm text-primary hover:underline"
@@ -894,7 +923,8 @@ export default function CallsManagement() {
                                             )}
                                         </CardContent>
                                     </Card>
-                                ))}
+                                    );
+                                })}
                             </div>
                         );
                     })()}
