@@ -1,32 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { Database } from '@/integrations/supabase/types';
-
-import { UserRole } from '@/types';
+import { getAuthData, type AuthProfile } from '@/services/auth.service';
+import { getPrimaryRole } from '@/utils/roles';
+import type { UserRole } from '@/types';
 
 type AppRole = UserRole;
-type Profile = Database['public']['Tables']['profiles']['Row'];
-
-type UserFeatureRow = {
-  feature: string;
-};
-
-type UserFeatureClient = {
-  from(table: 'user_features'): {
-    select(columns: 'feature'): {
-      eq(column: 'user_id', value: string): Promise<{
-        data: UserFeatureRow[] | null;
-        error: { message: string } | null;
-      }>;
-    };
-  };
-};
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
-  profile: Profile | null;
+  profile: AuthProfile | null;
   roles: AppRole[];
   features: string[];
   isAuthenticated: boolean;
@@ -42,11 +26,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [features, setFeatures] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const profileRef = useRef<Profile | null>(null);
+  const profileRef = useRef<AuthProfile | null>(null);
 
   useEffect(() => {
     profileRef.current = profile;
@@ -54,54 +38,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (profileError) {
-        console.error('Error fetching profile:', profileError);
-        return;
-      }
-
-      if (profileData) {
-        setProfile(profileData);
-      }
-
-      const { data: rolesData, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-
+      const { profile: profileData, roles: userRoles, features: userFeatures, rolesError } = await getAuthData(userId);
       if (rolesError) {
         console.error('Error fetching roles:', rolesError);
-        // Don't return — still set default role so auth doesn't hang
-        setRoles(['volunteer']);
-      } else if (rolesData && rolesData.length > 0) {
-        setRoles(rolesData.map(r => r.role as AppRole));
-      } else {
-        setRoles(['volunteer']);
       }
 
-      // Fetch custom user features — completely independent, non-blocking.
-      // If this fails (e.g., table doesn't exist), it must NOT affect authentication.
-      try {
-        const userFeatureClient = supabase as unknown as UserFeatureClient;
-        const { data: featuresData, error: featuresError } = await userFeatureClient
-          .from('user_features')
-          .select('feature')
-          .eq('user_id', userId);
-
-        if (!featuresError && featuresData) {
-          setFeatures(featuresData.map(f => f.feature));
-        } else {
-          setFeatures([]);
-        }
-      } catch {
-        // Silently ignore — user_features table may not exist yet
-        setFeatures([]);
-      }
+      if (profileData) setProfile(profileData);
+      setRoles(userRoles);
+      setFeatures(userFeatures);
     } catch (error) {
       console.error('Error in fetchProfile:', error);
     }
@@ -221,25 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [roles]);
 
   // Determine primary role (highest privilege) - memoized
-  const primaryRole = useMemo((): AppRole => {
-    if (roles.includes('admin')) return 'admin';
-    if (roles.includes('executive')) return 'executive';
-    if (roles.includes('branch_admin')) return 'branch_admin';
-    if (roles.includes('head_hr')) return 'head_hr';
-    if (roles.includes('hr')) return 'hr';
-    if (roles.includes('supervisor')) return 'supervisor';
-    if (roles.includes('committee_leader')) return 'committee_leader';
-    if (roles.includes('head_production')) return 'head_production';
-    if (roles.includes('head_fourth_year')) return 'head_fourth_year';
-    if (roles.includes('head_caravans')) return 'head_caravans';
-    if (roles.includes('head_events')) return 'head_events';
-    if (roles.includes('head_ethics')) return 'head_ethics';
-    if (roles.includes('head_quran')) return 'head_quran';
-    if (roles.includes('head_marketing')) return 'head_marketing';
-    if (roles.includes('head_ashbal')) return 'head_ashbal';
-
-    return 'volunteer';
-  }, [roles]);
+  const primaryRole = useMemo(() => getPrimaryRole(roles), [roles]);
 
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => ({

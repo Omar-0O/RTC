@@ -9,6 +9,7 @@ import { unwrap } from './api';
 import type { UserRole } from '@/types';
 import type { Branch } from '@/contexts/BranchContext';
 import type { Database } from '@/integrations/supabase/types';
+import { getPrimaryRole } from '@/utils/roles';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -101,20 +102,6 @@ type UserRoleInsert = Database['public']['Tables']['user_roles']['Insert'];
 type CreateUserResponse = { user?: { id: string }; error?: string };
 type UpdatePasswordResponse = { error?: string };
 type DeleteUserAccountResponse = { error?: string } | null;
-
-const getPrimaryRole = (roles: AppRole[]): AppRole => {
-  if (roles.includes('admin')) return 'admin';
-  if (roles.includes('head_hr')) return 'head_hr';
-  if (roles.includes('hr')) return 'hr';
-  if (roles.includes('supervisor')) return 'supervisor';
-  if (roles.includes('committee_leader')) return 'committee_leader';
-  if (roles.includes('head_caravans')) return 'head_caravans';
-  if (roles.includes('head_events')) return 'head_events';
-  if (roles.includes('head_ethics')) return 'head_ethics';
-  if (roles.includes('head_quran')) return 'head_quran';
-  if (roles.includes('marketing_member')) return 'marketing_member';
-  return 'volunteer';
-};
 
 // ─── Queries ────────────────────────────────────────────────────────
 
