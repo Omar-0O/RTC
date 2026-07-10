@@ -549,33 +549,53 @@ export default function EventManagement() {
             const toAdd = participants.filter(p => !p.id);
 
             if (toRemove.length > 0) {
-                await supabase.from('event_participants').delete().in('id', toRemove.map(p => p.id));
+                const { error: removeParticipantsError } = await supabase
+                    .from('event_participants')
+                    .delete()
+                    .in('id', toRemove.map(p => p.id));
+                if (removeParticipantsError) throw removeParticipantsError;
             }
 
             if (toAdd.length > 0) {
-                await supabase.from('event_participants').insert(toAdd.map(p => ({
-                    event_id: selectedEventId,
-                    volunteer_id: p.volunteer_id || null,
-                    name: p.name, phone: p.phone, is_volunteer: p.is_volunteer
-                })));
+                const { error: addParticipantsError } = await supabase
+                    .from('event_participants')
+                    .insert(toAdd.map(p => ({
+                        event_id: selectedEventId,
+                        volunteer_id: p.volunteer_id || null,
+                        name: p.name, phone: p.phone, is_volunteer: p.is_volunteer,
+                    })));
+                if (addParticipantsError) throw addParticipantsError;
             }
 
             // 3. Sync speakers (delete all + reinsert)
-            await supabase.from('event_speakers').delete().eq('event_id', selectedEventId);
+            const { error: removeSpeakersError } = await supabase
+                .from('event_speakers')
+                .delete()
+                .eq('event_id', selectedEventId);
+            if (removeSpeakersError) throw removeSpeakersError;
+
             if (speakers.length > 0) {
                 const speakerRows: EventSpeakerInsert[] = speakers.map(s => ({
-                        event_id: selectedEventId,
-                        name: s.name, phone: s.phone || null,
-                        social_media_link: s.social_media_link || null
-                    }));
-                await supabase.from('event_speakers').insert(speakerRows);
+                    event_id: selectedEventId,
+                    name: s.name,
+                    phone: s.phone || null,
+                    social_media_link: s.social_media_link || null,
+                }));
+                const { error: addSpeakersError } = await supabase.from('event_speakers').insert(speakerRows);
+                if (addSpeakersError) throw addSpeakersError;
             }
 
             // 4. Sync organizers (delete all + reinsert)
-            await supabase.from('event_organizers').delete().eq('event_id', selectedEventId);
+            const { error: removeOrganizersError } = await supabase
+                .from('event_organizers')
+                .delete()
+                .eq('event_id', selectedEventId);
+            if (removeOrganizersError) throw removeOrganizersError;
+
             if (organizers.length > 0) {
                 const organizerRows: EventOrganizerInsert[] = organizers.map(o => ({ event_id: selectedEventId, volunteer_id: o.volunteer_id }));
-                await supabase.from('event_organizers').insert(organizerRows);
+                const { error: addOrganizersError } = await supabase.from('event_organizers').insert(organizerRows);
+                if (addOrganizersError) throw addOrganizersError;
             }
 
             toast.success(isRTL ? 'تم تحديث الإيفينت بنجاح' : 'Event updated successfully');
