@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { exportCourseReportToXlsx, type CourseExportCourse } from '@/utils/courseExport';
+import { createCourseTrainerParticipation } from '@/services/courseParticipation.service';
 import { appendJsonSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
 import {
     DropdownMenu,
@@ -1657,119 +1658,12 @@ export default function CourseManagement() {
     const createTrainerParticipation = async (course: Course, lectureId: string) => {
         try {
             const lecture = lectures.find(l => l.id === lectureId);
-            const lectureNum = lecture?.lecture_number || '';
-            const lectureDate = lecture?.date;
-
-            // Helper: find profile ID by phone (returns null if not found)
-            const findProfileByPhone = async (phone: string): Promise<string | null> => {
-                const cleanPhone = phone.replace(/[\s-]/g, '');
-                const { data } = await supabase
-                    .from('profiles').select('id')
-                    .or(`phone.eq.${cleanPhone},phone.eq.${phone}`)
-                    .limit(1).maybeSingle();
-                return data?.id || null;
-            };
-
-            // Helper: insert into trainer_lecture_records (always, no profile needed)
-            const logTrainerRecord = async (name: string, phone: string | null, volunteerId: string | null) => {
-                await supabase.from('trainer_lecture_records').insert({
-                    course_id: course.id,
-                    lecture_id: lectureId,
-                    trainer_name: name,
-                    trainer_phone: phone || null,
-                    volunteer_id: volunteerId || null
-                });
-            };
-
-            // Helper: log in activity_submissions (only if profile found)
-            const logActivitySubmission = async (
-                volunteerId: string,
-                committeeId: string,
-                activityTypeId: string,
-                activityPoints: number,
-                lectureNum: number | string
-            ) => {
-                const { error } = await supabase.from('activity_submissions').insert({
-                    volunteer_id: volunteerId,
-                    activity_type_id: activityTypeId,
-                    committee_id: committeeId,
-                    description: `محاضرة ${lectureNum} في كورس: ${course.name}`,
-                    points_awarded: activityPoints,
-                    status: 'approved',
-                    location: 'branch',
-                    proof_url: null,
-                    submitted_at: lectureDate ? new Date(lectureDate + 'T12:00:00').toISOString() : new Date().toISOString()
-                });
-                if (error) console.error('خطأ في activity_submissions:', error);
-            };
-
-            // --- Collect trainers list (name, phone, potential profile) ---
-            interface TrainerEntry { name: string; phone: string | null; volunteerId: string | null; hasTrainerId: boolean; }
-            const trainers: TrainerEntry[] = [];
-
-            // Case A: Trainers from trainers table
-            const trainerIds = new Set<string>();
-            if (course.trainer_id) trainerIds.add(course.trainer_id);
-            if (course.course_trainers?.length) {
-                course.course_trainers.forEach(ct => trainerIds.add(ct.trainer_id));
-            }
-            for (const tId of trainerIds) {
-                const { data: td } = await supabase
-                    .from('trainers').select('user_id, phone, name_ar, name_en').eq('id', tId).single();
-                if (!td) continue;
-                let vid: string | null = td.user_id || null;
-                if (!vid && td.phone) vid = await findProfileByPhone(td.phone);
-                trainers.push({ name: td.name_ar || td.name_en || 'مدرب', phone: td.phone, volunteerId: vid, hasTrainerId: true });
-            }
-
-            // Case B: External trainer (name + phone directly on course, no trainer_id)
-            if (!course.trainer_id && course.trainer_name) {
-                const phones = course.trainer_phone
-                    ? course.trainer_phone.split(/[-,]/).map(p => p.trim()).filter(Boolean)
-                    : [null];
-                for (const phone of phones) {
-                    const vid = phone ? await findProfileByPhone(phone) : null;
-                    trainers.push({ name: course.trainer_name, phone: phone || course.trainer_phone || null, volunteerId: vid, hasTrainerId: false });
-                }
-            }
-
-            if (trainers.length === 0) return;
-
-            // --- Get committee + activity type (only needed for activity_submissions) ---
-            let committeeId: string | null = null;
-            let activityTypeId: string | null = null;
-            let activityPoints = 0;
-            const hasProfileTrainer = trainers.some(t => t.volunteerId);
-
-            if (hasProfileTrainer) {
-                const { data: allCommittees } = await supabase.from('committees').select('id, name');
-                if (allCommittees?.length) {
-                    const found = allCommittees.find(c =>
-                        c.name.toLowerCase().includes('trainer') || c.name.toLowerCase().includes('course') ||
-                        c.name.includes('تدريب') || c.name.includes('كورس')
-                    );
-                    committeeId = found?.id || course.committee_id || allCommittees[0].id;
-                }
-                const { data: allTypes } = await supabase.from('activity_types').select('id, points, name');
-                if (allTypes?.length) {
-                    const chosen = allTypes.find(a => a.name === 'Trainer Lecture')
-                        || allTypes.find(a => a.name.toLowerCase().includes('trainer') || a.name.toLowerCase().includes('lecture')
-                            || a.name.includes('محاضر') || a.name.includes('مدرب'));
-                    if (chosen) { activityTypeId = chosen.id; activityPoints = chosen.points; }
-                }
-            }
-
-            // --- Process each trainer ---
-            for (const trainer of trainers) {
-                // 1. Always log in trainer_lecture_records
-                await logTrainerRecord(trainer.name, trainer.phone, trainer.volunteerId);
-
-                // 2. If has profile + committee + activity type AND is external → also log points
-                // Internal trainers with trainer_id are logged automatically by the database trigger
-                if (trainer.volunteerId && committeeId && activityTypeId && !trainer.hasTrainerId) {
-                    await logActivitySubmission(trainer.volunteerId, committeeId, activityTypeId, activityPoints, lectureNum);
-                }
-            }
+            await createCourseTrainerParticipation({
+                course,
+                lectureId,
+                lectureNumber: lecture?.lecture_number || '',
+                lectureDate: lecture?.date,
+            });
         } catch (error) {
             console.error('Error in createTrainerParticipation:', error);
         }
