@@ -88,6 +88,49 @@ interface Course {
 
 const isCourseCache = (value: unknown): value is Course[] => Array.isArray(value);
 
+const COURSE_LIST_SELECT = `
+    id,
+    name,
+    trainer_name,
+    trainer_phone,
+    room,
+    schedule_days,
+    schedule_time,
+    schedule_end_time,
+    has_interview,
+    interview_date,
+    total_lectures,
+    start_date,
+    end_date,
+    created_by,
+    committee_id,
+    trainer_id,
+    has_certificates,
+    certificate_status,
+    course_lectures(status),
+    course_organizers(id),
+    course_trainers(trainer_id, trainers(name_ar, name_en))
+`;
+
+const COURSE_AD_SELECT = `
+    id,
+    course_id,
+    ad_number,
+    ad_date,
+    poster_url,
+    content,
+    poster_done,
+    content_done,
+    created_by,
+    updated_by,
+    created_at,
+    updated_at,
+    updater:updated_by(full_name, full_name_ar)
+`;
+
+const COURSE_AD_WITH_COURSE_SELECT = `${COURSE_AD_SELECT},
+    course:courses(name, start_date, interview_date, has_interview)`;
+
 interface CourseOrganizer {
     id?: string;
     course_id?: string;
@@ -401,7 +444,7 @@ export default function CourseManagement() {
 
             const { data, error } = await supabase
                 .from('course_ads')
-                .select('*, updater:updated_by(full_name, full_name_ar), course:courses(name, start_date, interview_date, has_interview)')
+                .select(COURSE_AD_WITH_COURSE_SELECT)
                 .in('course_id', courseIds)
                 .order('ad_date', { ascending: true });
 
@@ -566,7 +609,7 @@ export default function CourseManagement() {
         try {
             let query = supabase
                 .from('courses')
-                .select('*, course_lectures(status), course_organizers(id), course_trainers(trainer_id, trainers(name_ar, name_en))')
+                .select(COURSE_LIST_SELECT)
                 .order('start_date', { ascending: false });
 
             if (isRestricted && profile?.committee_id) {
@@ -616,7 +659,7 @@ export default function CourseManagement() {
         try {
             const { data, error } = await supabase
                 .from('course_ads')
-                .select('*, updater:updated_by(full_name, full_name_ar)')
+                .select(COURSE_AD_SELECT)
                 .eq('course_id', courseId)
                 .order('ad_number', { ascending: true });
 
@@ -1032,7 +1075,7 @@ export default function CourseManagement() {
         const fetchCourseOrganizers = async () => {
             const { data } = await supabase
                 .from('course_organizers')
-                .select('*')
+                .select('id, course_id, volunteer_id, name, phone')
                 .eq('course_id', course.id);
 
             if (data) {
@@ -1508,25 +1551,22 @@ export default function CourseManagement() {
             const [lecturesResult, adsResult, beneficiariesResult, organizersResult, marketersResult] = await Promise.all([
                 supabase
                     .from('course_lectures')
-                    .select('*')
+                    .select('id, course_id, lecture_number, date, status')
                     .eq('course_id', course.id)
                     .order('lecture_number'),
                 supabase
                     .from('course_ads')
-                    .select(`
-                        *,
-                        updater:updated_by(full_name, full_name_ar)
-                    `)
+                    .select(COURSE_AD_SELECT)
                     .eq('course_id', course.id)
                     .order('ad_number'),
                 supabase
                     .from('course_beneficiaries')
-                    .select('*')
+                    .select('id, course_id, name, phone, certificate_eligible, attendance_percentage, national_id')
                     .eq('course_id', course.id)
                     .order('name'),
                 supabase
                     .from('course_organizers')
-                    .select('*')
+                    .select('id, course_id, volunteer_id, name, phone')
                     .eq('course_id', course.id),
                 supabase
                     .from('course_marketers')
@@ -1563,7 +1603,7 @@ export default function CourseManagement() {
                 const lectureIds = lecturesData.map(l => l.id);
                 const { data: attendance } = await supabase
                     .from('course_attendance')
-                    .select('*')
+                    .select('id, lecture_id, student_name, student_phone, status')
                     .in('lecture_id', lectureIds);
 
                 if (attendance) {
