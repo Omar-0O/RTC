@@ -258,6 +258,37 @@ const DAYS = [
     { value: 'friday', label: { en: 'Friday', ar: 'الجمعة' } },
 ];
 
+const DAY_INDEX_BY_NAME: Record<string, number> = {
+    sunday: 0,
+    monday: 1,
+    tuesday: 2,
+    wednesday: 3,
+    thursday: 4,
+    friday: 5,
+    saturday: 6,
+};
+
+const getCourseLectureDates = (startDate: string, totalLectures: number, scheduleDays: string[]) => {
+    const selectedDayIndexes = scheduleDays
+        .map((day) => DAY_INDEX_BY_NAME[day])
+        .filter((day): day is number => day !== undefined);
+    const lectureDates: Date[] = [];
+    let currentDate = parseISO(startDate);
+    let safetyCounter = 0;
+
+    while (lectureDates.length < totalLectures && safetyCounter < 365) {
+        if (selectedDayIndexes.includes(getDay(currentDate))) {
+            lectureDates.push(currentDate);
+        }
+        if (lectureDates.length < totalLectures) {
+            currentDate = addDays(currentDate, 1);
+        }
+        safetyCounter++;
+    }
+
+    return lectureDates;
+};
+
 export default function CourseManagement() {
     const { user, hasRole, roles, profile, isLoading } = useAuth(); // Add isLoading
     const { t, language, isRTL } = useLanguage();
@@ -959,33 +990,11 @@ export default function CourseManagement() {
 
         setIsSavingCourse(true);
         try {
-            // Smart Date Calculation
-            const start = parseISO(formData.start_date);
-            let current = start;
-            const lectureDates: Date[] = [];
-            const targetLectures = formData.total_lectures;
-
-            // Map day names to 0-6 (Sunday=0)
-            const dayMap: { [key: string]: number } = {
-                'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
-                'thursday': 4, 'friday': 5, 'saturday': 6
-            };
-
-            const selectedDaysIndices = formData.schedule_days.map(d => dayMap[d]);
-
-            // Safety break
-            let safetyCounter = 0;
-            // First, find the valid start date (first lecture)
-            while (lectureDates.length < targetLectures && safetyCounter < 365) {
-                const dayIndex = getDay(current);
-                if (selectedDaysIndices.includes(dayIndex)) {
-                    lectureDates.push(current);
-                }
-                if (lectureDates.length < targetLectures) {
-                    current = addDays(current, 1);
-                }
-                safetyCounter++;
-            }
+            const lectureDates = getCourseLectureDates(
+                formData.start_date,
+                formData.total_lectures,
+                formData.schedule_days,
+            );
 
             const actualStartDate = lectureDates.length > 0 ? format(lectureDates[0], 'yyyy-MM-dd') : formData.start_date;
             const actualEndDate = lectureDates.length > 0 ? format(lectureDates[lectureDates.length - 1], 'yyyy-MM-dd') : null;
@@ -1160,30 +1169,11 @@ export default function CourseManagement() {
 
         setIsSavingCourse(true);
         try {
-            // Smart Date Calculation (Same as create)
-            const start = parseISO(formData.start_date);
-            let current = start;
-            const lectureDates: Date[] = [];
-            const targetLectures = formData.total_lectures;
-
-            const dayMap: { [key: string]: number } = {
-                'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3,
-                'thursday': 4, 'friday': 5, 'saturday': 6
-            };
-
-            const selectedDaysIndices = formData.schedule_days.map(d => dayMap[d]);
-
-            let safetyCounter = 0;
-            while (lectureDates.length < targetLectures && safetyCounter < 365) {
-                const dayIndex = getDay(current);
-                if (selectedDaysIndices.includes(dayIndex)) {
-                    lectureDates.push(current);
-                }
-                if (lectureDates.length < targetLectures) {
-                    current = addDays(current, 1);
-                }
-                safetyCounter++;
-            }
+            const lectureDates = getCourseLectureDates(
+                formData.start_date,
+                formData.total_lectures,
+                formData.schedule_days,
+            );
 
             const actualStartDate = lectureDates.length > 0 ? format(lectureDates[0], 'yyyy-MM-dd') : formData.start_date;
             const actualEndDate = lectureDates.length > 0 ? format(lectureDates[lectureDates.length - 1], 'yyyy-MM-dd') : null;
