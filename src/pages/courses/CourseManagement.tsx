@@ -1524,40 +1524,58 @@ export default function CourseManagement() {
         setSelectedCourse(course);
         setLectures([]);
         setAttendanceData({});
-        setLectures([]);
-        setAttendanceData({});
         setBeneficiaries([]);
         setDetailsMarketers([]);
         setNewBeneficiary({ name: '', phone: '', national_id: '' });
         setEditingBeneficiary(null);
         try {
-            // Fetch lectures
-            const { data: lecturesData } = await supabase
-                .from('course_lectures')
-                .select('*')
-                .eq('course_id', course.id)
-                .order('lecture_number');
+            const [lecturesResult, adsResult, beneficiariesResult, organizersResult, marketersResult] = await Promise.all([
+                supabase
+                    .from('course_lectures')
+                    .select('*')
+                    .eq('course_id', course.id)
+                    .order('lecture_number'),
+                supabase
+                    .from('course_ads')
+                    .select(`
+                        *,
+                        updater:updated_by(full_name, full_name_ar)
+                    `)
+                    .eq('course_id', course.id)
+                    .order('ad_number'),
+                supabase
+                    .from('course_beneficiaries')
+                    .select('*')
+                    .eq('course_id', course.id)
+                    .order('name'),
+                supabase
+                    .from('course_organizers')
+                    .select('*')
+                    .eq('course_id', course.id),
+                supabase
+                    .from('course_marketers')
+                    .select(`
+                        id,
+                        course_id,
+                        volunteer_id,
+                        profiles:volunteer_id (
+                            full_name,
+                            full_name_ar,
+                            phone
+                        )
+                    `)
+                    .eq('course_id', course.id),
+            ]);
 
-            // Fetch course ads
-            const { data: adsData } = await supabase
-                .from('course_ads')
-                .select(`
-                    *,
-                    updater:updated_by(full_name, full_name_ar)
-                `)
-                .eq('course_id', course.id)
-                .order('ad_number');
+            const { data: lecturesData } = lecturesResult;
+            const { data: adsData } = adsResult;
+            const { data: beneficiariesData } = beneficiariesResult;
+            const { data: organizersData } = organizersResult;
+            const { data: marketersData } = marketersResult;
 
             if (adsData) {
                 setCourseAds(adsData as unknown as CourseAd[]);
             }
-
-            // Fetch beneficiaries
-            const { data: beneficiariesData } = await supabase
-                .from('course_beneficiaries')
-                .select('*')
-                .eq('course_id', course.id)
-                .order('name');
 
             if (beneficiariesData) {
                 setBeneficiaries(beneficiariesData);
@@ -1584,30 +1602,10 @@ export default function CourseManagement() {
                     setAttendanceData(grouped);
                 }
             }
-            // Fetch organizers
-            const { data: organizersData } = await supabase
-                .from('course_organizers')
-                .select('*')
-                .eq('course_id', course.id);
 
             if (organizersData) {
                 setDetailsOrganizers(organizersData);
             }
-
-            // Fetch course marketers
-            const { data: marketersData } = await supabase
-                .from('course_marketers')
-                .select(`
-                    id,
-                    course_id,
-                    volunteer_id,
-                    profiles:volunteer_id (
-                        full_name,
-                        full_name_ar,
-                        phone
-                    )
-                `)
-                .eq('course_id', course.id);
 
             if (marketersData) {
                 const formattedMarketers = (marketersData as unknown as CourseMarketerWithProfile[]).map((m) => ({
