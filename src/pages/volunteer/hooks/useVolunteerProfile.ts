@@ -152,7 +152,26 @@ export function useVolunteerProfile(targetUserId: string | undefined, isRTL: boo
     try {
       const profileQuery = supabase
         .from('profiles')
-        .select('*, branch:branches(name, name_ar), committee:committees(name, name_ar)')
+        .select(`
+          id,
+          email,
+          full_name,
+          full_name_ar,
+          avatar_url,
+          cover_url,
+          phone,
+          join_date,
+          birth_date,
+          total_points,
+          level,
+          is_ashbal,
+          attended_mini_camp,
+          attended_camp,
+          committee_id,
+          branch_id,
+          branch:branches(name, name_ar),
+          committee:committees(name, name_ar)
+        `)
         .eq('id', targetUserId)
         .single();
 
@@ -177,7 +196,7 @@ export function useVolunteerProfile(targetUserId: string | undefined, isRTL: boo
 
       const finesQuery = supabase
         .from('volunteer_fines_view')
-        .select('*')
+        .select('source_type, source_id, source_name, source_name_ar, created_at, amount, is_paid, reviewed_by_name, reviewed_by_name_ar')
         .eq('volunteer_id', targetUserId)
         .eq('source_type', 'manual')
         .order('created_at', { ascending: false });

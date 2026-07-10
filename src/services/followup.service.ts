@@ -158,6 +158,8 @@ type BranchScopedQuery<T> = PaginatedQuery<T> & {
 const normalizePhone = (raw: string | null | undefined): string =>
   normalizePhoneE164(raw);
 
+const FOLLOW_UP_USER_FIELDS = 'id, full_name, phone_1, phone_2, branch, branch_id, created_at, status, linked_to';
+
 /** Paginated fetch helper — fetches all rows from a table in batches. */
 async function fetchAllPaginated<T>(
   buildQuery: (from: number, to: number) => PaginatedQuery<T>
@@ -209,7 +211,7 @@ export async function getFollowUpUsers(opts: FetchFollowUpOptions): Promise<Foll
   const approved = await fetchAllPaginated<FollowUpUser>((from, to) => {
     const q = supabase
       .from('users_followup')
-      .select('*')
+      .select(FOLLOW_UP_USER_FIELDS)
       .eq('status', 'approved')
       .order('id', { ascending: true })
       .range(from, to) as unknown as BranchScopedQuery<FollowUpUser>;
@@ -220,7 +222,7 @@ export async function getFollowUpUsers(opts: FetchFollowUpOptions): Promise<Foll
   const pending = await fetchAllPaginated<FollowUpUser>((from, to) => {
     const q = supabase
       .from('users_followup')
-      .select('*')
+      .select(FOLLOW_UP_USER_FIELDS)
       .eq('status', 'pending')
       .order('id', { ascending: true })
       .range(from, to) as unknown as BranchScopedQuery<FollowUpUser>;

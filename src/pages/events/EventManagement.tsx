@@ -276,7 +276,7 @@ export default function EventManagement() {
         setBeneficiariesDialogOpen(true);
         const { data } = await supabase
             .from('event_beneficiaries')
-            .select('*')
+            .select('id, name, phone')
             .eq('event_id', event.id)
             .order('name');
         setEventBeneficiaries((data as EventBeneficiary[]) || []);
@@ -360,9 +360,18 @@ export default function EventManagement() {
         try {
             // Fetch participants, speakers, organizers in parallel
             const [partsRes, speakersRes, orgsRes] = await Promise.all([
-                supabase.from('event_participants').select('*').eq('event_id', event.id),
-                supabase.from('event_speakers').select('*').eq('event_id', event.id),
-                supabase.from('event_organizers').select('*, profiles:volunteer_id(full_name)').eq('event_id', event.id)
+                supabase
+                    .from('event_participants')
+                    .select('id, volunteer_id, name, phone, is_volunteer')
+                    .eq('event_id', event.id),
+                supabase
+                    .from('event_speakers')
+                    .select('id, name, phone, social_media_link')
+                    .eq('event_id', event.id),
+                supabase
+                    .from('event_organizers')
+                    .select('id, volunteer_id, profiles:volunteer_id(full_name)')
+                    .eq('event_id', event.id),
             ]);
 
             setFormData({

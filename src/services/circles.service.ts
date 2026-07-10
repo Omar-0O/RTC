@@ -255,7 +255,9 @@ export async function getCircles(branchId?: string): Promise<QuranCircle[]> {
 }
 
 export async function getTeachers(branchId?: string): Promise<Teacher[]> {
-  let query = supabase.from('quran_teachers').select('*');
+  let query = supabase
+    .from('quran_teachers')
+    .select('id, name, target_gender, teaching_mode');
 
   if (branchId) {
     query = query.eq('branch_id', branchId);
@@ -319,7 +321,7 @@ export async function getCircleEnrollments(circleId: string): Promise<Beneficiar
 
 export async function getCircleSessions(circleId: string): Promise<Session[]> {
   const { data } = await supabase.from('quran_circle_sessions')
-    .select('*, quran_circle_beneficiaries(count), quran_circle_organizers(name)')
+    .select('id, circle_id, session_date, notes, organizer_id, quran_circle_beneficiaries(count), quran_circle_organizers(name)')
     .eq('circle_id', circleId)
     .order('session_date', { ascending: false })
     .limit(50);
@@ -352,7 +354,11 @@ export async function getCircleAttendance(sessionIds: string[]): Promise<Record<
 }
 
 export async function getCircleAds(circleId: string): Promise<CircleAd[]> {
-  const { data } = await supabase.from('quran_circle_ads').select('*').eq('circle_id', circleId).order('ad_number');
+  const { data } = await supabase
+    .from('quran_circle_ads')
+    .select('id, circle_id, ad_number, ad_date, poster_done, content_done')
+    .eq('circle_id', circleId)
+    .order('ad_number');
   return ((data ?? []) as QuranCircleAdRow[]).map((ad) => ({
     id: ad.id,
     circle_id: ad.circle_id,

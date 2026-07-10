@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { generateGroupSubmissionCSV } from '@/utils/excel';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
+import { createActivityProofSignedUrl } from '@/utils/activityProofs';
 
 interface Committee {
   id: string;
@@ -168,7 +169,10 @@ export default function LogActivity() {
     try {
       const [committeesRes, activitiesRes, activityCommitteesRes, submissionsRes] = await Promise.all([
         supabase.from('committees').select('id, name, name_ar').order('name'),
-        supabase.from('activity_types').select('*').order('name'),
+        supabase
+          .from('activity_types')
+          .select('id, name, name_ar, description, description_ar, points, points_with_vest, points_without_vest, mode, committee_id, created_at')
+          .order('name'),
         supabase.from('activity_type_committees').select('activity_type_id, committee_id'),
         user?.id
           ? supabase
@@ -1439,6 +1443,7 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
   const { isRTL } = useLanguage();
   const [submissions, setSubmissions] = useState<GroupSubmissionListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [downloadingSubmissionId, setDownloadingSubmissionId] = useState<string | null>(null);
 
   const fetchGroupSubmissions = useCallback(async () => {
     if (!leaderId) return;
@@ -1468,8 +1473,31 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
   }, [leaderId]);
 
   useEffect(() => {
-    fetchGroupSubmissions();
+    void fetchGroupSubmissions();
   }, [fetchGroupSubmissions]);
+
+  const handleDownload = async (submission: GroupSubmissionListItem) => {
+    if (!submission.excel_sheet_url) return;
+
+    setDownloadingSubmissionId(submission.id);
+    try {
+      const signedUrl = await createActivityProofSignedUrl(submission.excel_sheet_url);
+      if (!signedUrl) throw new Error('Report is unavailable');
+
+      const link = document.createElement('a');
+      link.href = signedUrl;
+      link.download = '';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error('Error creating report download URL:', error);
+      toast.error(isRTL ? 'فشل تحميل التقرير' : 'Failed to download report');
+    } finally {
+      setDownloadingSubmissionId(null);
+    }
+  };
 
   if (loading) return <div className="p-8 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
@@ -1522,11 +1550,17 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
           </div>
 
           {sub.excel_sheet_url && (
-            <Button variant="outline" size="sm" asChild className="w-full sm:w-auto shrink-0 hover:bg-primary hover:text-white transition-colors border border-primary/20 shadow-sm h-9">
-              <a href={sub.excel_sheet_url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2">
-                <Upload className="h-4 w-4 rotate-180" />
-                {isRTL ? 'تحميل التقرير' : 'Download Report'}
-              </a>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full sm:w-auto shrink-0 hover:bg-primary hover:text-white transition-colors border border-primary/20 shadow-sm h-9"
+              onClick={() => void handleDownload(sub)}
+              disabled={downloadingSubmissionId === sub.id}
+            >
+              {downloadingSubmissionId === sub.id
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Upload className="h-4 w-4 rotate-180" />}
+              {isRTL ? 'تحميل التقرير' : 'Download Report'}
             </Button>
           )}
         </div>
