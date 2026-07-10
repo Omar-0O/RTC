@@ -34,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { exportCourseReportToXlsx, type CourseExportCourse } from '@/utils/courseExport';
+import { updateCourseCertificateEligibility } from '@/services/courseCertificates.service';
 import { createCourseTrainerParticipation } from '@/services/courseParticipation.service';
 import { appendJsonSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
 import {
@@ -1980,71 +1981,13 @@ export default function CourseManagement() {
     // Calculate certificate eligibility based on 75% attendance
     const calculateCertificateEligibility = async (courseId: string) => {
         try {
-            const [lecturesResult, beneficiariesResult] = await Promise.all([
-                supabase
-                    .from('course_lectures')
-                    .select('id')
-                    .eq('course_id', courseId)
-                    .eq('status', 'completed'),
-                supabase
-                    .from('course_beneficiaries')
-                    .select('id, name, phone')
-                    .eq('course_id', courseId),
-            ]);
-
-            if (lecturesResult.error) throw lecturesResult.error;
-            if (beneficiariesResult.error) throw beneficiariesResult.error;
-
-            const courseLectures = lecturesResult.data ?? [];
-            const courseBeneficiaries = beneficiariesResult.data ?? [];
-            const totalLectures = courseLectures.length;
-
-            if (courseBeneficiaries.length === 0) return;
-
-            const lectureIds = courseLectures.map(lecture => lecture.id);
-
-            const attendanceResult = lectureIds.length > 0
-                ? await supabase
-                    .from('course_attendance')
-                    .select('student_phone')
-                    .in('lecture_id', lectureIds)
-                    .eq('status', 'present')
-                : { data: [], error: null };
-
-            if (attendanceResult.error) throw attendanceResult.error;
-
-            const attendanceCount: Record<string, number> = {};
-            attendanceResult.data.forEach((att) => {
-                attendanceCount[att.student_phone] = (attendanceCount[att.student_phone] || 0) + 1;
-            });
-
-            let eligibleCount = 0;
-            const eligibilityUpdates = courseBeneficiaries.map((beneficiary) => {
-                const presentCount = attendanceCount[beneficiary.phone] || 0;
-                const percentage = totalLectures > 0 ? (presentCount / totalLectures) * 100 : 100;
-                const isEligible = percentage >= 75;
-
-                if (isEligible) eligibleCount++;
-
-                return {
-                    id: beneficiary.id,
-                    name: beneficiary.name,
-                    phone: beneficiary.phone,
-                    attendance_percentage: Math.round(percentage * 100) / 100,
-                    certificate_eligible: isEligible,
-                };
-            });
-
-            const { error: updateError } = await supabase
-                .from('course_beneficiaries')
-                .upsert(eligibilityUpdates, { onConflict: 'id' });
-
-            if (updateError) throw updateError;
+            const { eligibleCount, beneficiaryCount } = await updateCourseCertificateEligibility(courseId);
+            if (beneficiaryCount === 0) return;
 
             toast.info(
                 isRTL
-                    ? `${eligibleCount} من ${courseBeneficiaries.length} مستفيد مستحق للشهادة (حضور ≥ 75%)`
-                    : `${eligibleCount} of ${courseBeneficiaries.length} beneficiaries eligible for certificate (attendance ≥ 75%)`
+                    ? `${eligibleCount} من ${beneficiaryCount} مستفيد مستحق للشهادة (حضور ≥ 75%)`
+                    : `${eligibleCount} of ${beneficiaryCount} beneficiaries eligible for certificate (attendance ≥ 75%)`
             );
         } catch (error) {
             console.error('Error calculating eligibility:', error);
