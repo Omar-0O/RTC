@@ -283,12 +283,18 @@ export default function IndividualCompetition() {
                 .is('month_year', null);
 
             if (participantsToFix && participantsToFix.length > 0) {
-                await Promise.all(participantsToFix.map(async (p) => {
+                const groups: Record<string, string[]> = {};
+                participantsToFix.forEach((p: any) => {
                     const month = format(new Date(p.created_at), 'yyyy-MM');
+                    if (!groups[month]) groups[month] = [];
+                    groups[month].push(p.id);
+                });
+
+                await Promise.all(Object.entries(groups).map(async ([month, ids]) => {
                     await supabase
                         .from('competition_participants')
                         .update({ month_year: month })
-                        .eq('id', p.id);
+                        .in('id', ids);
                 }));
             }
 
@@ -299,12 +305,18 @@ export default function IndividualCompetition() {
                 .is('month_year', null);
 
             if (entriesToFix && entriesToFix.length > 0) {
-                await Promise.all(entriesToFix.map(async (e) => {
+                const groups: Record<string, string[]> = {};
+                entriesToFix.forEach((e: any) => {
                     const month = format(new Date(e.created_at), 'yyyy-MM');
+                    if (!groups[month]) groups[month] = [];
+                    groups[month].push(e.id);
+                });
+
+                await Promise.all(Object.entries(groups).map(async ([month, ids]) => {
                     await supabase
                         .from('competition_entries')
                         .update({ month_year: month })
-                        .eq('id', e.id);
+                        .in('id', ids);
                 }));
             }
 
