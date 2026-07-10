@@ -957,66 +957,46 @@ export default function CourseManagement() {
                 if (orgError) throw orgError;
             }
 
-            // Add marketers
-            if (marketers.length > 0) {
-                const marketerRows: CourseMarketerInsert[] = marketers.map(m => ({
-                    course_id: course.id,
-                    volunteer_id: m.volunteer_id || null,
-                    name: m.name,
-                    phone: m.phone
-                }));
-                const { error: mktError } = await supabase
-                    .from('course_marketers')
-                    .insert(marketerRows);
-
-                if (mktError) {
-                    console.error('Error adding marketers:', mktError);
-                }
-            }
-
-            // Add course trainers (multi-trainer)
-            if (courseTrainers.length > 0) {
-                const courseTrainerRows: CourseTrainerInsert[] = courseTrainers.map(ct => ({
-                    course_id: course.id,
-                    trainer_id: ct.trainer_id
-                }));
-                const { error: ctError } = await supabase
-                    .from('course_trainers')
-                    .insert(courseTrainerRows);
-                if (ctError) console.error('Error adding course trainers:', ctError);
-            }
-
-            // Add Planned Ads
-            if (plannedAds.length > 0) {
-                const adEntries: CourseAdInsert[] = plannedAds.map((date, index) => ({
-                    course_id: course.id,
-                    ad_number: index + 1,
-                    ad_date: date,
-                    created_by: user?.id || null
-                }));
-
-                const { error: adsError } = await supabase
-                    .from('course_ads')
-                    .insert(adEntries);
-
-                if (adsError) {
-                    console.error('Error adding planned ads:', adsError);
-                }
-            }
-
-            // Create lecture entries
+            const marketerRows: CourseMarketerInsert[] = marketers.map(m => ({
+                course_id: course.id,
+                volunteer_id: m.volunteer_id || null,
+                name: m.name,
+                phone: m.phone,
+            }));
+            const courseTrainerRows: CourseTrainerInsert[] = courseTrainers.map(ct => ({
+                course_id: course.id,
+                trainer_id: ct.trainer_id,
+            }));
+            const adEntries: CourseAdInsert[] = plannedAds.map((date, index) => ({
+                course_id: course.id,
+                ad_number: index + 1,
+                ad_date: date,
+                created_by: user?.id || null,
+            }));
             const lectureEntries = lectureDates.map((date, index) => ({
                 course_id: course.id,
                 lecture_number: index + 1,
                 date: format(date, 'yyyy-MM-dd'),
-                status: 'scheduled' as 'scheduled' | 'completed' | 'cancelled'
+                status: 'scheduled' as 'scheduled' | 'completed' | 'cancelled',
             }));
 
-            const { error: lectError } = await supabase
-                .from('course_lectures')
-                .insert(lectureEntries);
+            const [marketerResult, trainerResult, adsResult, lectureResult] = await Promise.all([
+                marketerRows.length > 0
+                    ? supabase.from('course_marketers').insert(marketerRows)
+                    : Promise.resolve({ error: null }),
+                courseTrainerRows.length > 0
+                    ? supabase.from('course_trainers').insert(courseTrainerRows)
+                    : Promise.resolve({ error: null }),
+                adEntries.length > 0
+                    ? supabase.from('course_ads').insert(adEntries)
+                    : Promise.resolve({ error: null }),
+                supabase.from('course_lectures').insert(lectureEntries),
+            ]);
 
-            if (lectError) throw lectError;
+            if (marketerResult.error) console.error('Error adding marketers:', marketerResult.error);
+            if (trainerResult.error) console.error('Error adding course trainers:', trainerResult.error);
+            if (adsResult.error) console.error('Error adding planned ads:', adsResult.error);
+            if (lectureResult.error) throw lectureResult.error;
 
             toast.success(isRTL ? 'تم إنشاء الكورس بنجاح' : 'Course created successfully');
             setIsCreateOpen(false);
