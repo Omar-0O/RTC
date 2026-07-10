@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 import { exportXlsxSheets } from '@/utils/xlsx';
 import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
+import { toSafeExternalUrl } from '@/utils/safeUrls';
 
 interface MyEvent {
     id: string;
@@ -88,7 +89,7 @@ export default function MyEvents() {
             const eventIds = orgData.map(o => o.event_id);
             const { data, error } = await supabase
                 .from('events')
-                .select('*, committees(name, name_ar)')
+                .select('id, name, type, location, date, time, description, committees(name, name_ar)')
                 .in('id', eventIds)
                 .order('date', { ascending: false });
 
@@ -111,53 +112,74 @@ export default function MyEvents() {
     }, [user?.id, isRTL]);
 
     useEffect(() => {
-        if (user) {
-            const cacheKey = `rtc_my_events_data_${user.id}`;
-            const cached = getLocalCache<MyEvent[]>(cacheKey, isMyEventCache);
-            let hasCache = false;
-            if (cached) {
-                setEvents(cached);
-                setLoading(false);
-                hasCache = true;
-            }
-            fetchMyEvents(hasCache);
+        if (!user?.id) {
+            setEvents([]);
+            setLoading(false);
+            return;
         }
-    }, [user, fetchMyEvents]);
+
+        const cacheKey = `rtc_my_events_data_${user.id}`;
+        const cached = getLocalCache<MyEvent[]>(cacheKey, isMyEventCache);
+        let hasCache = false;
+        if (cached) {
+            setEvents(cached);
+            setLoading(false);
+            hasCache = true;
+        }
+        void fetchMyEvents(hasCache);
+    }, [user?.id, fetchMyEvents]);
 
     const openBeneficiaries = async (event: MyEvent) => {
         setSelectedEvent(event);
         setBeneficiariesOpen(true);
-        const { data } = await supabase
-            .from('event_beneficiaries')
-            .select('*')
-            .eq('event_id', event.id)
-            .order('name');
-        setBeneficiaries((data as Beneficiary[]) || []);
-    };
-
-    const handleAddBeneficiary = async () => {
-        if (!selectedEvent || !newBeneficiary.name) return;
         try {
             const { data, error } = await supabase
                 .from('event_beneficiaries')
-                .insert({ event_id: selectedEvent.id, name: newBeneficiary.name, phone: newBeneficiary.phone || null })
-                .select()
+                .select('id, name, phone')
+                .eq('event_id', event.id)
+                .order('name');
+            if (error) throw error;
+            setBeneficiaries((data as Beneficiary[]) || []);
+        } catch (error) {
+            console.error('Error fetching beneficiaries:', error);
+            toast.error(isRTL ? 'فشل تحميل المستفيدين' : 'Failed to load beneficiaries');
+        }
+    };
+
+    const handleAddBeneficiary = async () => {
+        const name = newBeneficiary.name.trim();
+        if (!selectedEvent || !name) return;
+
+        try {
+            const { data, error } = await supabase
+                .from('event_beneficiaries')
+                .insert({ event_id: selectedEvent.id, name, phone: newBeneficiary.phone.trim() || null })
+                .select('id, name, phone')
                 .single();
             if (error) throw error;
-            setBeneficiaries([...beneficiaries, data as Beneficiary]);
+            setBeneficiaries((current) => [...current, data as Beneficiary]);
             setNewBeneficiary({ name: '', phone: '' });
             toast.success(isRTL ? 'تم إضافة المستفيد' : 'Beneficiary added');
-        } catch {
+        } catch (error) {
+            console.error('Error adding beneficiary:', error);
             toast.error(isRTL ? 'فشل إضافة المستفيد' : 'Failed to add beneficiary');
         }
     };
 
     const handleRemoveBeneficiary = async (id: string) => {
         try {
-            await supabase.from('event_beneficiaries').delete().eq('id', id);
-            setBeneficiaries(beneficiaries.filter(b => b.id !== id));
+            const { data, error } = await supabase
+                .from('event_beneficiaries')
+                .delete()
+                .eq('id', id)
+                .select('id');
+            if (error) throw error;
+            if (!data?.length) throw new Error('Beneficiary was not found or cannot be removed');
+
+            setBeneficiaries((current) => current.filter((beneficiary) => beneficiary.id !== id));
             toast.success(isRTL ? 'تم حذف المستفيد' : 'Beneficiary removed');
-        } catch {
+        } catch (error) {
+            console.error('Error removing beneficiary:', error);
             toast.error(isRTL ? 'فشل حذف المستفيد' : 'Failed to remove beneficiary');
         }
     };
@@ -165,12 +187,18 @@ export default function MyEvents() {
     const openSpeakers = async (event: MyEvent) => {
         setSelectedEvent(event);
         setSpeakersOpen(true);
-        const { data } = await supabase
-            .from('event_speakers')
-            .select('*')
-            .eq('event_id', event.id)
-            .order('name');
-        setEventSpeakers((data as Speaker[]) || []);
+        try {
+            const { data, error } = await supabase
+                .from('event_speakers')
+                .select('id, name, phone, social_media_link')
+                .eq('event_id', event.id)
+                .order('name');
+            if (error) throw error;
+            setEventSpeakers((data as Speaker[]) || []);
+        } catch (error) {
+            console.error('Error fetching speakers:', error);
+            toast.error(isRTL ? 'فشل تحميل المتحدثين' : 'Failed to load speakers');
+        }
     };
 
     const handleExportBeneficiaries = async () => {
@@ -355,20 +383,24 @@ export default function MyEvents() {
                         <DialogTitle>{isRTL ? 'المتحدثون' : 'Speakers'} - {selectedEvent?.name}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-3">
-                        {eventSpeakers.length > 0 ? eventSpeakers.map(s => (
-                            <div key={s.id} className="flex items-center gap-3 bg-muted/50 rounded-lg px-3 py-2 text-sm">
-                                <Mic className="h-4 w-4 text-primary" />
-                                <div>
-                                    <span className="font-medium">{s.name}</span>
-                                    {s.phone && <span className="text-muted-foreground ml-2">{s.phone}</span>}
-                                    {s.social_media_link && (
-                                        <a href={s.social_media_link} target="_blank" rel="noopener noreferrer" className="text-blue-500 ml-2">
-                                            <LinkIcon className="h-3 w-3 inline" />
-                                        </a>
-                                    )}
+                        {eventSpeakers.length > 0 ? eventSpeakers.map((speaker) => {
+                            const socialMediaUrl = toSafeExternalUrl(speaker.social_media_link);
+
+                            return (
+                                <div key={speaker.id} className="flex items-center gap-3 bg-muted/50 rounded-lg px-3 py-2 text-sm">
+                                    <Mic className="h-4 w-4 text-primary" />
+                                    <div>
+                                        <span className="font-medium">{speaker.name}</span>
+                                        {speaker.phone && <span className="text-muted-foreground ml-2">{speaker.phone}</span>}
+                                        {socialMediaUrl && (
+                                            <a href={socialMediaUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 ml-2">
+                                                <LinkIcon className="h-3 w-3 inline" />
+                                            </a>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
-                        )) : (
+                            );
+                        }) : (
                             <p className="text-center text-muted-foreground py-4">{isRTL ? 'لا يوجد متحدثون' : 'No speakers'}</p>
                         )}
                     </div>

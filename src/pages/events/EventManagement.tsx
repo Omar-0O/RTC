@@ -44,6 +44,7 @@ import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 import { exportEventDetailsToXlsx, exportEventsListToXlsx } from '@/utils/eventExport';
+import { toSafeExternalUrl } from '@/utils/safeUrls';
 
 type Committee = EventCommittee;
 type Event = EventSummary;
@@ -926,23 +927,27 @@ export default function EventManagement() {
                                     </div>
                                     {speakers.length > 0 && (
                                         <div className="space-y-2">
-                                            {speakers.map((s, idx) => (
-                                                <div key={idx} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2 text-sm">
-                                                    <div className="flex items-center gap-3">
-                                                        <Mic className="h-4 w-4 text-primary" />
-                                                        <span className="font-medium">{s.name}</span>
-                                                        {s.phone && <span className="text-muted-foreground">{s.phone}</span>}
-                                                        {s.social_media_link && (
-                                                            <a href={s.social_media_link} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
-                                                                <LinkIcon className="h-3 w-3" />
-                                                            </a>
-                                                        )}
+                                            {speakers.map((speaker, index) => {
+                                                const socialMediaUrl = toSafeExternalUrl(speaker.social_media_link);
+
+                                                return (
+                                                    <div key={index} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2 text-sm">
+                                                        <div className="flex items-center gap-3">
+                                                            <Mic className="h-4 w-4 text-primary" />
+                                                            <span className="font-medium">{speaker.name}</span>
+                                                            {speaker.phone && <span className="text-muted-foreground">{speaker.phone}</span>}
+                                                            {socialMediaUrl && (
+                                                                <a href={socialMediaUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                                                                    <LinkIcon className="h-3 w-3" />
+                                                                </a>
+                                                            )}
+                                                        </div>
+                                                        <Button variant="ghost" size="icon" onClick={() => handleRemoveSpeaker(index)}>
+                                                            <Trash2 className="h-4 w-4 text-destructive" />
+                                                        </Button>
                                                     </div>
-                                                    <Button variant="ghost" size="icon" onClick={() => handleRemoveSpeaker(idx)}>
-                                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                                    </Button>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
