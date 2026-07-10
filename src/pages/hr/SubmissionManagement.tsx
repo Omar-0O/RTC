@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -93,6 +93,21 @@ interface VolunteerSummary {
     submissions: Submission[];
 }
 
+const levelAliases: Record<string, string[]> = {
+    under_follow_up: ['under_follow_up', 'bronze', 'silver', 'newbie', 'active'],
+    project_responsible: ['project_responsible', 'gold'],
+    responsible: ['responsible', 'platinum', 'diamond'],
+};
+
+const matchesVolunteerLevel = (level: string, selectedLevel: string) => {
+    if (selectedLevel === 'all') return true;
+    return (levelAliases[selectedLevel] ?? [selectedLevel]).includes(level);
+};
+
+const getParticipantType = (submission: Submission) => (
+    submission.participant_type || (submission.volunteer_id ? 'volunteer' : 'guest')
+);
+
 export default function SubmissionManagement() {
     const { user, primaryRole } = useAuth();
     const { t, language } = useLanguage();
@@ -105,7 +120,6 @@ export default function SubmissionManagement() {
     const queryLevel = searchParams.get('level');
 
     const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
-    const [submissions, setSubmissions] = useState<Submission[]>([]);
     const [guestParticipations, setGuestParticipations] = useState<GuestParticipation[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -137,37 +151,23 @@ export default function SubmissionManagement() {
         { value: 'responsible', label: { ar: 'مسؤول', en: 'Responsible' } },
     ];
 
-    useEffect(() => {
-        fetchVolunteers();
-        fetchTrainers();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [activeBranch?.id]);
-
-    useEffect(() => {
-        fetchSubmissions();
-        if (isHeadHR) {
-            fetchGuestParticipations();
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedMonth, selectedLevel, selectedType, selectedVolunteer, isHeadHR, activeBranch?.id]);
-
-    const fetchVolunteers = async () => {
+    const fetchVolunteers = useCallback(async () => {
         try {
             setVolunteers(await getHrVolunteers(activeBranch?.id));
         } catch (error) {
             console.error('Error fetching volunteers:', error);
         }
-    };
+    }, [activeBranch?.id]);
 
-    const fetchTrainers = async () => {
+    const fetchTrainers = useCallback(async () => {
         try {
             setTrainersMap(await getTrainerSummaries(activeBranch?.id));
         } catch (error) {
             console.error('Error fetching trainers:', error);
         }
-    };
+    }, [activeBranch?.id]);
 
-    const fetchSubmissions = async () => {
+    const fetchSubmissions = useCallback(async () => {
         setIsLoading(true);
         try {
             const baseSubmissions = await getMonthlySubmissions({
@@ -176,54 +176,16 @@ export default function SubmissionManagement() {
             });
 
             setAllSubmissions(baseSubmissions);
-
-            // Filter for the list view
-            const filteredSubmissions = baseSubmissions.filter(s => {
-                // Apply Volunteer Filter
-                if (selectedVolunteer && s.volunteer_id !== selectedVolunteer) {
-                    return false;
-                }
-
-                // Apply level filter client-side (skip for guests)
-                if (selectedLevel !== 'all') {
-                    // Guests don't have a level, so exclude them from level filtering
-                    if (!s.profiles) return false;
-
-                    const volunteerLevel = s.profiles?.level;
-                    // Handle level aliases (bronze/silver -> under_follow_up, gold -> project_responsible, platinum/diamond -> responsible)
-                    if (selectedLevel === 'under_follow_up') {
-                        return ['under_follow_up', 'bronze', 'silver', 'newbie', 'active'].includes(volunteerLevel);
-                    } else if (selectedLevel === 'project_responsible') {
-                        return ['project_responsible', 'gold'].includes(volunteerLevel);
-                    } else if (selectedLevel === 'responsible') {
-                        return ['responsible', 'platinum', 'diamond'].includes(volunteerLevel);
-                    }
-                    return volunteerLevel === selectedLevel;
-                }
-
-                // Apply Participant Type Filter
-                if (selectedType !== 'all') {
-                    const type = s.participant_type || (s.volunteer_id ? 'volunteer' : 'guest');
-                    if (selectedType !== type) return false;
-                }
-
-                return true;
-            });
-
-            setSubmissions(filteredSubmissions);
-
         } catch (error) {
             console.error('Error fetching submissions:', error);
             toast.error(isRTL ? 'فشل في تحميل البيانات' : 'Failed to load data');
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [activeBranch?.id, isRTL, selectedMonth]);
 
     // Fetch guest and trainer participations from events, caravans, and calls (for head_hr only)
-    const fetchGuestParticipations = async () => {
-        if (!isHeadHR) return;
-
+    const fetchGuestParticipations = useCallback(async () => {
         try {
             setGuestParticipations(await getGuestParticipations({
                 selectedMonth,
@@ -232,7 +194,36 @@ export default function SubmissionManagement() {
         } catch (error) {
             console.error('Error fetching guest participations:', error);
         }
-    };
+    }, [activeBranch?.id, selectedMonth]);
+
+    useEffect(() => {
+        void Promise.all([fetchVolunteers(), fetchTrainers()]);
+    }, [fetchTrainers, fetchVolunteers]);
+
+    useEffect(() => {
+        void fetchSubmissions();
+    }, [fetchSubmissions]);
+
+    useEffect(() => {
+        if (!isHeadHR) {
+            setGuestParticipations([]);
+            return;
+        }
+
+        void fetchGuestParticipations();
+    }, [fetchGuestParticipations, isHeadHR]);
+
+    const submissions = useMemo(() => allSubmissions.filter((submission) => {
+        if (selectedVolunteer && submission.volunteer_id !== selectedVolunteer) {
+            return false;
+        }
+
+        if (selectedLevel !== 'all' && (!submission.profiles || !matchesVolunteerLevel(submission.profiles.level, selectedLevel))) {
+            return false;
+        }
+
+        return selectedType === 'all' || getParticipantType(submission) === selectedType;
+    }), [allSubmissions, selectedLevel, selectedType, selectedVolunteer]);
 
     const exportReport = () => {
         // Volunteer participation data
@@ -417,16 +408,7 @@ export default function SubmissionManagement() {
         return volunteerSummaries.filter(summary => {
             // Respect active filters
             if (selectedLevel !== 'all') {
-                const volunteerLevel = summary.volunteer.level;
-                if (selectedLevel === 'under_follow_up') {
-                    if (!['under_follow_up', 'bronze', 'silver', 'newbie', 'active'].includes(volunteerLevel)) return false;
-                } else if (selectedLevel === 'project_responsible') {
-                    if (!['project_responsible', 'gold'].includes(volunteerLevel)) return false;
-                } else if (selectedLevel === 'responsible') {
-                    if (!['responsible', 'platinum', 'diamond'].includes(volunteerLevel)) return false;
-                } else {
-                    if (volunteerLevel !== selectedLevel) return false;
-                }
+                if (!matchesVolunteerLevel(summary.volunteer.level, selectedLevel)) return false;
             }
             
             if (selectedVolunteer && summary.volunteer.id !== selectedVolunteer) {
