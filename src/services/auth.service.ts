@@ -41,7 +41,6 @@ const PROFILE_COLUMNS = `
   full_name,
   full_name_ar,
   id,
-  is_active,
   is_ashbal,
   join_date,
   last_seen_at,
