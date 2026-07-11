@@ -31,6 +31,8 @@ export function useUsers(opts: usersService.FetchUsersOptions) {
       branchId: opts.branchId,
       page: opts.page,
       pageSize: opts.pageSize,
+      canViewAllBranches: opts.canViewAllBranches,
+      language: opts.language,
     }),
     queryFn: () => usersService.getUsers(opts),
     staleTime: CACHE.users.staleTime,

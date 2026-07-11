@@ -10,7 +10,7 @@ export const queryKeys = {
   // ── Users / Profiles ──────────────────────────────────────────────
   users: {
     all: ['users'] as const,
-    list: (filters?: { branchId?: string; page?: number; pageSize?: number }) =>
+    list: (filters?: { branchId?: string; page?: number; pageSize?: number; canViewAllBranches?: boolean; language?: string }) =>
       ['users', 'list', filters] as const,
     detail: (id: string) => ['users', 'detail', id] as const,
   },

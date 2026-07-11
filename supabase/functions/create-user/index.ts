@@ -25,6 +25,9 @@ interface CreateUserBody {
     phone?: string;
     level?: string;
     joinDate?: string;
+    birthDate?: string;
+    attendedMiniCamp?: boolean;
+    attendedCamp?: boolean;
     isAshbal?: boolean;
     /** Only global admins can set this; otherwise inherited from requester */
     branchId?: string;
@@ -55,6 +58,9 @@ Deno.serve(async (req: Request) => {
             phone,
             level,
             joinDate,
+            birthDate,
+            attendedMiniCamp,
+            attendedCamp,
             isAshbal,
             branchId,
         } = body
@@ -104,6 +110,9 @@ Deno.serve(async (req: Request) => {
                 phone: phone || null,
                 level: level || 'under_follow_up',
                 join_date: joinDate || undefined,
+                birth_date: birthDate || null,
+                attended_mini_camp: level === 'under_follow_up' ? Boolean(attendedMiniCamp) : null,
+                attended_camp: level === 'project_responsible' ? Boolean(attendedCamp) : null,
                 is_ashbal: isAshbal || false,
                 branch_id: effectiveBranchId,
             })

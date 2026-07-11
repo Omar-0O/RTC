@@ -339,6 +339,11 @@ export async function createUser(payload: CreateUserPayload): Promise<{ userId: 
       phone: payload.phone,
       level: payload.level,
       joinDate: payload.joinDate,
+      branchId: payload.branchId,
+      birthDate: payload.birthDate,
+      attendedMiniCamp: payload.attendedMiniCamp,
+      attendedCamp: payload.attendedCamp,
+      isAshbal: payload.isAshbal,
     },
   });
 
@@ -349,18 +354,6 @@ export async function createUser(payload: CreateUserPayload): Promise<{ userId: 
 
   if (payload.avatarFile) {
     await uploadAvatar(userId, payload.avatarFile);
-  }
-
-  const updates: ProfileUpdate = {};
-  if (payload.level === 'under_follow_up') updates.attended_mini_camp = payload.attendedMiniCamp;
-  if (payload.level === 'project_responsible') updates.attended_camp = payload.attendedCamp;
-  if (payload.isAshbal) updates.is_ashbal = true;
-  if (payload.birthDate) updates.birth_date = payload.birthDate;
-  if (payload.branchId) updates.branch_id = payload.branchId;
-
-  if (Object.keys(updates).length > 0) {
-    updates.level = payload.level as ProfileRow['level'];
-    await supabase.from('profiles').update(updates).eq('id', userId);
   }
 
   return { userId };
@@ -396,10 +389,13 @@ export async function updateUser(payload: UpdateUserPayload): Promise<void> {
   }
 
   if (payload.role !== payload.previousRole) {
-    await supabase.from('user_roles').delete().eq('user_id', payload.userId);
+    const { error: deleteError } = await supabase.from('user_roles').delete().eq('user_id', payload.userId);
+    if (deleteError) throw deleteError;
+
     if (payload.role !== 'volunteer') {
       const rolePayload: UserRoleInsert = { user_id: payload.userId, role: payload.role };
-      await supabase.from('user_roles').insert(rolePayload);
+      const { error: insertError } = await supabase.from('user_roles').insert(rolePayload);
+      if (insertError) throw insertError;
     }
   }
 
