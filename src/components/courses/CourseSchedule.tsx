@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
@@ -91,6 +91,7 @@ const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
 };
 
 const HEAD_ROLES = ['admin', 'supervisor', 'head_production', 'head_fourth_year', 'head_events', 'head_caravans', 'committee_leader'];
+const COURSE_SCHEDULE_COLUMNS = 'id, name, trainer_name, trainer_phone, room, schedule_days, schedule_time, has_interview, interview_date, total_lectures, start_date, end_date';
 
 export default function CourseSchedule() {
     const { primaryRole, user } = useAuth();
@@ -112,7 +113,7 @@ export default function CourseSchedule() {
         try {
             let q = supabase
                 .from('courses')
-                .select('*')
+                .select(COURSE_SCHEDULE_COLUMNS)
                 .order('schedule_time', { ascending: true });
             
             if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
@@ -138,9 +139,13 @@ export default function CourseSchedule() {
             const { data: circlesData, error: circlesError } = await circlesQuery;
             if (circlesError) throw circlesError;
 
-            const { data: teachersData, error: teachersError } = await supabase
+            let teachersQuery = supabase
                 .from('quran_teachers')
                 .select('id, name, target_gender');
+
+            if (canViewAllBranches && activeBranch?.id) teachersQuery = teachersQuery.eq('branch_id', activeBranch.id);
+
+            const { data: teachersData, error: teachersError } = await teachersQuery;
             if (teachersError) throw teachersError;
 
             const teachersMap = new Map(teachersData?.map(t => [t.id, t]) || []);
@@ -206,7 +211,7 @@ export default function CourseSchedule() {
             try {
                 const { data } = await supabase
                     .from('course_organizers')
-                    .select('*')
+                    .select('id, name, phone')
                     .eq('course_id', course.id);
                 setOrganizers(data || []);
             } catch (e) {
@@ -284,7 +289,7 @@ export default function CourseSchedule() {
         room?: string;
     }
 
-    const getEventsForDate = (date: Date) => {
+    const getEventsForDate = useCallback((date: Date) => {
         const events: CalendarEvent[] = [];
         const dayName = DAY_MAP[getDay(date)];
         const dateStr = format(date, 'yyyy-MM-dd');
@@ -349,7 +354,7 @@ export default function CourseSchedule() {
 
         // Sort by time
         return events.sort((a, b) => a.time.localeCompare(b.time));
-    };
+    }, [courses, isRTL]);
 
     // Get circles for a specific date based on their recurring schedule
     const getCirclesForDate = (date: Date) => {
@@ -366,6 +371,15 @@ export default function CourseSchedule() {
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
     const calendarDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    const eventsByDate = useMemo(() => {
+        const events = new Map<string, CalendarEvent[]>();
+
+        for (const day of eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) })) {
+            events.set(format(day, 'yyyy-MM-dd'), getEventsForDate(day));
+        }
+
+        return events;
+    }, [currentMonth, getEventsForDate]);
 
     // Pad start to align with Saturday (week starts Saturday)
     const startDayIndex = (getDay(monthStart) + 1) % 7; // Saturday = 0
@@ -437,7 +451,7 @@ export default function CourseSchedule() {
                                         if (!day) {
                                             return <div key={`empty-${idx}`} className="min-h-[120px] bg-muted/20 rounded"></div>;
                                         }
-                                        const dayEvents = getEventsForDate(day);
+                                        const dayEvents = eventsByDate.get(format(day, 'yyyy-MM-dd')) || [];
                                         const isDayToday = isToday(day);
                                         return (
                                             <div
@@ -513,7 +527,7 @@ export default function CourseSchedule() {
                                     today.setHours(0, 0, 0, 0);
                                     return day >= today;
                                 }).map((day) => {
-                                    const dayEvents = getEventsForDate(day);
+                                    const dayEvents = eventsByDate.get(format(day, 'yyyy-MM-dd')) || [];
                                     const dayCircles = getCirclesForDate(day);
                                     if (dayEvents.length === 0 && dayCircles.length === 0) return null; // Only show days with courses or circles
 
