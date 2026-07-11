@@ -431,6 +431,21 @@ export async function removeCircleOrganizer(circleId: string, volunteerId: strin
   if (error) throw error;
 }
 
+export async function addCircleMarketer(circleId: string, volunteerId: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('quran_circle_marketers')
+    .insert({ circle_id: circleId, volunteer_id: volunteerId })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data.id;
+}
+
+export async function removeCircleMarketer(marketerId: string): Promise<void> {
+  const { error } = await supabase.from('quran_circle_marketers').delete().eq('id', marketerId);
+  if (error) throw error;
+}
+
 export async function setCircleAttendance(
   sessionId: string,
   circleId: string,

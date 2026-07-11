@@ -8,6 +8,7 @@ import {
     createSession,
     createCircleAd,
     addCircleOrganizer,
+    addCircleMarketer,
     deleteCircleAd,
     deleteSession,
     enrollBeneficiary,
@@ -24,6 +25,7 @@ import {
     unenrollBeneficiary,
     deleteCircle,
     removeCircleOrganizer,
+    removeCircleMarketer,
     setCircleAttendance,
     updateCircleAttendanceType,
     updateCircleAd,
@@ -1178,18 +1180,9 @@ export default function QuranCircles() {
         if (detailsMarketers.some(m => m.volunteer_id === volunteer.id)) return;
 
         try {
-            const { data, error } = await supabase
-                .from('quran_circle_marketers')
-                .insert({
-                    circle_id: selectedMarketingCircle.id,
-                    volunteer_id: volunteer.id
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
+            const marketerId = await addCircleMarketer(selectedMarketingCircle.id, volunteer.id);
             setDetailsMarketers([...detailsMarketers, {
-                id: data.id,
+                id: marketerId,
                 volunteer_id: volunteer.id,
                 name: isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name,
                 phone: volunteer.phone || ''
@@ -1203,12 +1196,7 @@ export default function QuranCircles() {
 
         const handleRemoveMarketerFromDetails = async (marketerId: string) => {
             try {
-            const { error } = await supabase
-                .from('quran_circle_marketers')
-                .delete()
-                .eq('id', marketerId);
-
-            if (error) throw error;
+            await removeCircleMarketer(marketerId);
             setDetailsMarketers(detailsMarketers.filter(m => m.id !== marketerId));
             toast.success(isRTL ? 'تم حذف المسوق' : 'Marketer removed');
         } catch (error) {
