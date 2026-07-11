@@ -205,6 +205,17 @@ export interface SaveAttendancePayload {
   circleTargetGroup?: string;
 }
 
+export interface SaveCircleBeneficiaryPayload {
+  circleId: string;
+  beneficiaryId?: string;
+  nameAr: string;
+  nameEn?: string;
+  phone?: string;
+  gender: 'male' | 'female';
+  beneficiaryType: 'child' | 'adult';
+  branchId?: string;
+}
+
 // ─── Queries ────────────────────────────────────────────────────────
 
 export async function getCircles(branchId?: string): Promise<QuranCircle[]> {
@@ -567,6 +578,58 @@ export async function deactivateCircleEnrollment(circleId: string, beneficiaryId
     .eq('circle_id', circleId)
     .eq('beneficiary_id', beneficiaryId);
   if (error) throw error;
+}
+
+export async function saveCircleBeneficiary(payload: SaveCircleBeneficiaryPayload): Promise<{ beneficiaryId: string; alreadyEnrolled: boolean }> {
+  const details = {
+    name_ar: payload.nameAr,
+    name_en: payload.nameEn || null,
+    phone: payload.phone || null,
+    gender: payload.gender,
+    beneficiary_type: payload.beneficiaryType,
+  } as const;
+
+  let beneficiaryId = payload.beneficiaryId;
+  if (beneficiaryId) {
+    const { error } = await supabase.from('quran_beneficiaries').update(details).eq('id', beneficiaryId);
+    if (error) throw error;
+    return { beneficiaryId, alreadyEnrolled: false };
+  }
+
+  if (payload.phone) {
+    const { data, error } = await supabase.from('quran_beneficiaries').select('id').eq('phone', payload.phone).maybeSingle();
+    if (error) throw error;
+    beneficiaryId = data?.id;
+  }
+
+  if (!beneficiaryId) {
+    const { data, error } = await supabase
+      .from('quran_beneficiaries')
+      .insert({ ...details, branch_id: payload.branchId ?? null })
+      .select('id')
+      .single();
+    if (error) throw error;
+    beneficiaryId = data.id;
+  }
+
+  const { data: enrollment, error: enrollmentLookupError } = await supabase
+    .from('quran_enrollments')
+    .select('id, status')
+    .eq('circle_id', payload.circleId)
+    .eq('beneficiary_id', beneficiaryId)
+    .maybeSingle();
+  if (enrollmentLookupError) throw enrollmentLookupError;
+
+  if (enrollment?.status === 'active') return { beneficiaryId, alreadyEnrolled: true };
+  if (enrollment) {
+    const { error } = await supabase.from('quran_enrollments').update({ status: 'active' }).eq('id', enrollment.id);
+    if (error) throw error;
+  } else {
+    const { error } = await supabase.from('quran_enrollments').insert({ circle_id: payload.circleId, beneficiary_id: beneficiaryId, status: 'active' });
+    if (error) throw error;
+  }
+
+  return { beneficiaryId, alreadyEnrolled: false };
 }
 
 export async function createSession(params: {

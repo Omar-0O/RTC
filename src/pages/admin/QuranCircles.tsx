@@ -22,6 +22,7 @@ import {
     getVolunteers as getQuranVolunteers,
     saveAttendance,
     saveCircle,
+    saveCircleBeneficiary,
     unenrollBeneficiary,
     deleteCircle,
     deactivateCircleEnrollment,
@@ -988,80 +989,23 @@ export default function QuranCircles() {
         }
 
         try {
+            const result = await saveCircleBeneficiary({
+                circleId: selectedCircle.id,
+                beneficiaryId: editingBeneficiary?.id,
+                nameAr: newBeneficiary.name_ar,
+                nameEn: newBeneficiary.name_en,
+                phone: newBeneficiary.phone,
+                gender: newBeneficiary.gender,
+                beneficiaryType: newBeneficiary.beneficiary_type,
+                branchId: activeBranch?.id,
+            });
+
             if (editingBeneficiary) {
-                // Update existing
-                const { error } = await supabase
-                    .from('quran_beneficiaries')
-                    .update({
-                        name_ar: newBeneficiary.name_ar,
-                        name_en: newBeneficiary.name_en || null,
-                        phone: newBeneficiary.phone || null,
-                        gender: newBeneficiary.gender,
-                        beneficiary_type: newBeneficiary.beneficiary_type
-                    })
-                    .eq('id', editingBeneficiary.id);
-
-                if (error) throw error;
                 toast.success(isRTL ? 'تم تحديث بيانات المستفيد' : 'Beneficiary updated successfully');
+            } else if (result.alreadyEnrolled) {
+                toast.warning(isRTL ? 'المستفيد مسجل بالفعل في هذه الحلقة' : 'Beneficiary already enrolled');
             } else {
-                // Create new logic (existing)
-                let beneficiaryId: string | undefined;
-
-                // 1. Check if beneficiary exists by phone (if phone is provided)
-                if (newBeneficiary.phone) {
-                    const { data: existingBen } = await supabase
-                        .from('quran_beneficiaries')
-                        .select('id')
-                        .eq('phone', newBeneficiary.phone)
-                        .single();
-
-                    if (existingBen) beneficiaryId = existingBen.id;
-                }
-
-                // 2. If not exists, create new
-                if (!beneficiaryId) {
-                    const { data: newBen, error: createError } = await supabase
-                        .from('quran_beneficiaries')
-                        .insert({
-                            name_ar: newBeneficiary.name_ar,
-                            name_en: newBeneficiary.name_en || null,
-                            phone: newBeneficiary.phone || null,
-                            gender: newBeneficiary.gender,
-                            beneficiary_type: newBeneficiary.beneficiary_type,
-                            branch_id: activeBranch?.id || null
-                        })
-                        .select('id')
-                        .single();
-
-                    if (createError) throw createError;
-                    beneficiaryId = newBen.id;
-                }
-
-                // 3. Enroll in current circle
-                if (beneficiaryId) {
-                    // Check if already enrolled
-                    const { data: existingEnrollment } = await supabase
-                        .from('quran_enrollments')
-                        .select('id')
-                        .eq('circle_id', selectedCircle.id)
-                        .eq('beneficiary_id', beneficiaryId)
-                        .single();
-
-                    if (existingEnrollment) {
-                        toast.warning(isRTL ? 'المستفيد مسجل بالفعل في هذه الحلقة' : 'Beneficiary already enrolled');
-                    } else {
-                        const { error: enrollError } = await supabase
-                            .from('quran_enrollments')
-                            .insert({
-                                circle_id: selectedCircle.id,
-                                beneficiary_id: beneficiaryId,
-                                status: 'active'
-                            });
-
-                        if (enrollError) throw enrollError;
-                        toast.success(isRTL ? 'تم إضافة المستفيد بنجاح' : 'Beneficiary added successfully');
-                    }
-                }
+                toast.success(isRTL ? 'تم إضافة المستفيد بنجاح' : 'Beneficiary added successfully');
             }
 
             // 4. Refresh data and reset
