@@ -52,6 +52,18 @@ export interface UsersResult {
   totalCount: number;
 }
 
+export interface UserExportRow {
+  fullName: string | null;
+  fullNameAr: string | null;
+  email: string;
+  phone: string | null;
+  role: UserRole;
+  createdAt: string;
+  level: string | null;
+  attendedMiniCamp: boolean | null;
+  attendedCamp: boolean | null;
+}
+
 export interface CreateUserPayload {
   email: string;
   password: string;
@@ -103,6 +115,8 @@ type UserRoleInsert = Database['public']['Tables']['user_roles']['Insert'];
 type CreateUserResponse = { user?: { id: string }; error?: string };
 type UpdatePasswordResponse = { error?: string };
 type DeleteUserAccountResponse = { error?: string } | null;
+type UserFeatureRow = Database['public']['Tables']['user_features']['Row'];
+type UserFeatureInsert = Database['public']['Tables']['user_features']['Insert'];
 
 const AVATAR_BUCKET = 'avatars';
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
@@ -265,6 +279,52 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
   return { users, totalCount };
 }
 
+export async function getUsersForExport({
+  branchId,
+  canViewAllBranches,
+}: Pick<FetchUsersOptions, 'branchId' | 'canViewAllBranches'>): Promise<UserExportRow[]> {
+  let query = supabase
+    .from('profiles')
+    .select('id, full_name, full_name_ar, email, phone, created_at, level, attended_mini_camp, attended_camp, branch_id')
+    .order('full_name');
+
+  if (branchId) {
+    query = canViewAllBranches
+      ? query.or(`branch_id.eq.${branchId},branch_id.is.null`) as typeof query
+      : query.eq('branch_id', branchId) as typeof query;
+  }
+
+  const { data: profiles, error: profilesError } = await query;
+  if (profilesError) throw profilesError;
+
+  const rows = (profiles ?? []).filter((profile) => profile.full_name !== 'RTC Admin');
+  const userIds = rows.map((profile) => profile.id);
+  const roles = new Map<string, UserRole>();
+
+  if (userIds.length > 0) {
+    const { data: roleRows, error: rolesError } = await supabase
+      .from('user_roles')
+      .select('user_id, role')
+      .in('user_id', userIds);
+    if (rolesError) throw rolesError;
+    (roleRows ?? []).forEach((roleRow) => {
+      if (roleRow.user_id && roleRow.role) roles.set(roleRow.user_id, roleRow.role as UserRole);
+    });
+  }
+
+  return rows.map((profile) => ({
+    fullName: profile.full_name,
+    fullNameAr: profile.full_name_ar,
+    email: profile.email,
+    phone: profile.phone,
+    role: roles.get(profile.id) || 'volunteer',
+    createdAt: profile.created_at,
+    level: profile.level,
+    attendedMiniCamp: profile.attended_mini_camp,
+    attendedCamp: profile.attended_camp,
+  }));
+}
+
 // ─── Mutations ──────────────────────────────────────────────────────
 
 export async function createUser(payload: CreateUserPayload): Promise<{ userId: string }> {
@@ -371,11 +431,37 @@ export async function toggleUserActive(userId: string, isActive: boolean): Promi
 }
 
 export async function updateUserRole(userId: string, newRole: string): Promise<void> {
-  await supabase.from('user_roles').delete().eq('user_id', userId);
+  const { error: deleteError } = await supabase.from('user_roles').delete().eq('user_id', userId);
+  if (deleteError) throw deleteError;
+
   if (newRole !== 'volunteer') {
     const { error } = await supabase
       .from('user_roles')
       .insert({ user_id: userId, role: newRole as UserRole });
     if (error) throw error;
   }
+}
+
+export async function getUserFeatures(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('user_features')
+    .select('feature')
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  return (data as Pick<UserFeatureRow, 'feature'>[]).map(({ feature }) => feature);
+}
+
+export async function saveUserFeatures(userId: string, features: string[]): Promise<void> {
+  const { error: deleteError } = await supabase
+    .from('user_features')
+    .delete()
+    .eq('user_id', userId);
+
+  if (deleteError) throw deleteError;
+  if (features.length === 0) return;
+
+  const rows: UserFeatureInsert[] = features.map((feature) => ({ user_id: userId, feature }));
+  const { error: insertError } = await supabase.from('user_features').insert(rows);
+  if (insertError) throw insertError;
 }

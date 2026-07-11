@@ -103,3 +103,24 @@ export function useUpdateRole() {
     },
   });
 }
+
+export function useUserFeatures(userId: string | undefined) {
+  return useQuery({
+    queryKey: [...queryKeys.users.all, 'features', userId],
+    queryFn: () => usersService.getUserFeatures(userId!),
+    enabled: Boolean(userId),
+    staleTime: CACHE.users.staleTime,
+    retry: shouldRetry,
+  });
+}
+
+export function useSaveUserFeatures() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, features }: { userId: string; features: string[] }) =>
+      usersService.saveUserFeatures(userId, features),
+    onSuccess: (_, { userId }) => {
+      qc.invalidateQueries({ queryKey: [...queryKeys.users.all, 'features', userId] });
+    },
+  });
+}

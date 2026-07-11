@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download, Eye, EyeOff, UserPlus, Settings } from 'lucide-react';
@@ -59,9 +59,8 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { Switch } from '@/components/ui/switch';
-import { supabase } from '@/integrations/supabase/client';
-import { Database } from '@/integrations/supabase/types';
-import { useUsers, useCommittees, useCreateUser, useUpdateUser, useDeleteUser, useToggleUserActive, useUpdateRole } from '@/hooks/useUsers';
+import { getUsersForExport } from '@/services/users.service';
+import { useUsers, useCommittees, useCreateUser, useUpdateUser, useDeleteUser, useToggleUserActive, useUserFeatures, useSaveUserFeatures } from '@/hooks/useUsers';
 import type { UserWithDetails, Committee } from '@/hooks/useUsers';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
@@ -90,14 +89,6 @@ import Cropper, { type Area } from 'react-easy-crop';
 import { Slider } from '@/components/ui/slider';
 import { getCroppedImg } from '@/utils/imageCrop';
 
-type ProfileRow = Database['public']['Tables']['profiles']['Row'];
-type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
-type UserRoleInsert = Database['public']['Tables']['user_roles']['Insert'];
-type UserFeatureRow = Database['public']['Tables']['user_features']['Row'];
-type UserFeatureInsert = Database['public']['Tables']['user_features']['Insert'];
-type DeleteUserAccountResponse = { error?: string } | null;
-type CreateUserResponse = { user?: { id: string }; error?: string };
-type UpdatePasswordResponse = { error?: string };
 type CsvRow = SpreadsheetRow;
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
@@ -111,14 +102,6 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
     if (typeof message === 'string' && message.trim()) return message;
   }
   return fallback;
-};
-
-const getErrorStatus = (error: unknown): string | number | undefined => {
-  if (typeof error === 'object' && error !== null && 'status' in error) {
-    const status = (error as { status?: unknown }).status;
-    if (typeof status === 'string' || typeof status === 'number') return status;
-  }
-  return undefined;
 };
 
 const ALL_FEATURES = [
@@ -212,7 +195,7 @@ export default function UserManagement() {
   const updateUserMutation = useUpdateUser();
   const deleteUserMutation = useDeleteUser();
   const toggleActiveMutation = useToggleUserActive();
-  const updateRoleMutation = useUpdateRole();
+  const saveUserFeaturesMutation = useSaveUserFeatures();
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
   const [committeeFilter, setCommitteeFilter] = useState<string>('all');
@@ -222,7 +205,6 @@ export default function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<UserWithDetails | null>(null);
   const [viewProfileUser, setViewProfileUser] = useState<UserWithDetails | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Custom features states
@@ -230,6 +212,11 @@ export default function UserManagement() {
   const [featuresSelectedUser, setFeaturesSelectedUser] = useState<UserWithDetails | null>(null);
   const [selectedUserFeatures, setSelectedUserFeatures] = useState<string[]>([]);
   const [isSavingFeatures, setIsSavingFeatures] = useState(false);
+  const { data: loadedUserFeatures = [] } = useUserFeatures(featuresSelectedUser?.id);
+
+  useEffect(() => {
+    if (featuresSelectedUser) setSelectedUserFeatures(loadedUserFeatures);
+  }, [featuresSelectedUser, loadedUserFeatures]);
 
   // Form states
   const [formName, setFormName] = useState('');
@@ -275,47 +262,20 @@ export default function UserManagement() {
     }
   };
 
-  const openCustomizeFeatures = async (user: UserWithDetails) => {
+  const openCustomizeFeatures = (user: UserWithDetails) => {
     setFeaturesSelectedUser(user);
     setIsCustomizeFeaturesDialogOpen(true);
     setSelectedUserFeatures([]);
-    try {
-      const { data, error } = await supabase
-        .from('user_features')
-        .select('feature')
-        .eq('user_id', user.id);
-      
-      if (!error && data) {
-        setSelectedUserFeatures(data.map((feature: Pick<UserFeatureRow, 'feature'>) => feature.feature));
-      }
-    } catch (err) {
-      console.error('Error fetching user features:', err);
-    }
   };
 
   const handleSaveFeatures = async () => {
     if (!featuresSelectedUser) return;
     setIsSavingFeatures(true);
     try {
-      const { error: deleteErr } = await supabase
-        .from('user_features')
-        .delete()
-        .eq('user_id', featuresSelectedUser.id);
-      
-      if (deleteErr) throw deleteErr;
-
-      if (selectedUserFeatures.length > 0) {
-        const rows: UserFeatureInsert[] = selectedUserFeatures.map(feature => ({
-          user_id: featuresSelectedUser.id,
-          feature,
-        }));
-        
-        const { error: insertErr } = await supabase
-          .from('user_features')
-          .insert(rows);
-          
-        if (insertErr) throw insertErr;
-      }
+      await saveUserFeaturesMutation.mutateAsync({
+        userId: featuresSelectedUser.id,
+        features: selectedUserFeatures,
+      });
 
       toast.success(isRTL ? 'تم حفظ المميزات بنجاح' : 'Features saved successfully');
       setIsCustomizeFeaturesDialogOpen(false);
@@ -407,149 +367,30 @@ export default function UserManagement() {
     }
   }
 
-  const uploadAvatar = async (userId: string): Promise<string | null> => {
-    if (!formAvatarFile) return null;
-
-    try {
-      const fileExt = getSafeImageExtension(formAvatarFile);
-      const fileName = `${userId}/avatar.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, formAvatarFile, {
-          upsert: true,
-          contentType: formAvatarFile.type,
-          cacheControl: '3600',
-        });
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      return data.publicUrl;
-    } catch (error) {
-      console.error('Error uploading avatar:', error);
-      return null;
-    }
-  };
-
-  const handleAddUser = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleAddUser = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!formName.trim() || !formEmail.trim() || !formPassword.trim()) {
-      toast.error(isRTL ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill in all required fields');
+      toast.error(isRTL ? "يرجى ملء جميع الحقول المطلوبة" : "Please fill in all required fields");
       return;
     }
-
     if (formPassword.length < 6) {
-      toast.error(isRTL ? 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل' : 'Password must be at least 6 characters');
+      toast.error(isRTL ? "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل" : "Password must be at least 6 characters");
       return;
     }
-
     setIsSubmitting(true);
     try {
-      // Get the current session to pass the auth token
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        toast.error(isRTL ? 'انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.' : 'Session expired. Please log in again.');
-        return;
-      }
-
-      // Call create-user edge function
-      const { data, error } = await supabase.functions.invoke<CreateUserResponse>('create-user', {
-        body: {
-          email: formEmail.trim(),
-          password: formPassword,
-          fullName: formName.trim(),
-          fullNameAr: formNameAr.trim(),
-          role: formRole,
-          committeeId: formCommitteeId || null,
-          phone: formPhone.trim() || null,
-          level: formLevel,
-          joinDate: formJoinDate,
-        },
+      await createUserMutation.mutateAsync({
+        email: formEmail.trim(), password: formPassword, fullName: formName.trim(), fullNameAr: formNameAr.trim(), role: formRole,
+        committeeId: formCommitteeId || null, phone: formPhone.trim() || null, level: formLevel, joinDate: formJoinDate,
+        branchId: formBranchId || null, birthDate: formBirthDate || null, attendedMiniCamp: formAttendedMiniCamp,
+        attendedCamp: formAttendedCamp, isAshbal: formIsAshbal, avatarFile: formAvatarFile,
       });
-
-      // Check for function invocation error (network issues, etc.)
-      if (error) {
-        console.error('Edge function invocation error:', error);
-        // Extract status code if available
-        const status = getErrorStatus(error);
-        if (status) {
-          console.error('Status Code:', status);
-        }
-        throw error;
-      }
-
-      // Check for errors returned from the Edge Function
-      if (!data?.user) {
-        const errorMsg = data?.error || 'Failed to create user - no user returned';
-        console.error('Create user failed:', errorMsg);
-        throw new Error(errorMsg);
-      }
-
-      // Upload avatar if provided
-      if (formAvatarFile && data.user) {
-        try {
-          const avatarUrl = await uploadAvatar(data.user.id);
-          if (avatarUrl) {
-            await supabase
-              .from('profiles')
-              .update({ avatar_url: avatarUrl })
-              .eq('id', data.user.id);
-          }
-        } catch (avatarError) {
-          console.error('Avatar upload failed:', avatarError);
-          // Don't throw - user was created successfully
-        }
-      }
-
-      // Update attendance status if applicable
-      if (data.user) {
-        const updates: ProfileUpdate = {};
-
-        if (formLevel === 'under_follow_up') {
-          updates.attended_mini_camp = formAttendedMiniCamp;
-        }
-
-        if (formLevel === 'project_responsible') {
-          updates.attended_camp = formAttendedCamp;
-        }
-
-        if (formIsAshbal) {
-          updates.is_ashbal = true;
-        }
-
-        if (formBirthDate) {
-          updates.birth_date = formBirthDate;
-        }
-
-        if (formBranchId) {
-          updates.branch_id = formBranchId;
-        }
-
-        if (Object.keys(updates).length > 0) {
-          updates.level = formLevel as ProfileRow['level'];
-
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update(updates)
-            .eq('id', data.user.id);
-
-          if (updateError) {
-            console.error('Failed to update attendance:', updateError);
-            // Don't throw - user was created successfully
-          }
-        }
-      }
-
-      toast.success(language === 'ar' ? 'تم إضافة المستخدم بنجاح' : 'User added successfully');
+      toast.success(language === "ar" ? "تم إضافة المستخدم بنجاح" : "User added successfully");
       setIsAddDialogOpen(false);
       resetForm();
-      // React Query auto-invalidates via createUserMutation
-
     } catch (error: unknown) {
-      console.error('Error adding user:', error);
-      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في إضافة المستخدم' : 'Failed to add user'));
+      console.error("Error adding user:", error);
+      toast.error(getErrorMessage(error, language === "ar" ? "فشل في إضافة المستخدم" : "Failed to add user"));
     } finally {
       setIsSubmitting(false);
     }
@@ -578,106 +419,33 @@ export default function UserManagement() {
     setIsEditDialogOpen(true);
   };
 
-  const handleEditUser = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleEditUser = async (event: React.FormEvent) => {
+    event.preventDefault();
     if (!selectedUser) return;
-
     if (!formName.trim() || !formEmail.trim()) {
-      toast.error(isRTL ? 'يرجى ملء جميع الحقول المطلوبة' : 'Please fill in all required fields');
+      toast.error(isRTL ? "يرجى ملء جميع الحقول المطلوبة" : "Please fill in all required fields");
       return;
     }
-
+    if (formPassword && formPassword.length < 6) {
+      toast.error(isRTL ? "يجب أن تتكون كلمة المرور من 6 أحرف على الأقل" : "Password must be at least 6 characters");
+      return;
+    }
     setIsSubmitting(true);
     try {
-      // Update profile
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          full_name: formName.trim(),
-          full_name_ar: formNameAr.trim() || null,
-          email: formEmail.trim(),
-          phone: formPhone.trim() || null,
-          committee_id: formCommitteeId || null,
-          branch_id: formBranchId || null,
-          level: formLevel as ProfileRow['level'],
-          attended_mini_camp: formLevel === 'under_follow_up' ? formAttendedMiniCamp : null,
-          attended_camp: formLevel === 'project_responsible' ? formAttendedCamp : null,
-          is_ashbal: formIsAshbal,
-          join_date: formJoinDate,
-          birth_date: formBirthDate || null,
-        })
-        .eq('id', selectedUser.id)
-        .select();
-
-      if (profileError) throw profileError;
-
-      if (!profileData || profileData.length === 0) {
-        throw new Error('Update failed - no changes applied (check permissions)');
-      }
-
-      // Upload avatar if changed
-      if (formAvatarFile) {
-        try {
-          const avatarUrl = await uploadAvatar(selectedUser.id);
-          if (avatarUrl) {
-            await supabase
-              .from('profiles')
-              .update({ avatar_url: avatarUrl })
-              .eq('id', selectedUser.id);
-          }
-        } catch (avatarError) {
-          console.error('Avatar upload failed:', avatarError);
-          toast.error(isRTL ? 'فشل في رفع الصورة الشخصية الجديدة' : 'Failed to upload new avatar');
-        }
-      }
-
-      // Update role if changed
-      if (formRole !== selectedUser.role) {
-        // First, delete all existing roles for this user
-        const { error: deleteError } = await supabase
-          .from('user_roles')
-          .delete()
-          .eq('user_id', selectedUser.id);
-
-        if (deleteError) throw deleteError;
-
-        // Then, insert the new role ONLY if it's not 'volunteer'
-        if (formRole !== 'volunteer') {
-          const rolePayload: UserRoleInsert = { user_id: selectedUser.id, role: formRole };
-          const { error: roleError } = await supabase
-            .from('user_roles')
-            .insert(rolePayload);
-
-          if (roleError) throw roleError;
-        }
-      }
-
-      // Update password if provided
-      if (formPassword.trim()) {
-        if (formPassword.length < 6) {
-          toast.error(isRTL ? 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل' : 'Password must be at least 6 characters');
-          return;
-        }
-
-        const { data: passwordData, error: passwordError } = await supabase.functions.invoke<UpdatePasswordResponse>('update-user-password', {
-          body: {
-            userId: selectedUser.id,
-            newPassword: formPassword.trim()
-          }
-        });
-
-        if (passwordError) throw passwordError;
-        if (passwordData?.error) throw new Error(passwordData.error);
-      }
-
-      toast.success(language === 'ar' ? 'تم تحديث بيانات المستخدم بنجاح' : 'User updated successfully');
+      await updateUserMutation.mutateAsync({
+        userId: selectedUser.id, fullName: formName.trim(), fullNameAr: formNameAr.trim() || null, email: formEmail.trim(),
+        phone: formPhone.trim() || null, committeeId: formCommitteeId || null, branchId: formBranchId || null, level: formLevel,
+        attendedMiniCamp: formAttendedMiniCamp, attendedCamp: formAttendedCamp, isAshbal: formIsAshbal, joinDate: formJoinDate,
+        birthDate: formBirthDate || null, role: formRole, previousRole: selectedUser.role, password: formPassword || undefined,
+        avatarFile: formAvatarFile,
+      });
+      toast.success(language === "ar" ? "تم تحديث بيانات المستخدم بنجاح" : "User updated successfully");
       setIsEditDialogOpen(false);
       setSelectedUser(null);
       resetForm();
-      // React Query auto-invalidates via updateUserMutation
     } catch (error: unknown) {
-      console.error('Error updating user:', error);
-      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في تحديث بيانات المستخدم' : 'Failed to update user'));
+      console.error("Error updating user:", error);
+      toast.error(getErrorMessage(error, language === "ar" ? "فشل في تحديث بيانات المستخدم" : "Failed to update user"));
     } finally {
       setIsSubmitting(false);
     }
@@ -685,65 +453,17 @@ export default function UserManagement() {
 
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
-
     setIsSubmitting(true);
     try {
-      // Call RPC function to delete the user
-      const { data, error } = await supabase.rpc('delete_user_account', {
-        target_user_id: selectedUser.id,
-      });
-
-      if (error) {
-        console.error('RPC function error:', error);
-        throw error;
-      }
-
-      // Check if the RPC function returned an error
-      const rpcResult = data as DeleteUserAccountResponse;
-      if (rpcResult?.error) {
-        throw new Error(rpcResult.error);
-      }
-
-      toast.success(language === 'ar' ? 'تم حذف المستخدم بنجاح' : 'User deleted successfully');
+      await deleteUserMutation.mutateAsync(selectedUser.id);
+      toast.success(language === "ar" ? "تم حذف المستخدم بنجاح" : "User deleted successfully");
       setIsDeleteDialogOpen(false);
       setSelectedUser(null);
-      // React Query auto-invalidates via deleteUserMutation
     } catch (error: unknown) {
-      console.error('Error deleting user:', error);
-      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل حذف المستخدم' : 'Failed to delete user'));
+      console.error("Error deleting user:", error);
+      toast.error(getErrorMessage(error, language === "ar" ? "فشل حذف المستخدم" : "Failed to delete user"));
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleUpdateRole = async (userId: string, newRole: string) => {
-    try {
-      // First, delete all existing roles for this user
-      const { error: deleteError } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', userId);
-
-      if (deleteError) throw deleteError;
-
-      // Then, insert the new role ONLY if it's not 'volunteer'
-      // 'volunteer' is the default state (no explicit role record)
-      if (newRole !== 'volunteer') {
-        const rolePayload: UserRoleInsert = { user_id: userId, role: newRole as UserRole };
-        const { error: insertError } = await supabase
-          .from('user_roles')
-          .insert(rolePayload);
-
-        if (insertError) throw insertError;
-      }
-
-
-
-      toast.success(language === 'ar' ? 'تم تحديث دور المستخدم بنجاح' : 'Role updated successfully');
-      // React Query auto-invalidates via updateRoleMutation
-    } catch (error: unknown) {
-      console.error('Error updating role:', error);
-      toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في تحديث دور المستخدم' : 'Failed to update role'));
     }
   };
 
@@ -825,58 +545,21 @@ export default function UserManagement() {
 
   const handleExportUsers = async () => {
     try {
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*');
-
-      if (profilesError) throw profilesError;
-
-      const { data: rolesData, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id, role');
-
-      if (rolesError) throw rolesError;
-
-      const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role as string]) || []);
-
-      const exportData = profilesData
-        .filter(u => u.full_name !== 'RTC Admin')
-        .map(u => ({
-          'Full Name (English)': u.full_name,
-          'Full Name (Arabic)': u.full_name_ar,
-          'Email': u.email,
-          'Phone': u.phone ? `'${u.phone}` : '',
-          'Role': (() => {
-            const role = rolesMap.get(u.id);
-            switch (role) {
-              case 'admin': return 'مسؤول';
-              case 'supervisor': return 'هيد الفرع';
-              case 'committee_leader': return 'هيد اللجنة';
-              case 'hr': return 'HR';
-              case 'head_hr': return 'Head HR';
-              case 'branch_admin': return 'أدمن فرع';
-              case 'head_caravans': return 'هيد لجنة قوافل';
-              case 'head_events': return 'هيد لجنة ايفنتات';
-              case 'head_ethics': return 'هيد نشر اخلاقيات';
-              case 'head_quran': return 'هيد لجنة القرآن';
-              case 'head_marketing': return 'هيد لجنة التسويق';
-              case 'head_ashbal': return 'هيد لجنة الأشبال';
-              case 'head_production': return 'هيد لجان انتاج';
-              case 'head_fourth_year': return 'هيد لجان سنة رابعة';
-
-              default: return 'متطوع';
-            }
-          })(),
-          'Joined At': new Date(u.created_at).toLocaleDateString(),
-          'Mini Camp Attendance': u.level === 'under_follow_up' ? (u.attended_mini_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A',
-          'Camp Attendance': u.level === 'project_responsible' ? (u.attended_camp ? (isRTL ? 'حضر' : 'Attended') : (isRTL ? 'لم يحضر' : 'Not Attended')) : 'N/A'
-        }));
-
-      downloadCSV(exportData, 'Users_Export');
-
+      const exportRows = await getUsersForExport({ branchId: activeBranch?.id, canViewAllBranches });
+      const exportData = exportRows.map((user) => ({
+        "Full Name (English)": user.fullName,
+        "Full Name (Arabic)": user.fullNameAr,
+        Email: user.email,
+        Phone: user.phone ? String.fromCharCode(39) + user.phone : "",
+        Role: getRoleText(user.role),
+        "Joined At": new Date(user.createdAt).toLocaleDateString(),
+        "Mini Camp Attendance": user.level === "under_follow_up" ? (user.attendedMiniCamp ? (isRTL ? "حضر" : "Attended") : (isRTL ? "لم يحضر" : "Not Attended")) : "N/A",
+        "Camp Attendance": user.level === "project_responsible" ? (user.attendedCamp ? (isRTL ? "حضر" : "Attended") : (isRTL ? "لم يحضر" : "Not Attended")) : "N/A",
+      }));
+      downloadCSV(exportData, "Users_Export");
     } catch (error) {
-      console.error('Export error:', error);
-      toast.error(isRTL ? 'فشل في تصدير المستخدمين' : 'Failed to export users');
+      console.error("Export error:", error);
+      toast.error(isRTL ? "فشل في تصدير المستخدمين" : "Failed to export users");
     }
   };
 
