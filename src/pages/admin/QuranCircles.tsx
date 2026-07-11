@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import {
     createSession,
     createCircleAd,
+    addCircleOrganizer,
     deleteCircleAd,
     deleteSession,
     enrollBeneficiary,
@@ -22,6 +23,9 @@ import {
     saveCircle,
     unenrollBeneficiary,
     deleteCircle,
+    removeCircleOrganizer,
+    setCircleAttendance,
+    updateCircleAttendanceType,
     updateCircleAd,
 } from '@/services/circles.service';
 import { toast } from 'sonner';
@@ -448,16 +452,7 @@ export default function QuranCircles() {
         if (!selectedCircle || !organizer.volunteer_id) return;
 
         try {
-            const { error } = await supabase
-                .from('quran_circle_organizers')
-                .insert({
-                    circle_id: selectedCircle.id,
-                    volunteer_id: organizer.volunteer_id,
-                    name: organizer.name,
-                    phone: organizer.phone
-                });
-
-            if (error) throw error;
+            await addCircleOrganizer(selectedCircle.id, organizer);
 
             toast.success(isRTL ? 'تم إضافة المنظم' : 'Organizer added');
 
@@ -478,13 +473,7 @@ export default function QuranCircles() {
         if (!selectedCircle || !organizer.volunteer_id) return;
 
         try {
-            const { error } = await supabase
-                .from('quran_circle_organizers')
-                .delete()
-                .eq('circle_id', selectedCircle.id)
-                .eq('volunteer_id', organizer.volunteer_id);
-
-            if (error) throw error;
+            await removeCircleOrganizer(selectedCircle.id, organizer.volunteer_id);
 
             toast.success(isRTL ? 'تم حذف المنظم' : 'Organizer removed');
 
@@ -841,36 +830,21 @@ export default function QuranCircles() {
     };
 
     const toggleCircleAttendance = async (sessionId: string, beneficiaryId: string) => {
+        if (!selectedCircle) return;
+
         const currentSessionAtt = attendanceData[sessionId] || [];
         const existing = currentSessionAtt.find(a => a.beneficiary_id === beneficiaryId);
 
         try {
             if (existing) {
-                // Remove
-                const { error } = await supabase
-                    .from('quran_circle_beneficiaries')
-                    .delete()
-                    .eq('session_id', sessionId)
-                    .eq('beneficiary_id', beneficiaryId);
-
-                if (error) throw error;
+                await setCircleAttendance(sessionId, selectedCircle.id, beneficiaryId, false);
 
                 setAttendanceData(prev => ({
                     ...prev,
                     [sessionId]: prev[sessionId].filter(a => a.beneficiary_id !== beneficiaryId)
                 }));
             } else {
-                // Add
-                const { error } = await supabase
-                    .from('quran_circle_beneficiaries')
-                    .insert({
-                        session_id: sessionId,
-                        circle_id: selectedCircle?.id, // Ensure circle_id is included for RLS
-                        beneficiary_id: beneficiaryId,
-                        attendance_type: 'memorization'
-                    });
-
-                if (error) throw error;
+                await setCircleAttendance(sessionId, selectedCircle.id, beneficiaryId, true);
 
                 setAttendanceData(prev => ({
                     ...prev,
@@ -885,13 +859,7 @@ export default function QuranCircles() {
 
     const updateSheetAttendanceType = async (sessionId: string, beneficiaryId: string, type: 'memorization' | 'revision') => {
         try {
-            const { error } = await supabase
-                .from('quran_circle_beneficiaries')
-                .update({ attendance_type: type })
-                .eq('session_id', sessionId)
-                .eq('beneficiary_id', beneficiaryId);
-
-            if (error) throw error;
+            await updateCircleAttendanceType(sessionId, beneficiaryId, type);
 
             setAttendanceData(prev => ({
                 ...prev,

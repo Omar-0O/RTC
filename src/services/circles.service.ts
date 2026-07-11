@@ -411,6 +411,64 @@ export async function deleteCircleAd(adId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function addCircleOrganizer(circleId: string, organizer: Organizer): Promise<void> {
+  if (!organizer.volunteer_id) throw new Error('Organizer volunteer ID is required');
+  const { error } = await supabase.from('quran_circle_organizers').insert({
+    circle_id: circleId,
+    volunteer_id: organizer.volunteer_id,
+    name: organizer.name,
+    phone: organizer.phone,
+  });
+  if (error) throw error;
+}
+
+export async function removeCircleOrganizer(circleId: string, volunteerId: string): Promise<void> {
+  const { error } = await supabase
+    .from('quran_circle_organizers')
+    .delete()
+    .eq('circle_id', circleId)
+    .eq('volunteer_id', volunteerId);
+  if (error) throw error;
+}
+
+export async function setCircleAttendance(
+  sessionId: string,
+  circleId: string,
+  beneficiaryId: string,
+  present: boolean,
+): Promise<void> {
+  if (present) {
+    const { error } = await supabase.from('quran_circle_beneficiaries').insert({
+      session_id: sessionId,
+      circle_id: circleId,
+      beneficiary_id: beneficiaryId,
+      attendance_type: 'memorization',
+    });
+    if (error) throw error;
+    return;
+  }
+
+  const { error } = await supabase
+    .from('quran_circle_beneficiaries')
+    .delete()
+    .eq('session_id', sessionId)
+    .eq('beneficiary_id', beneficiaryId);
+  if (error) throw error;
+}
+
+export async function updateCircleAttendanceType(
+  sessionId: string,
+  beneficiaryId: string,
+  attendanceType: AttendanceType,
+): Promise<void> {
+  const { error } = await supabase
+    .from('quran_circle_beneficiaries')
+    .update({ attendance_type: attendanceType })
+    .eq('session_id', sessionId)
+    .eq('beneficiary_id', beneficiaryId);
+  if (error) throw error;
+}
+
 // ─── Mutations ──────────────────────────────────────────────────────
 
 export async function saveCircle(payload: SaveCirclePayload): Promise<string> {
