@@ -88,6 +88,8 @@ import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 import Cropper, { type Area } from 'react-easy-crop';
 import { Slider } from '@/components/ui/slider';
 import { getCroppedImg } from '@/utils/imageCrop';
+import { UserFeaturesDialog } from '@/components/admin/UserFeaturesDialog';
+import { UserCardsGrid } from '@/components/admin/UserCardsGrid';
 
 type CsvRow = SpreadsheetRow;
 
@@ -1357,155 +1359,25 @@ export default function UserManagement() {
             </p>
           ) : (
             <>
-              {/* Unified Responsive Cards View */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredUsers.map((user) => (
-                  <Card key={user.id} className={`overflow-hidden transition-all hover:shadow-md ${!user.is_active ? 'opacity-70 grayscale-[0.5]' : ''}`}>
-                    <div className="p-4 sm:p-5">
-                      {/* Header: Avatar, Name, Email, Status */}
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-                          <div className="relative shrink-0">
-                            <Avatar className="h-12 w-12 sm:h-14 sm:w-14 border shadow-sm">
-                              <AvatarImage src={user.avatar_url || undefined} alt={(isRTL ? user.full_name_ar : user.full_name) || user.full_name || ''} />
-                              <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">
-                                {((isRTL && user.full_name_ar) ? user.full_name_ar : user.full_name)?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                              </AvatarFallback>
-                            </Avatar>
-                            {/* Online dot */}
-                            {(() => {
-                              const status = getLastSeenText(user.last_seen_at);
-                              return (
-                                <span className={`absolute bottom-0 right-0 h-3 w-3 sm:h-3.5 sm:w-3.5 rounded-full border-2 border-background ${status.dot}`} />
-                              );
-                            })()}
-                          </div>
-                          
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h3 className="font-bold text-base sm:text-lg truncate">{(isRTL ? user.full_name_ar : user.full_name) || user.full_name || 'No name'}</h3>
-                              {!user.is_active && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200 shrink-0">
-                                  {isRTL ? 'معطّل' : 'Inactive'}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs sm:text-sm text-muted-foreground truncate" dir="ltr" style={{ textAlign: isRTL ? 'right' : 'left' }}>{user.email}</p>
-                            <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-semibold ${getRoleBadgeClass(user.role)}`}>
-                                {user.role === 'admin' && <Shield className="h-3 w-3 ltr:mr-1 rtl:ml-1" />}
-                                {getRoleText(user.role)}
-                              </span>
-                              <LevelBadge level={user.level} size="sm" />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Actions Dropdown */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8 -mr-2 rtl:-ml-2 mt-1">
-                              <MoreHorizontal className="h-5 w-5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            {['admin', 'head_hr', 'branch_admin'].includes(primaryRole) && (
-                              <DropdownMenuItem onClick={() => openEditDialog(user)}>
-                                <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                {t('common.edit')}
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem onClick={() => setViewProfileUser(user)}>
-                              <User className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                              {t('users.viewProfile')}
-                            </DropdownMenuItem>
-                            {['admin', 'branch_admin'].includes(primaryRole) && (
-                              <DropdownMenuItem onClick={() => openCustomizeFeatures(user)}>
-                                <Settings className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                {isRTL ? 'تخصيص المميزات' : 'Customize Features'}
-                              </DropdownMenuItem>
-                            )}
-                            <DropdownMenuItem
-                              onClick={() => {
-                                if (user.phone) {
-                                  window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
-                                } else {
-                                  toast.error(language === 'ar' ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
-                                }
-                              }}
-                            >
-                              <Mail className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                              {t('users.sendWhatsapp')}
-                            </DropdownMenuItem>
-                            {['admin', 'head_hr', 'branch_admin'].includes(primaryRole) && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  onClick={() => handleToggleActive(user)}
-                                  className={user.is_active ? 'text-orange-600 focus:text-orange-600' : 'text-emerald-600 focus:text-emerald-600'}
-                                >
-                                  {user.is_active
-                                    ? <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ltr:mr-2 rtl:ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                                    : <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ltr:mr-2 rtl:ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                                  }
-                                  {user.is_active
-                                    ? (isRTL ? 'تعطيل المتطوع' : 'Deactivate')
-                                    : (isRTL ? 'تفعيل المتطوع' : 'Activate')
-                                  }
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            {['admin', 'branch_admin'].includes(primaryRole) && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => {
-                                    setSelectedUser(user);
-                                    setIsDeleteDialogOpen(true);
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                  {t('common.delete')}
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-
-                      {/* Stats & Details grid */}
-                      <div className="bg-muted/30 rounded-xl p-3 space-y-2 text-sm border border-border/50">
-                        <div className="flex justify-between items-center py-1">
-                          <span className="text-muted-foreground text-xs font-medium">{t('users.committee')}</span>
-                          <span className="font-semibold text-xs text-foreground bg-background px-2 py-1 rounded-md border shadow-sm">{user.committee_name || '—'}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-1">
-                          <span className="text-muted-foreground text-xs font-medium">{language === 'ar' ? 'عدد المشاركات' : 'Participations'}</span>
-                          <span className="font-semibold text-xs bg-primary/10 text-primary px-2 py-1 rounded-md">{user.participation_count || 0}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-1">
-                          <span className="text-muted-foreground text-xs font-medium">{language === 'ar' ? 'آخر ظهور' : 'Last Seen'}</span>
-                          <span className="font-medium text-xs">
-                            {(() => {
-                              const status = getLastSeenText(user.last_seen_at);
-                              return status.text;
-                            })()}
-                          </span>
-                        </div>
-                        {user.phone && (
-                          <div className="flex justify-between items-center py-1 border-t border-border/50 pt-2 mt-1">
-                            <span className="text-muted-foreground text-xs font-medium">{t('users.phoneNumber')}</span>
-                            <span className="font-medium text-xs font-mono" dir="ltr">{user.phone}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+              <UserCardsGrid
+                users={filteredUsers}
+                primaryRole={primaryRole}
+                isRTL={isRTL}
+                language={language}
+                getRoleText={getRoleText}
+                getRoleBadgeClass={getRoleBadgeClass}
+                getLastSeen={getLastSeenText}
+                onEdit={openEditDialog}
+                onView={setViewProfileUser}
+                onCustomize={openCustomizeFeatures}
+                onMessage={(user) => {
+                  const url = waPhoneLink(user.phone);
+                  if (url) window.open(url, "_blank", "noopener,noreferrer");
+                  else toast.error(isRTL ? "لا يوجد رقم هاتف صالح لهذا المستخدم" : "No valid phone number for this user");
+                }}
+                onToggleActive={handleToggleActive}
+                onDelete={(user) => { setSelectedUser(user); setIsDeleteDialogOpen(true); }}
+              />
 
               {/* Pagination Controls */}
               {totalPages > 1 && (
@@ -1581,82 +1453,19 @@ export default function UserManagement() {
         </DialogContent>
       </Dialog >
 
-      {/* Customize Features Dialog */}
-      <Dialog open={isCustomizeFeaturesDialogOpen} onOpenChange={setIsCustomizeFeaturesDialogOpen}>
-        <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-xl max-h-[90vh] overflow-hidden flex flex-col p-0 rounded-2xl sm:rounded-3xl border border-border/40 shadow-2xl" dir={isRTL ? 'rtl' : 'ltr'}>
-          <DialogHeader className="px-4 sm:px-6 py-5 border-b border-border/50 dark:border-border/80 shrink-0 bg-muted/30 flex flex-col items-center text-center">
-            <DialogTitle className="text-xl sm:text-2xl font-bold flex items-center justify-center gap-2">
-              <Settings className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-              {isRTL ? 'تخصيص المميزات والخصائص' : 'Customize Features'}
-            </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground mt-1">
-              {isRTL 
-                ? `تعديل المميزات المتاحة لـ ${featuresSelectedUser?.full_name_ar || featuresSelectedUser?.full_name}`
-                : `Modify available features for ${featuresSelectedUser?.full_name || featuresSelectedUser?.full_name_ar}`
-              }
-            </DialogDescription>
-          </DialogHeader>
+      <UserFeaturesDialog
+        open={isCustomizeFeaturesDialogOpen}
+        isRTL={isRTL}
+        userName={featuresSelectedUser ? (isRTL ? featuresSelectedUser.full_name_ar || featuresSelectedUser.full_name || "" : featuresSelectedUser.full_name || featuresSelectedUser.full_name_ar || "") : ""}
+        features={ALL_FEATURES}
+        defaultFeatures={featuresSelectedUser ? getRoleDefaultFeatures(featuresSelectedUser.role) : []}
+        selectedFeatures={selectedUserFeatures}
+        saving={isSavingFeatures}
+        onOpenChange={setIsCustomizeFeaturesDialogOpen}
+        onSelectedFeaturesChange={setSelectedUserFeatures}
+        onSave={handleSaveFeatures}
+      />
 
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900/50 rounded-xl p-4 text-xs text-yellow-800 dark:text-yellow-400">
-              <p className="font-semibold mb-1">
-                {isRTL ? '💡 ملاحظة حول الصلاحيات:' : '💡 Permissions Note:'}
-              </p>
-              <p>
-                {isRTL 
-                  ? 'المميزات الموسومة بـ (أساسي للدور) يتم تفعيلها تلقائياً بناءً على الدور الحالي للمتطوع ولا يمكن إيقافها من هنا.'
-                  : 'Features marked as (Role default) are active by default for the user\'s role and cannot be turned off here.'
-                }
-              </p>
-            </div>
-
-            <div className="grid gap-3 pt-2">
-              {ALL_FEATURES.map((feat) => {
-                const isDefault = featuresSelectedUser 
-                  ? getRoleDefaultFeatures(featuresSelectedUser.role).includes(feat.id)
-                  : false;
-                const isChecked = isDefault || selectedUserFeatures.includes(feat.id);
-
-                return (
-                  <div key={feat.id} className="flex items-start justify-between rounded-xl border border-border/50 p-4 transition-all hover:bg-muted/20">
-                    <div className="space-y-1 ltr:pr-4 rtl:pl-4">
-                      <Label htmlFor={`feat-${feat.id}`} className="font-semibold text-sm cursor-pointer select-none">
-                        {isRTL ? feat.label : feat.labelEn}
-                      </Label>
-                      {isDefault && (
-                        <p className="text-[10px] text-primary font-medium">
-                          {isRTL ? '(أساسي للدور)' : '(Role default)'}
-                        </p>
-                      )}
-                    </div>
-                    <Switch
-                      id={`feat-${feat.id}`}
-                      disabled={isDefault || isSavingFeatures}
-                      checked={isChecked}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedUserFeatures(prev => [...prev, feat.id]);
-                        } else {
-                          setSelectedUserFeatures(prev => prev.filter(f => f !== feat.id));
-                        }
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <DialogFooter className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t border-border/50 dark:border-border/80 bg-muted/10 shrink-0">
-            <Button type="button" variant="outline" disabled={isSavingFeatures} onClick={() => setIsCustomizeFeaturesDialogOpen(false)} className="w-full sm:w-auto h-11 px-6 text-sm font-medium">
-              {t('common.cancel')}
-            </Button>
-            <Button type="button" disabled={isSavingFeatures} onClick={handleSaveFeatures} className="w-full sm:w-auto h-11 px-6 text-sm font-semibold shadow-sm">
-              {isSavingFeatures ? (isRTL ? 'جاري الحفظ...' : 'Saving...') : t('common.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div >
   );
 }
