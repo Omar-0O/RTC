@@ -138,6 +138,12 @@ const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
     'friday': { en: 'Fri', ar: 'جمعة' },
 };
 
+const MY_COURSE_COLUMNS = 'id, name, trainer_id, trainer_name, trainer_phone, room, schedule_days, schedule_time, schedule_end_time, has_interview, interview_date, total_lectures, start_date, end_date, committee_id, course_lectures(status)';
+const COURSE_AD_COLUMNS = 'id, course_id, ad_number, ad_date, poster_url, content, poster_done, content_done, created_by, updated_by, created_at, updated_at, updater:profiles!course_ads_updated_by_fkey(full_name, full_name_ar)';
+const COURSE_LECTURE_COLUMNS = 'id, course_id, lecture_number, date, status';
+const COURSE_BENEFICIARY_COLUMNS = 'id, course_id, name, phone, national_id';
+const COURSE_ATTENDANCE_COLUMNS = 'id, lecture_id, student_name, student_phone, status';
+
 export default function MyCourses() {
     const { user } = useAuth();
     const { language, isRTL } = useLanguage();
@@ -216,48 +222,39 @@ export default function MyCourses() {
     };
 
     const fetchMyCourses = async (hasCache = false) => {
+        if (!user) return;
+
         if (!hasCache) {
             setLoading(true);
         }
         try {
-            // Get courses where current user is an organizer
-            const { data: organizerData, error: orgError } = await supabase
-                .from('course_organizers')
-                .select('course_id')
-                .eq('volunteer_id', user?.id);
+            const [organizerResult, marketerResult, trainerResult] = await Promise.all([
+                supabase.from('course_organizers').select('course_id').eq('volunteer_id', user.id),
+                supabase.from('course_marketers').select('course_id').eq('volunteer_id', user.id),
+                supabase.from('trainers').select('id').eq('user_id', user.id).maybeSingle(),
+            ]);
 
-            if (orgError) throw orgError;
+            if (organizerResult.error) throw organizerResult.error;
+            if (marketerResult.error) throw marketerResult.error;
+            if (trainerResult.error) throw trainerResult.error;
 
-            // Get courses where current user is a marketer
-            const { data: marketerData, error: mktError } = await supabase
-                .from('course_marketers')
-                .select('course_id')
-                .eq('volunteer_id', user?.id);
-
-            if (mktError) throw mktError;
-
-            // Get courses where current user is a trainer (via course_trainers)
-            // First find the trainer record linked to this user
-            const { data: trainerRecord } = await supabase
-                .from('trainers')
-                .select('id')
-                .eq('user_id', user?.id)
-                .single();
+            const organizerData = organizerResult.data;
+            const marketerData = marketerResult.data;
+            const trainerRecord = trainerResult.data;
 
             let trainerCourseIds: string[] = [];
             if (trainerRecord?.id) {
-                const { data: trainerCourseData } = await supabase
-                    .from('course_trainers')
-                    .select('course_id')
-                    .eq('trainer_id', trainerRecord.id);
-                trainerCourseIds = (trainerCourseData as Pick<CourseTrainerRow, 'course_id'>[] | null)?.map(t => t.course_id) || [];
+                const [trainerCourseResult, primaryTrainerResult] = await Promise.all([
+                    supabase.from('course_trainers').select('course_id').eq('trainer_id', trainerRecord.id),
+                    supabase.from('courses').select('id').eq('trainer_id', trainerRecord.id),
+                ]);
 
-                // Also check if trainer is primary trainer (trainer_id column on courses)
-                const { data: primaryTrainerCourses } = await supabase
-                    .from('courses')
-                    .select('id')
-                    .eq('trainer_id', trainerRecord.id);
-                const primaryIds = primaryTrainerCourses?.map(c => c.id) || [];
+                if (trainerCourseResult.error) throw trainerCourseResult.error;
+                if (primaryTrainerResult.error) throw primaryTrainerResult.error;
+
+                const trainerCourseData = trainerCourseResult.data;
+                trainerCourseIds = (trainerCourseData as Pick<CourseTrainerRow, 'course_id'>[] | null)?.map(t => t.course_id) || [];
+                const primaryIds = primaryTrainerResult.data?.map(course => course.id) || [];
                 trainerCourseIds = Array.from(new Set([...trainerCourseIds, ...primaryIds]));
             }
 
@@ -272,7 +269,7 @@ export default function MyCourses() {
             if (allCourseIds.length === 0) {
                 setCourses([]);
                 
-                const cacheKey = `rtc_my_courses_data_${user?.id}`;
+                const cacheKey = `rtc_my_courses_data_${user.id}`;
                 setLocalCache(cacheKey, {
                     courses: [],
                     organizerCourseIds: [],
@@ -285,7 +282,7 @@ export default function MyCourses() {
 
             const { data, error } = await supabase
                 .from('courses')
-                .select('*, course_lectures(status)')
+                .select(MY_COURSE_COLUMNS)
                 .in('id', allCourseIds)
                 .order('start_date', { ascending: false });
 
@@ -293,7 +290,7 @@ export default function MyCourses() {
             const coursesData = data || [];
             setCourses(coursesData);
 
-            const cacheKey = `rtc_my_courses_data_${user?.id}`;
+            const cacheKey = `rtc_my_courses_data_${user.id}`;
             setLocalCache(cacheKey, {
                 courses: coursesData,
                 organizerCourseIds: Array.from(orgIdsSet),
@@ -422,40 +419,34 @@ export default function MyCourses() {
             setActiveTab(tab);
         }
 
-        // Fetch Course Ads
-        const { data: adsData } = await supabase
-            .from('course_ads')
-            .select(`
-                *,
-                updater:profiles!course_ads_updated_by_fkey(full_name, full_name_ar)
-            `)
-            .eq('course_id', course.id)
-            .order('ad_number');
-        if (adsData) setCourseAds(adsData as CourseAdWithUpdater[]);
+        try {
+            const [adsResult, lecturesResult, beneficiariesResult] = await Promise.all([
+                supabase.from('course_ads').select(COURSE_AD_COLUMNS).eq('course_id', course.id).order('ad_number'),
+                supabase.from('course_lectures').select(COURSE_LECTURE_COLUMNS).eq('course_id', course.id).order('lecture_number'),
+                supabase.from('course_beneficiaries').select(COURSE_BENEFICIARY_COLUMNS).eq('course_id', course.id).order('name'),
+            ]);
 
-        // Fetch lectures
-        const { data: lecturesData } = await supabase
-            .from('course_lectures')
-            .select('*')
-            .eq('course_id', course.id)
-            .order('lecture_number');
-        setLectures((lecturesData as unknown as CourseLecture[]) || []);
+            if (adsResult.error) throw adsResult.error;
+            if (lecturesResult.error) throw lecturesResult.error;
+            if (beneficiariesResult.error) throw beneficiariesResult.error;
 
-        // Fetch beneficiaries
-        const { data: beneficiariesData } = await supabase
-            .from('course_beneficiaries')
-            .select('*')
-            .eq('course_id', course.id)
-            .order('name');
-        setBeneficiaries((beneficiariesData as CourseBeneficiary[]) || []);
+            const lecturesData = lecturesResult.data || [];
+            setCourseAds((adsResult.data as CourseAdWithUpdater[] | null) || []);
+            setLectures(lecturesData as CourseLecture[]);
+            setBeneficiaries((beneficiariesResult.data as CourseBeneficiary[] | null) || []);
 
-        // Fetch attendance for all lectures
-        if (lecturesData && lecturesData.length > 0) {
-            const lectureIds = lecturesData.map(l => l.id);
-            const { data: attendanceList } = await supabase
+            if (lecturesData.length === 0) {
+                setAttendanceData({});
+                return;
+            }
+
+            const lectureIds = lecturesData.map(lecture => lecture.id);
+            const { data: attendanceList, error: attendanceError } = await supabase
                 .from('course_attendance')
-                .select('*')
+                .select(COURSE_ATTENDANCE_COLUMNS)
                 .in('lecture_id', lectureIds);
+
+            if (attendanceError) throw attendanceError;
 
             const attendanceMap: Record<string, Attendance[]> = {};
             ((attendanceList || []) as CourseAttendanceRow[]).forEach(attendance => {
@@ -464,6 +455,9 @@ export default function MyCourses() {
                 attendanceMap[attendance.lecture_id].push(attendance as Attendance);
             });
             setAttendanceData(attendanceMap);
+        } catch (error) {
+            console.error('Error fetching course details:', error);
+            toast.error(isRTL ? 'فشل في تحميل تفاصيل الكورس' : 'Failed to fetch course details');
         }
     };
 
