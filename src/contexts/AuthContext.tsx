@@ -33,6 +33,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const profileRef = useRef<AuthProfile | null>(null);
 
+  const clearAuthState = useCallback(() => {
+    profileRef.current = null;
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    setRoles([]);
+    setFeatures([]);
+  }, []);
+
   useEffect(() => {
     profileRef.current = profile;
   }, [profile]);
@@ -65,19 +74,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     async function initializeAuth() {
       try {
-        // Check for an active session first
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          // A rotated or expired refresh token cannot recover. Remove only local state.
+          await supabase.auth.signOut({ scope: 'local' });
+          if (mounted) clearAuthState();
+          return;
+        }
 
         if (mounted) {
           if (initialSession) {
             setSession(initialSession);
             setUser(initialSession.user);
-            // Verify profile immediately if we have a session
-            fetchProfile(initialSession.user.id);
+            void fetchProfile(initialSession.user.id);
+          } else {
+            clearAuthState();
           }
         }
       } catch (error) {
         console.error('Error during auth initialization:', error);
+        if (mounted) clearAuthState();
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -91,27 +108,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       async (event: AuthChangeEvent | string, session) => {
         if (!mounted) return;
 
-        if (event === 'TokenRefreshed' || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
           setSession(session);
           setUser(session?.user ?? null);
           if (session?.user) {
-            // Only fetch profile if we don't have it or it's different
             const currentProfile = profileRef.current;
             if (!currentProfile || currentProfile.id !== session.user.id) {
-              fetchProfile(session.user.id);
+              void fetchProfile(session.user.id);
             }
+          } else {
+            clearAuthState();
           }
         } else if (event === 'SIGNED_OUT') {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
-          setRoles([]);
-          setFeatures([]);
+          clearAuthState();
           setIsLoading(false);
-        } else if (event === 'TOKEN_REFRESH_ERROR') {
-          console.error('Token refresh error occurred');
-          // Do not immediately sign out, let the session expire naturally or wait for next action
-          // but user might need to re-login next time they try an action
         }
 
         // Ensure loading is false after any auth event if it wasn't already
@@ -123,16 +133,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [clearAuthState, fetchProfile]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setProfile(null);
-    setRoles([]);
-    setFeatures([]);
-  }, []);
+    clearAuthState();
+  }, [clearAuthState]);
 
   const hasRole = useCallback((role: AppRole) => {
     return roles.includes(role);
