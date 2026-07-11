@@ -178,6 +178,10 @@ export interface CircleAd {
   ad_date: string;
   poster_done: boolean;
   content_done: boolean;
+  updater?: {
+    full_name: string;
+    full_name_ar: string | null;
+  } | null;
 }
 
 export interface SaveCirclePayload {

@@ -32,6 +32,19 @@ import {
     updateCircleAttendanceType,
     updateCircleAd,
 } from '@/services/circles.service';
+import type {
+    Attendance,
+    Beneficiary,
+    CircleAd,
+    Guest,
+    Organizer,
+    QuranCircle,
+    QuranCircleMarketer,
+    ScheduleItem,
+    Session,
+    Teacher,
+    Volunteer,
+} from '@/services/circles.service';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +59,9 @@ import {
     DialogDescription
 } from '@/components/ui/dialog';
 import { exportQuranCircleReportToXlsx } from '@/utils/quranCircleExport';
+import { CircleAttendanceDialog } from '@/components/quran/CircleAttendanceDialog';
+import { CircleEnrollmentDialog } from '@/components/quran/CircleEnrollmentDialog';
+import { CircleMarketingDialog } from '@/components/quran/CircleMarketingDialog';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -99,87 +115,6 @@ import {
     MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User,
     CalendarDays, TrendingUp, Percent, Filter, Search, MoreVertical, Pencil, UserPlus, UserMinus, ClipboardList, Megaphone, History
 } from 'lucide-react';
-
-interface Teacher {
-    id: string;
-    name: string;
-    target_gender: 'men' | 'women';
-    teaching_mode: 'online' | 'offline' | 'both';
-}
-
-interface Volunteer {
-    id: string;
-    full_name: string;
-    full_name_ar: string | null;
-    phone: string | null;
-    avatar_url: string | null;
-}
-
-interface Organizer {
-    volunteer_id?: string;
-    name: string;
-    phone: string;
-}
-
-interface ScheduleItem {
-    day: number; // 0 = Sunday, 6 = Saturday
-    time: string; // HH:mm format
-}
-
-interface QuranCircle {
-    id: string;
-    teacher_id: string | null;
-    teacher_name?: string;
-    teacher_gender?: 'men' | 'women';
-    teaching_mode?: 'online' | 'offline' | 'both';
-    schedule: ScheduleItem[];
-    is_active: boolean;
-    organizers?: Organizer[];
-    enrolled_count?: number;
-    description?: string;
-    target_group?: string; // 'adults' | 'children'
-    beneficiary_gender?: 'male' | 'female';
-    sessions_count?: number;
-}
-
-interface Session {
-    id: string;
-    circle_id: string;
-    session_date: string;
-    notes: string | null;
-    organizer_id?: string | null;
-    organizer_name?: string | null;
-    attendees_count?: number;
-    status?: 'scheduled' | 'completed' | 'cancelled';
-}
-
-interface Attendance {
-    beneficiary_id: string;
-    attendance_type: 'memorization' | 'revision';
-}
-
-interface Guest {
-    name: string;
-    phone: string;
-}
-
-interface Beneficiary {
-    id: string;
-    name_ar: string;
-    name_en: string | null;
-    image_url: string | null;
-    gender: 'male' | 'female' | null;
-    beneficiary_type: 'child' | 'adult';
-    phone: string | null;
-}
-
-interface QuranCircleMarketer {
-    id?: string;
-    circle_id?: string;
-    volunteer_id?: string;
-    name: string;
-    phone: string;
-}
 
 const DAYS = [
     { value: 6, label: { en: 'Saturday', ar: 'السبت' } },
@@ -241,18 +176,6 @@ export default function QuranCircles() {
     const [sessions, setSessions] = useState<Session[]>([]);
     const [detailsBeneficiaries, setDetailsBeneficiaries] = useState<Beneficiary[]>([]);
     const [attendanceData, setAttendanceData] = useState<Record<string, Attendance[]>>({});
-    interface CircleAd {
-        id: string;
-        circle_id: string;
-        ad_number: number;
-        ad_date: string;
-        poster_done: boolean;
-        content_done: boolean;
-        updater?: {
-            full_name: string;
-            full_name_ar: string | null;
-        };
-    }
     const [circleAds, setCircleAds] = useState<CircleAd[]>([]);
     const [adsLoading, setAdsLoading] = useState(false);
 
@@ -706,6 +629,11 @@ export default function QuranCircles() {
         });
     }, [allBeneficiaries, beneficiarySearch, enrollmentCircle]);
 
+    const enrolledBeneficiaryIds = useMemo(
+        () => new Set(enrolledBeneficiaries.map((beneficiary) => beneficiary.id)),
+        [enrolledBeneficiaries],
+    );
+
     const openCircleDetails = async (circle: QuranCircle) => {
         setSelectedCircle(circle);
         setActiveTab('sessions');
@@ -1133,7 +1061,7 @@ export default function QuranCircles() {
         }
     };
 
-        const handleRemoveMarketerFromDetails = async (marketerId: string) => {
+    const handleRemoveMarketerFromDetails = async (marketerId: string) => {
             try {
             await removeCircleMarketer(marketerId);
             setDetailsMarketers(detailsMarketers.filter(m => m.id !== marketerId));
@@ -1141,6 +1069,44 @@ export default function QuranCircles() {
         } catch (error) {
             console.error('Error removing marketer:', error);
             toast.error(isRTL ? 'فشل حذف المسوق' : 'Failed to remove marketer');
+        }
+    };
+
+    const handleAddCircleAd = async () => {
+        if (!selectedMarketingCircle) return;
+
+        try {
+            const nextAdNumber = circleAds.length > 0 ? Math.max(...circleAds.map((ad) => ad.ad_number)) + 1 : 1;
+            const ad = await createCircleAd(selectedMarketingCircle.id, nextAdNumber);
+            setCircleAds((previous) => [...previous, ad]);
+            toast.success(isRTL ? 'تم إضافة الإعلان' : 'Ad added');
+        } catch (error) {
+            console.error('Error adding circle ad:', error);
+            toast.error(isRTL ? 'فشل إضافة الإعلان' : 'Failed to add ad');
+        }
+    };
+
+    const handleUpdateCircleAd = async (
+        adId: string,
+        update: Partial<Pick<CircleAd, 'ad_date' | 'poster_done' | 'content_done'>>,
+    ) => {
+        try {
+            await updateCircleAd(adId, update);
+            setCircleAds((previous) => previous.map((ad) => ad.id === adId ? { ...ad, ...update } : ad));
+        } catch (error) {
+            console.error('Error updating circle ad:', error);
+            toast.error(isRTL ? 'فشل تحديث الإعلان' : 'Failed to update ad');
+        }
+    };
+
+    const handleDeleteCircleAd = async (adId: string) => {
+        try {
+            await deleteCircleAd(adId);
+            setCircleAds((previous) => previous.filter((ad) => ad.id !== adId));
+            toast.success(isRTL ? 'تم حذف الإعلان' : 'Ad deleted');
+        } catch (error) {
+            console.error('Error deleting circle ad:', error);
+            toast.error(isRTL ? 'فشل حذف الإعلان' : 'Failed to delete ad');
         }
     };
 
@@ -2394,129 +2360,21 @@ export default function QuranCircles() {
                 </DialogContent>
             </Dialog >
 
-            {/* Attendance Dialog - Reused Logic */}
-            < Dialog open={isAttendanceDialogOpen} onOpenChange={setIsAttendanceDialogOpen} >
-                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Users className="h-5 w-5" />
-                            {isRTL ? 'تسجيل الحضور' : 'Record Attendance'}
-                            {selectedSession && (
-                                <Badge variant="outline" className="ml-2">
-                                    {format(new Date(selectedSession.session_date), 'd MMM', { locale: isRTL ? ar : enUS })}
-                                </Badge>
-                            )}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {isRTL ? 'حدد الحاضرين لهذه الجلسة' : 'Select attendees for this session'}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-4 py-4">
-                        {/* Quick Actions */}
-                        <div className="flex gap-2">
-                            <Button variant="outline" size="sm" onClick={markAllPresent}>
-                                <Check className="h-4 w-4 ltr:mr-1 rtl:ml-1" />
-                                {isRTL ? 'تحديد الكل' : 'Mark All'}
-                            </Button>
-                            <Button variant="outline" size="sm" onClick={() => setAttendance([])}>
-                                <X className="h-4 w-4 ltr:mr-1 rtl:ml-1" />
-                                {isRTL ? 'إلغاء الكل' : 'Clear All'}
-                            </Button>
-                        </div>
-
-                        {/* Search */}
-                        <Input
-                            placeholder={isRTL ? 'بحث...' : 'Search...'}
-                            value={sessionBeneficiarySearch}
-                            onChange={e => setSessionBeneficiarySearch(e.target.value)}
-                        />
-
-                        {/* Beneficiaries List */}
-                        <ScrollArea className="h-[300px] border rounded-md p-2">
-                            <div className="space-y-1">
-                                {filteredDetailsBeneficiaries.map(b => {
-                                    const isPresent = attendance.some(a => a.beneficiary_id === b.id);
-                                    const attendanceRecord = attendance.find(a => a.beneficiary_id === b.id);
-
-                                    return (
-                                        <div
-                                            key={b.id}
-                                            className={`flex items-center justify-between p-2 rounded-md ${isPresent ? 'bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800' : 'hover:bg-muted'
-                                                }`}
-                                        >
-                                            <div
-                                                className="flex items-center gap-2 flex-1 cursor-pointer"
-                                                onClick={() => toggleBeneficiary(b.id)}
-                                            >
-                                                <Checkbox checked={isPresent} />
-                                                <Avatar className="h-8 w-8">
-                                                    <AvatarImage src={b.image_url || undefined} />
-                                                    <AvatarFallback>{b.name_ar?.slice(0, 2)}</AvatarFallback>
-                                                </Avatar>
-                                                <span className="font-medium">{b.name_ar}</span>
-                                            </div>
-
-                                            {isPresent && (
-                                                <div className="flex items-center gap-1 bg-background rounded-md border p-0.5">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => updateAttendanceType(b.id, 'memorization')}
-                                                        className={`px-2 py-1 text-xs rounded-sm transition-all ${attendanceRecord?.attendance_type === 'memorization'
-                                                            ? 'bg-primary text-primary-foreground'
-                                                            : 'hover:bg-muted'
-                                                            }`}
-                                                    >
-                                                        {isRTL ? 'حفظ' : 'Mem'}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => updateAttendanceType(b.id, 'revision')}
-                                                        className={`px-2 py-1 text-xs rounded-sm transition-all ${attendanceRecord?.attendance_type === 'revision'
-                                                            ? 'bg-amber-500 text-white'
-                                                            : 'hover:bg-muted'
-                                                            }`}
-                                                    >
-                                                        {isRTL ? 'مراجعة' : 'Rev'}
-                                                    </button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </ScrollArea>
-
-                        {/* Summary */}
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                                <span>{isRTL ? 'الحضور:' : 'Present:'}</span>
-                                <div className="flex items-center gap-2">
-                                    <Badge className="text-lg px-3">{attendance.length}</Badge>
-                                    <span className="text-muted-foreground text-sm">/ {detailsBeneficiaries.length}</span>
-                                </div>
-                            </div>
-                            {detailsBeneficiaries.length > 0 && (
-                                <div className="w-full bg-muted rounded-full h-2">
-                                    <div
-                                        className="bg-primary h-2 rounded-full transition-all"
-                                        style={{ width: `${(attendance.length / detailsBeneficiaries.length) * 100}%` }}
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="flex justify-end gap-2 border-t pt-4">
-                        <Button variant="outline" onClick={() => setIsAttendanceDialogOpen(false)}>
-                            {isRTL ? 'إلغاء' : 'Cancel'}
-                        </Button>
-                        <Button onClick={handleSaveAttendance}>
-                            {isRTL ? 'حفظ الحضور' : 'Save Attendance'}
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog >
+            <CircleAttendanceDialog
+                open={isAttendanceDialogOpen}
+                onOpenChange={setIsAttendanceDialogOpen}
+                session={selectedSession}
+                beneficiaries={filteredDetailsBeneficiaries}
+                attendance={attendance}
+                search={sessionBeneficiarySearch}
+                isRTL={isRTL}
+                onSearchChange={setSessionBeneficiarySearch}
+                onToggleBeneficiary={toggleBeneficiary}
+                onUpdateAttendanceType={updateAttendanceType}
+                onMarkAll={markAllPresent}
+                onClearAll={() => setAttendance([])}
+                onSave={handleSaveAttendance}
+            />
 
             {/* Session Delete Confirmation */}
             < AlertDialog open={!!deleteSessionId} onOpenChange={(open) => !open && setDeleteSessionId(null)}>
@@ -2538,363 +2396,38 @@ export default function QuranCircles() {
                 </AlertDialogContent>
             </AlertDialog >
 
-            {/* Enrollment Management Dialog */}
-            < Dialog open={isEnrollmentOpen} onOpenChange={setIsEnrollmentOpen} >
-                <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <UserPlus className="h-5 w-5" />
-                            {isRTL ? 'إدارة المسجلين في الحلقة' : 'Manage Circle Enrollments'}
-                        </DialogTitle>
-                        <DialogDescription>{isRTL ? 'إضافة المستفيدين أو إزالة تسجيلهم من الحلقة' : 'Add or remove circle beneficiary enrollments'}</DialogDescription>
-                        {enrollmentCircle && (
-                            <p className="text-sm text-muted-foreground">
-                                {getCircleName(enrollmentCircle)}
-                            </p>
-                        )}
-                    </DialogHeader>
+            <CircleEnrollmentDialog
+                open={isEnrollmentOpen}
+                onOpenChange={setIsEnrollmentOpen}
+                circle={enrollmentCircle}
+                circleName={enrollmentCircle ? getCircleName(enrollmentCircle) : ''}
+                beneficiaries={filteredBeneficiariesForEnrollment}
+                enrolledBeneficiaryIds={enrolledBeneficiaryIds}
+                enrolledCount={enrolledBeneficiaries.length}
+                loading={enrollmentLoading}
+                search={beneficiarySearch}
+                isRTL={isRTL}
+                onSearchChange={setBeneficiarySearch}
+                onEnroll={handleEnroll}
+                onUnenroll={handleUnenroll}
+            />
 
-                    <div className="space-y-4 py-4">
-                        {/* Enrolled count */}
-                        <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                            <span>{isRTL ? 'عدد المسجلين:' : 'Enrolled Students:'}</span>
-                            <Badge className="text-lg px-3">{enrolledBeneficiaries.length}</Badge>
-                        </div>
-
-                        {/* Search */}
-                        <Input
-                            placeholder={isRTL ? 'بحث عن مستفيد...' : 'Search beneficiaries...'}
-                            value={beneficiarySearch}
-                            onChange={e => setBeneficiarySearch(e.target.value)}
-                        />
-
-                        {/* Beneficiaries List */}
-                        <ScrollArea className="h-[400px] border rounded-md p-2">
-                            {enrollmentLoading ? (
-                                <div className="flex items-center justify-center h-32">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-                                </div>
-                            ) : (
-                                <div className="space-y-1">
-                                    {filteredBeneficiariesForEnrollment.map(b => {
-                                        const isEnrolled = enrolledBeneficiaries.some(e => e.id === b.id);
-
-                                        return (
-                                            <div
-                                                key={b.id}
-                                                className={`flex items-center justify-between p-2 rounded-md ${isEnrolled
-                                                    ? 'bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800'
-                                                    : 'hover:bg-muted'
-                                                    }`}
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <Avatar className="h-8 w-8">
-                                                        <AvatarImage src={b.image_url || undefined} />
-                                                        <AvatarFallback>{b.name_ar?.slice(0, 2)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <span className="font-medium">{b.name_ar}</span>
-                                                </div>
-                                                {isEnrolled ? (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleUnenroll(b.id)}
-                                                        className="text-destructive hover:text-destructive"
-                                                    >
-                                                        <X className="h-4 w-4 ltr:mr-1 rtl:ml-1" />
-                                                        {isRTL ? 'إلغاء' : 'Remove'}
-                                                    </Button>
-                                                ) : (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleEnroll(b.id)}
-                                                        className="text-primary"
-                                                    >
-                                                        <Plus className="h-4 w-4 ltr:mr-1 rtl:ml-1" />
-                                                        {isRTL ? 'تسجيل' : 'Enroll'}
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </ScrollArea>
-                    </div>
-
-                    <div className="flex justify-end border-t pt-4">
-                        <Button variant="outline" onClick={() => setIsEnrollmentOpen(false)}>
-                            {isRTL ? 'إغلاق' : 'Close'}
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog >
-
-            {/* Marketing Dialog */}
-            <Dialog open={isMarketingDialogOpen} onOpenChange={setIsMarketingDialogOpen}>
-                <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {isRTL ? 'إدارة التسويق - ' : 'Marketing Management - '}
-                            {selectedMarketingCircle && getCircleName(selectedMarketingCircle)}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {isRTL ? 'متابعة خطة النشر والإعلانات للحلقة' : 'Manage circle publication plan and ads'}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="py-4 space-y-6">
-                        {/* Marketing Team Section */}
-                        <div className="border rounded-lg p-4 space-y-3">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Megaphone className="w-4 h-4 text-primary" />
-                                <h3 className="text-base font-semibold">{isRTL ? 'فريق التسويق' : 'Marketing Team'}</h3>
-                            </div>
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button variant="outline" className="w-full justify-start text-sm h-10">
-                                        <Search className="w-4 h-4 ltr:mr-2 rtl:ml-2 shrink-0" />
-                                        <span className="truncate">{isRTL ? 'إضافة مسوق...' : 'Add marketer...'}</span>
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[calc(100vw-4rem)] sm:w-[calc(100vw-2.5rem)] sm:w-[400px] p-0" align="start">
-                                    <Command>
-                                        <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
-                                        <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
-                                            <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No results found'}</CommandEmpty>
-                                            <CommandGroup>
-                                                {volunteers.slice(0, 50).map(volunteer => (
-                                                    <CommandItem
-                                                        key={volunteer.id}
-                                                        value={`${volunteer.full_name} ${volunteer.full_name_ar || ''}`}
-                                                        onSelect={() => handleAddMarketerToDetails(volunteer)}
-                                                    >
-                                                        <div className="flex items-center gap-2 w-full">
-                                                            <Avatar className="h-8 w-8">
-                                                                <AvatarImage src={volunteer.avatar_url || undefined} />
-                                                                <AvatarFallback>{(volunteer.full_name?.[0] || '?').toUpperCase()}</AvatarFallback>
-                                                            </Avatar>
-                                                            <div className="flex flex-col">
-                                                                <span>{isRTL && volunteer.full_name_ar ? volunteer.full_name_ar : volunteer.full_name}</span>
-                                                                <span className="text-xs text-muted-foreground">{volunteer.phone}</span>
-                                                            </div>
-                                                        </div>
-                                                        {detailsMarketers.some(m => m.volunteer_id === volunteer.id) && (
-                                                            <Check className="w-4 h-4 ml-auto" />
-                                                        )}
-                                                    </CommandItem>
-                                                ))}
-                                            </CommandGroup>
-                                        </CommandList>
-                                    </Command>
-                                </PopoverContent>
-                            </Popover>
-
-                            <div className="border rounded-md overflow-hidden">
-                                <div className="overflow-x-auto w-full">
-<Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead className="whitespace-nowrap">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                            <TableHead className="whitespace-nowrap">{isRTL ? 'الرقم' : 'Phone'}</TableHead>
-                                            <TableHead className="w-16"></TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {detailsMarketers.map(m => (
-                                            <TableRow key={m.id}>
-                                                <TableCell className="whitespace-nowrap">{m.name}</TableCell>
-                                                <TableCell className="whitespace-nowrap">{m.phone || '-'}</TableCell>
-                                                <TableCell>
-                                                    <Button size="sm" variant="ghost" onClick={() => handleRemoveMarketerFromDetails(m.id!)}>
-                                                        <Trash2 className="w-4 h-4 text-destructive" />
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                        {detailsMarketers.length === 0 && (
-                                            <TableRow>
-                                                <TableCell colSpan={3} className="text-center py-4 text-muted-foreground">
-                                                    {isRTL ? 'لا يوجد فريق تسويق' : 'No marketing team assigned'}
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-</div>
-                            </div>
-                        </div>
-
-                        {/* Ads Section */}
-                        <div>
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-semibold">{isRTL ? 'الإعلانات المخططة' : 'Planned Ads'}</h3>
-                                <Button size="sm" className="gap-2" onClick={async () => {
-                                    if (!selectedMarketingCircle) return;
-                                    try {
-                                        const nextAdNum = circleAds.length > 0 ? Math.max(...circleAds.map(a => a.ad_number)) + 1 : 1;
-                                        const ad = await createCircleAd(selectedMarketingCircle.id, nextAdNum);
-                                        setCircleAds(prev => [...prev, ad]);
-                                        toast.success(isRTL ? 'تم إضافة الإعلان' : 'Ad added');
-                                    } catch (error) {
-                                        console.error('Error adding circle ad:', error);
-                                        toast.error(isRTL ? 'فشل إضافة الإعلان' : 'Failed to add ad');
-                                    }
-                                }}>
-                                    <Plus className="h-4 w-4" />
-                                    {isRTL ? 'إضافة إعلان' : 'Add Ad'}
-                                </Button>
-                            </div>
-
-                            {adsLoading ? (
-                                <div className="flex justify-center py-8">
-                                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                                </div>
-                            ) : circleAds.length === 0 ? (
-                                <div className="text-center py-8 border rounded-lg border-dashed text-muted-foreground">
-                                    {isRTL ? 'لا توجد إعلانات مخططة' : 'No planned ads'}
-                                </div>
-                            ) : (
-                                <div className="border rounded-md overflow-hidden">
-                                    <div className="overflow-x-auto">
-                                        <div className="overflow-x-auto w-full">
-<Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="w-[60px] text-center whitespace-nowrap">#</TableHead>
-                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'تاريخ النشر' : 'Date'}</TableHead>
-                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'البوستر' : 'Poster'}</TableHead>
-                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'المحتوى' : 'Content'}</TableHead>
-                                                    <TableHead className="whitespace-nowrap">{isRTL ? 'آخر تحديث' : 'Updated By'}</TableHead>
-                                                    <TableHead className="w-[80px] whitespace-nowrap"></TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {circleAds.map((ad) => {
-                                                    return (
-                                                        <TableRow key={ad.id}>
-                                                            <TableCell className="text-center font-bold whitespace-nowrap">{ad.ad_number}</TableCell>
-                                                            <TableCell className="whitespace-nowrap">
-                                                                <Input
-                                                                    type="date"
-                                                                    value={ad.ad_date || ''}
-                                                                    onChange={async (e) => {
-                                                                        const newDate = e.target.value;
-                                                                        try {
-                                                                            await updateCircleAd(ad.id, { ad_date: newDate });
-                                                                            setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, ad_date: newDate } : a));
-                                                                        } catch (error) {
-                                                                            console.error('Error updating circle ad:', error);
-                                                                            toast.error(isRTL ? 'فشل تحديث الإعلان' : 'Failed to update ad');
-                                                                        }
-                                                                    }}
-                                                                    className="w-[150px]"
-                                                                />
-                                                            </TableCell>
-                                                            <TableCell className="whitespace-nowrap">
-                                                                <Button
-                                                                    variant={ad.poster_done ? "default" : "outline"}
-                                                                    size="sm"
-                                                                    className={ad.poster_done ? "bg-green-600 hover:bg-green-700" : ""}
-                                                                    onClick={async () => {
-                                                                        const newVal = !ad.poster_done;
-                                                                        try {
-                                                                            await updateCircleAd(ad.id, { poster_done: newVal });
-                                                                            setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, poster_done: newVal } : a));
-                                                                        } catch (error) {
-                                                                            console.error('Error updating circle ad:', error);
-                                                                            toast.error(isRTL ? 'فشل تحديث الإعلان' : 'Failed to update ad');
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    {ad.poster_done ? (
-                                                                        <><Check className="h-4 w-4 rtl:ml-1 ltr:mr-1" /> {isRTL ? 'جاهز' : 'Done'}</>
-                                                                    ) : (
-                                                                        <>{isRTL ? 'غير جاهز' : 'Pending'}</>
-                                                                    )}
-                                                                </Button>
-                                                            </TableCell>
-                                                            <TableCell className="whitespace-nowrap">
-                                                                <Button
-                                                                    variant={ad.content_done ? "default" : "outline"}
-                                                                    size="sm"
-                                                                    className={ad.content_done ? "bg-green-600 hover:bg-green-700" : ""}
-                                                                    onClick={async () => {
-                                                                        const newVal = !ad.content_done;
-                                                                        try {
-                                                                            await updateCircleAd(ad.id, { content_done: newVal });
-                                                                            setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, content_done: newVal } : a));
-                                                                        } catch (error) {
-                                                                            console.error('Error updating circle ad:', error);
-                                                                            toast.error(isRTL ? 'فشل تحديث الإعلان' : 'Failed to update ad');
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    {ad.content_done ? (
-                                                                        <><Check className="h-4 w-4 rtl:ml-1 ltr:mr-1" /> {isRTL ? 'جاهز' : 'Done'}</>
-                                                                    ) : (
-                                                                        <>{isRTL ? 'غير جاهز' : 'Pending'}</>
-                                                                    )}
-                                                                </Button>
-                                                            </TableCell>
-                                                            <TableCell className="whitespace-nowrap">
-                                                                {ad.updater && (
-                                                                    <span className="text-xs text-muted-foreground">
-                                                                        {isRTL && ad.updater.full_name_ar ? ad.updater.full_name_ar : ad.updater.full_name}
-                                                                    </span>
-                                                                )}
-                                                            </TableCell>
-                                                            <TableCell className="whitespace-nowrap">
-                                                                <AlertDialog>
-                                                                    <AlertDialogTrigger asChild>
-                                                                        <Button variant="ghost" size="sm">
-                                                                            <Trash2 className="h-4 w-4 text-destructive" />
-                                                                        </Button>
-                                                                    </AlertDialogTrigger>
-                                                                    <AlertDialogContent>
-                                                                        <AlertDialogHeader>
-                                                                            <AlertDialogTitle>{isRTL ? 'حذف الإعلان' : 'Delete Ad'}</AlertDialogTitle>
-                                                                            <AlertDialogDescription>
-                                                                                {isRTL
-                                                                                    ? `هل أنت متأكد من حذف الإعلان رقم ${ad.ad_number}؟`
-                                                                                    : `Are you sure you want to delete ad #${ad.ad_number}?`}
-                                                                            </AlertDialogDescription>
-                                                                        </AlertDialogHeader>
-                                                                        <AlertDialogFooter>
-                                                                            <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
-                                                                            <AlertDialogAction
-                                                                                onClick={async () => {
-                                                                                    try {
-                                                                                        await deleteCircleAd(ad.id);
-                                                                                        setCircleAds(prev => prev.filter(a => a.id !== ad.id));
-                                                                                        toast.success(isRTL ? 'تم حذف الإعلان' : 'Ad deleted');
-                                                                                    } catch (error) {
-                                                                                        console.error('Error deleting circle ad:', error);
-                                                                                        toast.error(isRTL ? 'فشل حذف الإعلان' : 'Failed to delete ad');
-                                                                                    }
-                                                                                }}
-                                                                                className="bg-destructive hover:bg-destructive/90"
-                                                                            >
-                                                                                {isRTL ? 'حذف' : 'Delete'}
-                                                                            </AlertDialogAction>
-                                                                        </AlertDialogFooter>
-                                                                    </AlertDialogContent>
-                                                                </AlertDialog>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })}
-                                            </TableBody>
-                                        </Table>
-</div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <CircleMarketingDialog
+                open={isMarketingDialogOpen}
+                onOpenChange={setIsMarketingDialogOpen}
+                circle={selectedMarketingCircle}
+                circleName={selectedMarketingCircle ? getCircleName(selectedMarketingCircle) : ''}
+                marketers={detailsMarketers}
+                volunteers={volunteers}
+                ads={circleAds}
+                loading={adsLoading}
+                isRTL={isRTL}
+                onAddMarketer={handleAddMarketerToDetails}
+                onRemoveMarketer={handleRemoveMarketerFromDetails}
+                onAddAd={handleAddCircleAd}
+                onUpdateAd={handleUpdateCircleAd}
+                onDeleteAd={handleDeleteCircleAd}
+            />
 
             {/* Unenroll Beneficiary Confirmation AlertDialog */}
             <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
