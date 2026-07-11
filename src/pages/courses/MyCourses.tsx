@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -599,21 +599,32 @@ export default function MyCourses() {
         return now >= lectureDate;
     };
 
-    const getStudentStats = (studentPhone: string) => {
-        const completedLectures = lectures.filter(l => l.status === 'completed');
-        let attendedCount = 0;
-        completedLectures.forEach(l => {
-            const isPresent = attendanceData[l.id]?.some(a => a.student_phone === studentPhone && a.status === 'present');
-            if (isPresent) attendedCount++;
+    const studentStatsByPhone = useMemo(() => {
+        const completedLectureIds = new Set(lectures.filter((lecture) => lecture.status === 'completed').map((lecture) => lecture.id));
+        const attendanceCountByPhone = new Map<string, number>();
+
+        Object.entries(attendanceData).forEach(([lectureId, attendance]) => {
+            if (!completedLectureIds.has(lectureId)) return;
+            attendance.forEach((record) => {
+                if (record.status === 'present') {
+                    attendanceCountByPhone.set(record.student_phone, (attendanceCountByPhone.get(record.student_phone) || 0) + 1);
+                }
+            });
         });
-        const totalCompleted = completedLectures.length;
-        const rate = totalCompleted > 0 ? Math.round((attendedCount / totalCompleted) * 100) : 0;
-        return {
-            attended: attendedCount,
-            missed: totalCompleted - attendedCount,
-            rate
-        };
-    };
+
+        const totalCompleted = completedLectureIds.size;
+        return new Map(beneficiaries.map((beneficiary) => {
+            const attended = attendanceCountByPhone.get(beneficiary.phone) || 0;
+            return [beneficiary.phone, {
+                attended,
+                missed: totalCompleted - attended,
+                rate: totalCompleted > 0 ? Math.round((attended / totalCompleted) * 100) : 0,
+            }];
+        }));
+    }, [attendanceData, beneficiaries, lectures]);
+
+    const getStudentStats = (studentPhone: string) =>
+        studentStatsByPhone.get(studentPhone) || { attended: 0, missed: 0, rate: 0 };
 
     const toggleBeneficiaryAttendance = async (lectureId: string, beneficiary: CourseBeneficiary) => {
         const existingAttendance = attendanceData[lectureId]?.find(a => a.student_phone === beneficiary.phone);
