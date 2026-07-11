@@ -85,12 +85,12 @@ import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
 // Image utilities extracted to @/utils/imageCrop
 
-import Cropper, { type Area } from 'react-easy-crop';
-import { Slider } from '@/components/ui/slider';
+import type { Area } from 'react-easy-crop';
 import { getCroppedImg } from '@/utils/imageCrop';
 import { UserFeaturesDialog } from '@/components/admin/UserFeaturesDialog';
 import { UserCardsGrid } from '@/components/admin/UserCardsGrid';
 import { UserFilters } from '@/components/admin/UserFilters';
+import { AvatarCropPanel } from '@/components/admin/AvatarCropPanel';
 
 type CsvRow = SpreadsheetRow;
 
@@ -779,50 +779,17 @@ export default function UserManagement() {
                     </div>
                   </div>
 
-                  {/* Crop UI */}
-                  {isCropping && tempImageSrc && (
-                    <div className="mt-4 border rounded-lg p-4 space-y-4">
-                      <div className="relative h-64 w-full bg-black rounded-lg overflow-hidden">
-                        <Cropper
-                          image={tempImageSrc}
-                          crop={crop}
-                          zoom={zoom}
-                          aspect={1}
-                          onCropChange={setCrop}
-                          onCropComplete={onCropComplete}
-                          onZoomChange={setZoom}
-                        />
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm min-w-[3rem]">{t('Zoom')}</span>
-                        <Slider
-                          value={[zoom]}
-                          min={1}
-                          max={3}
-                          step={0.1}
-                          onValueChange={(vals) => setZoom(vals[0])}
-                          className="flex-1"
-                        />
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            setIsCropping(false);
-                            setTempImageSrc(null);
-                            setFormAvatarFile(null);
-                            if (fileInputRef.current) fileInputRef.current.value = '';
-                          }}
-                        >
-                          {t('common.cancel')}
-                        </Button>
-                        <Button type="button" onClick={showCroppedImage}>
-                          {language === 'ar' ? 'قص وحفظ' : 'Crop & Save'}
-                        </Button>
-                      </div>
-                    </div>
-                  )}
+                  <AvatarCropPanel
+                    image={isCropping ? tempImageSrc : null}
+                    crop={crop}
+                    zoom={zoom}
+                    isRTL={isRTL}
+                    onCropChange={setCrop}
+                    onCropComplete={onCropComplete}
+                    onZoomChange={setZoom}
+                    onCancel={() => { setIsCropping(false); setTempImageSrc(null); setFormAvatarFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                    onSave={showCroppedImage}
+                  />
                 </div>
               </div>
 
@@ -1019,50 +986,17 @@ export default function UserManagement() {
                   </div>
                 </div>
 
-                {/* Crop UI */}
-                {isCropping && tempImageSrc && (
-                  <div className="mt-4 border rounded-lg p-4 space-y-4">
-                    <div className="relative h-64 w-full bg-black rounded-lg overflow-hidden">
-                      <Cropper
-                        image={tempImageSrc}
-                        crop={crop}
-                        zoom={zoom}
-                        aspect={1}
-                        onCropChange={setCrop}
-                        onCropComplete={onCropComplete}
-                        onZoomChange={setZoom}
-                      />
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm min-w-[3rem]">{t('Zoom')}</span>
-                      <Slider
-                        value={[zoom]}
-                        min={1}
-                        max={3}
-                        step={0.1}
-                        onValueChange={(vals) => setZoom(vals[0])}
-                        className="flex-1"
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setIsCropping(false);
-                          setTempImageSrc(null);
-                          setFormAvatarFile(null);
-                          if (fileInputRef.current) fileInputRef.current.value = '';
-                        }}
-                      >
-                        {t('common.cancel')}
-                      </Button>
-                      <Button type="button" onClick={showCroppedImage}>
-                        {language === 'ar' ? 'قص وحفظ' : 'Crop & Save'}
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <AvatarCropPanel
+                  image={isCropping ? tempImageSrc : null}
+                  crop={crop}
+                  zoom={zoom}
+                  isRTL={isRTL}
+                  onCropChange={setCrop}
+                  onCropComplete={onCropComplete}
+                  onZoomChange={setZoom}
+                  onCancel={() => { setIsCropping(false); setTempImageSrc(null); setFormAvatarFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                  onSave={showCroppedImage}
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
