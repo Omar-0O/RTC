@@ -560,6 +560,15 @@ export async function unenrollBeneficiary(circleId: string, beneficiaryId: strin
   if (error) throw error;
 }
 
+export async function deactivateCircleEnrollment(circleId: string, beneficiaryId: string): Promise<void> {
+  const { error } = await supabase
+    .from('quran_enrollments')
+    .update({ status: 'inactive' })
+    .eq('circle_id', circleId)
+    .eq('beneficiary_id', beneficiaryId);
+  if (error) throw error;
+}
+
 export async function createSession(params: {
   circleId: string; sessionDate: string; notes: string | null; organizerVolunteerId?: string;
 }): Promise<Session> {

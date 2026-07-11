@@ -24,6 +24,7 @@ import {
     saveCircle,
     unenrollBeneficiary,
     deleteCircle,
+    deactivateCircleEnrollment,
     removeCircleOrganizer,
     removeCircleMarketer,
     setCircleAttendance,
@@ -1090,13 +1091,7 @@ export default function QuranCircles() {
     const handleUnenrollBeneficiary = async () => {
         if (!beneficiaryToDelete || !selectedCircle) return;
         try {
-            const { error } = await supabase
-                .from('quran_enrollments')
-                .update({ status: 'inactive' })
-                .eq('circle_id', selectedCircle.id)
-                .eq('beneficiary_id', beneficiaryToDelete.id);
-
-            if (error) throw error;
+            await deactivateCircleEnrollment(selectedCircle.id, beneficiaryToDelete.id);
             toast.success(isRTL ? 'تم إلغاء التسجيل' : 'Unenrolled successfully');
             openCircleDetails(selectedCircle);
             fetchCircles();
