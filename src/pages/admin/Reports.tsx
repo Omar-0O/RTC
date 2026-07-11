@@ -35,6 +35,13 @@ import type { Database } from '@/integrations/supabase/types';
 import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 import { downloadCsv as saveCsv } from '@/utils/csv';
 import { appendAoaSheet, appendJsonSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
+import {
+  fetchAllReportActivitySubmissions,
+  REPORT_ACTIVITY_TYPE_COLUMNS,
+  REPORT_COMMITTEE_COLUMNS,
+  REPORT_PROFILE_COLUMNS,
+  REPORT_USER_ROLE_COLUMNS,
+} from '@/services/reportData.service';
 
 type FollowupUserRow = Database['public']['Tables']['users_followup']['Row'];
 type FollowupUserInsert = Database['public']['Tables']['users_followup']['Insert'];
@@ -259,31 +266,6 @@ interface Trainer {
   phone: string | null;
 }
 
-/** Fetch all rows from a table, bypassing the default 1000-row limit via pagination. */
-async function fetchAllRows(table: 'activity_submissions', pageSize = 500) {
-  // Step 1: get the exact count
-  const { count, error: cntError } = await supabase
-    .from(table)
-    .select('*', { count: 'exact', head: true });
-  if (cntError || count === null) {
-    // Fallback: simple select
-    const { data, error } = await supabase.from(table).select('*');
-    return { data: (data || []) as ActivitySubmission[], error };
-  }
-  // Step 2: paginate using the known count
-  let allData: ActivitySubmission[] = [];
-  for (let from = 0; from < count; from += pageSize) {
-    const to = Math.min(from + pageSize - 1, count - 1);
-    const { data, error } = await supabase
-      .from(table)
-      .select('*')
-      .range(from, to);
-    if (error) return { data: allData, error };
-    if (data) allData = allData.concat(data as ActivitySubmission[]);
-  }
-  return { data: allData, error: null };
-}
-
 export default function Reports() {
   const { t, language, isRTL } = useLanguage();
   const navigate = useNavigate();
@@ -314,12 +296,18 @@ export default function Reports() {
     setIsLoading(true);
     try {
       const [profilesRes, committeesRes, submissionsRes, activityTypesRes, userRolesRes] = await Promise.all([
-        supabase.from('profiles').select('*').neq('full_name', 'RTC Admin'),
-        supabase.from('committees').select('*'),
-        fetchAllRows('activity_submissions'),
-        supabase.from('activity_types').select('*'),
-        supabase.from('user_roles').select('*'),
+        supabase.from('profiles').select(REPORT_PROFILE_COLUMNS).neq('full_name', 'RTC Admin'),
+        supabase.from('committees').select(REPORT_COMMITTEE_COLUMNS),
+        fetchAllReportActivitySubmissions(),
+        supabase.from('activity_types').select(REPORT_ACTIVITY_TYPE_COLUMNS),
+        supabase.from('user_roles').select(REPORT_USER_ROLE_COLUMNS),
       ]);
+
+      if (profilesRes.error) throw profilesRes.error;
+      if (committeesRes.error) throw committeesRes.error;
+      if (submissionsRes.error) throw submissionsRes.error;
+      if (activityTypesRes.error) throw activityTypesRes.error;
+      if (userRolesRes.error) throw userRolesRes.error;
 
       const profilesData = profilesRes.data || [];
       const submissionsData = submissionsRes.data || [];
@@ -357,7 +345,7 @@ export default function Reports() {
       }
 
       if (committeesRes.data) setCommittees(committeesRes.data);
-      if (submissionsRes.data) setSubmissions(submissionsRes.data);
+      if (submissionsRes.data) setSubmissions(submissionsRes.data as ActivitySubmission[]);
       if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
 
       // Fetch trainers
