@@ -6,6 +6,8 @@ import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import {
     createSession,
+    createCircleAd,
+    deleteCircleAd,
     deleteSession,
     enrollBeneficiary,
     getAllBeneficiaries as getQuranBeneficiaries,
@@ -17,7 +19,10 @@ import {
     getTeachers as getQuranTeachers,
     getVolunteers as getQuranVolunteers,
     saveAttendance,
+    saveCircle,
     unenrollBeneficiary,
+    deleteCircle,
+    updateCircleAd,
 } from '@/services/circles.service';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -507,76 +512,24 @@ export default function QuranCircles() {
         }
 
         try {
-            // Build schedule array from selected days and time
             const schedule = formData.schedule_days.map(day => ({
                 day,
                 time: formData.schedule_time
             }));
 
-            // If new circle or editing, valid teacher must be from quran_teachers
-            // If the DB FK still points to trainers, this insert might fail if the ID exists in quran_teachers but not trainers (if they are separate).
-            // But if we moved them, they are new IDs?
-            // User instruction was: "make teachers quran_teachers table and don't touch trainers".
-            // So we assume quran_teachers are independent.
-            // If quran_circles.teacher_id still references trainers, we have a problem.
-            // We'll proceed assuming the user will fix the FK constraint to point to quran_teachers as per plan.
-            const dataToSave = {
-                teacher_id: formData.teacher_id,
-                schedule: schedule,
-                is_active: formData.is_active,
-                name: 'auto', // Legacy
-                date: new Date().toISOString().split('T')[0], // Legacy
+            await saveCircle({
+                isEditMode,
+                circleId: selectedId || undefined,
+                teacherId: formData.teacher_id,
+                schedule,
+                isActive: formData.is_active,
                 description: formData.description,
-                target_group: formData.target_group,
-                beneficiary_gender: formData.beneficiary_gender,
-                branch_id: activeBranch?.id || null
-            };
-
-            let circleId = selectedId;
-
-            if (isEditMode && selectedId) {
-                const { error } = await supabase
-                    .from('quran_circles')
-                    .update(dataToSave)
-                    .eq('id', selectedId);
-                if (error) throw error;
-            } else {
-                const { data, error } = await supabase
-                    .from('quran_circles')
-                    .insert(dataToSave)
-                    .select()
-                    .single();
-                if (error) throw error;
-                circleId = data.id;
-            }
-
-            // Update organizers - delete all and re-insert
-            if (circleId) {
-                await supabase.from('quran_circle_organizers').delete().eq('circle_id', circleId);
-
-                if (organizers.length > 0) {
-                    await supabase.from('quran_circle_organizers').insert(
-                        organizers.map(o => ({
-                            circle_id: circleId,
-                            volunteer_id: o.volunteer_id || null,
-                            name: o.name,
-                            phone: o.phone
-                        }))
-                    );
-                }
-
-                // Update marketers - delete all and re-insert
-                await supabase.from('quran_circle_marketers').delete().eq('circle_id', circleId);
-
-                if (marketers.length > 0) {
-                    await supabase.from('quran_circle_marketers').insert(
-                        marketers.map(m => ({
-                            circle_id: circleId,
-                            volunteer_id: m.volunteer_id
-                        }))
-                    );
-                }
-            }
+                targetGroup: formData.target_group,
+                beneficiaryGender: formData.beneficiary_gender,
+                branchId: activeBranch?.id,
+                organizers,
+                marketers,
+            });
 
             toast.success(isRTL ? (isEditMode ? 'تم التحديث بنجاح' : 'تم إنشاء الحلقة بنجاح') : (isEditMode ? 'Updated successfully' : 'Circle created successfully'));
             setIsCreateOpen(false);
@@ -592,12 +545,7 @@ export default function QuranCircles() {
         if (!deleteId) return;
 
         try {
-            const { error } = await supabase
-                .from('quran_circles')
-                .delete()
-                .eq('id', deleteId);
-
-            if (error) throw error;
+            await deleteCircle(deleteId);
             toast.success(isRTL ? 'تم الحذف' : 'Deleted');
             fetchCircles();
         } catch (error) {
@@ -626,7 +574,7 @@ export default function QuranCircles() {
         // Fetch organizers
         const { data: orgData } = await supabase
             .from('quran_circle_organizers')
-            .select('*')
+            .select('volunteer_id, name, phone')
             .eq('circle_id', circle.id);
 
         setOrganizers(orgData?.map((o) => ({
@@ -705,8 +653,7 @@ export default function QuranCircles() {
     const openEnrollmentDialog = async (circle: QuranCircle) => {
         setEnrollmentCircle(circle);
         setIsEnrollmentOpen(true);
-        await fetchAllBeneficiaries();
-        await fetchEnrollments(circle.id);
+        await Promise.all([fetchAllBeneficiaries(), fetchEnrollments(circle.id)]);
     };
 
     const handleEnroll = async (beneficiaryId: string) => {
@@ -779,32 +726,35 @@ export default function QuranCircles() {
             beneficiary_type: (circle.target_group === 'children' || circle.target_group === 'child') ? 'child' : 'adult'
         });
 
-        const formattedSessions = await getCircleSessions(circle.id);
-        setSessions(formattedSessions);
+        setAdsLoading(canManageAds);
+        try {
+            const [formattedSessions, organizerResult, beneficiaries, ads] = await Promise.all([
+                getCircleSessions(circle.id),
+                supabase.from('quran_circle_organizers').select('volunteer_id, name, phone').eq('circle_id', circle.id),
+                getCircleEnrollments(circle.id),
+                canManageAds ? getCircleAds(circle.id) : Promise.resolve([]),
+            ]);
 
-        // Load organizers for the session creation dialog
-        const { data: orgData } = await supabase
-            .from('quran_circle_organizers')
-            .select('volunteer_id, name, phone')
-            .eq('circle_id', circle.id);
-        setCircleOrganizersForSession(orgData?.map((o) => ({
-            volunteer_id: o.volunteer_id,
-            name: o.name,
-            phone: o.phone || ''
-        })) || []);
+            if (organizerResult.error) throw organizerResult.error;
 
-        setDetailsBeneficiaries(await getCircleEnrollments(circle.id));
+            setSessions(formattedSessions);
+            setCircleOrganizersForSession((organizerResult.data || []).map((organizer) => ({
+                volunteer_id: organizer.volunteer_id,
+                name: organizer.name,
+                phone: organizer.phone || '',
+            })));
+            setDetailsBeneficiaries(beneficiaries);
+            setCircleAds(ads);
 
-        if (formattedSessions.length > 0) {
-            const sessionIds = formattedSessions.map(s => s.id);
-            setAttendanceData(await getCircleAttendance(sessionIds));
-        } else {
-            setAttendanceData({});
-        }
-
-        if (canManageAds) {
-            setAdsLoading(true);
-            setCircleAds(await getCircleAds(circle.id));
+            if (formattedSessions.length > 0) {
+                setAttendanceData(await getCircleAttendance(formattedSessions.map((session) => session.id)));
+            } else {
+                setAttendanceData({});
+            }
+        } catch (error) {
+            console.error('Error fetching circle details:', error);
+            toast.error(isRTL ? 'فشل تحميل تفاصيل الحلقة' : 'Failed to fetch circle details');
+        } finally {
             setAdsLoading(false);
         }
     };
@@ -1204,7 +1154,7 @@ export default function QuranCircles() {
         try {
             const { data, error } = await supabase
                 .from('quran_circle_ads')
-                .select('*, updater:updated_by(full_name, full_name_ar)')
+                .select('id, circle_id, ad_number, ad_date, poster_done, content_done, updater:updated_by(full_name, full_name_ar)')
                 .eq('circle_id', circle.id)
                 .order('ad_number', { ascending: true });
 
@@ -2871,23 +2821,14 @@ export default function QuranCircles() {
                                 <h3 className="text-lg font-semibold">{isRTL ? 'الإعلانات المخططة' : 'Planned Ads'}</h3>
                                 <Button size="sm" className="gap-2" onClick={async () => {
                                     if (!selectedMarketingCircle) return;
-                                    const nextAdNum = circleAds.length > 0 ? Math.max(...circleAds.map(a => a.ad_number)) + 1 : 1;
-                                    const { data, error } = await supabase
-                                        .from('quran_circle_ads')
-                                        .insert({
-                                            circle_id: selectedMarketingCircle.id,
-                                            ad_number: nextAdNum,
-                                            ad_date: new Date().toISOString().split('T')[0],
-                                            poster_done: false,
-                                            content_done: false,
-                                        })
-                                        .select()
-                                        .single();
-                                    if (!error && data) {
-                                        setCircleAds(prev => [...prev, data as CircleAd]);
+                                    try {
+                                        const nextAdNum = circleAds.length > 0 ? Math.max(...circleAds.map(a => a.ad_number)) + 1 : 1;
+                                        const ad = await createCircleAd(selectedMarketingCircle.id, nextAdNum);
+                                        setCircleAds(prev => [...prev, ad]);
                                         toast.success(isRTL ? 'تم إضافة الإعلان' : 'Ad added');
-                                    } else {
-                                        toast.error(error?.message || 'Error');
+                                    } catch (error) {
+                                        console.error('Error adding circle ad:', error);
+                                        toast.error(isRTL ? 'فشل إضافة الإعلان' : 'Failed to add ad');
                                     }
                                 }}>
                                     <Plus className="h-4 w-4" />
@@ -2929,8 +2870,13 @@ export default function QuranCircles() {
                                                                     value={ad.ad_date || ''}
                                                                     onChange={async (e) => {
                                                                         const newDate = e.target.value;
-                                                                        await supabase.from('quran_circle_ads').update({ ad_date: newDate, updated_at: new Date().toISOString() }).eq('id', ad.id);
-                                                                        setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, ad_date: newDate } : a));
+                                                                        try {
+                                                                            await updateCircleAd(ad.id, { ad_date: newDate });
+                                                                            setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, ad_date: newDate } : a));
+                                                                        } catch (error) {
+                                                                            console.error('Error updating circle ad:', error);
+                                                                            toast.error(isRTL ? 'فشل تحديث الإعلان' : 'Failed to update ad');
+                                                                        }
                                                                     }}
                                                                     className="w-[150px]"
                                                                 />
@@ -2942,8 +2888,13 @@ export default function QuranCircles() {
                                                                     className={ad.poster_done ? "bg-green-600 hover:bg-green-700" : ""}
                                                                     onClick={async () => {
                                                                         const newVal = !ad.poster_done;
-                                                                        await supabase.from('quran_circle_ads').update({ poster_done: newVal, updated_at: new Date().toISOString() }).eq('id', ad.id);
-                                                                        setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, poster_done: newVal } : a));
+                                                                        try {
+                                                                            await updateCircleAd(ad.id, { poster_done: newVal });
+                                                                            setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, poster_done: newVal } : a));
+                                                                        } catch (error) {
+                                                                            console.error('Error updating circle ad:', error);
+                                                                            toast.error(isRTL ? 'فشل تحديث الإعلان' : 'Failed to update ad');
+                                                                        }
                                                                     }}
                                                                 >
                                                                     {ad.poster_done ? (
@@ -2960,8 +2911,13 @@ export default function QuranCircles() {
                                                                     className={ad.content_done ? "bg-green-600 hover:bg-green-700" : ""}
                                                                     onClick={async () => {
                                                                         const newVal = !ad.content_done;
-                                                                        await supabase.from('quran_circle_ads').update({ content_done: newVal, updated_at: new Date().toISOString() }).eq('id', ad.id);
-                                                                        setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, content_done: newVal } : a));
+                                                                        try {
+                                                                            await updateCircleAd(ad.id, { content_done: newVal });
+                                                                            setCircleAds(prev => prev.map(a => a.id === ad.id ? { ...a, content_done: newVal } : a));
+                                                                        } catch (error) {
+                                                                            console.error('Error updating circle ad:', error);
+                                                                            toast.error(isRTL ? 'فشل تحديث الإعلان' : 'Failed to update ad');
+                                                                        }
                                                                     }}
                                                                 >
                                                                     {ad.content_done ? (
@@ -2998,9 +2954,14 @@ export default function QuranCircles() {
                                                                             <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
                                                                             <AlertDialogAction
                                                                                 onClick={async () => {
-                                                                                    await supabase.from('quran_circle_ads').delete().eq('id', ad.id);
-                                                                                    setCircleAds(prev => prev.filter(a => a.id !== ad.id));
-                                                                                    toast.success(isRTL ? 'تم حذف الإعلان' : 'Ad deleted');
+                                                                                    try {
+                                                                                        await deleteCircleAd(ad.id);
+                                                                                        setCircleAds(prev => prev.filter(a => a.id !== ad.id));
+                                                                                        toast.success(isRTL ? 'تم حذف الإعلان' : 'Ad deleted');
+                                                                                    } catch (error) {
+                                                                                        console.error('Error deleting circle ad:', error);
+                                                                                        toast.error(isRTL ? 'فشل حذف الإعلان' : 'Failed to delete ad');
+                                                                                    }
                                                                                 }}
                                                                                 className="bg-destructive hover:bg-destructive/90"
                                                                             >
