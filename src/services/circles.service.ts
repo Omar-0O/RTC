@@ -650,7 +650,8 @@ export async function createSession(params: {
   };
   const { data, error } = await supabase.from('quran_circle_sessions')
     .insert(sessionToCreate)
-    .select().single();
+    .select('id, circle_id, session_date, notes, organizer_id')
+    .single();
   if (error) throw error;
   return {
     id: data.id,
