@@ -67,6 +67,8 @@ import { CircleSessionDialog } from '@/components/quran/CircleSessionDialog';
 import { CircleBeneficiariesTab } from '@/components/quran/CircleBeneficiariesTab';
 import { CircleAttendanceSheetTab } from '@/components/quran/CircleAttendanceSheetTab';
 import { CircleOrganizersTab } from '@/components/quran/CircleOrganizersTab';
+import { CircleSessionsTab } from '@/components/quran/CircleSessionsTab';
+import { CircleDetailsDialog } from '@/components/quran/CircleDetailsDialog';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -1366,180 +1368,29 @@ export default function QuranCircles() {
                 </AlertDialogContent>
             </AlertDialog >
 
-            <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-                <DialogContent className="w-full h-full sm:w-[calc(100%-1.5rem)] sm:max-w-5xl sm:max-h-[90vh] p-0 overflow-hidden flex flex-col rounded-none sm:rounded-2xl">
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full h-full flex flex-col">
-                        <div className="flex flex-col h-full bg-background overflow-hidden">
-                            {/* Sticky Header */}
-                            <div className="border-b shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                                <DialogHeader className="p-4 sm:p-6 pb-2 text-center sm:text-center flex flex-col items-center justify-center relative">
-                                    <DialogTitle className="text-xl sm:text-2xl font-bold text-center w-full mt-2 sm:mt-0">
-                                        {selectedCircle && getCircleName(selectedCircle)}
-                                    </DialogTitle>
-                                    <DialogDescription className="text-center w-full text-xs sm:text-sm mt-1">
-                                        {selectedCircle && getScheduleDisplay(selectedCircle.schedule)} • {getScheduleTime(selectedCircle?.schedule || [])}
-                                    </DialogDescription>
-                                </DialogHeader>
+            <CircleDetailsDialog
+                open={isDetailsOpen}
+                onOpenChange={setIsDetailsOpen}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                circleName={selectedCircle ? getCircleName(selectedCircle) : ""}
+                schedule={selectedCircle ? [getScheduleDisplay(selectedCircle.schedule), getScheduleTime(selectedCircle.schedule)].join(" • ") : ""}
+                isRTL={isRTL}
+                canManageOrganizers={canManageOrganizers}
+            >
 
-                                {/* Tabs Selection */}
-                                <div className="px-4 sm:px-6 pb-3">
-                                    <div className="overflow-x-auto -mx-2 px-2 pb-0.5 scrollbar-none">
-                                        <TabsList className="flex w-full h-auto p-1 bg-muted/50 rounded-xl gap-0.5 xs:gap-1">
-                                            <TabsTrigger
-                                                value="beneficiaries"
-                                                className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                            >
-                                                {isRTL ? 'المستفيدين' : 'Beneficiaries'}
-                                            </TabsTrigger>
-                                            <TabsTrigger
-                                                value="sessions"
-                                                className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                            >
-                                                {isRTL ? 'الجلسات' : 'Sessions'}
-                                            </TabsTrigger>
-                                            <TabsTrigger
-                                                value="sheet"
-                                                className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                            >
-                                                {isRTL ? 'شيت الحضور' : 'Attendance Sheet'}
-                                            </TabsTrigger>
-                                            {canManageOrganizers && (
-                                                <TabsTrigger
-                                                    value="organizers"
-                                                    className="flex-1 sm:flex-initial px-1.5 xs:px-2.5 sm:px-6 py-2 text-[10px] xs:text-xs sm:text-sm font-medium rounded-lg data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-200 text-center whitespace-nowrap"
-                                                >
-                                                    {isRTL ? 'المنظمين' : 'Organizers'}
-                                                </TabsTrigger>
-                                            )}
-                                        </TabsList>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Scrollable Container */}
-                            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 scrollbar-none">
-                                {/* Sessions Tab */}
-                                <TabsContent value="sessions" className="space-y-4 py-0 outline-none">
-                                    {/* Add Session Button */}
-                                    <div className="flex justify-between items-center bg-card p-3 rounded-xl border">
-                                        <div>
-                                            <h3 className="font-semibold text-xs sm:text-sm">{isRTL ? 'الجلسات' : 'Sessions'}</h3>
-                                            <p className="text-[10px] sm:text-xs text-muted-foreground">
-                                                {sessions.length} {isRTL ? 'جلسة' : 'sessions'}
-                                            </p>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <Button onClick={() => selectedCircle && exportCircleToExcel(selectedCircle)} variant="outline" size="sm" className="h-8 text-xs">
-                                                <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                {isRTL ? 'تصدير' : 'Export'}
-                                            </Button>
-                                            <Button onClick={() => {
-                                                if (selectedCircle) {
-                                                    setSessionDate(getNextScheduleDate(selectedCircle.schedule));
-                                                }
-                                                setIsSessionDialogOpen(true);
-                                            }} size="sm" className="h-8 text-xs">
-                                                <Plus className="w-4 h-4 ltr:mr-1 rtl:ml-1" />
-                                                {isRTL ? 'جلسة جديدة' : 'New Session'}
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    {detailsBeneficiaries.length === 0 && (
-                                        <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs flex items-center gap-2">
-                                            <Users className="h-4 w-4" />
-                                            {isRTL
-                                                ? 'يمكنك إضافة مستفيدين جديد من تبويب المستفيدين.'
-                                                : 'You can add new beneficiaries from the Beneficiaries tab.'}
-                                        </div>
-                                    )}
-
-                                    {/* Sessions List */}
-                                    <div className="space-y-2">
-                                        {sessions.map((session, index) => {
-                                            const rate = getAttendanceRate(session);
-                                            const hasAttendance = session.attendees_count !== undefined && session.attendees_count > 0;
-                                            return (
-                                                <div
-                                                    key={session.id}
-                                                    className={`flex items-center justify-between p-3 rounded-lg border transition-all hover:shadow-sm ${hasAttendance
-                                                        ? 'border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/10 hover:bg-green-50 dark:hover:bg-green-950/20'
-                                                        : 'hover:bg-muted/50'
-                                                        }`}
-                                                >
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`p-2 rounded-full ${hasAttendance ? 'bg-green-100 dark:bg-green-900/30' : 'bg-primary/10'}`}>
-                                                            <Calendar className={`h-4 w-4 ${hasAttendance ? 'text-green-600 dark:text-green-400' : 'text-primary'}`} />
-                                                        </div>
-                                                        <div>
-                                                            <div className="flex flex-col">
-                                                                <div className="flex items-center gap-2">
-                                                                    <Badge variant="outline" className="h-5 px-1.5 text-[10px] font-mono">
-                                                                        #{sessions.length - index}
-                                                                    </Badge>
-                                                                    <p className="font-medium text-xs sm:text-sm">
-                                                                        {format(new Date(session.session_date), 'EEEE, d MMMM', { locale: isRTL ? ar : enUS })}
-                                                                    </p>
-                                                                </div>
-                                                                <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">
-                                                                    {isRTL ? 'الحضور:' : 'Attendance:'} <span className={hasAttendance ? 'font-bold text-green-600 dark:text-green-400' : ''}>{session.attendees_count || 0}</span> / {detailsBeneficiaries.length}
-                                                                </p>
-                                                                {session.organizer_name && (
-                                                                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                                                                        <User className="h-3 w-3" />
-                                                                        {session.organizer_name}
-                                                                    </p>
-                                                                )}
-                                                                {session.notes && (
-                                                                    <div className="flex items-start gap-1 mt-2 text-[10px] sm:text-xs text-muted-foreground bg-muted/50 p-1.5 rounded w-full">
-                                                                        <span className="shrink-0 mt-0.5">📝</span>
-                                                                        <span className="break-words line-clamp-2">{session.notes}</span>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        {rate !== null && hasAttendance && (
-                                                            <Badge variant="secondary" className={`text-xs ${rate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                                                                rate >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                                                                    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                                                }`}>
-                                                                <Percent className="h-3 w-3 ltr:mr-0.5 rtl:ml-0.5" />
-                                                                {rate}
-                                                            </Badge>
-                                                        )}
-                                                        <Badge variant={hasAttendance ? 'default' : 'outline'} className="text-[10px] sm:text-xs">
-                                                            <Users className="h-3 w-3 ltr:mr-1 rtl:ml-1" />
-                                                            {session.attendees_count || 0}
-                                                        </Badge>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setDeleteSessionId(session.id);
-                                                            }}
-                                                        >
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-
-                                        {sessions.length === 0 && (
-                                            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                                                <div className="p-3 rounded-full bg-muted/50 mb-3">
-                                                    <Calendar className="h-8 w-8 opacity-30" />
-                                                </div>
-                                                <p className="font-medium">{isRTL ? 'لا توجد جلسات بعد' : 'No sessions yet'}</p>
-                                                <p className="text-sm mt-1">{isRTL ? 'أنشئ أول جلسة للبدء' : 'Create the first session to get started'}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </TabsContent>
+                                <CircleSessionsTab
+                                    isRTL={isRTL}
+                                    sessions={sessions}
+                                    beneficiaryCount={detailsBeneficiaries.length}
+                                    onExport={() => selectedCircle && exportCircleToExcel(selectedCircle)}
+                                    onCreateSession={() => {
+                                        if (selectedCircle) setSessionDate(getNextScheduleDate(selectedCircle.schedule));
+                                        setIsSessionDialogOpen(true);
+                                    }}
+                                    onDeleteSession={setDeleteSessionId}
+                                    getAttendanceRate={getAttendanceRate}
+                                />
 
                                 <CircleBeneficiariesTab
                                     isRTL={isRTL}
@@ -1590,11 +1441,7 @@ export default function QuranCircles() {
                                         onRemove={handleRemoveOrganizerFromCircle}
                                     />
                                 )}
-                            </div>
-                        </div>
-                    </Tabs>
-                </DialogContent>
-            </Dialog >
+            </CircleDetailsDialog>
 
             <CircleSessionDialog
                 open={isSessionDialogOpen}
