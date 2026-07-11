@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -380,12 +380,12 @@ export default function QuranCircles() {
         }
     };
 
-    const getCircleName = (circle: QuranCircle) => {
+    const getCircleName = useCallback((circle: QuranCircle) => {
         if (circle.teacher_name) {
             return isRTL ? `حلقة المحفظ ${circle.teacher_name}` : `${circle.teacher_name}'s Circle`;
         }
         return isRTL ? 'حلقة قرآن' : 'Quran Circle';
-    };
+    }, [isRTL]);
 
     const getScheduleDisplay = (schedule: ScheduleItem[]) => {
         if (!schedule || schedule.length === 0) return isRTL ? 'لم يتم تحديد موعد' : 'No schedule set';
@@ -692,25 +692,26 @@ export default function QuranCircles() {
         }
     };
 
-    const filteredBeneficiariesForEnrollment = allBeneficiaries.filter(b => {
-        const matchesSearch = b.name_ar.toLowerCase().includes(beneficiarySearch.toLowerCase()) ||
-            (b.name_en?.toLowerCase() || '').includes(beneficiarySearch.toLowerCase());
+    const filteredBeneficiariesForEnrollment = useMemo(() => {
+        const normalizedSearch = beneficiarySearch.toLowerCase();
 
-        if (!matchesSearch) return false;
-        if (!enrollmentCircle) return true;
+        return allBeneficiaries.filter(b => {
+            const matchesSearch = b.name_ar.toLowerCase().includes(normalizedSearch) ||
+                (b.name_en?.toLowerCase() || '').includes(normalizedSearch);
 
-        // Filter by Circle Target Group (Adults/Children)
-        const isChild = b.beneficiary_type === 'child';
-        if (enrollmentCircle.target_group === 'children' && !isChild) return false;
-        if (enrollmentCircle.target_group === 'adults' && isChild) return false;
+            if (!matchesSearch) return false;
+            if (!enrollmentCircle) return true;
 
-        // Filter by Circle Beneficiary Gender
-        // Use the circle's explicit beneficiary_gender field instead of teacher gender
-        if (enrollmentCircle.beneficiary_gender === 'male' && b.gender !== 'male') return false;
-        if (enrollmentCircle.beneficiary_gender === 'female' && b.gender !== 'female') return false;
+            const isChild = b.beneficiary_type === 'child';
+            if (enrollmentCircle.target_group === 'children' && !isChild) return false;
+            if (enrollmentCircle.target_group === 'adults' && isChild) return false;
 
-        return true;
-    });
+            if (enrollmentCircle.beneficiary_gender === 'male' && b.gender !== 'male') return false;
+            if (enrollmentCircle.beneficiary_gender === 'female' && b.gender !== 'female') return false;
+
+            return true;
+        });
+    }, [allBeneficiaries, beneficiarySearch, enrollmentCircle]);
 
     const openCircleDetails = async (circle: QuranCircle) => {
         setSelectedCircle(circle);
@@ -999,11 +1000,14 @@ export default function QuranCircles() {
         return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
     };
 
-    const filteredDetailsBeneficiaries = detailsBeneficiaries.filter(b =>
-        (b.name_ar?.toLowerCase() || '').includes(sessionBeneficiarySearch.toLowerCase()) ||
-        (b.name_en?.toLowerCase() || '').includes(sessionBeneficiarySearch.toLowerCase()) ||
-        (b.phone || '').includes(sessionBeneficiarySearch)
-    );
+    const filteredDetailsBeneficiaries = useMemo(() => {
+        const normalizedSearch = sessionBeneficiarySearch.toLowerCase();
+        return detailsBeneficiaries.filter((beneficiary) =>
+            beneficiary.name_ar.toLowerCase().includes(normalizedSearch) ||
+            (beneficiary.name_en?.toLowerCase() || '').includes(normalizedSearch) ||
+            (beneficiary.phone || '').includes(sessionBeneficiarySearch)
+        );
+    }, [detailsBeneficiaries, sessionBeneficiarySearch]);
 
     const handleAddBeneficiary = async () => {
         if (!selectedCircle) return;
@@ -1134,17 +1138,28 @@ export default function QuranCircles() {
         }
     };
 
-    const getStudentStats = (beneficiaryId: string) => {
-        let attendedCount = 0;
-        sessions.forEach(s => {
-            const hasAttended = attendanceData[s.id]?.some(a => a.beneficiary_id === beneficiaryId);
-            if (hasAttended) attendedCount++;
+    const studentStatsById = useMemo(() => {
+        const attendanceCounts = new Map<string, number>();
+
+        Object.values(attendanceData).forEach((sessionAttendance) => {
+            sessionAttendance.forEach(({ beneficiary_id }) => {
+                attendanceCounts.set(beneficiary_id, (attendanceCounts.get(beneficiary_id) || 0) + 1);
+            });
         });
+
         const totalSessions = sessions.length;
-        const rate = totalSessions > 0 ? Math.round((attendedCount / totalSessions) * 100) : 0;
-        const missed = totalSessions - attendedCount;
-        return { attended: attendedCount, rate, missed };
-    };
+        return new Map(detailsBeneficiaries.map((beneficiary) => {
+            const attended = attendanceCounts.get(beneficiary.id) || 0;
+            return [beneficiary.id, {
+                attended,
+                rate: totalSessions > 0 ? Math.round((attended / totalSessions) * 100) : 0,
+                missed: totalSessions - attended,
+            }];
+        }));
+    }, [attendanceData, detailsBeneficiaries, sessions.length]);
+
+    const getStudentStats = (beneficiaryId: string) =>
+        studentStatsById.get(beneficiaryId) || { attended: 0, rate: 0, missed: sessions.length };
 
     const openMarketingDialog = async (circle: QuranCircle) => {
         setSelectedMarketingCircle(circle);
@@ -1242,9 +1257,10 @@ export default function QuranCircles() {
         }
     };
 
-    const filteredCircles = circles.filter(c =>
-        getCircleName(c).toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredCircles = useMemo(() => {
+        const normalizedSearch = searchQuery.toLowerCase();
+        return circles.filter((circle) => getCircleName(circle).toLowerCase().includes(normalizedSearch));
+    }, [circles, getCircleName, searchQuery]);
 
     return (
         <div className="space-y-6">
