@@ -37,15 +37,15 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
+import { getCourseDetails } from '@/services/courseDetails.service';
+import { createCourseTrainerParticipation } from '@/services/courseParticipation.service';
 
 type RoomRow = Database['public']['Tables']['rooms']['Row'];
-type TrainerRow = Database['public']['Tables']['trainers']['Row'];
 type CourseTrainerRow = Database['public']['Tables']['course_trainers']['Row'];
 type CourseAdRow = Database['public']['Tables']['course_ads']['Row'];
 type CourseAdInsert = Database['public']['Tables']['course_ads']['Insert'];
 type CourseAdUpdate = Database['public']['Tables']['course_ads']['Update'];
 type CourseAttendanceRow = Database['public']['Tables']['course_attendance']['Row'];
-type TrainerLectureRecordInsert = Database['public']['Tables']['trainer_lecture_records']['Insert'];
 type SupabaseErrorWithCode = { code?: string };
 
 const getErrorCode = (error: unknown): string | undefined => {
@@ -139,10 +139,6 @@ const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
 };
 
 const MY_COURSE_COLUMNS = 'id, name, trainer_id, trainer_name, trainer_phone, room, schedule_days, schedule_time, schedule_end_time, has_interview, interview_date, total_lectures, start_date, end_date, committee_id, course_lectures(status)';
-const COURSE_AD_COLUMNS = 'id, course_id, ad_number, ad_date, poster_url, content, poster_done, content_done, created_by, updated_by, created_at, updated_at, updater:profiles!course_ads_updated_by_fkey(full_name, full_name_ar)';
-const COURSE_LECTURE_COLUMNS = 'id, course_id, lecture_number, date, status';
-const COURSE_BENEFICIARY_COLUMNS = 'id, course_id, name, phone, national_id';
-const COURSE_ATTENDANCE_COLUMNS = 'id, lecture_id, student_name, student_phone, status';
 
 export default function MyCourses() {
     const { user } = useAuth();
@@ -420,41 +416,11 @@ export default function MyCourses() {
         }
 
         try {
-            const [adsResult, lecturesResult, beneficiariesResult] = await Promise.all([
-                supabase.from('course_ads').select(COURSE_AD_COLUMNS).eq('course_id', course.id).order('ad_number'),
-                supabase.from('course_lectures').select(COURSE_LECTURE_COLUMNS).eq('course_id', course.id).order('lecture_number'),
-                supabase.from('course_beneficiaries').select(COURSE_BENEFICIARY_COLUMNS).eq('course_id', course.id).order('name'),
-            ]);
-
-            if (adsResult.error) throw adsResult.error;
-            if (lecturesResult.error) throw lecturesResult.error;
-            if (beneficiariesResult.error) throw beneficiariesResult.error;
-
-            const lecturesData = lecturesResult.data || [];
-            setCourseAds((adsResult.data as CourseAdWithUpdater[] | null) || []);
-            setLectures(lecturesData as CourseLecture[]);
-            setBeneficiaries((beneficiariesResult.data as CourseBeneficiary[] | null) || []);
-
-            if (lecturesData.length === 0) {
-                setAttendanceData({});
-                return;
-            }
-
-            const lectureIds = lecturesData.map(lecture => lecture.id);
-            const { data: attendanceList, error: attendanceError } = await supabase
-                .from('course_attendance')
-                .select(COURSE_ATTENDANCE_COLUMNS)
-                .in('lecture_id', lectureIds);
-
-            if (attendanceError) throw attendanceError;
-
-            const attendanceMap: Record<string, Attendance[]> = {};
-            ((attendanceList || []) as CourseAttendanceRow[]).forEach(attendance => {
-                if (!attendance.lecture_id) return;
-                if (!attendanceMap[attendance.lecture_id]) attendanceMap[attendance.lecture_id] = [];
-                attendanceMap[attendance.lecture_id].push(attendance as Attendance);
-            });
-            setAttendanceData(attendanceMap);
+            const details = await getCourseDetails(course.id);
+            setCourseAds(details.ads as CourseAd[]);
+            setLectures(details.lectures as CourseLecture[]);
+            setBeneficiaries(details.beneficiaries as CourseBeneficiary[]);
+            setAttendanceData(details.attendanceByLecture as Record<string, Attendance[]>);
         } catch (error) {
             console.error('Error fetching course details:', error);
             toast.error(isRTL ? 'فشل في تحميل تفاصيل الكورس' : 'Failed to fetch course details');
@@ -489,106 +455,15 @@ export default function MyCourses() {
     // Always logs in trainer_lecture_records (name + phone, no account needed)
     // Additionally logs in activity_submissions if the trainer has a system profile
     const createTrainerParticipation = async (course: Course, lectureId: string) => {
-        try {
-            // Helper: find profile ID by phone
-            const findProfileByPhone = async (phone: string): Promise<string | null> => {
-                const cleanPhone = phone.replace(/[\s-]/g, '');
-                const { data } = await supabase.from('profiles').select('id')
-                    .or(`phone.eq.${cleanPhone},phone.eq.${phone}`).limit(1).maybeSingle();
-                return data?.id || null;
-            };
-
-            // Helper: always log in trainer_lecture_records (no profile needed)
-            const logTrainerRecord = async (name: string, phone: string | null, volunteerId: string | null) => {
-                const record: TrainerLectureRecordInsert = {
-                    course_id: course.id, lecture_id: lectureId,
-                    trainer_name: name, trainer_phone: phone || null, volunteer_id: volunteerId || null
-                };
-                await supabase.from('trainer_lecture_records').insert(record);
-            };
-
-            interface TrainerEntry { name: string; phone: string | null; volunteerId: string | null; hasTrainerId: boolean; }
-            const trainers: TrainerEntry[] = [];
-
-            // Case A: Trainers from trainers table (trainer_id + course_trainers from DB)
-            const trainerIds = new Set<string>();
-            if (course.trainer_id) trainerIds.add(course.trainer_id);
-            const { data: ctData } = await supabase
-                .from('course_trainers').select('trainer_id').eq('course_id', course.id);
-            (ctData as Pick<CourseTrainerRow, 'trainer_id'>[] | null)?.forEach(ct => trainerIds.add(ct.trainer_id));
-
-            for (const tId of trainerIds) {
-                const { data: td } = await supabase
-                    .from('trainers').select('user_id, phone, name_ar, name_en').eq('id', tId).single();
-                if (!td) continue;
-                const trainer = td as Pick<TrainerRow, 'user_id' | 'phone' | 'name_ar' | 'name_en'>;
-                let vid: string | null = trainer.user_id || null;
-                if (!vid && trainer.phone) vid = await findProfileByPhone(trainer.phone);
-                trainers.push({ name: trainer.name_ar || trainer.name_en || 'مدرب', phone: trainer.phone, volunteerId: vid, hasTrainerId: true });
-            }
-
-            // Case B: External trainer (name + phone on course, no trainer_id)
-            if (!course.trainer_id && course.trainer_name) {
-                const phones = course.trainer_phone
-                    ? course.trainer_phone.split(/[-,]/).map((p: string) => p.trim()).filter(Boolean)
-                    : [null];
-                for (const phone of phones) {
-                    const vid = phone ? await findProfileByPhone(phone) : null;
-                    trainers.push({ name: course.trainer_name, phone: phone || course.trainer_phone || null, volunteerId: vid, hasTrainerId: false });
-                }
-            }
-
-            if (trainers.length === 0) return;
-
-            const lecture = lectures.find(l => l.id === lectureId);
-            const lectureNum = lecture?.lecture_number || '';
-            const lectureDate = lecture?.date;
-
-            // Get committee + activity type (only for profile trainers)
-            let committeeId: string | null = null;
-            let activityTypeId: string | null = null;
-            let activityPoints = 0;
-
-            if (trainers.some(t => t.volunteerId)) {
-                const { data: allCommittees } = await supabase.from('committees').select('id, name');
-                if (allCommittees?.length) {
-                    const found = allCommittees.find(c =>
-                        c.name.toLowerCase().includes('trainer') || c.name.toLowerCase().includes('course') ||
-                        c.name.includes('تدريب') || c.name.includes('كورس'));
-                    committeeId = found?.id || course.committee_id || allCommittees[0].id;
-                }
-                const { data: allTypes } = await supabase.from('activity_types').select('id, points, name');
-                if (allTypes?.length) {
-                    const chosen = allTypes.find(a => a.name === 'Trainer Lecture')
-                        || allTypes.find(a => a.name.toLowerCase().includes('trainer') || a.name.includes('محاضر'));
-                    if (chosen) { activityTypeId = chosen.id; activityPoints = chosen.points; }
-                }
-            }
-
-            for (const trainer of trainers) {
-                // 1. Always record with name + phone (no account needed)
-                await logTrainerRecord(trainer.name, trainer.phone, trainer.volunteerId);
-
-                // 2. If has profile + committee + activity AND is external → also record points
-                // Internal trainers with trainer_id are logged automatically by the database trigger
-                if (trainer.volunteerId && committeeId && activityTypeId && !trainer.hasTrainerId) {
-                    const { error } = await supabase.from('activity_submissions').insert({
-                        volunteer_id: trainer.volunteerId,
-                        activity_type_id: activityTypeId,
-                        committee_id: committeeId,
-                        description: `محاضرة ${lectureNum} في كورس: ${course.name}`,
-                        points_awarded: activityPoints,
-                        status: 'approved', location: 'branch', proof_url: null,
-                        submitted_at: lectureDate ? new Date(lectureDate + 'T12:00:00').toISOString() : new Date().toISOString()
-                    });
-                    if (error) console.error('خطأ في activity_submissions:', error);
-                }
-            }
-        } catch (error) {
-            console.error('Error in createTrainerParticipation:', error);
-        }
+        const lecture = lectures.find((item) => item.id === lectureId);
+        if (!lecture) return;
+        await createCourseTrainerParticipation({
+            course,
+            lectureId,
+            lectureNumber: lecture.lecture_number,
+            lectureDate: lecture.date,
+        });
     };
-
 
     const isLectureOpen = (dateStr: string) => {
         // Use parseISO to avoid UTC midnight timezone shift (+03:00 would make it previous day)
