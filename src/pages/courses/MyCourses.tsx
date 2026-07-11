@@ -1,8 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { supabase } from '@/integrations/supabase/client';
-import type { Database } from '@/integrations/supabase/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -49,14 +47,10 @@ import {
     updateCourseAd,
     updateCourseBeneficiary,
     updateCourseLectureStatus,
+    getCourseRooms,
+    getMyCourseOverview,
 } from '@/services/myCourses.service';
 
-type RoomRow = Database['public']['Tables']['rooms']['Row'];
-type CourseTrainerRow = Database['public']['Tables']['course_trainers']['Row'];
-type CourseAdRow = Database['public']['Tables']['course_ads']['Row'];
-type CourseAdInsert = Database['public']['Tables']['course_ads']['Insert'];
-type CourseAdUpdate = Database['public']['Tables']['course_ads']['Update'];
-type CourseAttendanceRow = Database['public']['Tables']['course_attendance']['Row'];
 type SupabaseErrorWithCode = { code?: string };
 
 const getErrorCode = (error: unknown): string | undefined => {
@@ -65,10 +59,6 @@ const getErrorCode = (error: unknown): string | undefined => {
         return typeof code === 'string' ? code : undefined;
     }
     return undefined;
-};
-
-type CourseAdWithUpdater = CourseAdRow & {
-    updater?: { full_name: string | null, full_name_ar: string | null } | null;
 };
 
 interface Course {
@@ -207,105 +197,30 @@ export default function MyCourses() {
 
     const fetchRooms = async () => {
         try {
-            const { data, error } = await supabase
-                .from('rooms')
-                .select('id, name, name_ar');
-
-            if (error) {
-                console.error('Error fetching rooms:', error);
-                return;
-            }
-
-            if (data) {
-                const roomsMap: Record<string, { en: string; ar: string }> = {};
-                (data as Pick<RoomRow, 'id' | 'name' | 'name_ar'>[]).forEach(r => {
-                    roomsMap[r.id] = { en: r.name, ar: r.name_ar };
-                });
-                setRooms(roomsMap);
-            }
+            const roomsData = await getCourseRooms();
+            setRooms(Object.fromEntries(roomsData.map((room) => [room.id, { en: room.name, ar: room.name_ar }])));
         } catch (error) {
-            console.error('Error fetching rooms:', error);
+            console.error("Error fetching rooms:", error);
         }
     };
 
     const fetchMyCourses = async (hasCache = false) => {
         if (!user) return;
-
-        if (!hasCache) {
-            setLoading(true);
-        }
+        if (!hasCache) setLoading(true);
         try {
-            const [organizerResult, marketerResult, trainerResult] = await Promise.all([
-                supabase.from('course_organizers').select('course_id').eq('volunteer_id', user.id),
-                supabase.from('course_marketers').select('course_id').eq('volunteer_id', user.id),
-                supabase.from('trainers').select('id').eq('user_id', user.id).maybeSingle(),
-            ]);
-
-            if (organizerResult.error) throw organizerResult.error;
-            if (marketerResult.error) throw marketerResult.error;
-            if (trainerResult.error) throw trainerResult.error;
-
-            const organizerData = organizerResult.data;
-            const marketerData = marketerResult.data;
-            const trainerRecord = trainerResult.data;
-
-            let trainerCourseIds: string[] = [];
-            if (trainerRecord?.id) {
-                const [trainerCourseResult, primaryTrainerResult] = await Promise.all([
-                    supabase.from('course_trainers').select('course_id').eq('trainer_id', trainerRecord.id),
-                    supabase.from('courses').select('id').eq('trainer_id', trainerRecord.id),
-                ]);
-
-                if (trainerCourseResult.error) throw trainerCourseResult.error;
-                if (primaryTrainerResult.error) throw primaryTrainerResult.error;
-
-                const trainerCourseData = trainerCourseResult.data;
-                trainerCourseIds = (trainerCourseData as Pick<CourseTrainerRow, 'course_id'>[] | null)?.map(t => t.course_id) || [];
-                const primaryIds = primaryTrainerResult.data?.map(course => course.id) || [];
-                trainerCourseIds = Array.from(new Set([...trainerCourseIds, ...primaryIds]));
-            }
-
-            const organizerIds = organizerData?.map(o => o.course_id) || [];
-            const marketerIds = marketerData?.map(m => m.course_id) || [];
-            const orgIdsSet = new Set([...organizerIds, ...trainerCourseIds]);
-            const mktIdsSet = new Set(marketerIds);
-            setOrganizerCourseIds(orgIdsSet); // trainers can manage lectures
-            setMarketerCourseIds(mktIdsSet);
-            const allCourseIds = Array.from(new Set([...organizerIds, ...marketerIds, ...trainerCourseIds]));
-
-            if (allCourseIds.length === 0) {
-                setCourses([]);
-                
-                const cacheKey = `rtc_my_courses_data_${user.id}`;
-                setLocalCache(cacheKey, {
-                    courses: [],
-                    organizerCourseIds: [],
-                    marketerCourseIds: []
-                }, CACHE_TTL.short);
-
-                setLoading(false);
-                return;
-            }
-
-            const { data, error } = await supabase
-                .from('courses')
-                .select(MY_COURSE_COLUMNS)
-                .in('id', allCourseIds)
-                .order('start_date', { ascending: false });
-
-            if (error) throw error;
-            const coursesData = data || [];
+            const overview = await getMyCourseOverview(user.id);
+            const coursesData = overview.courses as Course[];
             setCourses(coursesData);
-
-            const cacheKey = `rtc_my_courses_data_${user.id}`;
-            setLocalCache(cacheKey, {
+            setOrganizerCourseIds(new Set(overview.organizerCourseIds));
+            setMarketerCourseIds(new Set(overview.marketerCourseIds));
+            setLocalCache("rtc_my_courses_data_" + user.id, {
                 courses: coursesData,
-                organizerCourseIds: Array.from(orgIdsSet),
-                marketerCourseIds: Array.from(mktIdsSet)
+                organizerCourseIds: overview.organizerCourseIds,
+                marketerCourseIds: overview.marketerCourseIds,
             }, CACHE_TTL.short);
         } catch (error) {
-            console.error('Error fetching courses:', error);
-            toast.error(isRTL ? 'فشل في تحميل الكورسات' : 'Failed to fetch courses');
+            console.error("Error fetching courses:", error);
+            toast.error(isRTL ? "فشل في تحميل الكورسات" : "Failed to fetch courses");
         } finally {
             setLoading(false);
         }

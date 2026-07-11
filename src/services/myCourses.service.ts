@@ -1,5 +1,44 @@
 import { supabase } from '@/integrations/supabase/client';
 
+const MY_COURSE_COLUMNS = 'id, name, trainer_id, trainer_name, trainer_phone, room, schedule_days, schedule_time, schedule_end_time, has_interview, interview_date, total_lectures, start_date, end_date, committee_id, course_lectures(status)';
+
+export async function getMyCourseOverview(userId: string) {
+  const [organizers, marketers, trainerResult] = await Promise.all([
+    supabase.from('course_organizers').select('course_id').eq('volunteer_id', userId),
+    supabase.from('course_marketers').select('course_id').eq('volunteer_id', userId),
+    supabase.from('trainers').select('id').eq('user_id', userId).maybeSingle(),
+  ]);
+  if (organizers.error) throw organizers.error;
+  if (marketers.error) throw marketers.error;
+  if (trainerResult.error) throw trainerResult.error;
+
+  let trainerCourseIds: string[] = [];
+  if (trainerResult.data?.id) {
+    const [assigned, primary] = await Promise.all([
+      supabase.from('course_trainers').select('course_id').eq('trainer_id', trainerResult.data.id),
+      supabase.from('courses').select('id').eq('trainer_id', trainerResult.data.id),
+    ]);
+    if (assigned.error) throw assigned.error;
+    if (primary.error) throw primary.error;
+    trainerCourseIds = [...new Set([...(assigned.data ?? []).map(({ course_id }) => course_id), ...(primary.data ?? []).map(({ id }) => id)])];
+  }
+
+  const organizerCourseIds = [...new Set([...(organizers.data ?? []).map(({ course_id }) => course_id), ...trainerCourseIds])];
+  const marketerCourseIds = [...new Set((marketers.data ?? []).map(({ course_id }) => course_id))];
+  const courseIds = [...new Set([...organizerCourseIds, ...marketerCourseIds])];
+  if (courseIds.length === 0) return { courses: [], organizerCourseIds, marketerCourseIds };
+
+  const { data, error } = await supabase.from('courses').select(MY_COURSE_COLUMNS).in('id', courseIds).order('start_date', { ascending: false });
+  if (error) throw error;
+  return { courses: data ?? [], organizerCourseIds, marketerCourseIds };
+}
+
+export async function getCourseRooms() {
+  const { data, error } = await supabase.from('rooms').select('id, name, name_ar');
+  if (error) throw error;
+  return data ?? [];
+}
+
 export type CourseAdMutation = {
   ad_date?: string;
   poster_url?: string | null;
