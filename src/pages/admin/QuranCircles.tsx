@@ -63,6 +63,7 @@ import { CircleAttendanceDialog } from '@/components/quran/CircleAttendanceDialo
 import { CircleEnrollmentDialog } from '@/components/quran/CircleEnrollmentDialog';
 import { CircleMarketingDialog } from '@/components/quran/CircleMarketingDialog';
 import { CircleFormDialog } from '@/components/quran/CircleFormDialog';
+import { CircleSessionDialog } from '@/components/quran/CircleSessionDialog';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -168,6 +169,7 @@ export default function QuranCircles() {
     const [isEditMode, setIsEditMode] = useState(false);
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [organizerPopoverOpen, setOrganizerPopoverOpen] = useState(false);
 
     // Details dialog
     const [selectedCircle, setSelectedCircle] = useState<QuranCircle | null>(null);
@@ -187,7 +189,6 @@ export default function QuranCircles() {
     // Session creation
     const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
     const [sessionDate, setSessionDate] = useState(new Date().toISOString().split('T')[0]);
-    const [isSessionCalendarOpen, setIsSessionCalendarOpen] = useState(false);
     const [sessionNotes, setSessionNotes] = useState('');
     const [sessionOrganizerId, setSessionOrganizerId] = useState<string>('none');
     const [circleOrganizersForSession, setCircleOrganizersForSession] = useState<Organizer[]>([]);
@@ -1985,111 +1986,26 @@ export default function QuranCircles() {
                 </DialogContent>
             </Dialog >
 
-            {/* New Session Dialog */}
-            <Dialog open={isSessionDialogOpen} onOpenChange={(open) => {
-                setIsSessionDialogOpen(open);
-                if (open) {
-                    // Use local date string YYYY-MM-DD
+            <CircleSessionDialog
+                open={isSessionDialogOpen}
+                date={sessionDate}
+                notes={sessionNotes}
+                organizerId={sessionOrganizerId}
+                organizers={circleOrganizersForSession}
+                isRTL={isRTL}
+                onOpenChange={(open) => {
+                    setIsSessionDialogOpen(open);
+                    if (!open) return;
                     const localDate = new Date();
-                    const localDateString = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-                    setSessionDate(localDateString);
+                    setSessionDate(new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0]);
                     setSessionNotes('');
-                    // Auto-select if only one organizer
-                    if (circleOrganizersForSession.length === 1 && circleOrganizersForSession[0].volunteer_id) {
-                        setSessionOrganizerId(circleOrganizersForSession[0].volunteer_id);
-                    } else {
-                        setSessionOrganizerId('none');
-                    }
-                }
-            }}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>{isRTL ? 'جلسة جديدة' : 'New Session'}</DialogTitle>
-                        <DialogDescription>
-                            {isRTL ? 'إنشاء جلسة جديدة للحلقة' : 'Create a new session for this circle'}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                        <div className="space-y-2 flex flex-col">
-                            <label className="text-sm font-medium">{isRTL ? 'التاريخ' : 'Date'}</label>
-                            <Popover open={isSessionCalendarOpen} onOpenChange={setIsSessionCalendarOpen}>
-                                <PopoverTrigger asChild>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        className="w-full justify-between text-start font-normal h-10 border hover:border-primary/50 transition-colors bg-background px-3"
-                                    >
-                                        <span>
-                                            {sessionDate ? (
-                                                format(getLocalDateObj(sessionDate)!, 'yyyy/MM/dd')
-                                            ) : (
-                                                <span className="text-muted-foreground">{isRTL ? 'اختر التاريخ' : 'Pick a date'}</span>
-                                            )}
-                                        </span>
-                                        <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                    <CalendarComponent
-                                        mode="single"
-                                        selected={getLocalDateObj(sessionDate)}
-                                        onSelect={(date) => {
-                                            if (date) {
-                                                setSessionDate(format(date, 'yyyy-MM-dd'));
-                                                setIsSessionCalendarOpen(false);
-                                            }
-                                        }}
-                                        disabled={(date) => {
-                                            const today = new Date();
-                                            today.setHours(23, 59, 59, 999);
-                                            return date > today;
-                                        }}
-                                        initialFocus
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-                        {/* Organizer (Supervisor) Selection */}
-                        {circleOrganizersForSession.length > 0 && (
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium flex items-center gap-1">
-                                    <User className="h-4 w-4" />
-                                    {isRTL ? 'المحفظ القائم على الجلسة' : 'Session Supervisor'}
-                                </label>
-                                <Select value={sessionOrganizerId} onValueChange={setSessionOrganizerId}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder={isRTL ? 'اختر المحفظ...' : 'Select supervisor...'} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">{isRTL ? 'غير محدد' : 'Not specified'}</SelectItem>
-                                        {circleOrganizersForSession.map((org, idx) => (
-                                            <SelectItem key={org.volunteer_id || idx} value={org.volunteer_id || `idx-${idx}`}>
-                                                {org.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">{isRTL ? 'ملاحظات' : 'Notes'}</label>
-                            <Textarea
-                                value={sessionNotes}
-                                onChange={e => setSessionNotes(e.target.value)}
-                                placeholder={isRTL ? 'ملاحظات اختيارية...' : 'Optional notes...'}
-                            />
-                        </div>
-                    </div>
-                    <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setIsSessionDialogOpen(false)}>
-                            {isRTL ? 'إلغاء' : 'Cancel'}
-                        </Button>
-                        <Button onClick={handleCreateSession}>
-                            {isRTL ? 'إنشاء وتسجيل الحضور' : 'Create & Record Attendance'}
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog >
+                    setSessionOrganizerId(circleOrganizersForSession.length === 1 && circleOrganizersForSession[0].volunteer_id ? circleOrganizersForSession[0].volunteer_id : 'none');
+                }}
+                onDateChange={setSessionDate}
+                onNotesChange={setSessionNotes}
+                onOrganizerChange={setSessionOrganizerId}
+                onCreate={handleCreateSession}
+            />
 
             <CircleAttendanceDialog
                 open={isAttendanceDialogOpen}
