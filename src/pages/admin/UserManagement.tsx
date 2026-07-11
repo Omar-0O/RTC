@@ -90,6 +90,7 @@ import { Slider } from '@/components/ui/slider';
 import { getCroppedImg } from '@/utils/imageCrop';
 import { UserFeaturesDialog } from '@/components/admin/UserFeaturesDialog';
 import { UserCardsGrid } from '@/components/admin/UserCardsGrid';
+import { UserFilters } from '@/components/admin/UserFilters';
 
 type CsvRow = SpreadsheetRow;
 
@@ -1303,49 +1304,16 @@ export default function UserManagement() {
         </DialogContent>
       </Dialog >
 
-      {/* Filters */}
-      < Card >
-        <CardHeader>
-          <CardTitle>{t('users.filters')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <div className="relative flex-1">
-              <Search className="absolute top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground ltr:left-3 rtl:right-3" />
-              <Input
-                placeholder={t('users.searchPlaceholder')}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="ltr:pl-9 rtl:pr-9"
-              />
-            </div>
-            <Select value={levelFilter} onValueChange={setLevelFilter}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder={language === 'ar' ? 'حسب الدرجة التطوعية' : 'Filter by Level'} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{language === 'ar' ? 'كل الدرجات' : 'All Levels'}</SelectItem>
-                <SelectItem value="under_follow_up">{t('level.under_follow_up')}</SelectItem>
-                <SelectItem value="project_responsible">{t('level.project_responsible')}</SelectItem>
-                <SelectItem value="responsible">{t('level.responsible')}</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={committeeFilter} onValueChange={setCommitteeFilter}>
-              <SelectTrigger className="w-full sm:w-[200px]">
-                <SelectValue placeholder={t('users.filterByCommittee')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t('users.allCommittees')}</SelectItem>
-                {committees.map(committee => (
-                  <SelectItem key={committee.id} value={committee.id}>
-                    {language === 'ar' ? committee.name_ar : committee.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card >
+      <UserFilters
+        isRTL={isRTL}
+        search={searchQuery}
+        level={levelFilter}
+        committeeId={committeeFilter}
+        committees={committees}
+        onSearchChange={setSearchQuery}
+        onLevelChange={setLevelFilter}
+        onCommitteeChange={setCommitteeFilter}
+      />
 
       {/* Users Table */}
       < Card >
