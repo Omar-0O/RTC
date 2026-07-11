@@ -39,6 +39,7 @@ import {
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 import { getCourseDetails } from '@/services/courseDetails.service';
 import { createCourseTrainerParticipation } from '@/services/courseParticipation.service';
+import { createCourseAd, deleteCourseAd, updateCourseAd } from '@/services/myCourses.service';
 
 type RoomRow = Database['public']['Tables']['rooms']['Row'];
 type CourseTrainerRow = Database['public']['Tables']['course_trainers']['Row'];
@@ -302,69 +303,37 @@ export default function MyCourses() {
 
     const handleAddAd = async () => {
         if (!selectedCourse) return;
-
         try {
-            const nextAdNumber = (courseAds.length > 0 ? Math.max(...courseAds.map(a => a.ad_number)) : 0) + 1;
-            const newAdData = {
-                course_id: selectedCourse.id,
-                ad_number: nextAdNumber,
-                ad_date: format(new Date(), 'yyyy-MM-dd'),
-                created_by: user?.id,
-                poster_done: false,
-                content_done: false
-            };
-
-            const newAdPayload: CourseAdInsert = newAdData;
-            const { data, error } = await supabase
-                .from('course_ads')
-                .insert(newAdPayload)
-                .select()
-                .single();
-
-            if (error) throw error;
-
-            setCourseAds([...courseAds, data as CourseAd]);
-            toast.success(isRTL ? 'تم إضافة إعلان جديد' : 'New ad added successfully');
+            const nextAdNumber = (courseAds.length ? Math.max(...courseAds.map((ad) => ad.ad_number)) : 0) + 1;
+            const ad = await createCourseAd(selectedCourse.id, nextAdNumber, user?.id);
+            setCourseAds((previous) => [...previous, ad as CourseAd]);
+            toast.success(isRTL ? "تم إضافة إعلان جديد" : "New ad added successfully");
         } catch (error) {
-            console.error('Error adding ad:', error);
-            toast.error(isRTL ? 'حدث خطأ أثناء إضافة الإعلان' : 'Error adding ad');
+            console.error("Error adding ad:", error);
+            toast.error(isRTL ? "حدث خطأ أثناء إضافة الإعلان" : "Error adding ad");
         }
     };
 
     const handleUpdateAd = async (adId: string, updates: Partial<CourseAd>) => {
         try {
-            const adUpdates: CourseAdUpdate = { ...updates, updated_by: user?.id, updated_at: new Date().toISOString() };
-            const { error } = await supabase
-                .from('course_ads')
-                .update(adUpdates)
-                .eq('id', adId);
-
-            if (error) throw error;
-
-            setCourseAds(courseAds.map(ad => ad.id === adId ? { ...ad, ...updates } : ad));
-            toast.success(isRTL ? 'تم تحديث الإعلان' : 'Ad updated successfully');
+            await updateCourseAd(adId, updates, user?.id);
+            setCourseAds((previous) => previous.map((ad) => ad.id === adId ? { ...ad, ...updates } : ad));
+            toast.success(isRTL ? "تم تحديث الإعلان" : "Ad updated successfully");
         } catch (error) {
-            console.error('Error updating ad:', error);
-            toast.error(isRTL ? 'حدث خطأ أثناء تحديث الإعلان' : 'Error updating ad');
+            console.error("Error updating ad:", error);
+            toast.error(isRTL ? "حدث خطأ أثناء تحديث الإعلان" : "Error updating ad");
         }
     };
 
     const handleDeleteAd = async (adId: string) => {
-        if (!confirm(isRTL ? 'هل أنت متأكد من حذف هذا الإعلان؟' : 'Are you sure you want to delete this ad?')) return;
-
+        if (!confirm(isRTL ? "هل أنت متأكد من حذف هذا الإعلان؟" : "Are you sure you want to delete this ad?")) return;
         try {
-            const { error } = await supabase
-                .from('course_ads')
-                .delete()
-                .eq('id', adId);
-
-            if (error) throw error;
-
-            setCourseAds(courseAds.filter(ad => ad.id !== adId));
-            toast.success(isRTL ? 'تم حذف الإعلان' : 'Ad deleted successfully');
+            await deleteCourseAd(adId);
+            setCourseAds((previous) => previous.filter((ad) => ad.id !== adId));
+            toast.success(isRTL ? "تم حذف الإعلان" : "Ad deleted successfully");
         } catch (error) {
-            console.error('Error deleting ad:', error);
-            toast.error(isRTL ? 'حدث خطأ أثناء حذف الإعلان' : 'Error deleting ad');
+            console.error("Error deleting ad:", error);
+            toast.error(isRTL ? "حدث خطأ أثناء حذف الإعلان" : "Error deleting ad");
         }
     };
 
