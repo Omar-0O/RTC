@@ -736,6 +736,7 @@ export default function BadgeManagement() {
         <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{isRTL ? 'تعديل الشارة' : 'Edit Badge'}</DialogTitle>
+            <DialogDescription>{isRTL ? 'حدّث بيانات الشارة وشروط الحصول عليها' : 'Update badge details and award criteria'}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEditBadge}>
             <div className="grid gap-4 py-4">

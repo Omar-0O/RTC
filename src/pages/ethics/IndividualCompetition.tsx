@@ -884,6 +884,7 @@ export default function IndividualCompetition() {
                             <History className="h-5 w-5" />
                             {isRTL ? `سجل مشاركات ${selectedParticipant?.name}` : `${selectedParticipant?.name}'s Entry History`}
                         </DialogTitle>
+                        <DialogDescription>{isRTL ? 'عرض جميع مشاركات المتسابق' : 'View all participant entries'}</DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-3 py-4">

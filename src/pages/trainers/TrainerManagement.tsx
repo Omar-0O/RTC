@@ -1149,6 +1149,7 @@ export default function TrainerManagement(): JSX.Element {
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>{isRTL ? 'تفاصيل المدرب' : 'Trainer Details'}</DialogTitle>
+                        <DialogDescription>{isRTL ? 'عرض ملف المدرب وبياناته' : 'View trainer profile and details'}</DialogDescription>
                     </DialogHeader>
                     {viewTrainer && (
                         <div className="space-y-6">

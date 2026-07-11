@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogTrigger
@@ -383,6 +384,7 @@ export default function QuranManagement() {
                     <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
                             <DialogTitle>{isEditMode ? (isRTL ? 'تعديل مستفيد' : 'Edit Beneficiary') : (isRTL ? 'إضافة مستفيد جديد' : 'Add New Beneficiary')}</DialogTitle>
+                            <DialogDescription>{isRTL ? 'أدخل بيانات مستفيد أهل القرآن' : 'Enter Quran beneficiary details'}</DialogDescription>
                         </DialogHeader>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">

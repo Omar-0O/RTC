@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Loader2, Building } from "lucide-react";
@@ -186,6 +186,7 @@ export default function ManageRooms() {
           <DialogContent className="w-[95vw] max-w-[450px] rounded-xl">
             <DialogHeader>
               <DialogTitle>{editingRoom ? (isRTL ? "تعديل القاعة" : "Edit Room") : (isRTL ? "إضافة قاعة جديدة" : "Add New Room")}</DialogTitle>
+              <DialogDescription>{isRTL ? "أدخل بيانات القاعة والفرع التابع لها" : "Enter room details and its branch"}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               {editingRoom && (

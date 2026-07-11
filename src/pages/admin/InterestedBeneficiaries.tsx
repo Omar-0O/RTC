@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -630,6 +630,7 @@ export default function InterestedBeneficiaries() {
                 <DialogContent dir={isRTL ? 'rtl' : 'ltr'}>
                     <DialogHeader>
                         <DialogTitle>{isRTL ? 'إضافة مستفيد يدوياً' : 'Add Beneficiary Manually'}</DialogTitle>
+                        <DialogDescription>{isRTL ? 'أدخل بيانات المستفيد واللجنة المستهدفة' : 'Enter beneficiary details and target committee'}</DialogDescription>
                     </DialogHeader>
                     <p className="text-sm text-muted-foreground -mt-2">
                         {activeCommittee === 'production'

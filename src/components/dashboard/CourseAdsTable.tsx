@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Megaphone, CheckCircle2, Circle, ChevronRight, ChevronLeft, Calendar, FileText, ImageIcon } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths, parseISO, differenceInCalendarDays } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
@@ -468,6 +468,7 @@ export function CourseAdsTable({ ads: propAds, title }: CourseAdsTableProps) {
                             <Megaphone className="h-5 w-5 text-primary" />
                             {selectedAd?.course.name}
                         </DialogTitle>
+                        <DialogDescription>{isRTL ? 'تفاصيل إعلان الكورس وحالة تنفيذه' : 'Course ad details and completion status'}</DialogDescription>
                     </DialogHeader>
 
                     {selectedAd && (

@@ -1327,6 +1327,7 @@ export default function QuranCircles() {
                                         ? (isRTL ? 'تعديل الحلقة' : 'Edit Circle')
                                         : (isRTL ? 'إضافة حلقة جديدة' : 'Add New Circle')}
                                 </DialogTitle>
+                                <DialogDescription>{isRTL ? 'أدخل بيانات الحلقة ومواعيدها' : 'Enter circle details and schedule'}</DialogDescription>
                             </DialogHeader>
 
                             <div className="space-y-6 py-4">
@@ -2684,6 +2685,7 @@ export default function QuranCircles() {
                             <UserPlus className="h-5 w-5" />
                             {isRTL ? 'إدارة المسجلين في الحلقة' : 'Manage Circle Enrollments'}
                         </DialogTitle>
+                        <DialogDescription>{isRTL ? 'إضافة المستفيدين أو إزالة تسجيلهم من الحلقة' : 'Add or remove circle beneficiary enrollments'}</DialogDescription>
                         {enrollmentCircle && (
                             <p className="text-sm text-muted-foreground">
                                 {getCircleName(enrollmentCircle)}
@@ -3128,6 +3130,7 @@ export default function QuranCircles() {
                             <History className="h-5 w-5 text-primary" />
                             <span>{isRTL ? 'سجل حضور الطالب' : 'Student Attendance History'}</span>
                         </DialogTitle>
+                        <DialogDescription>{isRTL ? 'عرض سجل حضور الطالب في الحلقة' : 'View the student attendance history for this circle'}</DialogDescription>
                         <p className="text-sm text-muted-foreground mt-1">
                             {historyStudent?.name_ar}
                         </p>

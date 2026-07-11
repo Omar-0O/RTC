@@ -4,7 +4,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Calendar, Clock, MapPin, User, Users, Phone, FileSpreadsheet, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
@@ -637,6 +637,9 @@ export default function CourseSchedule() {
                         <DialogTitle className="text-center w-full text-xl font-bold">
                             {selectedCourse ? selectedCourse.name : (selectedCircle?.teacher_name ? (isRTL ? 'حلقة المحفظ ' + selectedCircle.teacher_name : selectedCircle.teacher_name + "'s Circle") : (isRTL ? 'حلقة قرآن' : 'Quran Circle'))}
                         </DialogTitle>
+                        <DialogDescription className="sr-only">
+                            {isRTL ? 'تفاصيل الموعد والبرنامج' : 'Schedule and program details'}
+                        </DialogDescription>
                     </DialogHeader>
 
                     {selectedCourse ? (

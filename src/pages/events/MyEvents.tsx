@@ -381,6 +381,7 @@ export default function MyEvents() {
                 <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>{isRTL ? 'المتحدثون' : 'Speakers'} - {selectedEvent?.name}</DialogTitle>
+                        <DialogDescription>{isRTL ? 'قائمة متحدثي الفعالية وبيانات التواصل' : 'Event speakers and contact details'}</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3">
                         {eventSpeakers.length > 0 ? eventSpeakers.map((speaker) => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -70,6 +70,9 @@ export function SurahEditModal({
                             <span className="text-sm text-muted-foreground block">{surah.name_en} • {surah.ayah_count} {isRTL ? 'آية' : 'Ayahs'}</span>
                         </div>
                     </DialogTitle>
+                    <DialogDescription>
+                        {isRTL ? 'تحديث حالة حفظ السورة وتفاصيل التقدم' : 'Update surah memorization status and progress details'}
+                    </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">

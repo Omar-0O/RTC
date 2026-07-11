@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -164,6 +165,7 @@ export default function FineManagement() {
                                     ? (isRTL ? 'تعديل الغرامة' : 'Edit Fine')
                                     : (isRTL ? 'إضافة غرامة جديدة' : 'Add New Fine')}
                             </DialogTitle>
+                            <DialogDescription>{isRTL ? 'أدخل اسم الغرامة وقيمتها' : 'Enter the fine name and amount'}</DialogDescription>
                         </DialogHeader>
                         <form onSubmit={handleSubmit} className="space-y-4 py-4">
                             <div className="grid grid-cols-2 gap-4">

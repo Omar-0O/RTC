@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -79,9 +80,9 @@ export function ConflictDialog({ conflict, onResolve, onDismiss, fieldLabels = {
             <AlertTriangle className="h-5 w-5" />
             تعارض في البيانات
           </DialogTitle>
-          <p className="text-sm text-muted-foreground">
+          <DialogDescription>
             شخص تاني عدّل نفس السجل. اختار النسخة اللي عايزها لكل حقل.
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         {/* Quick actions */}
