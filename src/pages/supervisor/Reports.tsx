@@ -177,14 +177,32 @@ export default function Reports() {
       const userRolesData = userRolesRes.data || [];
 
       if (profilesData) {
+        const submissionCounts = new Map<string, number>();
+        for (const submission of submissionsData) {
+          if (submission.volunteer_id) {
+            submissionCounts.set(
+              submission.volunteer_id,
+              (submissionCounts.get(submission.volunteer_id) || 0) + 1,
+            );
+          }
+        }
+
+        const rolesByUserId = new Map<string, string[]>();
+        for (const userRole of userRolesData) {
+          if (userRole.user_id) {
+            const roles = rolesByUserId.get(userRole.user_id) || [];
+            roles.push(userRole.role);
+            rolesByUserId.set(userRole.user_id, roles);
+          }
+        }
+
         const enrichedProfiles: Profile[] = profilesData.map(profile => {
-          const userRoles = userRolesData.filter(r => r.user_id === profile.id).map(r => r.role);
           return {
             ...profile,
             total_points: profile.total_points ?? 0,
             level: profile.level ?? 'under_follow_up',
-            activities_count: submissionsData.filter(s => s.volunteer_id === profile.id).length,
-            roles: userRoles
+            activities_count: submissionCounts.get(profile.id) || 0,
+            roles: rolesByUserId.get(profile.id) || [],
           };
         });
         setProfiles(enrichedProfiles);
