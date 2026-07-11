@@ -39,7 +39,17 @@ import {
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 import { getCourseDetails } from '@/services/courseDetails.service';
 import { createCourseTrainerParticipation } from '@/services/courseParticipation.service';
-import { createCourseAd, deleteCourseAd, updateCourseAd } from '@/services/myCourses.service';
+import {
+    addCourseBeneficiary,
+    createCourseAd,
+    deleteCourseAd,
+    deleteCourseBeneficiary,
+    leaveCourseRole,
+    toggleCourseAttendance,
+    updateCourseAd,
+    updateCourseBeneficiary,
+    updateCourseLectureStatus,
+} from '@/services/myCourses.service';
 
 type RoomRow = Database['public']['Tables']['rooms']['Row'];
 type CourseTrainerRow = Database['public']['Tables']['course_trainers']['Row'];
@@ -345,15 +355,8 @@ export default function MyCourses() {
 
     const confirmLeaveCourse = async () => {
         if (!user || !leaveCourseId || !leaveType) return;
-        const table = leaveType === 'organizer' ? 'course_organizers' : 'course_marketers';
-        
         try {
-            const { error } = await supabase
-                .from(table)
-                .delete()
-                .match({ course_id: leaveCourseId, volunteer_id: user.id });
-
-            if (error) throw error;
+            await leaveCourseRole(leaveCourseId, user.id, leaveType);
             toast.success(isRTL ? 'تمت الإزالة بنجاح' : 'Removed successfully');
             setIsLeaveConfirmOpen(false);
             setLeaveCourseId(null);
@@ -397,12 +400,10 @@ export default function MyCourses() {
     };
 
     const updateLectureStatus = async (lectureId: string, status: 'scheduled' | 'completed' | 'cancelled') => {
-        const { error } = await supabase
-            .from('course_lectures')
-            .update({ status })
-            .eq('id', lectureId);
-
-        if (error) {
+        try {
+            await updateCourseLectureStatus(lectureId, status);
+        } catch (error) {
+            console.error('Error updating lecture status:', error);
             toast.error(isRTL ? 'فشل تحديث الحالة' : 'Failed to update status');
             return;
         }
@@ -474,38 +475,22 @@ export default function MyCourses() {
         const existingAttendance = attendanceData[lectureId]?.find(a => a.student_phone === beneficiary.phone);
 
         try {
+            const attendance = await toggleCourseAttendance({
+                lectureId,
+                existingAttendanceId: existingAttendance?.id,
+                beneficiary,
+                userId: user?.id,
+            });
+
             if (existingAttendance) {
-                // Remove attendance
-                const { error } = await supabase
-                    .from('course_attendance')
-                    .delete()
-                    .eq('id', existingAttendance.id);
-
-                if (error) throw error;
-
                 setAttendanceData(prev => ({
                     ...prev,
                     [lectureId]: (prev[lectureId] || []).filter(a => a.id !== existingAttendance.id)
                 }));
             } else {
-                // Add attendance
-                const { data, error } = await supabase
-                    .from('course_attendance')
-                    .insert({
-                        lecture_id: lectureId,
-                        student_name: beneficiary.name,
-                        student_phone: beneficiary.phone,
-                        status: 'present',
-                        created_by: user?.id
-                    })
-                    .select()
-                    .single();
-
-                if (error) throw error;
-
                 setAttendanceData(prev => ({
                     ...prev,
-                    [lectureId]: [...(prev[lectureId] || []), data as Attendance]
+                    [lectureId]: [...(prev[lectureId] || []), attendance as Attendance]
                 }));
             }
         } catch (error) {
@@ -536,61 +521,30 @@ export default function MyCourses() {
     // Beneficiary CRUD
     const addBeneficiary = async () => {
         if (!selectedCourse || !newBeneficiary.name || !newBeneficiary.phone) {
-            toast.error(isRTL ? 'يرجى إدخال الاسم والرقم' : 'Please enter name and phone');
+            toast.error(isRTL ? "يرجى إدخال الاسم والرقم" : "Please enter name and phone");
             return;
         }
-
         try {
-            const { data, error } = await supabase
-                .from('course_beneficiaries')
-                .insert({
-                    course_id: selectedCourse.id,
-                    name: newBeneficiary.name,
-                    phone: newBeneficiary.phone,
-                    national_id: newBeneficiary.national_id || null,
-                    created_by: user?.id
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-
-            setBeneficiaries([...beneficiaries, data]);
-            setNewBeneficiary({ name: '', phone: '', national_id: '' });
-            toast.success(isRTL ? 'تم إضافة المستفيد' : 'Beneficiary added');
+            const beneficiary = await addCourseBeneficiary(selectedCourse.id, user?.id, newBeneficiary);
+            setBeneficiaries((previous) => [...previous, beneficiary as CourseBeneficiary]);
+            setNewBeneficiary({ name: "", phone: "", national_id: "" });
+            toast.success(isRTL ? "تم إضافة المستفيد" : "Beneficiary added");
         } catch (error: unknown) {
-            console.error('Error adding beneficiary:', error);
-            if (getErrorCode(error) === '23505') {
-                toast.error(isRTL ? 'هذا الرقم مسجل بالفعل' : 'This phone is already registered');
-            } else {
-                toast.error(isRTL ? 'فشل إضافة المستفيد' : 'Failed to add beneficiary');
-            }
+            console.error("Error adding beneficiary:", error);
+            toast.error(getErrorCode(error) === "23505" ? (isRTL ? "هذا الرقم مسجل بالفعل" : "This phone is already registered") : (isRTL ? "فشل إضافة المستفيد" : "Failed to add beneficiary"));
         }
     };
 
     const updateBeneficiary = async () => {
         if (!editingBeneficiary) return;
-
         try {
-            const { error } = await supabase
-                .from('course_beneficiaries')
-                .update({
-                    name: editingBeneficiary.name,
-                    phone: editingBeneficiary.phone,
-                    national_id: editingBeneficiary.national_id || null
-                })
-                .eq('id', editingBeneficiary.id);
-
-            if (error) throw error;
-
-            setBeneficiaries(beneficiaries.map(b =>
-                b.id === editingBeneficiary.id ? editingBeneficiary : b
-            ));
+            await updateCourseBeneficiary(editingBeneficiary);
+            setBeneficiaries((previous) => previous.map((beneficiary) => beneficiary.id === editingBeneficiary.id ? editingBeneficiary : beneficiary));
             setEditingBeneficiary(null);
-            toast.success(isRTL ? 'تم تحديث البيانات' : 'Beneficiary updated');
+            toast.success(isRTL ? "تم تحديث البيانات" : "Beneficiary updated");
         } catch (error) {
-            console.error('Error updating beneficiary:', error);
-            toast.error(isRTL ? 'فشل التحديث' : 'Failed to update');
+            console.error("Error updating beneficiary:", error);
+            toast.error(isRTL ? "فشل التحديث" : "Failed to update");
         }
     };
 
@@ -616,18 +570,12 @@ export default function MyCourses() {
     const deleteBeneficiary = async () => {
         if (!beneficiaryToDelete) return;
         try {
-            const { error } = await supabase
-                .from('course_beneficiaries')
-                .delete()
-                .eq('id', beneficiaryToDelete.id);
-
-            if (error) throw error;
-
-            setBeneficiaries(beneficiaries.filter(b => b.id !== beneficiaryToDelete.id));
-            toast.success(isRTL ? 'تم حذف المستفيد' : 'Beneficiary deleted');
+            await deleteCourseBeneficiary(beneficiaryToDelete.id);
+            setBeneficiaries((previous) => previous.filter((beneficiary) => beneficiary.id !== beneficiaryToDelete.id));
+            toast.success(isRTL ? "تم حذف المستفيد" : "Beneficiary deleted");
         } catch (error) {
-            console.error('Error deleting beneficiary:', error);
-            toast.error(isRTL ? 'فشل الحذف' : 'Failed to delete');
+            console.error("Error deleting beneficiary:", error);
+            toast.error(isRTL ? "فشل الحذف" : "Failed to delete");
         } finally {
             setBeneficiaryToDelete(null);
             setIsDeleteConfirmOpen(false);
