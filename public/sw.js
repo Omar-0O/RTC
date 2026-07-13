@@ -204,7 +204,7 @@ async function trimCache(cacheName, maxEntries) {
 
 self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {};
-  const title = data.title || 'RTC Mohandseen';
+  const title = data.title || 'RTC';
   const options = {
     body: data.body || 'New update available!',
     icon: '/favicon-192.png',
