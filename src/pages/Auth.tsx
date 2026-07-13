@@ -98,10 +98,10 @@ export default function Auth() {
         <div className="text-center">
           <img
             src={logo}
-            alt="RTC Mohandseen Logo"
+            alt="RTC Logo"
             className="h-48 w-auto mx-auto mb-1 object-contain"
           />
-          <h1 className="text-lg font-bold">RTC Mohandseen</h1>
+          <h1 className="text-lg font-bold">RTC</h1>
           <p className="text-muted-foreground">{t('volunteerPortal')}</p>
         </div>
 
