@@ -290,7 +290,7 @@ export default function AdminDashboard() {
     if (permission === 'granted') {
       new Notification('Notifications Enabled', {
         body: 'You will now receive updates!',
-        icon: '/favicon.png'
+        icon: '/favicon-192.png'
       });
     }
   };
@@ -300,7 +300,7 @@ export default function AdminDashboard() {
       navigator.serviceWorker.ready.then((registration) => {
         registration.showNotification('Test Notification', {
           body: 'This is a test notification from the Admin Dashboard',
-          icon: '/favicon.png',
+          icon: '/favicon-192.png',
           data: '/admin'
         });
       });

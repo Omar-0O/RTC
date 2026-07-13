@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { validateCourseBeneficiary } from '@/utils/courseBeneficiaryValidation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -435,8 +436,15 @@ export default function MyCourses() {
 
     // Beneficiary CRUD
     const addBeneficiary = async () => {
-        if (!selectedCourse || !newBeneficiary.name || !newBeneficiary.phone) {
-            toast.error(isRTL ? "يرجى إدخال الاسم والرقم" : "Please enter name and phone");
+        if (!selectedCourse) return;
+        const validationError = validateCourseBeneficiary(
+            newBeneficiary.name,
+            newBeneficiary.phone,
+            newBeneficiary.national_id,
+            isRTL ? 'ar' : 'en',
+        );
+        if (validationError) {
+            toast.error(validationError);
             return;
         }
         try {
@@ -452,10 +460,21 @@ export default function MyCourses() {
 
     const updateBeneficiary = async () => {
         if (!editingBeneficiary) return;
+        const validationError = validateCourseBeneficiary(
+            editingBeneficiary.name,
+            editingBeneficiary.phone,
+            editingBeneficiary.national_id,
+            isRTL ? 'ar' : 'en',
+        );
+        if (validationError) {
+            toast.error(validationError);
+            return;
+        }
         try {
             await updateCourseBeneficiary(editingBeneficiary);
             setBeneficiaries((previous) => previous.map((beneficiary) => beneficiary.id === editingBeneficiary.id ? editingBeneficiary : beneficiary));
             setEditingBeneficiary(null);
+            setIsEditStudentDialogOpen(false);
             toast.success(isRTL ? "تم تحديث البيانات" : "Beneficiary updated");
         } catch (error) {
             console.error("Error updating beneficiary:", error);

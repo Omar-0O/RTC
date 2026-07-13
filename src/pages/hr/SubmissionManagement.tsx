@@ -403,7 +403,7 @@ export default function SubmissionManagement() {
             .sort((a, b) => b.submission_count - a.submission_count);
     }, [allSubmissions, volunteers]);
 
-    // Volunteers with low participation (< 4 submissions)
+    // Target is 4 submissions for follow-up levels and 8 for project leaders.
     const lowParticipationVolunteers = useMemo(() => {
         return volunteerSummaries.filter(summary => {
             // Respect active filters
@@ -415,7 +415,16 @@ export default function SubmissionManagement() {
                 return false;
             }
 
-            return summary.submission_count < 4;
+            const level = summary.volunteer.level;
+            const hasLeadershipTarget = [
+                'responsible',
+                'platinum',
+                'diamond',
+                'project_responsible',
+                'gold',
+            ].includes(level);
+
+            return summary.submission_count < (hasLeadershipTarget ? 8 : 4);
         });
     }, [volunteerSummaries, selectedLevel, selectedVolunteer]);
 
@@ -604,7 +613,9 @@ export default function SubmissionManagement() {
                                 <DialogHeader>
                                     <DialogTitle>{isRTL ? 'المتطوعين ذوي المشاركات المنخفضة' : 'Low Participation Volunteers'}</DialogTitle>
                                     <DialogDescription>
-                                        {isRTL ? 'المتطوعين الذين لديهم أقل من 4 مشاركات هذا الشهر' : 'Volunteers with less than 4 submissions this month'}
+                                        {isRTL
+                                            ? 'تحت المتابعة: أقل من 4 مشاركات. مسؤولو المشاريع والمسؤولون: أقل من 8 مشاركات.'
+                                            : 'Under follow-up: fewer than 4 submissions. Project responsibles and responsibles: fewer than 8.'}
                                     </DialogDescription>
                                 </DialogHeader>
                                 <div className="overflow-auto flex-1">

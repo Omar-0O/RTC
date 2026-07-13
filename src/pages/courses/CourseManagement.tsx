@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
+import { validateCourseBeneficiary } from '@/utils/courseBeneficiaryValidation';
 import type { Database, Json } from '@/integrations/supabase/types';
 import { useBranch } from '@/contexts/BranchContext';
 import { Button } from '@/components/ui/button';
@@ -354,7 +355,10 @@ export default function CourseManagement() {
     const statusFilteredCourses = useMemo(() => courses.filter(course => {
         if (showPastCourses) return true;
 
-        const remainingLectures = Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0));
+        const finishedLectures = course.course_lectures?.filter((lecture) =>
+            lecture.status === 'completed' || lecture.status === 'cancelled'
+        ).length || 0;
+        const remainingLectures = Math.max(0, course.total_lectures - finishedLectures);
         const isFinished = remainingLectures === 0;
 
         if (isFinished) return false;
@@ -426,13 +430,13 @@ export default function CourseManagement() {
             return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
         }
         if (sortBy === 'lectures-desc') {
-            const remA = Math.max(0, a.total_lectures - (a.course_lectures?.filter(l => l.status === 'completed').length || 0));
-            const remB = Math.max(0, b.total_lectures - (b.course_lectures?.filter(l => l.status === 'completed').length || 0));
+            const remA = Math.max(0, a.total_lectures - (a.course_lectures?.filter((lecture) => lecture.status !== 'scheduled').length || 0));
+            const remB = Math.max(0, b.total_lectures - (b.course_lectures?.filter((lecture) => lecture.status !== 'scheduled').length || 0));
             return remB - remA;
         }
         if (sortBy === 'lectures-asc') {
-            const remA = Math.max(0, a.total_lectures - (a.course_lectures?.filter(l => l.status === 'completed').length || 0));
-            const remB = Math.max(0, b.total_lectures - (b.course_lectures?.filter(l => l.status === 'completed').length || 0));
+            const remA = Math.max(0, a.total_lectures - (a.course_lectures?.filter((lecture) => lecture.status !== 'scheduled').length || 0));
+            const remB = Math.max(0, b.total_lectures - (b.course_lectures?.filter((lecture) => lecture.status !== 'scheduled').length || 0));
             return remA - remB;
         }
         return 0;
@@ -1611,8 +1615,15 @@ export default function CourseManagement() {
 
     // Beneficiary Management Functions
     const addBeneficiary = async () => {
-        if (!selectedCourse || !newBeneficiary.name || !newBeneficiary.phone) {
-            toast.error(isRTL ? 'يرجى إدخال الاسم والرقم' : 'Please enter name and phone');
+        if (!selectedCourse) return;
+        const validationError = validateCourseBeneficiary(
+            newBeneficiary.name,
+            newBeneficiary.phone,
+            newBeneficiary.national_id,
+            isRTL ? 'ar' : 'en',
+        );
+        if (validationError) {
+            toast.error(validationError);
             return;
         }
 
@@ -1646,6 +1657,16 @@ export default function CourseManagement() {
 
     const updateBeneficiary = async () => {
         if (!editingBeneficiary) return;
+        const validationError = validateCourseBeneficiary(
+            editingBeneficiary.name,
+            editingBeneficiary.phone,
+            editingBeneficiary.national_id,
+            isRTL ? 'ar' : 'en',
+        );
+        if (validationError) {
+            toast.error(validationError);
+            return;
+        }
 
         try {
             const { data, error } = await supabase
@@ -1665,6 +1686,7 @@ export default function CourseManagement() {
                 beneficiary.id === editingBeneficiary.id ? editingBeneficiary : beneficiary
             ));
             setEditingBeneficiary(null);
+            setIsEditStudentDialogOpen(false);
             toast.success(isRTL ? 'تم تحديث البيانات' : 'Beneficiary updated');
         } catch (error) {
             console.error('Error updating beneficiary:', error);
@@ -2424,7 +2446,7 @@ export default function CourseManagement() {
             {/* Course Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {activeCourses.map(course => {
-                    const remainingLectures = Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0));
+                    const remainingLectures = Math.max(0, course.total_lectures - (course.course_lectures?.filter((lecture) => lecture.status !== 'scheduled').length || 0));
                     const isFinished = remainingLectures === 0;
                     return (
                         <Card
@@ -2547,7 +2569,7 @@ export default function CourseManagement() {
                                         <Clock className="w-4 h-4" />
                                         <span>
                                             {isRTL ? 'متبقي: ' : 'Remaining: '}
-                                            {Math.max(0, course.total_lectures - (course.course_lectures?.filter(l => l.status === 'completed').length || 0))}
+                                            {Math.max(0, course.total_lectures - (course.course_lectures?.filter((lecture) => lecture.status !== 'scheduled').length || 0))}
                                         </span>
                                     </div>
                                 </div>

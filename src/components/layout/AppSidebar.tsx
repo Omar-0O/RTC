@@ -31,7 +31,7 @@ import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
-import logo from '@/assets/logo.png';
+import logo from '@/assets/logo.webp';
 import {
   Sidebar,
   SidebarContent,

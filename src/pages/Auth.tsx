@@ -16,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from 'next-themes';
-import logo from '@/assets/logo.png';
+import logo from '@/assets/logo.webp';
 import { cn } from '@/lib/utils';
 
 export default function Auth() {

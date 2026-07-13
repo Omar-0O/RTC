@@ -18,7 +18,7 @@ import {
   ImageIcon,
   Building2,
 } from 'lucide-react';
-import logo from '@/assets/logo.png';
+import logo from '@/assets/logo.webp';
 
 const YOUTUBE_VIDEO_URL = 'https://www.youtube.com/watch?v=REPLACE_WITH_VIDEO_ID';
 const GITHUB_REPO_URL = 'https://github.com/Omar-0O/RTC';

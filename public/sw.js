@@ -24,7 +24,8 @@ const APP_SHELL = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.png',
+  '/favicon-192.png',
+  '/favicon-512.png',
 ];
 
 // ─── Install: pre-cache app shell & auto-activate ───────────────────
@@ -206,8 +207,8 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'RTC Mohandseen';
   const options = {
     body: data.body || 'New update available!',
-    icon: '/favicon.png',
-    badge: '/favicon.png',
+    icon: '/favicon-192.png',
+    badge: '/favicon-192.png',
     data: data.url || '/',
     requireInteraction: true,
     vibrate: [200, 100, 200],

@@ -44,6 +44,7 @@ const MyEvents = lazy(() => import("./pages/events/MyEvents"));
 const CourseManagement = lazy(() => import("./pages/courses/CourseManagement"));
 const MyCourses = lazy(() => import("./pages/courses/MyCourses"));
 const SubmissionManagement = lazy(() => import("./pages/hr/SubmissionManagement"));
+const HRDashboard = lazy(() => import("./pages/hr/Dashboard"));
 const Birthdays = lazy(() => import("./pages/admin/Birthdays"));
 const TrainerManagement = lazy(() => import("./pages/trainers/TrainerManagement"));
 const IndividualCompetition = lazy(() => import("./pages/ethics/IndividualCompetition"));
@@ -66,6 +67,7 @@ const FollowUpManagement = lazy(() => import("./pages/admin/FollowUpManagement")
 const UnderFollowUp = lazy(() => import("./pages/supervisor/UnderFollowUp"));
 const LogForVolunteer = lazy(() => import("./pages/supervisor/LogForVolunteer"));
 const VolunteerPortal = lazy(() => import("./pages/VolunteerPortal"));
+const Kiosk = lazy(() => import("./pages/Kiosk"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ExecutiveDashboard = lazy(() => import("./pages/executive/Dashboard"));
 const AboutProject = lazy(() => import("./pages/AboutProject"));
@@ -119,6 +121,26 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
   return <>{children}</>;
+}
+
+const KIOSK_ROLES = new Set([
+  'admin',
+  'branch_admin',
+  'executive',
+  'supervisor',
+  'committee_leader',
+  'hr',
+  'head_hr',
+]);
+
+function KioskRoute() {
+  const { isLoading, isAuthenticated, roles } = useAuth();
+
+  if (isLoading) return <PageLoader />;
+  if (!isAuthenticated) return <Navigate to="/auth" replace />;
+  if (!roles.some((role) => KIOSK_ROLES.has(role))) return <Navigate to="/dashboard" replace />;
+
+  return <Kiosk />;
 }
 
 function AppRoutes() {
@@ -228,6 +250,7 @@ function AppRoutes() {
         <Route path="/trainers" element={<TrainerManagement />} />
 
         {/* HR Routes */}
+        <Route path="/hr/dashboard" element={<HRDashboard />} />
         <Route path="/hr/submissions" element={<SubmissionManagement />} />
         <Route path="/birthdays" element={<Birthdays />} />
 
@@ -273,6 +296,7 @@ function AppRoutes() {
 
       {/* Public Volunteer Portal — no auth required */}
       <Route path="/volunteer-portal/:volunteerId" element={<VolunteerPortal />} />
+      <Route path="/kiosk" element={<KioskRoute />} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>
