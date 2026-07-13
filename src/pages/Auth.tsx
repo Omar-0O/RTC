@@ -106,7 +106,7 @@ export default function Auth() {
         </div>
 
         <Card>
-          <CardHeader>
+          <CardHeader className="text-center">
             <CardTitle>{t('signIn')}</CardTitle>
             <CardDescription>{t('auth.loginSubtitle')}</CardDescription>
           </CardHeader>
