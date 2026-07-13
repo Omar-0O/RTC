@@ -6,25 +6,10 @@ CREATE TABLE IF NOT EXISTS public.rooms (
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- Enable RLS
+-- The rooms table can be created before the baseline schema, but its policies
+-- depend on public.has_role, which is created by the baseline. Those policies
+-- are replayed after the baseline migration.
 ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
-
--- Create policies
-CREATE POLICY "Enable read access for all users" ON public.rooms
-    FOR SELECT
-    USING (true);
-
-CREATE POLICY "Enable insert for admins" ON public.rooms
-    FOR INSERT
-    WITH CHECK (public.has_role('admin', auth.uid()));
-
-CREATE POLICY "Enable update for admins" ON public.rooms
-    FOR UPDATE
-    USING (public.has_role('admin', auth.uid()));
-
-CREATE POLICY "Enable delete for admins" ON public.rooms
-    FOR DELETE
-    USING (public.has_role('admin', auth.uid()));
 
 -- Seed initial data (for backward compatibility)
 INSERT INTO public.rooms (id, name, name_ar)

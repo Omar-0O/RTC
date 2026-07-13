@@ -3,8 +3,19 @@
 DO $$
 DECLARE
     v_activity_type_id UUID;
-    v_committee_id UUID := '722d7feb-0b46-48a8-8652-75c1e1a8487a'; -- Ethics Committee ID
+    v_committee_id UUID;
 BEGIN
+    SELECT id INTO v_committee_id
+    FROM public.committees
+    WHERE lower(name) LIKE '%ethic%' OR name_ar LIKE '%أخلاق%'
+    ORDER BY created_at
+    LIMIT 1;
+
+    IF v_committee_id IS NULL THEN
+        RAISE NOTICE 'Skipping Ethics Publishing seed because no Ethics committee exists.';
+        RETURN;
+    END IF;
+
     
     -- 1. Ensure 'Ethics Publishing' Activity Type exists
     SELECT id INTO v_activity_type_id

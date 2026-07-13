@@ -80,11 +80,6 @@ WITH CHECK (
     )
     OR
     (
-      public.has_role(auth.uid(), 'head_media') AND
-      committee_id IN (SELECT id FROM public.committees WHERE name IN ('Media', 'Marketing'))
-    )
-    OR
-    (
       public.has_role(auth.uid(), 'committee_leader') AND
       committee_id = public.get_user_committee_id(auth.uid())
     )
@@ -132,11 +127,6 @@ WITH CHECK (
     (
       public.has_role(auth.uid(), 'head_marketing') AND
       committee_id IN (SELECT id FROM public.committees WHERE name ILIKE '%Marketing%')
-    )
-    OR
-    (
-      public.has_role(auth.uid(), 'head_media') AND
-      committee_id IN (SELECT id FROM public.committees WHERE name IN ('Media', 'Marketing'))
     )
     OR
     (

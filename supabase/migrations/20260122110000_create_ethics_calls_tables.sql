@@ -55,9 +55,18 @@ CREATE POLICY "Manage ethics_calls_participants" ON public.ethics_calls_particip
         )
     );
 
--- Create "Ethics Publishing" activity type if not exists
+-- Seed only when an Ethics committee exists. Never depend on a production UUID:
+-- a clean local database has different generated IDs.
+WITH ethics_committee AS (
+    SELECT id
+    FROM public.committees
+    WHERE lower(name) LIKE '%ethic%' OR name_ar LIKE '%أخلاق%'
+    ORDER BY created_at
+    LIMIT 1
+)
 INSERT INTO public.activity_types (name, name_ar, points, description, description_ar, committee_id)
-SELECT 'Ethics Publishing', 'نشر اخلاقيات', 10, 'Participation in ethics calls outreach', 'المشاركة في نزولات نشر الاخلاقيات', '722d7feb-0b46-48a8-8652-75c1e1a8487a'
+SELECT 'Ethics Publishing', 'نشر اخلاقيات', 10, 'Participation in ethics calls outreach', 'المشاركة في نزولات نشر الاخلاقيات', ethics_committee.id
+FROM ethics_committee
 WHERE NOT EXISTS (
     SELECT 1 FROM public.activity_types WHERE name = 'Ethics Publishing'
 );

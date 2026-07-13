@@ -27,12 +27,5 @@ WITH CHECK (
   public.has_role(auth.uid(), 'head_ashbal')
 );
 
--- Policy: Head Ashbal can delete Ashbal users
-CREATE POLICY "Head Ashbal can delete ashbal profiles"
-ON public.profiles
-FOR DELETE
-TO authenticated
-USING (
-  public.has_role(auth.uid(), 'head_ashbal') 
-  AND is_ashbal = true
-);
+-- The delete policy depends on is_ashbal, which is introduced by a later
+-- migration. It is created immediately after that column exists.

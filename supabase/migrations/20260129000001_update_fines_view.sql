@@ -1,4 +1,8 @@
 -- Update the view to include manual fines linked via fine_type_id
+-- CREATE OR REPLACE cannot change an existing view column type from integer to
+-- numeric, so recreate this derived object before defining the new shape.
+DROP VIEW IF EXISTS public.volunteer_fines_view;
+
 CREATE OR REPLACE VIEW public.volunteer_fines_view AS
 -- 1. Activity Submissions (Automatic "No Vest" - positive points but wore_vest=false)
 SELECT

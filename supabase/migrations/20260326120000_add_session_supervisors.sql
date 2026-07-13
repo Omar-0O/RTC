@@ -21,7 +21,8 @@ CREATE POLICY "Admins can manage session supervisors"
 ON public.quran_session_supervisors
 FOR ALL
 USING (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) IN ('admin', 'head_quran')
+    public.has_role(auth.uid(), 'admin')
+    OR public.has_role(auth.uid(), 'head_quran')
 );
 
 -- Circle organizers can read and write session supervisors for their circles

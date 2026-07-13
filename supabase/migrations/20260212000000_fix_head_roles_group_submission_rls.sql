@@ -51,12 +51,6 @@ WITH CHECK (
       public.has_role(auth.uid(), 'head_marketing') AND
       committee_id IN (SELECT id FROM public.committees WHERE name = 'Marketing')
     )
-     OR
-    -- Head Media -> Media (Handling both just in case, though usually mapped to Marketing or Media)
-    (
-      public.has_role(auth.uid(), 'head_media') AND
-      committee_id IN (SELECT id FROM public.committees WHERE name IN ('Media', 'Marketing'))
-    )
     OR
     -- 3. Generic Committee Leader (must match profile committee)
     (
@@ -110,11 +104,6 @@ WITH CHECK (
     (
       public.has_role(auth.uid(), 'head_marketing') AND
       committee_id IN (SELECT id FROM public.committees WHERE name = 'Marketing')
-    )
-    OR
-    (
-      public.has_role(auth.uid(), 'head_media') AND
-      committee_id IN (SELECT id FROM public.committees WHERE name IN ('Media', 'Marketing'))
     )
     OR
     -- 3. Generic Committee Leader

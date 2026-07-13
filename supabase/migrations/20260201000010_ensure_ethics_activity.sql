@@ -1,1 +1,2 @@
-ب
+-- Historical placeholder migration. Ethics activity setup is handled by the
+-- preceding migrations; this file intentionally has no schema changes.

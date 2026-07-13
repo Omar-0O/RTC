@@ -19,24 +19,4 @@ CREATE TABLE IF NOT EXISTS public.quran_beneficiaries (
 -- RLS Policies
 ALTER TABLE public.quran_beneficiaries ENABLE ROW LEVEL SECURITY;
 
--- Allow read access to admin, head_quran, and maybe others?
--- For now, restricted to admin and head_quran
-CREATE POLICY "Allow read access for admin and head_quran"
-ON public.quran_beneficiaries
-FOR SELECT
-TO authenticated
-USING (
-  (SELECT role FROM public.user_roles WHERE user_id = auth.uid() LIMIT 1) IN ('admin', 'head_quran')
-);
-
--- Allow insert/update/delete for admin and head_quran
-CREATE POLICY "Allow write access for admin and head_quran"
-ON public.quran_beneficiaries
-FOR ALL
-TO authenticated
-USING (
-  (SELECT role FROM public.user_roles WHERE user_id = auth.uid() LIMIT 1) IN ('admin', 'head_quran')
-)
-WITH CHECK (
-  (SELECT role FROM public.user_roles WHERE user_id = auth.uid() LIMIT 1) IN ('admin', 'head_quran')
-);
+-- Policies are created in the following migration, after head_quran commits.

@@ -1,4 +1,4 @@
-﻿-- 1. Add 'fourth_year' to the committee_category check constraint
+-- 1. Add 'fourth_year' to the committee_category check constraint
 -- We need to drop the existing check constraint and add a new one allowing 'fourth_year'
 ALTER TABLE public.interested_beneficiaries
 DROP CONSTRAINT if exists interested_beneficiaries_committee_category_check;

@@ -2,7 +2,11 @@
 
 -- 1. Create a trigger function to keep interested beneficiaries synced with new caravan guests
 CREATE OR REPLACE FUNCTION public.sync_caravan_guest_to_interested()
-RETURNS TRIGGER AS 
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
     v_caravans_committee_id UUID;
     v_caravan_created_by UUID;
@@ -48,7 +52,7 @@ BEGIN
 
     RETURN NEW;
 END;
- LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 
 -- 2. Attach the trigger to the caravan_participants table
@@ -60,7 +64,7 @@ CREATE TRIGGER on_caravan_participant_guest_added
 
 
 -- 3. Backfill existing caravan guests into interested_beneficiaries
-DO 
+DO $$
 DECLARE
     v_caravans_committee_id UUID;
 BEGIN
@@ -97,4 +101,5 @@ BEGIN
         -- Ensure we don't insert duplicates
         ON CONFLICT (phone, committee_category, COALESCE(gender_age_group, ''), COALESCE(production_committee_id::text, '')) DO NOTHING;
     END IF;
-END ;
+END;
+$$;

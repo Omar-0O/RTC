@@ -1,1 +1,2 @@
-h
+-- Historical placeholder migration. Guest submission columns are defined by
+-- the surrounding migrations; this file intentionally has no schema changes.
