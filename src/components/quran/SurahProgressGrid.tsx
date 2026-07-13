@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { QURAN_SURAHS, QuranSurah, SurahStatus, SURAH_STATUS_COLORS } from '@/data/quranSurahs';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { SurahEditModal } from './SurahEditModal';
@@ -41,7 +41,7 @@ export function SurahProgressGrid({ beneficiaryId, readOnly = false }: SurahProg
         try {
             const { data, error } = await supabase
                 .from('beneficiary_surah_progress')
-                .select('*')
+                .select('id, beneficiary_id, surah_number, status, from_ayah, to_ayah, notes')
                 .eq('beneficiary_id', beneficiaryId);
 
             if (error) throw error;
@@ -125,15 +125,22 @@ export function SurahProgressGrid({ beneficiaryId, readOnly = false }: SurahProg
     };
 
     // Calculate stats
-    const stats = {
-        completed: Array.from(progressMap.values()).filter(p => p.status === 'completed').length,
-        inProgress: Array.from(progressMap.values()).filter(p => p.status === 'in_progress').length,
-        revision: Array.from(progressMap.values()).filter(p => p.status === 'revision').length,
-        notStarted: 114 - Array.from(progressMap.values()).filter(p => p.status !== 'not_started').length,
-    };
+    const stats = useMemo(() => {
+        const progress = Array.from(progressMap.values());
+        const completed = progress.filter((item) => item.status === 'completed').length;
+        const inProgress = progress.filter((item) => item.status === 'in_progress').length;
+        const revision = progress.filter((item) => item.status === 'revision').length;
+
+        return {
+            completed,
+            inProgress,
+            revision,
+            notStarted: 114 - progress.filter((item) => item.status !== 'not_started').length,
+        };
+    }, [progressMap]);
 
     // Filter surahs based on view
-    const getFilteredSurahs = (): QuranSurah[] => {
+    const filteredSurahs = useMemo((): QuranSurah[] => {
         switch (viewFilter) {
             case 'juz30':
                 return QURAN_SURAHS.filter(s => s.juz_start === 30);
@@ -144,9 +151,7 @@ export function SurahProgressGrid({ beneficiaryId, readOnly = false }: SurahProg
             default:
                 return QURAN_SURAHS;
         }
-    };
-
-    const filteredSurahs = getFilteredSurahs();
+    }, [viewFilter]);
 
     if (loading) {
         return (

@@ -29,8 +29,6 @@ export type CourseBeneficiaryDetail = {
   course_id: string;
   name: string;
   phone: string;
-  certificate_eligible: boolean | null;
-  attendance_percentage: number | null;
   national_id: string | null;
 };
 
@@ -103,7 +101,7 @@ export async function getCourseDetails(courseId: string) {
       .order('ad_number'),
     supabase
       .from('course_beneficiaries')
-      .select('id, course_id, name, phone, certificate_eligible, attendance_percentage, national_id')
+      .select('id, course_id, name, phone, national_id')
       .eq('course_id', courseId)
       .order('name'),
     supabase

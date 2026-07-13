@@ -43,8 +43,6 @@ interface Profile {
   id: string;
   full_name: string | null;
   full_name_ar: string | null;
-  email: string;
-  total_points: number;
   level: string;
   avatar_url: string | null;
   committee_id: string | null;
@@ -171,39 +169,7 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
     }
 
     try {
-      // Fetch committee info (using primary)
-      const { data: committeeData } = await supabase
-        .from('committees')
-        .select('*')
-        .eq('id', primaryCommitteeId)
-        .maybeSingle();
-
-      if (committeeData) setCommittee(committeeData);
-
-      // Fetch committee members (from ALL linked committees)
-      const { data: membersData } = await supabase
-        .from('profiles')
-        .select('id, full_name, full_name_ar, email, total_points, level, avatar_url, committee_id, phone')
-        .in('committee_id', effectiveCommitteeIds)
-        .order('full_name');
-
-      if (membersData) setCommitteeMembers(membersData);
-
-      // Fetch trainers
-      const { data: trainersData } = await supabase
-        .from('trainers')
-        .select('id, user_id, name_ar, name_en, phone, image_url');
-      
-      const tMap: TrainersMap = {};
-      ((trainersData || []) as TrainerLookupRow[]).forEach((t) => {
-          if (t.id) {
-              tMap[t.id] = { ar: t.name_ar, en: t.name_en, phone: t.phone, image_url: t.image_url };
-          }
-      });
-      setTrainersMap(tMap);
-
-      // Fetch submissions for this committee (ALL IDs)
-      let query = supabase
+      let submissionsQuery = supabase
         .from('activity_submissions')
         .select(`
           id,
@@ -221,7 +187,7 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
           participant_type,
           trainer_id,
           profiles:profiles!activity_submissions_volunteer_id_fkey (
-            id, full_name, full_name_ar, email, total_points, level, avatar_url, committee_id, phone
+            id, full_name, full_name_ar, level, avatar_url, committee_id, phone
           ),
           activity_types (name, name_ar),
           committees (name, name_ar)
@@ -235,20 +201,59 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
         const monthDate = new Date(parseInt(year), parseInt(month) - 1, 1);
         const startDate = startOfMonth(monthDate);
         const endDate = endOfMonth(monthDate);
-        query = query
+        submissionsQuery = submissionsQuery
           .gte('submitted_at', startDate.toISOString())
           .lte('submitted_at', endDate.toISOString());
       }
 
-      const { data: submissionsData, error } = await query;
+      const [committeeResult, membersResult, submissionsResult] = await Promise.all([
+        supabase
+          .from('committees')
+          .select('id, name, name_ar')
+          .eq('id', primaryCommitteeId)
+          .maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('id, full_name, full_name_ar, level, avatar_url, committee_id, phone')
+          .in('committee_id', effectiveCommitteeIds)
+          .order('full_name'),
+        submissionsQuery,
+      ]);
 
-      if (error) {
-        console.error('Supabase Error:', error);
-        throw error;
-      }
+      if (committeeResult.error) throw committeeResult.error;
+      if (membersResult.error) throw membersResult.error;
+      if (submissionsResult.error) throw submissionsResult.error;
 
-      const finalSubmissions = submissionsData as unknown as Submission[] || [];
+      const committeeData = committeeResult.data;
+      const membersData = membersResult.data;
+      if (committeeData) setCommittee(committeeData);
+      setCommitteeMembers(membersData || []);
+
+      const finalSubmissions = submissionsResult.data as unknown as Submission[] || [];
       setSubmissions(finalSubmissions);
+
+      const trainerIds = [...new Set(
+        finalSubmissions.flatMap(submission => submission.trainer_id ? [submission.trainer_id] : []),
+      )];
+      const trainersResult = trainerIds.length > 0
+        ? await supabase
+          .from('trainers')
+          .select('id, name_ar, name_en, phone, image_url')
+          .in('id', trainerIds)
+        : { data: [], error: null };
+
+      if (trainersResult.error) throw trainersResult.error;
+
+      const tMap: TrainersMap = {};
+      ((trainersResult.data || []) as TrainerLookupRow[]).forEach((trainer) => {
+        tMap[trainer.id] = {
+          ar: trainer.name_ar,
+          en: trainer.name_en,
+          phone: trainer.phone,
+          image_url: trainer.image_url,
+        };
+      });
+      setTrainersMap(tMap);
 
       // Save to cache
       if (user?.id) {
@@ -394,11 +399,13 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
   const handleDeleteSubmission = async (submissionId: string) => {
     if (!confirm(isRTL ? 'هل أنت متأكد من حذف هذه المشاركة؟' : 'Are you sure you want to delete this submission?')) return;
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('activity_submissions')
         .delete()
-        .eq('id', submissionId);
+        .eq('id', submissionId)
+        .select('id');
       if (error) throw error;
+      if (!data?.length) throw new Error('Submission was not deleted');
       setSubmissions(prev => prev.filter(s => s.id !== submissionId));
       toast.success(isRTL ? 'تم حذف المشاركة بنجاح' : 'Submission deleted successfully');
     } catch (error: unknown) {

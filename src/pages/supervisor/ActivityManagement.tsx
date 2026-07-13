@@ -98,7 +98,10 @@ export default function ActivityManagement() {
     setLoading(true);
     try {
       const [activitiesRes, committeesRes] = await Promise.all([
-        supabase.from('activity_types').select('*').order('created_at', { ascending: false }),
+        supabase
+          .from('activity_types')
+          .select('id, name, name_ar, description, description_ar, points, points_with_vest, points_without_vest, mode, committee_id')
+          .order('created_at', { ascending: false }),
         supabase.from('committees').select('id, name, name_ar').order('name'),
       ]);
 
@@ -153,7 +156,7 @@ export default function ActivityManagement() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('activity_types').insert({
+      const { data, error } = await supabase.from('activity_types').insert({
         name: formData.name,
         name_ar: formData.name_ar,
         description: formData.description || null,
@@ -163,9 +166,10 @@ export default function ActivityManagement() {
         points_without_vest: formData.points_without_vest,
         mode: formData.mode,
         committee_id: formData.committee_id || null,
-      });
+      }).select('id').single();
 
       if (error) throw error;
+      if (!data) throw new Error('Activity type was not created');
 
       toast.success(isRTL ? 'تم إنشاء نوع المهمة بنجاح' : 'Task type created successfully');
       setIsAddDialogOpen(false);
@@ -184,7 +188,7 @@ export default function ActivityManagement() {
     if (!selectedActivity) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('activity_types').update({
+      const { data, error } = await supabase.from('activity_types').update({
         name: formData.name,
         name_ar: formData.name_ar,
         description: formData.description || null,
@@ -194,9 +198,10 @@ export default function ActivityManagement() {
         points_without_vest: formData.points_without_vest,
         mode: formData.mode,
         committee_id: formData.committee_id || null,
-      }).eq('id', selectedActivity.id);
+      }).eq('id', selectedActivity.id).select('id').single();
 
       if (error) throw error;
+      if (!data) throw new Error('Activity type was not updated');
 
       toast.success(isRTL ? 'تم تحديث نوع المهمة بنجاح' : 'Task type updated successfully');
       setIsEditDialogOpen(false);
@@ -215,12 +220,17 @@ export default function ActivityManagement() {
     if (!selectedActivity) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('activity_types').delete().eq('id', selectedActivity.id);
+      const { data, error } = await supabase
+        .from('activity_types')
+        .delete()
+        .eq('id', selectedActivity.id)
+        .select('id');
 
       if (error) {
         console.error('Delete error:', error);
         throw error;
       }
+      if (!data?.length) throw new Error('Activity type was not deleted');
 
       toast.success(isRTL ? 'تم حذف نوع المهمة بنجاح' : 'Task type deleted successfully');
       setIsDeleteDialogOpen(false);

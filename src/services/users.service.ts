@@ -5,7 +5,7 @@
  * Hooks call these functions; services throw ApiError on failure.
  */
 import { supabase } from '@/integrations/supabase/client';
-import { unwrap } from './api';
+import { toFunctionApiError, unwrap } from './api';
 import type { UserRole } from '@/types';
 import type { Branch } from '@/contexts/BranchContext';
 import type { Database } from '@/integrations/supabase/types';
@@ -120,6 +120,10 @@ type UserFeatureInsert = Database['public']['Tables']['user_features']['Insert']
 
 const AVATAR_BUCKET = 'avatars';
 const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+const USER_PROFILE_COLUMNS = 'id, email, full_name, full_name_ar, avatar_url, committee_id, branch_id, total_points, level, join_date, created_at, phone, attended_mini_camp, attended_camp, is_ashbal, birth_date, last_seen_at, is_active';
+const LEGACY_USER_PROFILE_COLUMNS = 'id, email, full_name, full_name_ar, avatar_url, committee_id, total_points, level, join_date, created_at, phone';
+
+const isMissingColumnError = (error: { code?: string } | null): boolean => error?.code === '42703';
 
 // ─── Avatar upload ──────────────────────────────────────────────────
 
@@ -163,36 +167,50 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  // 1. Paginated profiles
-  let profilesQuery = supabase
-    .from('profiles')
-    .select(
-      'id, email, full_name, full_name_ar, avatar_url, committee_id, branch_id, total_points, level, join_date, created_at, phone, attended_mini_camp, attended_camp, is_ashbal, birth_date, last_seen_at, is_active',
-      { count: 'exact' },
-    )
-    .order('full_name')
-    .range(from, to);
+  const fetchProfiles = (columns: string, applyBranchFilter: boolean) => {
+    let query = supabase
+      .from('profiles')
+      .select(columns, { count: 'exact' })
+      .order('full_name')
+      .range(from, to);
 
-  if (branchId) {
-    if (canViewAllBranches) {
-      profilesQuery = profilesQuery.or(`branch_id.eq.${branchId},branch_id.is.null`) as typeof profilesQuery;
-    } else {
-      profilesQuery = profilesQuery.eq('branch_id', branchId) as typeof profilesQuery;
+    if (applyBranchFilter && branchId) {
+      query = canViewAllBranches
+        ? query.or(`branch_id.eq.${branchId},branch_id.is.null`) as typeof query
+        : query.eq('branch_id', branchId) as typeof query;
     }
+
+    return query;
+  };
+
+  // Current schema first. Old deployments can still list users with core fields.
+  const profilesRes = await fetchProfiles(USER_PROFILE_COLUMNS, true);
+  let profilesData: LegacyProfileRow[];
+  let totalCount: number;
+
+  if (profilesRes.error && isMissingColumnError(profilesRes.error)) {
+    // Never drop a non-admin's branch filter: doing so could widen data access.
+    if (branchId && !canViewAllBranches) {
+      throw new Error('Your database needs the branch migration before this account can list volunteers.');
+    }
+
+    const legacyProfilesRes = await fetchProfiles(LEGACY_USER_PROFILE_COLUMNS, false);
+    if (legacyProfilesRes.error) throw legacyProfilesRes.error;
+    profilesData = (legacyProfilesRes.data ?? []) as unknown as LegacyProfileRow[];
+    totalCount = legacyProfilesRes.count ?? 0;
+  } else {
+    if (profilesRes.error) throw profilesRes.error;
+    profilesData = (profilesRes.data ?? []) as LegacyProfileRow[];
+    totalCount = profilesRes.count ?? 0;
   }
 
-  // 2. Lightweight lookup tables
-  const [profilesRes, committeesRes] = await Promise.all([
-    profilesQuery,
-    supabase.from('committees').select('id, name, name_ar'),
-  ]);
+  // Lightweight lookup table.
+  const { data: committeesDataResult, error: committeesError } = await supabase
+    .from('committees')
+    .select('id, name, name_ar');
 
-  if (profilesRes.error) throw profilesRes.error;
-  if (committeesRes.error) throw committeesRes.error;
-
-  const profilesData = (profilesRes.data ?? []) as LegacyProfileRow[];
-  const committeesData = (committeesRes.data ?? []) as Pick<CommitteeRow, 'id' | 'name' | 'name_ar'>[];
-  const totalCount = profilesRes.count ?? 0;
+  if (committeesError) throw committeesError;
+  const committeesData = (committeesDataResult ?? []) as Pick<CommitteeRow, 'id' | 'name' | 'name_ar'>[];
 
   // 3. Page-scoped roles and participation counts
   const userIds = profilesData.map(profile => profile.id);
@@ -347,7 +365,7 @@ export async function createUser(payload: CreateUserPayload): Promise<{ userId: 
     },
   });
 
-  if (error) throw error;
+  if (error) throw await toFunctionApiError(error, 'Failed to create user');
   if (!data?.user) throw new Error(data?.error || 'Failed to create user');
 
   const userId = data.user.id;

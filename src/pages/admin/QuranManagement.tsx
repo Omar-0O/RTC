@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -59,7 +59,7 @@ import type { TablesUpdate } from '@/integrations/supabase/types';
 interface Beneficiary {
     id: string;
     name_ar: string;
-    name_en: string;
+    name_en: string | null;
     phone: string;
     image_url: string | null;
     previous_parts: number;
@@ -153,20 +153,24 @@ export default function QuranManagement() {
     const handleSave = async () => {
         const MAX_PARTS = 240; // 30 Juz * 8 quarters = 240 quarters
 
-        if (!formData.name_ar || !formData.phone) {
+        const previousParts = Number(formData.previous_parts);
+        const currentParts = Number(formData.current_parts);
+
+        if (!formData.name_ar.trim() || !formData.phone.trim()) {
             toast.error(isRTL ? 'يرجى ملء الحقول المطلوبة' : 'Please fill required fields');
             return;
         }
 
         // Validate max 30 juz
-        const totalParts = formData.previous_parts + formData.current_parts;
-        if (totalParts > MAX_PARTS) {
+        const totalParts = previousParts + currentParts;
+        if (!Number.isFinite(previousParts) || !Number.isFinite(currentParts) || previousParts < 0 || currentParts < 0 || totalParts > MAX_PARTS) {
             toast.error(isRTL ? 'الحد الأقصى للحفظ هو 30 جزء' : 'Maximum memorization is 30 Juz');
             return;
         }
 
         setIsUploading(true);
         let finalImageUrl = formData.image_url;
+        let uploadedImagePath: string | null = null;
 
         try {
             // Handle Image Upload
@@ -174,7 +178,7 @@ export default function QuranManagement() {
                 try {
                     const compressedFile = await compressImage(selectedImage);
                     const fileExt = 'jpg'; // compressed is always jpeg
-                    const fileName = `quran-beneficiaries/${Date.now()}.${fileExt}`;
+                    const fileName = `quran-beneficiaries/${crypto.randomUUID()}.${fileExt}`;
 
                     const { error: uploadError } = await supabase.storage
                         .from('avatars')
@@ -185,6 +189,7 @@ export default function QuranManagement() {
                         });
 
                     if (uploadError) throw uploadError;
+                    uploadedImagePath = fileName;
 
                     const { data: { publicUrl } } = supabase.storage
                         .from('avatars')
@@ -201,37 +206,51 @@ export default function QuranManagement() {
 
             // Ensure we save integers (quarters)
             const dataToSave = {
-                name_ar: formData.name_ar,
-                name_en: formData.name_en,
-                phone: formData.phone,
+                name_ar: formData.name_ar.trim(),
+                name_en: formData.name_en.trim(),
+                phone: formData.phone.trim(),
                 image_url: finalImageUrl || null,
-                previous_parts: Math.round(formData.previous_parts),
-                current_parts: Math.round(formData.current_parts),
+                previous_parts: Math.round(previousParts),
+                current_parts: Math.round(currentParts),
                 gender: formData.gender || null,
                 beneficiary_type: formData.beneficiary_type || 'adult'
             };
 
             if (isEditMode && selectedId) {
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('quran_beneficiaries')
                     .update(dataToSave)
-                    .eq('id', selectedId);
+                    .eq('id', selectedId)
+                    .select('id')
+                    .single();
 
                 if (error) throw error;
+                if (!data) throw new Error('Beneficiary was not updated');
                 toast.success(isRTL ? 'تم التحديث بنجاح' : 'Updated successfully');
             } else {
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('quran_beneficiaries')
-                    .insert(dataToSave);
+                    .insert(dataToSave)
+                    .select('id')
+                    .single();
 
                 if (error) throw error;
+                if (!data) throw new Error('Beneficiary was not created');
                 toast.success(isRTL ? 'تم الإضافة بنجاح' : 'Added successfully');
             }
+
+            uploadedImagePath = null;
 
             setIsCreateOpen(false);
             resetForm();
             fetchBeneficiaries();
         } catch (error: unknown) {
+            if (uploadedImagePath) {
+                const { error: cleanupError } = await supabase.storage
+                    .from('avatars')
+                    .remove([uploadedImagePath]);
+                if (cleanupError) console.error('Failed to remove orphaned beneficiary image:', cleanupError);
+            }
             console.error('Error saving:', error);
             toast.error(getErrorMessage(error, isRTL ? 'حدث خطأ' : 'Error occurred'));
         } finally {
@@ -245,12 +264,14 @@ export default function QuranManagement() {
         if (!deleteId) return;
 
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('quran_beneficiaries')
                 .delete()
-                .eq('id', deleteId);
+                .eq('id', deleteId)
+                .select('id');
 
             if (error) throw error;
+            if (!data?.length) throw new Error('Beneficiary was not deleted');
             toast.success(isRTL ? 'تم الحذف' : 'Deleted');
             fetchBeneficiaries();
         } catch (error) {
@@ -297,21 +318,24 @@ export default function QuranManagement() {
 
     const handleWhatsApp = (phone: string) => {
         const url = waPhoneLink(phone);
-        if (url) window.open(url, '_blank');
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
     };
 
-    const filteredBeneficiaries = beneficiaries.filter(b =>
+    const filteredBeneficiaries = useMemo(() => beneficiaries.filter(b =>
         b.name_ar.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (b.name_en && b.name_en.toLowerCase().includes(searchQuery.toLowerCase())) ||
         b.phone.includes(searchQuery)
-    );
+    ), [beneficiaries, searchQuery]);
 
     const [quickAddValues, setQuickAddValues] = useState<{ [key: string]: string }>({});
 
     const handleQuickAdd = async (id: string, currentParts: number) => {
         const MAX_PARTS = 240; // 30 Juz * 8 quarters = 240 quarters
-        const val = parseFloat(quickAddValues[id]);
-        if (!val || isNaN(val)) return;
+        const val = Number(quickAddValues[id]);
+        if (!Number.isFinite(val) || val <= 0) {
+            toast.error(isRTL ? 'أدخل قيمة موجبة صحيحة' : 'Enter a valid positive value');
+            return;
+        }
 
         // Check if adding would exceed 30 juz
         const beneficiary = beneficiaries.find(b => b.id === id);
@@ -338,12 +362,15 @@ export default function QuranManagement() {
 
             const progressUpdate: TablesUpdate<'quran_beneficiaries'> = { current_parts: newParts };
 
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('quran_beneficiaries')
                 .update(progressUpdate)
-                .eq('id', id);
+                .eq('id', id)
+                .select('id')
+                .single();
 
             if (error) throw error;
+            if (!data) throw new Error('Beneficiary progress was not updated');
 
             toast.success(isRTL ? 'تم تحديث الحفظ بنجاح' : 'Progress updated');
 

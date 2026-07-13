@@ -747,7 +747,7 @@ export default function TrainerManagement(): JSX.Element {
     const handleWhatsApp = (phone: string, e: React.MouseEvent) => {
         e.stopPropagation();
         const url = waPhoneLink(phone);
-        if (url) window.open(url, '_blank');
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
     };
 
     return (

@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Switch } from '@/components/ui/switch';
 import { supabase } from '@/integrations/supabase/client';
+import { toFunctionApiError } from '@/services/api';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
@@ -274,7 +275,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
 
       if (error) {
         console.error('Edge function invocation error:', error);
-        throw error;
+        throw await toFunctionApiError(error, 'Failed to create user');
       }
 
       if (!data?.user) {
@@ -575,14 +576,28 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="grid gap-2">
-          <Label htmlFor="join-date">{language === 'ar' ? 'تاريخ الانضمام لعائلة RTC 😊' : 'Join Date to RTC Family 😊'}</Label>
-          <Input
-            id="join-date"
-            type="date"
-            value={formJoinDate}
-            onChange={(e) => setFormJoinDate(e.target.value)}
-          />
+        <div className="space-y-2" dir={isRTL ? "rtl" : "ltr"}>
+          <Label>{language === 'ar' ? 'تاريخ الانضمام لعائلة RTC 😊' : 'Join Date to RTC Family 😊'}</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full justify-start text-start font-normal">
+                <CalendarIcon className="ltr:mr-2 rtl:ml-2 h-4 w-4" />
+                {format(new Date(formJoinDate), 'PPP', { locale: language === 'ar' ? ar : undefined })}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={new Date(formJoinDate)}
+                onSelect={(date) => date && setFormJoinDate(format(date, 'yyyy-MM-dd'))}
+                disabled={(date) => date > new Date()}
+                initialFocus
+                captionLayout="dropdown-buttons"
+                fromYear={1900}
+                toYear={new Date().getFullYear()}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="space-y-2" dir={isRTL ? "rtl" : "ltr"}>
           <Label>{language === 'ar' ? 'تاريخ الميلاد' : 'Date of Birth'}</Label>

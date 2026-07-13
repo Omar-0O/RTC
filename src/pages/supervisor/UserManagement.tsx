@@ -1,5 +1,6 @@
-import { useCallback, useState, useEffect } from 'react';
-import { Search, User, Pencil, Save, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { AlertCircle, Pencil, RefreshCw, Save, Search, User, X } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -32,44 +33,32 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useBranch } from '@/contexts/BranchContext';
+import { useCommittees, useUsers } from '@/hooks/useUsers';
+import type { UserWithDetails } from '@/hooks/useUsers';
 import { toast } from 'sonner';
 import { VolunteerProfilePreview } from '@/components/volunteer/VolunteerProfilePreview';
 import type { Database } from '@/integrations/supabase/types';
-import type { UserRole } from '@/types';
 
-type Committee = Pick<Database['public']['Tables']['committees']['Row'], 'id' | 'name' | 'name_ar'>;
-type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
-type UserRoleRow = Pick<Database['public']['Tables']['user_roles']['Row'], 'user_id' | 'role'>;
 
 const getErrorMessage = (error: unknown, fallback: string) => (
     error instanceof Error ? error.message : fallback
 );
 
-interface UserWithDetails {
-    id: string;
-    email: string;
-    full_name: string | null;
-    full_name_ar: string | null;
-    avatar_url: string | null;
-    role: UserRole;
-    committee_id: string | null;
-    committee_name?: string;
-    total_points: number;
-    level: string;
-    join_date: string;
-    phone: string | null;
-    attended_mini_camp?: boolean;
-    attended_camp?: boolean;
-    last_seen_at?: string | null;
-    is_active: boolean;
-}
-
 export default function SupervisorUserManagement() {
     const { t, language, isRTL } = useLanguage();
-    const [users, setUsers] = useState<UserWithDetails[]>([]);
-    const [committees, setCommittees] = useState<Committee[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const { activeBranch, branches, canViewAllBranches } = useBranch();
+    const { data: usersData, isLoading, isError, error: usersError, refetch: refetchUsers } = useUsers({
+        branchId: activeBranch?.id,
+        canViewAllBranches,
+        language,
+        branches,
+        pageSize: 300,
+    });
+    const { data: committeesData } = useCommittees(activeBranch?.id);
+    const users = useMemo(() => usersData?.users ?? [], [usersData]);
+    const committees = committeesData ?? [];
     const [searchQuery, setSearchQuery] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('all');
     const [committeeFilter, setCommitteeFilter] = useState<string>('all');
@@ -88,62 +77,6 @@ export default function SupervisorUserManagement() {
     const [formAttendedMiniCamp, setFormAttendedMiniCamp] = useState(false);
     const [formAttendedCamp, setFormAttendedCamp] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const { data: committeesData } = await supabase
-                .from('committees')
-                .select('id, name, name_ar')
-                .order('name');
-
-            setCommittees(committeesData || []);
-
-            const { data: profilesData, error: profilesError } = await supabase
-                .from('profiles')
-                .select('*')
-                .order('full_name');
-
-            if (profilesError) throw profilesError;
-
-            const { data: rolesData } = await supabase
-                .from('user_roles')
-                .select('user_id, role');
-
-            const rolesMap = new Map((rolesData as UserRoleRow[] | null)?.map(r => [r.user_id, r.role as UserRole]) || []);
-            const committeesMap = new Map(committeesData?.map(c => [c.id, language === 'ar' ? c.name_ar : c.name]) || []);
-
-            const usersWithDetails: UserWithDetails[] = ((profilesData || []) as ProfileRow[]).map(profile => ({
-                id: profile.id,
-                email: profile.email,
-                full_name: profile.full_name,
-                full_name_ar: profile.full_name_ar,
-                avatar_url: profile.avatar_url,
-                role: rolesMap.get(profile.id) || 'volunteer',
-                committee_id: profile.committee_id,
-                committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
-                total_points: profile.total_points || 0,
-                level: profile.level || 'under_follow_up',
-                join_date: profile.created_at,
-                phone: profile.phone,
-                attended_mini_camp: profile.attended_mini_camp || false,
-                attended_camp: profile.attended_camp || false,
-                last_seen_at: profile.last_seen_at || null,
-                is_active: profile.is_active !== false,
-            }));
-
-            setUsers(usersWithDetails);
-        } catch (error) {
-            console.error('Error fetching data:', error);
-            toast.error(isRTL ? 'فشل في تحميل المستخدمين' : 'Failed to load users');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [isRTL, language]);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
 
     const handleEditUser = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -180,7 +113,7 @@ export default function SupervisorUserManagement() {
 
             toast.success(language === 'ar' ? 'تم تحديث البيانات بنجاح' : 'User updated successfully');
             setIsEditDialogOpen(false);
-            fetchData();
+            void refetchUsers();
         } catch (error) {
             console.error('Error updating user:', error);
             toast.error(getErrorMessage(error, language === 'ar' ? 'فشل تحديث المستخدم' : 'Failed to update user'));
@@ -202,7 +135,7 @@ export default function SupervisorUserManagement() {
                     ? (language === 'ar' ? `✅ تم تفعيل ${user.full_name}` : `✅ ${user.full_name} activated`)
                     : (language === 'ar' ? `🚫 تم تعطيل ${user.full_name}` : `🚫 ${user.full_name} deactivated`)
             );
-            fetchData();
+            void refetchUsers();
         } catch (error) {
             toast.error(getErrorMessage(error, language === 'ar' ? 'فشل في تغيير الحالة' : 'Failed to change status'));
         }
@@ -222,14 +155,14 @@ export default function SupervisorUserManagement() {
         setIsEditDialogOpen(true);
     };
 
-    const filteredUsers = users.filter(user => {
+    const filteredUsers = useMemo(() => users.filter(user => {
         const matchesSearch =
             (user.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
             user.email.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesRole = roleFilter === 'all' || user.role === roleFilter;
         const matchesCommittee = committeeFilter === 'all' || user.committee_id === committeeFilter;
         return matchesSearch && matchesRole && matchesCommittee;
-    });
+    }), [committeeFilter, roleFilter, searchQuery, users]);
 
     const getRoleBadgeClass = (role: string) => {
         switch (role) {
@@ -301,6 +234,19 @@ export default function SupervisorUserManagement() {
                 <h1 className="text-3xl font-bold tracking-tight">{t('users.title')}</h1>
                 <p className="text-muted-foreground">{t('users.subtitle')}</p>
             </div>
+
+            {isError && (
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>{isRTL ? 'تعذر تحميل المتطوعين' : 'Could not load volunteers'}</AlertTitle>
+                    <AlertDescription className="flex items-center justify-between gap-3">
+                        <span>{getErrorMessage(usersError, isRTL ? 'تحقق من صلاحياتك وحالة قاعدة البيانات.' : 'Check your permissions and database schema.')}</span>
+                        <Button variant="outline" size="icon" onClick={() => void refetchUsers()} title={isRTL ? 'إعادة المحاولة' : 'Retry'}>
+                            <RefreshCw className="h-4 w-4" />
+                        </Button>
+                    </AlertDescription>
+                </Alert>
+            )}
 
             {/* Filters */}
             <Card>

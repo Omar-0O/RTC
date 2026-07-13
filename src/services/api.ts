@@ -11,6 +11,21 @@ import { supabase } from '@/integrations/supabase/client';
 
 type JsonRecord = Record<string, unknown>;
 type VersionedRecord = JsonRecord & { version?: number };
+type EdgeFunctionErrorPayload = { error?: unknown; message?: unknown };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null;
+
+const getResponseMessage = (payload: unknown): string | null => {
+  if (typeof payload === 'string' && payload.trim()) return payload;
+  if (!isRecord(payload)) return null;
+
+  const { error, message } = payload as EdgeFunctionErrorPayload;
+  if (typeof error === 'string' && error.trim()) return error;
+  if (typeof message === 'string' && message.trim()) return message;
+
+  return null;
+};
 
 // ─── Error Classification ───────────────────────────────────────────
 
@@ -26,6 +41,29 @@ export class ApiError extends Error {
     this.status = opts.status || 500;
     this.isRetryable = opts.isRetryable ?? false;
   }
+}
+
+/**
+ * Preserve the JSON error returned by an Edge Function. Supabase otherwise
+ * exposes only a generic FunctionsHttpError to the UI for non-2xx responses.
+ */
+export async function toFunctionApiError(error: unknown, fallback: string): Promise<ApiError> {
+  let message = error instanceof Error && error.message.trim() ? error.message : fallback;
+  let status = 500;
+
+  const context = isRecord(error) ? error.context : null;
+  if (typeof Response !== 'undefined' && context instanceof Response) {
+    status = context.status || status;
+    const payload = await context.clone().json().catch(() => null);
+    message = getResponseMessage(payload) || message;
+  }
+
+  const isDuplicate = /already (?:been )?registered|already exists/i.test(message);
+  return new ApiError(message, {
+    code: isDuplicate ? 'DUPLICATE' : 'FUNCTION_ERROR',
+    status,
+    isRetryable: status >= 500,
+  });
 }
 
 /**

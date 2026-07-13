@@ -75,7 +75,7 @@ export default function BeneficiaryDetails() {
             // Fetch Beneficiary Details
             const { data: benData, error: benError } = await supabase
                 .from('quran_beneficiaries')
-                .select('*')
+                .select('id, name_ar, name_en, phone, image_url, current_parts, previous_parts, created_at')
                 .eq('id', id)
                 .single();
 
@@ -124,7 +124,7 @@ export default function BeneficiaryDetails() {
             // Fetch Progress History
             const { data: progData, error: progError } = await supabase
                 .from('quran_progress_history')
-                .select('*')
+                .select('created_at, new_parts')
                 .eq('beneficiary_id', id)
                 .order('created_at', { ascending: true });
 

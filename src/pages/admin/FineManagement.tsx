@@ -53,7 +53,7 @@ export default function FineManagement() {
             setLoading(true);
             let q = supabase
                 .from('fine_types')
-                .select('*')
+                .select('id, name, name_ar, amount')
                 .order('created_at', { ascending: false });
             // Branch scope
             if (canViewAllBranches && activeBranch?.id) {
@@ -77,28 +77,38 @@ export default function FineManagement() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.name || !formData.name_ar || !formData.amount) return;
+        const amount = Number(formData.amount);
+        if (!formData.name.trim() || !formData.name_ar.trim() || !Number.isFinite(amount) || amount < 0) {
+            toast.error(isRTL ? 'أدخل بيانات غرامة صحيحة' : 'Enter valid fine details');
+            return;
+        }
 
         setSubmitting(true);
         try {
             const payload = {
-                name: formData.name,
-                name_ar: formData.name_ar,
-                amount: parseFloat(formData.amount),
+                name: formData.name.trim(),
+                name_ar: formData.name_ar.trim(),
+                amount,
             };
 
             if (editingFine) {
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('fine_types')
                     .update(payload)
-                    .eq('id', editingFine.id);
+                    .eq('id', editingFine.id)
+                    .select('id')
+                    .single();
                 if (error) throw error;
+                if (!data) throw new Error('Fine was not updated');
                 toast.success(isRTL ? 'تم تحديث الغرامة' : 'Fine updated successfully');
             } else {
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('fine_types')
-                    .insert(payload);
+                    .insert(payload)
+                    .select('id')
+                    .single();
                 if (error) throw error;
+                if (!data) throw new Error('Fine was not created');
                 toast.success(isRTL ? 'تم إضافة الغرامة' : 'Fine added successfully');
             }
 
@@ -117,8 +127,13 @@ export default function FineManagement() {
         if (!confirm(isRTL ? 'هل أنت متأكد من الحذف؟' : 'Are you sure you want to delete?')) return;
 
         try {
-            const { error } = await supabase.from('fine_types').delete().eq('id', id);
+            const { data, error } = await supabase
+                .from('fine_types')
+                .delete()
+                .eq('id', id)
+                .select('id');
             if (error) throw error;
+            if (!data?.length) throw new Error('Fine was not deleted');
             toast.success(isRTL ? 'تم حذف الغرامة' : 'Fine deleted successfully');
             fetchFines();
         } catch (error) {

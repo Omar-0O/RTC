@@ -15,7 +15,6 @@ interface Committee {
 
 interface UserWithDetails {
   id: string;
-  email: string;
   full_name: string | null;
   full_name_ar?: string | null;
   avatar_url: string | null;
@@ -23,7 +22,6 @@ interface UserWithDetails {
   committee_name?: string;
   level: string;
   birth_date?: string | null;
-  role?: string;
 }
 
 export default function Birthdays() {
@@ -35,16 +33,21 @@ export default function Birthdays() {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Fetch committees
-        const { data: committeesData } = await supabase
-          .from('committees')
-          .select('id, name, name_ar');
+        const [committeesResult, profilesResult] = await Promise.all([
+          supabase
+            .from('committees')
+            .select('id, name, name_ar'),
+          supabase
+            .from('profiles')
+            .select('id, full_name, full_name_ar, avatar_url, committee_id, level, birth_date')
+            .not('birth_date', 'is', null),
+        ]);
 
-        // Fetch users
-        const { data: profilesData } = await supabase
-          .from('profiles')
-          .select('*')
-          .not('birth_date', 'is', null);
+        if (committeesResult.error) throw committeesResult.error;
+        if (profilesResult.error) throw profilesResult.error;
+
+        const committeesData = committeesResult.data;
+        const profilesData = profilesResult.data;
 
         if (profilesData) {
           const committeesMap = new Map(
@@ -61,7 +64,6 @@ export default function Birthdays() {
             })
             .map(profile => ({
               id: profile.id,
-              email: profile.email,
               full_name: profile.full_name,
               full_name_ar: profile.full_name_ar,
               avatar_url: profile.avatar_url,
@@ -69,7 +71,6 @@ export default function Birthdays() {
               committee_name: profile.committee_id ? committeesMap.get(profile.committee_id) : undefined,
               level: profile.level || 'under_follow_up',
               birth_date: profile.birth_date,
-              role: profile.role
             }))
             .sort((a, b) => {
               const dayA = new Date(a.birth_date!).getDate();

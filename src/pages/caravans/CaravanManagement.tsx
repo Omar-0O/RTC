@@ -185,10 +185,15 @@ export default function CaravanManagement() {
         });
 
         // Fetch participants
-        const { data: participantsData } = await supabase
+        const { data: participantsData, error } = await supabase
             .from('caravan_participants')
-            .select('*')
+            .select('id, volunteer_id, name, phone, is_volunteer, wore_vest')
             .eq('caravan_id', caravan.id);
+
+        if (error) {
+            toast.error(isRTL ? 'فشل تحميل المشاركين' : 'Failed to load participants');
+            return;
+        }
 
         if (participantsData) {
             setParticipants(participantsData.map(p => ({
@@ -247,18 +252,23 @@ export default function CaravanManagement() {
                 bag_contents: formData.type === 'charity_market' ? (formData.bag_contents.trim() ? formData.bag_contents.split(',').map((item: string) => item.trim()).filter(Boolean) : null) : null
             };
 
-            const { error: updateError } = await supabase
+            const { data: updatedCaravan, error: updateError } = await supabase
                 .from('caravans')
                 .update(updatePayload)
-                .eq('id', selectedCaravanId);
+                .eq('id', selectedCaravanId)
+                .select('id')
+                .single();
 
             if (updateError) throw updateError;
+            if (!updatedCaravan) throw new Error('Caravan was not updated');
 
             // 2. Manage Participants
-            const { data: existingParticipants } = await supabase
+            const { data: existingParticipants, error: existingParticipantsError } = await supabase
                 .from('caravan_participants')
-                .select('*')
+                .select('id, volunteer_id, name, phone, is_volunteer, wore_vest')
                 .eq('caravan_id', selectedCaravanId);
+
+            if (existingParticipantsError) throw existingParticipantsError;
 
             const existingIds = existingParticipants?.map(p => p.id) || [];
             const currentIds = participants.filter(p => p.id).map(p => p.id);
@@ -268,7 +278,11 @@ export default function CaravanManagement() {
 
             if (toRemove.length > 0) {
                 const removeIds = toRemove.map(p => p.id);
-                await supabase.from('caravan_participants').delete().in('id', removeIds);
+                const { error: removeError } = await supabase
+                    .from('caravan_participants')
+                    .delete()
+                    .in('id', removeIds);
+                if (removeError) throw removeError;
 
                 // POINTS CLEANUP
                 const volIdsToRemove = toRemove
@@ -302,7 +316,10 @@ export default function CaravanManagement() {
                     is_volunteer: Boolean(p.is_volunteer),
                     wore_vest: p.wore_vest
                 }));
-                await supabase.from('caravan_participants').insert(newParticipants);
+                const { error: insertParticipantsError } = await supabase
+                    .from('caravan_participants')
+                    .insert(newParticipants);
+                if (insertParticipantsError) throw insertParticipantsError;
             }
 
             if (toUpdate.length > 0) {
@@ -315,7 +332,10 @@ export default function CaravanManagement() {
                     is_volunteer: Boolean(p.is_volunteer),
                     wore_vest: p.wore_vest
                 }));
-                await supabase.from('caravan_participants').upsert(updatedParticipants);
+                const { error: updateParticipantsError } = await supabase
+                    .from('caravan_participants')
+                    .upsert(updatedParticipants);
+                if (updateParticipantsError) throw updateParticipantsError;
             }
 
             toast.success(isRTL ? 'تم تحديث القافلة بنجاح' : 'Caravan updated successfully');
@@ -460,16 +480,25 @@ export default function CaravanManagement() {
             query = query.eq('branch_id', activeBranch.id);
         }
 
-        const { data } = await query.order('full_name');
+        const { data, error } = await query.order('full_name');
+        if (error) {
+            console.error('Error fetching caravan volunteers:', error);
+            toast.error(isRTL ? 'فشل تحميل المتطوعين' : 'Failed to load volunteers');
+            return;
+        }
         if (data) setVolunteers(data as ProfileVolunteerRow[]);
     };
 
     const fetchCaravansCommittee = async () => {
-        const { data } = await supabase
+        const { data, error } = await supabase
             .from('committees')
             .select('id')
             .ilike('name', 'Caravans') // Match name used in migration
             .maybeSingle();
+        if (error) {
+            console.error('Error fetching Caravans committee:', error);
+            return;
+        }
         if (data) setCaravansCommitteeId(data.id);
     };
 
@@ -705,12 +734,14 @@ export default function CaravanManagement() {
             }
 
             // 2. Delete the caravan (caravan_participants will be deleted via ON DELETE CASCADE)
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('caravans')
                 .delete()
-                .eq('id', caravanToDelete.id);
+                .eq('id', caravanToDelete.id)
+                .select('id');
 
             if (error) throw error;
+            if (!data?.length) throw new Error('Caravan was not deleted');
 
             toast.success(isRTL ? 'تم حذف القافلة ومشاركات المتطوعين' : 'Caravan and volunteer participations deleted');
             setIsDeleteDialogOpen(false);
@@ -738,10 +769,12 @@ export default function CaravanManagement() {
     const exportCaravanDetails = async (caravan: Caravan) => {
         try {
             // Fetch participants
-            const { data: parts } = await supabase
+            const { data: parts, error } = await supabase
                 .from('caravan_participants')
-                .select('*')
+                .select('name, phone, is_volunteer, wore_vest')
                 .eq('caravan_id', caravan.id);
+
+            if (error) throw error;
 
             const exportData: CsvRow[] = ((parts || []) as CaravanParticipantRow[]).map(p => ({
                 [t('leaderboard.name')]: p.name,

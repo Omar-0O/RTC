@@ -171,8 +171,6 @@ interface CourseBeneficiary {
     course_id: string;
     name: string;
     phone: string;
-    certificate_eligible?: boolean | null;
-    attendance_percentage?: number | null;
     national_id?: string | null;
 }
 
@@ -1628,7 +1626,7 @@ export default function CourseManagement() {
                     national_id: newBeneficiary.national_id || null,
                     created_by: user?.id
                 })
-                .select('id, course_id, name, phone, certificate_eligible, attendance_percentage, national_id')
+                .select('id, course_id, name, phone, national_id')
                 .single();
 
             if (error) throw error;
@@ -1806,13 +1804,13 @@ export default function CourseManagement() {
     // Calculate certificate eligibility based on 75% attendance
     const calculateCertificateEligibility = async (courseId: string) => {
         try {
-            const { eligibleCount, beneficiaryCount } = await updateCourseCertificateEligibility(courseId);
+            const { eligibleCount, beneficiaryCount, persisted } = await updateCourseCertificateEligibility(courseId);
             if (beneficiaryCount === 0) return;
 
             toast.info(
                 isRTL
-                    ? `${eligibleCount} من ${beneficiaryCount} مستفيد مستحق للشهادة (حضور ≥ 75%)`
-                    : `${eligibleCount} of ${beneficiaryCount} beneficiaries eligible for certificate (attendance ≥ 75%)`
+                    ? `${eligibleCount} من ${beneficiaryCount} مستفيد مستحق للشهادة (حضور ≥ 75%)${persisted ? '' : ' - احفظ النتائج بعد تطبيق migration الشهادات'}`
+                    : `${eligibleCount} of ${beneficiaryCount} beneficiaries eligible for certificate (attendance ≥ 75%)${persisted ? '' : ' - apply the certificate migration to save results'}`
             );
         } catch (error) {
             console.error('Error calculating eligibility:', error);

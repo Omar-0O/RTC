@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download, Eye, EyeOff, UserPlus, Settings } from 'lucide-react';
+import { Calendar as CalendarIcon, Search, Plus, MoreHorizontal, Mail, Shield, User, Trash2, Upload, Loader2, Pencil, Download, Eye, EyeOff, UserPlus, Settings, AlertCircle, RefreshCw } from 'lucide-react';
 
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/popover';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -178,7 +179,7 @@ export default function UserManagement() {
   const pageSize = 300;
 
   // ── React Query: data fetching (replaces useEffect + fetchData) ──
-  const { data: usersData, isLoading: isUsersLoading } = useUsers({
+  const { data: usersData, isLoading: isUsersLoading, isError: isUsersError, error: usersError, refetch: refetchUsers } = useUsers({
     branchId: activeBranch?.id,
     canViewAllBranches,
     language,
@@ -662,6 +663,19 @@ export default function UserManagement() {
         onLevelChange={setLevelFilter}
         onCommitteeChange={setCommitteeFilter}
       />
+
+      {isUsersError && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>{isRTL ? 'تعذر تحميل المتطوعين' : 'Could not load volunteers'}</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-3">
+            <span>{getErrorMessage(usersError, isRTL ? 'تحقق من صلاحياتك وحالة قاعدة البيانات.' : 'Check your permissions and database schema.')}</span>
+            <Button variant="outline" size="icon" onClick={() => void refetchUsers()} title={isRTL ? 'إعادة المحاولة' : 'Retry'}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Users Table */}
       < Card >

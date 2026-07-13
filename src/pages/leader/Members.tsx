@@ -55,28 +55,23 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { LevelBadge } from '@/components/ui/level-badge';
-import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { waPhoneLink } from '@/utils/phoneUtils';
-import type { Database } from '@/integrations/supabase/types';
-
-type ProfileRow = Database['public']['Tables']['profiles']['Row'];
-type ActivitySubmissionSummary = Pick<
-    Database['public']['Tables']['activity_submissions']['Row'],
-    'points_awarded' | 'committee_id'
->;
-type ProfileWithSubmissions = ProfileRow & {
-    activity_submissions?: ActivitySubmissionSummary[] | null;
-};
+import {
+    addMembersToCommittee,
+    getLeaderMembers,
+    removeMemberFromCommittee,
+    type LeaderMember,
+} from '@/services/leaderMembers.service';
 
 const getErrorMessage = (error: unknown, fallback: string) => (
     error instanceof Error ? error.message : fallback
 );
 
-type Profile = ProfileRow;
+type Profile = LeaderMember;
 
 interface MembersProps {
     committeeId?: string;
@@ -104,52 +99,9 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
         setIsLoading(true);
 
         try {
-            // Fetch committee members with activity details
-            const { data: membersData, error: membersError } = await supabase
-                .from('profiles')
-                .select('*, activity_submissions:activity_submissions!activity_submissions_volunteer_id_fkey(points_awarded, committee_id)')
-                .eq('committee_id', committeeId);
-
-            if (membersError) throw membersError;
-
-            let membersWithStats: Profile[] = [];
-            if (membersData) {
-                membersWithStats = (membersData as ProfileWithSubmissions[]).map((member) => {
-                    const committeeSubmissions = member.activity_submissions?.filter(
-                        (submission) => submission.committee_id === committeeId
-                    ) || [];
-
-                    const committeePoints = committeeSubmissions.reduce(
-                        (sum, submission) => sum + (submission.points_awarded || 0), 0
-                    );
-
-                    return {
-                        ...member,
-                        total_points: committeePoints, // Override with committee-specific points
-                        activities_count: committeeSubmissions.length // Override with committee-specific count
-                    };
-                });
-                setMembers(membersWithStats);
-            }
-
-            // Fetch available volunteers (only those not in any committee)
-            const { data: volunteersData, error: volunteersError } = await supabase
-                .from('profiles')
-                .select('*')
-                .neq('full_name', 'RTC Admin')
-                .is('committee_id', null)
-                .order('full_name');
-
-            if (volunteersError) throw volunteersError;
-
-            if (volunteersData) {
-                const volunteers: Profile[] = (volunteersData as Profile[]).map((volunteer) => ({
-                    ...volunteer,
-                    activities_count: 0,
-                    total_points: 0
-                }));
-                setAvailableVolunteers(volunteers);
-            }
+            const data = await getLeaderMembers(committeeId);
+            setMembers(data.members);
+            setAvailableVolunteers(data.availableVolunteers);
 
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -171,12 +123,7 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
 
         setIsActionLoading(true);
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ committee_id: committeeId })
-                .in('id', selectedVolunteerIds);
-
-            if (error) throw error;
+            await addMembersToCommittee(committeeId, selectedVolunteerIds);
 
             toast.success(language === 'ar' ? 'تم إضافة الأعضاء بنجاح' : 'Members added successfully');
             setIsAddDialogOpen(false);
@@ -198,16 +145,11 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
     };
 
     const handleRemoveMember = async () => {
-        if (!selectedMember) return;
+        if (!selectedMember || !committeeId) return;
 
         setIsActionLoading(true);
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ committee_id: null })
-                .eq('id', selectedMember.id);
-
-            if (error) throw error;
+            await removeMemberFromCommittee(committeeId, selectedMember.id);
 
             toast.success(language === 'ar' ? 'تم إزالة العضو بنجاح' : 'Member removed successfully');
             setIsRemoveDialogOpen(false);
@@ -452,7 +394,7 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
                                                             <DropdownMenuItem
                                                                 onClick={() => {
                                                                     const url = waPhoneLink(member.phone);
-                                                                    if (url) window.open(url, '_blank');
+                                                                    if (url) window.open(url, '_blank', 'noopener,noreferrer');
                                                                 }}
                                                             >
                                                                 <MessageCircle className="h-4 w-4 ltr:mr-2 rtl:ml-2 text-green-600" />

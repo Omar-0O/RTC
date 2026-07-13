@@ -248,7 +248,7 @@ export default function AshbalManagement() {
                                                     <DropdownMenuItem
                                                         onClick={() => {
                                                             const url = waPhoneLink(user.phone);
-                                                            if (url) window.open(url, '_blank');
+                                                            if (url) window.open(url, '_blank', 'noopener,noreferrer');
                                                             else toast.error(isRTL ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
                                                         }}
                                                     >
@@ -321,8 +321,9 @@ export default function AshbalManagement() {
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     onClick={() => {
-                                                        if (user.phone) {
-                                                            window.open(`https://wa.me/${user.phone.replace(/\D/g, '')}`, '_blank');
+                                                        const url = waPhoneLink(user.phone);
+                                                        if (url) {
+                                                            window.open(url, '_blank', 'noopener,noreferrer');
                                                         } else {
                                                             toast.error(isRTL ? 'لا يوجد رقم هاتف لهذا المستخدم' : 'No phone number for this user');
                                                         }

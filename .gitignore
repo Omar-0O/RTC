@@ -27,9 +27,11 @@ dist-ssr
 .env
 .env.*
 !.env.example
+.auth-migration.env
 
 # Supabase
 supabase.exe
+supabase/.branches/
 
 # Local artifacts and dumps
 schema_dump.sql

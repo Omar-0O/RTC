@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect, useMemo } from 'react';
 import { Plus, MoreHorizontal, Pencil, Trash2, Search, Loader2, Award, UserPlus, Star, Trophy, Medal, Crown, Heart, Zap, Target, Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import {
@@ -65,7 +65,20 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import type { Database } from '@/integrations/supabase/types';
 
-type Badge = Database['public']['Tables']['badges']['Row'];
+type Badge = Pick<
+  Database['public']['Tables']['badges']['Row'],
+  | 'id'
+  | 'name'
+  | 'name_ar'
+  | 'description'
+  | 'description_ar'
+  | 'icon'
+  | 'color'
+  | 'points_required'
+  | 'activities_required'
+  | 'months_required'
+  | 'caravans_required'
+>;
 type Profile = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'full_name_ar' | 'email'>;
 type UserBadge = Pick<Database['public']['Tables']['user_badges']['Row'], 'user_id'>;
 
@@ -133,7 +146,10 @@ export default function BadgeManagement() {
       }
 
       const [badgesRes, profilesRes] = await Promise.all([
-        supabase.from('badges').select('*').order('created_at', { ascending: false }),
+        supabase
+          .from('badges')
+          .select('id, name, name_ar, description, description_ar, icon, color, points_required, activities_required, months_required, caravans_required')
+          .order('created_at', { ascending: false }),
         profilesQuery,
       ]);
 
@@ -154,12 +170,12 @@ export default function BadgeManagement() {
     fetchData();
   }, [fetchData]);
 
-  const filteredBadges = badges.filter(badge => {
+  const filteredBadges = useMemo(() => badges.filter(badge => {
     const name = isRTL ? badge.name_ar : badge.name;
     const description = isRTL ? badge.description_ar : badge.description;
     return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (description || '').toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  }), [badges, isRTL, searchQuery]);
 
   // Fetch users who already have the selected badge
   const fetchUsersWithBadge = async (badgeId: string) => {
@@ -178,9 +194,10 @@ export default function BadgeManagement() {
   };
 
   // Filter out profiles who already have the selected badge
-  const eligibleProfiles = profiles.filter(
-    profile => !usersWithBadge.includes(profile.id)
-  );
+  const eligibleProfiles = useMemo(() => {
+    const usersWithSelectedBadge = new Set(usersWithBadge);
+    return profiles.filter(profile => !usersWithSelectedBadge.has(profile.id));
+  }, [profiles, usersWithBadge]);
 
   const resetForm = () => {
     setFormData({
@@ -201,7 +218,7 @@ export default function BadgeManagement() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('badges').insert({
+      const { data, error } = await supabase.from('badges').insert({
         name: formData.name,
         name_ar: formData.name_ar,
         description: formData.description || null,
@@ -212,9 +229,10 @@ export default function BadgeManagement() {
         activities_required: formData.activities_required ? parseInt(formData.activities_required) : null,
         months_required: formData.months_required ? parseInt(formData.months_required) : null,
         caravans_required: formData.caravans_required ? parseInt(formData.caravans_required) : null,
-      });
+      }).select('id').single();
 
       if (error) throw error;
+      if (!data) throw new Error('Badge was not created');
 
       toast.success(isRTL ? 'تم إنشاء الشارة بنجاح' : 'Badge created successfully');
       setIsAddDialogOpen(false);
@@ -233,7 +251,7 @@ export default function BadgeManagement() {
     if (!selectedBadge) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('badges').update({
+      const { data, error } = await supabase.from('badges').update({
         name: formData.name,
         name_ar: formData.name_ar,
         description: formData.description || null,
@@ -244,9 +262,10 @@ export default function BadgeManagement() {
         activities_required: formData.activities_required ? parseInt(formData.activities_required) : null,
         months_required: formData.months_required ? parseInt(formData.months_required) : null,
         caravans_required: formData.caravans_required ? parseInt(formData.caravans_required) : null,
-      }).eq('id', selectedBadge.id);
+      }).eq('id', selectedBadge.id).select('id').single();
 
       if (error) throw error;
+      if (!data) throw new Error('Badge was not updated');
 
       toast.success(isRTL ? 'تم تحديث الشارة بنجاح' : 'Badge updated successfully');
       setIsEditDialogOpen(false);
@@ -265,9 +284,14 @@ export default function BadgeManagement() {
     if (!selectedBadge) return;
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('badges').delete().eq('id', selectedBadge.id);
+      const { data, error } = await supabase
+        .from('badges')
+        .delete()
+        .eq('id', selectedBadge.id)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) throw new Error('Badge was not deleted');
 
       toast.success(isRTL ? 'تم حذف الشارة بنجاح' : 'Badge deleted successfully');
       setIsDeleteDialogOpen(false);
@@ -306,7 +330,7 @@ export default function BadgeManagement() {
       // Fetch activities count separately
       const { count: activitiesCount, error: activitiesError } = await supabase
         .from('activity_submissions')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('volunteer_id', selectedUserId)
         .eq('status', 'approved');
 

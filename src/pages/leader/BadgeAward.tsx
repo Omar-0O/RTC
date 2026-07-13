@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Search, Loader2, Award, UserPlus, Star, Trophy, Medal, Crown, Heart, Zap, Target, Check, ChevronsUpDown } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import {
@@ -101,7 +101,10 @@ export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardP
             }
 
             const [badgesRes, membersRes] = await Promise.all([
-                supabase.from('badges').select('*').order('created_at', { ascending: false }),
+                supabase
+                    .from('badges')
+                    .select('id, name, name_ar, description, description_ar, icon, color, points_required, activities_required')
+                    .order('created_at', { ascending: false }),
                 profilesQuery,
             ]);
 
@@ -122,12 +125,12 @@ export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardP
         fetchData();
     }, [fetchData]);
 
-    const filteredBadges = badges.filter(badge => {
+    const filteredBadges = useMemo(() => badges.filter(badge => {
         const name = isRTL ? badge.name_ar : badge.name;
         const description = isRTL ? badge.description_ar : badge.description;
         return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (description || '').toLowerCase().includes(searchQuery.toLowerCase());
-    });
+    }), [badges, isRTL, searchQuery]);
 
     // Fetch users who already have the selected badge
     const fetchUsersWithBadge = async (badgeId: string) => {
@@ -146,9 +149,10 @@ export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardP
     };
 
     // Filter out members who already have the selected badge
-    const eligibleMembers = committeeMembers.filter(
-        member => !usersWithBadge.includes(member.id)
-    );
+    const eligibleMembers = useMemo(() => {
+        const usersWithSelectedBadge = new Set(usersWithBadge);
+        return committeeMembers.filter(member => !usersWithSelectedBadge.has(member.id));
+    }, [committeeMembers, usersWithBadge]);
 
     const handleAwardBadge = async () => {
         if (!selectedBadge || !selectedUserId) return;
@@ -182,10 +186,10 @@ export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardP
                 return;
             }
 
-            const { error } = await supabase.from('user_badges').insert({
+            const { data, error } = await supabase.from('user_badges').insert({
                 user_id: selectedUserId,
                 badge_id: selectedBadge.id,
-            });
+            }).select('id').single();
 
             if (error) {
                 if (error.code === '23505') {
@@ -195,6 +199,7 @@ export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardP
                 }
                 return;
             }
+            if (!data) throw new Error('Badge was not awarded');
 
             toast.success(isRTL ? 'تم منح الشارة بنجاح' : 'Badge awarded successfully');
             // Update the usersWithBadge list to include the newly awarded user

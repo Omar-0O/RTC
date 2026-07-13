@@ -5,7 +5,18 @@ const CERTIFICATE_ELIGIBILITY_PERCENTAGE = 75;
 export type CertificateEligibilitySummary = {
   eligibleCount: number;
   beneficiaryCount: number;
+  persisted: boolean;
 };
+
+type SupabaseError = {
+  code?: string;
+};
+
+const isMissingCertificateColumnsError = (error: unknown): boolean => (
+  typeof error === 'object'
+  && error !== null
+  && (error as SupabaseError).code === '42703'
+);
 
 export async function updateCourseCertificateEligibility(
   courseId: string,
@@ -29,7 +40,7 @@ export async function updateCourseCertificateEligibility(
   const beneficiaries = beneficiariesResult.data ?? [];
 
   if (beneficiaries.length === 0) {
-    return { eligibleCount: 0, beneficiaryCount: 0 };
+    return { eligibleCount: 0, beneficiaryCount: 0, persisted: true };
   }
 
   const attendanceResult = lectureIds.length > 0
@@ -73,7 +84,13 @@ export async function updateCourseCertificateEligibility(
     .from('course_beneficiaries')
     .upsert(eligibilityUpdates, { onConflict: 'id' });
 
-  if (updateError) throw updateError;
+  // Older deployments may not have optional certificate columns yet.
+  // Eligibility still calculates; persistence waits for that migration.
+  if (updateError && !isMissingCertificateColumnsError(updateError)) throw updateError;
 
-  return { eligibleCount, beneficiaryCount: beneficiaries.length };
+  return {
+    eligibleCount,
+    beneficiaryCount: beneficiaries.length,
+    persisted: !updateError,
+  };
 }

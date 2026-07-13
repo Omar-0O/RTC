@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Building2, Plus, Pencil, Trash2, CheckCircle2, Loader2 } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -34,10 +33,14 @@ import { cn } from '@/lib/utils';
 type BranchRow = Database['public']['Tables']['branches']['Row'];
 type BranchInsert = Database['public']['Tables']['branches']['Insert'];
 type BranchUpdate = Database['public']['Tables']['branches']['Update'];
-type ProfileBranchRef = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'branch_id'>;
+type BranchSummary = Pick<
+  BranchRow,
+  'id' | 'name' | 'name_ar' | 'code' | 'is_default' | 'created_at' | 'updated_at'
+>;
+type ProfileBranchRef = Pick<Database['public']['Tables']['profiles']['Row'], 'branch_id'>;
 
-interface BranchStats extends BranchRow {
-  volunteer_count?: number;
+interface BranchStats extends BranchSummary {
+  volunteer_count: number;
 }
 
 const getErrorMessage = (error: unknown, fallback: string): string => {
@@ -51,7 +54,7 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
 
 export default function BranchManagement() {
   const { language, isRTL } = useLanguage();
-  const { branches, refreshBranches, setActiveBranch } = useBranch();
+  const { refreshBranches } = useBranch();
 
   const [branchStats, setBranchStats] = useState<BranchStats[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,35 +71,35 @@ export default function BranchManagement() {
   const [formNameAr, setFormNameAr] = useState('');
   const [formCode, setFormCode] = useState('');
 
-  const t = (key: string) => key; // simple fallback
-
   const ar = (ar: string, en: string) => language === 'ar' ? ar : en;
 
   const fetchBranchStats = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data: branchData, error } = await supabase
-        .from('branches')
-        .select('*')
-        .order('created_at', { ascending: true });
+      const [branchResult, profileResult] = await Promise.all([
+        supabase
+          .from('branches')
+          .select('id, name, name_ar, code, is_default, created_at, updated_at')
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('profiles')
+          .select('branch_id')
+          .not('branch_id', 'is', null),
+      ]);
 
-      if (error) throw error;
-
-      // Fetch volunteer counts per branch
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('id, branch_id');
+      if (branchResult.error) throw branchResult.error;
+      if (profileResult.error) throw profileResult.error;
 
       const countMap = new Map<string, number>();
-      ((profileData || []) as ProfileBranchRef[]).forEach(p => {
+      ((profileResult.data || []) as ProfileBranchRef[]).forEach(p => {
         if (p.branch_id) {
           countMap.set(p.branch_id, (countMap.get(p.branch_id) || 0) + 1);
         }
       });
 
-      const stats: BranchStats[] = ((branchData || []) as BranchRow[]).map(b => ({
+      const stats: BranchStats[] = ((branchResult.data || []) as BranchSummary[]).map(b => ({
         ...b,
-        volunteer_count: countMap.get(b.id) || 0,
+        volunteer_count: countMap.get(b.id) ?? 0,
       }));
 
       setBranchStats(stats);
@@ -128,11 +131,14 @@ export default function BranchManagement() {
     setIsSubmitting(true);
     try {
       const newBranch: BranchInsert = { name: formName.trim(), name_ar: formNameAr.trim(), code: formCode.trim() || null, is_default: false };
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('branches')
-        .insert(newBranch);
+        .insert(newBranch)
+        .select('id')
+        .single();
 
       if (error) throw error;
+      if (!data) throw new Error('Branch was not created');
 
       toast.success(ar('تم إضافة الفرع بنجاح', 'Branch added successfully'));
       setIsAddDialogOpen(false);
@@ -165,12 +171,15 @@ export default function BranchManagement() {
     setIsSubmitting(true);
     try {
       const branchUpdates: BranchUpdate = { name: formName.trim(), name_ar: formNameAr.trim(), code: formCode.trim() || null };
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('branches')
         .update(branchUpdates)
-        .eq('id', selectedBranch.id);
+        .eq('id', selectedBranch.id)
+        .select('id')
+        .single();
 
       if (error) throw error;
+      if (!data) throw new Error('Branch was not updated');
 
       toast.success(ar('تم تحديث الفرع بنجاح', 'Branch updated successfully'));
       setIsEditDialogOpen(false);
@@ -192,15 +201,28 @@ export default function BranchManagement() {
 
   const handleDeleteBranch = async () => {
     if (!selectedBranch) return;
+    if (selectedBranch.is_default) {
+      toast.error(ar('لا يمكن حذف الفرع الافتراضي', 'The default branch cannot be deleted'));
+      return;
+    }
+    if (selectedBranch.volunteer_count > 0) {
+      toast.error(ar(
+        'انقل المتطوعين إلى فرع آخر قبل حذف هذا الفرع',
+        'Move this branch\'s volunteers before deleting it'
+      ));
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('branches')
         .delete()
-        .eq('id', selectedBranch.id);
+        .eq('id', selectedBranch.id)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) throw new Error('Branch was not deleted');
 
       toast.success(ar('تم حذف الفرع بنجاح', 'Branch deleted successfully'));
       setIsDeleteDialogOpen(false);
@@ -247,7 +269,7 @@ export default function BranchManagement() {
           <CardContent className="pt-6">
             <div className="text-center">
               <p className="text-3xl font-bold text-green-600">
-                {branchStats.reduce((sum, b) => sum + (b.volunteer_count || 0), 0)}
+                {branchStats.reduce((sum, b) => sum + b.volunteer_count, 0)}
               </p>
               <p className="text-sm text-muted-foreground mt-1">{ar('إجمالي المتطوعين', 'Total Volunteers')}</p>
             </div>
@@ -310,6 +332,12 @@ export default function BranchManagement() {
                     size="sm"
                     className="text-destructive hover:bg-destructive/10"
                     onClick={() => openDeleteDialog(branch)}
+                    disabled={branch.is_default || branch.volunteer_count > 0}
+                    title={branch.is_default
+                      ? ar('لا يمكن حذف الفرع الافتراضي', 'The default branch cannot be deleted')
+                      : branch.volunteer_count > 0
+                        ? ar('انقل المتطوعين أولاً', 'Move volunteers first')
+                        : ar('حذف الفرع', 'Delete branch')}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>

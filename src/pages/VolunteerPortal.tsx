@@ -125,7 +125,10 @@ export default function VolunteerPortal() {
             .eq('id', volunteerId)
             .maybeSingle(),
           supabase.from('committees').select('id, name, name_ar').order('name'),
-          supabase.from('activity_types').select('*').order('name'),
+          supabase
+            .from('activity_types')
+            .select('id, name, name_ar, description, description_ar, points, points_with_vest, points_without_vest, mode')
+            .order('name'),
           supabase.from('activity_type_committees').select('activity_type_id, committee_id'),
           supabase
             .from('activity_submissions')

@@ -52,14 +52,11 @@ const CommitteeDashboard = () => {
         setLoading(true);
         try {
             // 1. Stats
-            const [
-                circlesRes,
-                beneficiariesRes,
-                quranTeachersRes,
-                sessionsRes,
-            ] = await Promise.all([
+            const [circlesRes, beneficiariesRes, quranTeachersRes] = await Promise.all([
                 (() => {
-                    let q = supabase.from('quran_circles').select('*');
+                    let q = supabase
+                        .from('quran_circles')
+                        .select('id, teacher_id, schedule, is_active');
                     if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
                     return q;
                 })(),
@@ -73,10 +70,24 @@ const CommitteeDashboard = () => {
                     if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
                     return q;
                 })(),
-                supabase.from('quran_circle_sessions').select('id, circle_id'),
             ]);
 
-            const activeCirclesData = (circlesRes.data || []).filter(c => c.is_active);
+            if (circlesRes.error) throw circlesRes.error;
+            if (beneficiariesRes.error) throw beneficiariesRes.error;
+            if (quranTeachersRes.error) throw quranTeachersRes.error;
+
+            const circlesData = circlesRes.data || [];
+            const circleIds = circlesData.map(circle => circle.id);
+            const sessionsRes = circleIds.length > 0
+                ? await supabase
+                    .from('quran_circle_sessions')
+                    .select('id, circle_id')
+                    .in('circle_id', circleIds)
+                : { data: [], error: null };
+
+            if (sessionsRes.error) throw sessionsRes.error;
+
+            const activeCirclesData = circlesData.filter(c => c.is_active);
             const totalTeachersCount = quranTeachersRes.count || 0;
             const allSessions = (sessionsRes.data || []) as QuranSessionRow[];
 
@@ -85,16 +96,23 @@ const CommitteeDashboard = () => {
             if (allSessions.length > 0) {
                 const sessionIds = allSessions.map(s => s.id);
                 // Fetch total attendance records across all sessions
-                const { count: totalAttendanceRecords } = await supabase
-                    .from('quran_circle_beneficiaries')
-                    .select('id', { count: 'exact', head: true })
-                    .in('session_id', sessionIds);
+                const [attendanceResult, enrollmentsResult] = await Promise.all([
+                    supabase
+                        .from('quran_circle_beneficiaries')
+                        .select('id', { count: 'exact', head: true })
+                        .in('session_id', sessionIds),
+                    supabase
+                        .from('quran_enrollments')
+                        .select('id', { count: 'exact', head: true })
+                        .eq('status', 'active')
+                        .in('circle_id', circleIds),
+                ]);
 
-                // Get total enrolled across all active circles
-                const { count: totalEnrolled } = await supabase
-                    .from('quran_enrollments')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('status', 'active');
+                if (attendanceResult.error) throw attendanceResult.error;
+                if (enrollmentsResult.error) throw enrollmentsResult.error;
+
+                const totalAttendanceRecords = attendanceResult.count;
+                const totalEnrolled = enrollmentsResult.count;
 
                 if (totalEnrolled && totalEnrolled > 0 && allSessions.length > 0) {
                     const avgPerSession = (totalAttendanceRecords || 0) / allSessions.length;

@@ -38,6 +38,9 @@ export function useUsers(opts: usersService.FetchUsersOptions) {
     staleTime: CACHE.users.staleTime,
     gcTime: CACHE.users.gcTime,
     retry: shouldRetry,
+    // Branch-scoped roles must wait for their authoritative branch.
+    // Querying first with no branch would briefly request every profile.
+    enabled: opts.canViewAllBranches || Boolean(opts.branchId),
   });
 }
 

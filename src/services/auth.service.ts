@@ -28,7 +28,6 @@ export interface AuthData {
 
 const PROFILE_COLUMNS = `
   activities_count,
-  ashbal_status,
   attended_camp,
   attended_mini_camp,
   avatar_url,

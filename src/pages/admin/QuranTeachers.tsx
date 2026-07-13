@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -54,7 +54,10 @@ type QuranEnrollmentRow = Pick<Database['public']['Tables']['quran_enrollments']
 type ProfileRow = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'full_name_ar' | 'email'>;
 
 type LinkedUser = Pick<ProfileRow, 'full_name' | 'full_name_ar' | 'email'>;
-type QuranTeacherRecord = QuranTeacherRow & {
+type QuranTeacherRecord = Pick<
+    QuranTeacherRow,
+    'id' | 'name' | 'phone' | 'user_id' | 'branch_id' | 'created_at' | 'teaching_mode' | 'target_gender' | 'specialization'
+> & {
     profiles?: LinkedUser | null;
 };
 
@@ -190,19 +193,21 @@ export default function QuranTeachers() {
                 query = query.eq('branch_id', activeBranch.id);
             }
 
-            const { data } = await query.order('full_name');
+            const { data, error } = await query.order('full_name');
+            if (error) throw error;
             setProfiles((data ?? []) as Profile[]);
         } catch (error) {
             console.error('Error fetching profiles:', error);
+            toast.error(isRTL ? 'فشل تحميل حسابات المتطوعين' : 'Failed to load volunteer accounts');
         }
-    }, [activeBranch?.id]);
+    }, [activeBranch?.id, isRTL]);
 
     const fetchTeachers = useCallback(async () => {
         setLoading(true);
         try {
             let query = supabase
                 .from('quran_teachers')
-                .select('*, profiles!quran_teachers_user_id_fkey(full_name, full_name_ar, email)');
+                .select('id, name, phone, user_id, branch_id, created_at, teaching_mode, target_gender, specialization, profiles!quran_teachers_user_id_fkey(full_name, full_name_ar, email)');
 
             if (activeBranch?.id) {
                 query = query.eq('branch_id', activeBranch.id);
@@ -238,15 +243,15 @@ export default function QuranTeachers() {
     }, [fetchTeachers, fetchProfiles]);
 
     const handleSave = async () => {
-        if (!formData.name || !formData.phone) {
+        if (!formData.name.trim() || !formData.phone.trim()) {
             toast.error(isRTL ? 'يرجى ملء الحقول المطلوبة' : 'Please fill required fields');
             return;
         }
 
         try {
             const commonData: QuranTeacherInsert & QuranTeacherUpdate = {
-                name: formData.name,
-                phone: formData.phone,
+                name: formData.name.trim(),
+                phone: formData.phone.trim(),
                 user_id: formData.volunteer_id === 'none' ? null : formData.volunteer_id,
                 teaching_mode: formData.teaching_mode,
                 target_gender: formData.target_gender,
@@ -255,19 +260,25 @@ export default function QuranTeachers() {
             };
 
             if (isEditMode && selectedId) {
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('quran_teachers')
                     .update(commonData)
-                    .eq('id', selectedId);
+                    .eq('id', selectedId)
+                    .select('id')
+                    .single();
 
                 if (error) throw error;
+                if (!data) throw new Error('Teacher was not updated');
                 toast.success(isRTL ? 'تم التحديث بنجاح' : 'Updated successfully');
             } else {
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('quran_teachers')
-                    .insert(commonData);
+                    .insert(commonData)
+                    .select('id')
+                    .single();
 
                 if (error) throw error;
+                if (!data) throw new Error('Teacher was not created');
                 toast.success(isRTL ? 'تم الإضافة بنجاح' : 'Added successfully');
             }
 
@@ -288,12 +299,14 @@ export default function QuranTeachers() {
         if (!deleteId) return;
 
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('quran_teachers')
                 .delete()
-                .eq('id', deleteId);
+                .eq('id', deleteId)
+                .select('id');
 
             if (error) throw error;
+            if (!data?.length) throw new Error('Teacher was not deleted');
             toast.success(isRTL ? 'تم الحذف' : 'Deleted');
             fetchTeachers();
         } catch (error) {
@@ -345,7 +358,7 @@ export default function QuranTeachers() {
             // Fetch circles for this teacher
             const { data: circles, error } = await supabase
                 .from('quran_circles')
-                .select('*')
+                .select('schedule, is_active')
                 .eq('teacher_id', teacher.id)
                 .order('created_at', { ascending: false });
 
@@ -475,10 +488,10 @@ export default function QuranTeachers() {
     };
 
 
-    const filteredTeachers = teachers.filter(t =>
+    const filteredTeachers = useMemo(() => teachers.filter(t =>
         t.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         t.phone?.includes(searchQuery)
-    );
+    ), [teachers, searchQuery]);
 
     return (
         <div className="space-y-6">

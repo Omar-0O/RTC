@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus, MoreHorizontal, Users, Award, Pencil, Trash2, FileSpreadsheet, GraduationCap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -230,7 +230,9 @@ export default function CommitteeManagement() {
   const fetchCommittees = useCallback(async () => {
     setIsLoading(true);
     try {
-      let q = supabase.from('committees').select('*');
+      let q = supabase
+        .from('committees')
+        .select('id, name, name_ar, description, description_ar, color, committee_type');
       if (activeBranch?.id) {
         q = q.eq('branch_id', activeBranch.id);
       }
@@ -284,7 +286,7 @@ export default function CommitteeManagement() {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('committees').insert({
+      const { data, error } = await supabase.from('committees').insert({
         name: formName.trim(),
         name_ar: formNameAr.trim(),
         description: formDescription.trim() || null,
@@ -292,9 +294,10 @@ export default function CommitteeManagement() {
         color: formColor,
         committee_type: formType,
         branch_id: activeBranch?.id || null,
-      });
+      }).select('id').single();
 
       if (error) throw error;
+      if (!data) throw new Error('Committee was not created');
 
       toast.success(language === 'ar' ? 'تم إضافة اللجنة بنجاح' : 'Committee added successfully');
       setIsAddDialogOpen(false);
@@ -314,7 +317,7 @@ export default function CommitteeManagement() {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('committees')
         .update({
           name: formName.trim(),
@@ -325,9 +328,12 @@ export default function CommitteeManagement() {
           color: formColor,
           committee_type: formType,
         })
-        .eq('id', selectedCommittee.id);
+        .eq('id', selectedCommittee.id)
+        .select('id')
+        .single();
 
       if (error) throw error;
+      if (!data) throw new Error('Committee was not updated');
 
       toast.success(language === 'ar' ? 'تم تحديث اللجنة بنجاح' : 'Committee updated successfully');
       setIsEditDialogOpen(false);
@@ -347,12 +353,14 @@ export default function CommitteeManagement() {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('committees')
         .delete()
-        .eq('id', selectedCommittee.id);
+        .eq('id', selectedCommittee.id)
+        .select('id');
 
       if (error) throw error;
+      if (!data?.length) throw new Error('Committee was not deleted');
 
       toast.success(language === 'ar' ? 'تم حذف اللجنة بنجاح' : 'Committee deleted successfully');
       setIsDeleteDialogOpen(false);
@@ -371,11 +379,12 @@ export default function CommitteeManagement() {
     try {
       const { startDate, endDate, label } = getDateRange(timeFilter);
 
-      let exportQuery = supabase.from('committees').select('*');
+      let exportQuery = supabase.from('committees').select('id, name, name_ar');
       if (activeBranch?.id) {
         exportQuery = exportQuery.eq('branch_id', activeBranch.id);
       }
-      const { data: allCommittees } = await exportQuery;
+      const { data: allCommittees, error: exportError } = await exportQuery;
+      if (exportError) throw exportError;
       if (!allCommittees) return;
 
       const statsByCommitteeId = await fetchCommitteeStats(
@@ -434,6 +443,15 @@ export default function CommitteeManagement() {
   const getDisplayDescription = (committee: Committee) => {
     return language === 'ar' ? committee.description_ar : committee.description;
   };
+
+  const productionCommittees = useMemo(
+    () => committees.filter(committee => committee.committee_type === 'production'),
+    [committees],
+  );
+  const fourthYearCommittees = useMemo(
+    () => committees.filter(committee => committee.committee_type === 'fourth_year'),
+    [committees],
+  );
 
   if (isLoading) {
     return (
@@ -601,7 +619,7 @@ export default function CommitteeManagement() {
 
           <TabsContent value="production">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {committees.filter(c => c.committee_type === 'production').map((committee) => (
+              {productionCommittees.map((committee) => (
                 <CommitteeCard
                   key={committee.id}
                   committee={committee}
@@ -620,7 +638,7 @@ export default function CommitteeManagement() {
 
           <TabsContent value="fourth_year">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {committees.filter(c => c.committee_type === 'fourth_year').map((committee) => (
+              {fourthYearCommittees.map((committee) => (
                 <CommitteeCard
                   key={committee.id}
                   committee={committee}

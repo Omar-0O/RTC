@@ -133,24 +133,34 @@ export default function LogForVolunteer() {
     try {
       const [cr, ar, acr] = await Promise.all([
         supabase.from('committees').select('id, name, name_ar').order('name'),
-        supabase.from('activity_types').select('*').order('name'),
+        supabase
+          .from('activity_types')
+          .select('id, name, name_ar, description, description_ar, points, points_with_vest, points_without_vest, mode')
+          .order('name'),
         supabase.from('activity_type_committees').select('activity_type_id, committee_id'),
       ]);
-      if (cr.data) setCommittees(cr.data);
+      if (cr.error) throw cr.error;
+      if (ar.error) throw ar.error;
+      if (acr.error) throw acr.error;
+
+      setCommittees(cr.data || []);
       const map = new Map<string, string[]>();
       const activityCommitteeRows = (acr.data || []) as ActivityTypeCommitteeRow[];
       activityCommitteeRows.forEach((ac) => {
         if (!map.has(ac.activity_type_id)) map.set(ac.activity_type_id, []);
         map.get(ac.activity_type_id)!.push(ac.committee_id);
       });
-      if (ar.data)
-        setActivityTypes((ar.data as ActivityTypeRow[]).map((a) => ({ ...a, committee_ids: map.get(a.id) || [] })));
-    } catch {
-      /* silent */
+      setActivityTypes((ar.data || []).map((activity) => ({
+        ...(activity as ActivityTypeRow),
+        committee_ids: map.get(activity.id) || [],
+      })));
+    } catch (error) {
+      console.error('Failed to load activity form data:', error);
+      toast.error(isRTL ? 'فشل في تحميل بيانات النموذج' : 'Failed to load form data');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isRTL]);
 
   useEffect(() => {
     if (volunteerId) {

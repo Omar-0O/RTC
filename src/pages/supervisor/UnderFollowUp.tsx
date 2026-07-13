@@ -380,7 +380,7 @@ export default function UnderFollowUp() {
                       variant="outline"
                       size="icon"
                       className="h-9 w-9 shrink-0 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-400 hover:text-blue-600 transition-colors"
-                      onClick={() => window.open(getPortalLink(volunteer.id), '_blank')}
+                      onClick={() => window.open(getPortalLink(volunteer.id), '_blank', 'noopener,noreferrer')}
                       title={isRTL ? 'فتح صفحة المتطوع' : 'Open volunteer portal'}
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -394,7 +394,7 @@ export default function UnderFollowUp() {
                         className="h-9 w-9 shrink-0 text-muted-foreground hover:bg-green-50 dark:hover:bg-green-950/30 hover:border-green-500 hover:text-green-600 transition-colors"
                         onClick={() => {
                            const url = waPhoneLink(volunteer.phone);
-                           if (url) window.open(url, '_blank');
+                           if (url) window.open(url, '_blank', 'noopener,noreferrer');
                         }}
                         title={isRTL ? 'واتساب' : 'WhatsApp'}
                       >

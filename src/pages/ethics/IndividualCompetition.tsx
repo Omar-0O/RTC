@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -37,11 +37,11 @@ import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/uti
 import { downloadCsv } from '@/utils/csv';
 import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
-type Participant = Tables<'competition_participants'> & {
+type Participant = Pick<Tables<'competition_participants'>, 'id' | 'name' | 'phone' | 'image_url'> & {
     entries_count?: number;
 };
 
-type Entry = Tables<'competition_entries'>;
+type Entry = Pick<Tables<'competition_entries'>, 'id' | 'participant_id' | 'description' | 'created_at'>;
 
 // Helper to get current month in YYYY-MM format
 const getCurrentMonthYear = () => format(new Date(), 'yyyy-MM');
@@ -98,15 +98,22 @@ export default function IndividualCompetition() {
     const fetchAvailableMonths = useCallback(async () => {
         try {
             // Get distinct months from participants
-            const { data: participantMonths } = await supabase
-                .from('competition_participants')
-                .select('month_year')
-                .not('month_year', 'is', null);
+            const [participantsResult, entriesResult] = await Promise.all([
+                supabase
+                    .from('competition_participants')
+                    .select('month_year')
+                    .not('month_year', 'is', null),
+                supabase
+                    .from('competition_entries')
+                    .select('month_year')
+                    .not('month_year', 'is', null),
+            ]);
 
-            const { data: entryMonths } = await supabase
-                .from('competition_entries')
-                .select('month_year')
-                .not('month_year', 'is', null);
+            if (participantsResult.error) throw participantsResult.error;
+            if (entriesResult.error) throw entriesResult.error;
+
+            const participantMonths = participantsResult.data;
+            const entryMonths = entriesResult.data;
 
             const allMonths = new Set<string>();
             allMonths.add(getCurrentMonthYear()); // Always include current month
@@ -136,7 +143,7 @@ export default function IndividualCompetition() {
             // Step 1: Fetch all participants for the selected month (Query 1)
             const { data: participantsData, error: participantsError } = await supabase
                 .from('competition_participants')
-                .select('*')
+                .select('id, name, phone, image_url')
                 .eq('month_year', month)
                 .order('created_at', { ascending: false });
 
@@ -198,14 +205,14 @@ export default function IndividualCompetition() {
         try {
             const { data: participantsData, error: pError } = await supabase
                 .from('competition_participants')
-                .select('*')
+                .select('id, name, phone')
                 .eq('month_year', month);
 
             if (pError) throw pError;
 
             const { data: entriesData, error: eError } = await supabase
                 .from('competition_entries')
-                .select('*')
+                .select('participant_id, description, created_at')
                 .eq('month_year', month);
 
             if (eError) throw eError;
@@ -240,7 +247,7 @@ export default function IndividualCompetition() {
         try {
             const { data, error } = await supabase
                 .from('competition_entries')
-                .select('*')
+                .select('id, participant_id, description, created_at')
                 .eq('participant_id', participantId)
                 .order('created_at', { ascending: false });
 
@@ -256,34 +263,40 @@ export default function IndividualCompetition() {
         setIsSaving(true);
         try {
             // Fix Participants
-            const { data: participantsToFix } = await supabase
+            const { data: participantsToFix, error: participantsError } = await supabase
                 .from('competition_participants')
                 .select('id, created_at')
                 .is('month_year', null);
 
+            if (participantsError) throw participantsError;
+
             if (participantsToFix && participantsToFix.length > 0) {
                 await Promise.all(participantsToFix.map(async (p) => {
                     const month = format(new Date(p.created_at), 'yyyy-MM');
-                    await supabase
+                    const { error } = await supabase
                         .from('competition_participants')
                         .update({ month_year: month })
                         .eq('id', p.id);
+                    if (error) throw error;
                 }));
             }
 
             // Fix Entries
-            const { data: entriesToFix } = await supabase
+            const { data: entriesToFix, error: entriesError } = await supabase
                 .from('competition_entries')
                 .select('id, created_at')
                 .is('month_year', null);
 
+            if (entriesError) throw entriesError;
+
             if (entriesToFix && entriesToFix.length > 0) {
                 await Promise.all(entriesToFix.map(async (e) => {
                     const month = format(new Date(e.created_at), 'yyyy-MM');
-                    await supabase
+                    const { error } = await supabase
                         .from('competition_entries')
                         .update({ month_year: month })
                         .eq('id', e.id);
+                    if (error) throw error;
                 }));
             }
 
@@ -329,29 +342,31 @@ export default function IndividualCompetition() {
         }
 
         setIsSaving(true);
+        let uploadedImagePath: string | null = null;
         try {
             let imageUrl = null;
 
             // Upload image if selected
             if (imageFile) {
                 const fileExt = getSafeImageExtension(imageFile);
-                const fileName = `competition_${Date.now()}.${fileExt}`;
+                const fileName = `competition_${crypto.randomUUID()}.${fileExt}`;
+                const imagePath = `competition/${fileName}`;
 
                 const { error: uploadError } = await supabase.storage
                     .from('avatars')
-                    .upload(`competition/${fileName}`, imageFile, {
-                        upsert: true,
+                    .upload(imagePath, imageFile, {
+                        upsert: false,
                         contentType: imageFile.type,
                         cacheControl: '3600',
                     });
 
-                if (!uploadError) {
-                    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(`competition/${fileName}`);
-                    imageUrl = urlData.publicUrl;
-                }
+                if (uploadError) throw uploadError;
+                uploadedImagePath = imagePath;
+                const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(imagePath);
+                imageUrl = urlData.publicUrl;
             }
 
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('competition_participants')
                 .insert({
                     name: formData.name.trim(),
@@ -359,9 +374,13 @@ export default function IndividualCompetition() {
                     image_url: imageUrl,
                     created_by: user?.id,
                     month_year: getCurrentMonthYear()
-                });
+                })
+                .select('id')
+                .single();
 
             if (error) throw error;
+            if (!data) throw new Error('Participant was not created');
+            uploadedImagePath = null;
 
             toast.success(isRTL ? 'تم إضافة المشارك بنجاح' : 'Participant added successfully');
             setIsAddParticipantOpen(false);
@@ -369,6 +388,10 @@ export default function IndividualCompetition() {
             fetchParticipants();
             fetchAvailableMonths();
         } catch (error) {
+            if (uploadedImagePath) {
+                const { error: cleanupError } = await supabase.storage.from('avatars').remove([uploadedImagePath]);
+                if (cleanupError) console.error('Failed to remove orphaned competition image:', cleanupError);
+            }
             console.error('Error adding participant:', error);
             toast.error(isRTL ? 'حدث خطأ أثناء الإضافة' : 'Error adding participant');
         } finally {
@@ -384,16 +407,19 @@ export default function IndividualCompetition() {
 
         setIsSaving(true);
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('competition_entries')
                 .insert({
                     participant_id: selectedParticipant.id,
                     description: entryDescription.trim(),
                     created_by: user?.id,
                     month_year: getCurrentMonthYear()
-                });
+                })
+                .select('id')
+                .single();
 
             if (error) throw error;
+            if (!data) throw new Error('Competition entry was not created');
 
             toast.success(isRTL ? 'تم تسجيل المشاركة بنجاح' : 'Entry added successfully');
             setIsAddEntryOpen(false);
@@ -412,12 +438,14 @@ export default function IndividualCompetition() {
         if (!participantToDelete) return;
 
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('competition_participants')
                 .delete()
-                .eq('id', participantToDelete.id);
+                .eq('id', participantToDelete.id)
+                .select('id');
 
             if (error) throw error;
+            if (!data?.length) throw new Error('Participant was not deleted');
 
             toast.success(isRTL ? 'تم حذف المشارك بنجاح' : 'Participant deleted successfully');
             setIsDeleteDialogOpen(false);
@@ -441,10 +469,10 @@ export default function IndividualCompetition() {
         setIsAddEntryOpen(true);
     };
 
-    const filteredParticipants = participants.filter(p =>
+    const filteredParticipants = useMemo(() => participants.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (p.phone && p.phone.includes(searchQuery))
-    );
+    ), [participants, searchQuery]);
 
     const getInitials = (name: string) => {
         return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
