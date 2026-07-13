@@ -5,45 +5,87 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+// Keeps the current browser session usable when web storage is unavailable.
+const sessionMemoryStore = new Map<string, string>();
+
 // High-performance dynamic storage manager
 const customStorage = {
   getItem: (key: string) => {
-    // 1. Try to read from fast client-side web storage first
-    let val = localStorage.getItem(key) || sessionStorage.getItem(key);
+    const memoryValue = sessionMemoryStore.get(key);
+    if (memoryValue) return memoryValue;
+
+    let value: string | null = null;
+    try {
+      value = localStorage.getItem(key) || sessionStorage.getItem(key);
+    } catch {
+      // Private browsing or restrictive browser settings can reject web storage.
+    }
+
+    if (value) {
+      sessionMemoryStore.set(key, value);
+      return value;
+    }
     
-    // 2. If not found, check if there is an active session in cookies (migration fallback)
-    if (!val) {
-      val = Cookies.get(key) || null;
-      if (val) {
-        // Migrate to standard web storage immediately to bypass the 4KB cookie limit
-        const rememberMe = localStorage.getItem('rememberMe') !== 'false';
-        if (rememberMe) {
-          localStorage.setItem(key, val);
-        } else {
-          sessionStorage.setItem(key, val);
+    try {
+      value = Cookies.get(key) || null;
+      if (value) {
+        sessionMemoryStore.set(key, value);
+
+        try {
+          const rememberMe = localStorage.getItem('rememberMe') !== 'false';
+          if (rememberMe) {
+            localStorage.setItem(key, value);
+          } else {
+            sessionStorage.setItem(key, value);
+          }
+        } catch {
+          // Memory storage remains available for this browser session.
         }
-        // Clean up the cookie to prevent sending heavy auth payloads in request headers
+
         Cookies.remove(key);
       }
+    } catch {
+      // Cookie access is optional migration support only.
     }
-    return val;
+
+    return value;
   },
   setItem: (key: string, value: string) => {
-    const rememberMe = localStorage.getItem('rememberMe') !== 'false';
-    if (rememberMe) {
-      localStorage.setItem(key, value);
-      sessionStorage.removeItem(key); // Ensure clean separation
-    } else {
-      sessionStorage.setItem(key, value);
-      localStorage.removeItem(key); // Ensure clean separation
+    sessionMemoryStore.set(key, value);
+
+    try {
+      const rememberMe = localStorage.getItem('rememberMe') !== 'false';
+      if (rememberMe) {
+        localStorage.setItem(key, value);
+        sessionStorage.removeItem(key);
+      } else {
+        sessionStorage.setItem(key, value);
+        localStorage.removeItem(key);
+      }
+    } catch {
+      // Memory storage remains available for this browser session.
     }
-    // Always clean up cookies to prevent duplicate state or header size warnings
-    Cookies.remove(key);
+
+    try {
+      Cookies.remove(key);
+    } catch {
+      // Cookie cleanup is best-effort.
+    }
   },
   removeItem: (key: string) => {
-    localStorage.removeItem(key);
-    sessionStorage.removeItem(key);
-    Cookies.remove(key);
+    sessionMemoryStore.delete(key);
+    try {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    } catch {
+      // The in-memory copy was already cleared.
+    }
+
+    try {
+      Cookies.remove(key);
+    } catch {
+      // Cookie cleanup is best-effort.
+    }
   },
 };
 

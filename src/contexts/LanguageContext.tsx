@@ -123,7 +123,7 @@ const translations: Record<Language, Record<string, string>> = {
     'accountCreated': 'Your account has been created successfully.',
     'signupError': 'An error occurred during signup.',
     'emailAlreadyExists': 'This email is already registered.',
-    'volunteerPortal': 'Volunteer Management Portal',
+    'volunteerPortal': 'Volunteer Management Platform',
     'signIn': 'Sign In',
     'signUp': 'Sign Up',
     'email': 'Email',
@@ -143,7 +143,7 @@ const translations: Record<Language, Record<string, string>> = {
     'dashboard.currentLevel': 'Volunteer Grade',
     'dashboard.recentActivity': 'Recent Activity',
     'dashboard.logNewActivity': 'Log New Activity',
-    'dashboard.verse': '﴿وَمَنْ تَطَوَّعَ خَيْرًا فَإِنَّ اللَّهَ شَاكِرٌ عَلِيمٌ﴾',
+    'dashboard.verse': '﴿فَمَن تَطَوَّعَ خَيْرًا فَهُوَ خَيْرٌ لَّهُ ۚ﴾',
 
 
     // Admin Dashboard
@@ -277,7 +277,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // App
     'app.name': 'برنامج تسجيل المشاركات',
-    'app.tagline': 'Volunteer Portal',
+    'app.tagline': 'Volunteer Platform',
     'app.language': 'Language',
     'theme.toggle': 'Theme',
     'theme.light': 'Light',
@@ -397,7 +397,7 @@ const translations: Record<Language, Record<string, string>> = {
     'accountCreated': 'تم إنشاء حسابك بنجاح.',
     'signupError': 'حدث خطأ أثناء إنشاء الحساب.',
     'emailAlreadyExists': 'هذا البريد الإلكتروني مسجل بالفعل.',
-    'volunteerPortal': 'بوابة إدارة المتطوعين',
+    'volunteerPortal': 'منصة إدارة المتطوعين',
     'signIn': 'تسجيل الدخول',
     'signUp': 'إنشاء حساب',
     'email': 'البريد الإلكتروني',
@@ -417,7 +417,7 @@ const translations: Record<Language, Record<string, string>> = {
     'dashboard.currentLevel': 'الدرجة التطوعية',
     'dashboard.recentActivity': 'النشاط الأخير',
      'dashboard.logNewActivity': 'تسجيل مشاركة جديدة',
-    'dashboard.verse': '﴿وَمَنْ تَطَوَّعَ خَيْرًا فَإِنَّ اللَّهَ شَاكِرٌ عَلِيمٌ﴾',
+    'dashboard.verse': '﴿فَمَن تَطَوَّعَ خَيْرًا فَهُوَ خَيْرٌ لَّهُ ۚ﴾',
 
 
     // Admin Dashboard
@@ -568,7 +568,7 @@ const LanguageContext = createContext<LanguageContextType | null>(null);
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>(() => {
     const saved = localStorage.getItem('rtc-language');
-    return (saved as Language) || 'en';
+    return (saved as Language) || 'ar';
   });
 
   const setLanguage = (lang: Language) => {
