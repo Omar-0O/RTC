@@ -230,6 +230,7 @@ export function AppSidebar() {
 
   const hrNavItems = [
     { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
+    { title: isRTL ? 'داشبورد HR' : 'HR Dashboard', url: '/hr/dashboard', icon: BarChart3 },
     { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
     { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
@@ -253,6 +254,7 @@ export function AppSidebar() {
       case 'head_hr':
         return [
           { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
+          { title: isRTL ? 'داشبورد HR' : 'HR Dashboard', url: '/hr/dashboard', icon: BarChart3 },
           { title: isRTL ? 'إدارة المشاركات' : 'Submission Management', url: '/hr/submissions', icon: FileCheck },
           { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
           { title: isRTL ? 'شيت المتابعة' : 'Follow-Up Sheet', url: '/admin/followup', icon: UserCheck },
