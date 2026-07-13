@@ -39,3 +39,8 @@ h origin main
 
 # OS Files
 Thumbs.db
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
