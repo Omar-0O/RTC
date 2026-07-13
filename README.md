@@ -27,7 +27,7 @@
 Follow these steps to set up the project locally.
 
 ### Prerequisites
-- Node.js (v18+)
+- Node.js `^20.19.0 || >=22.12.0`
 - npm or yarn
 - A Supabase account
 
@@ -48,7 +48,7 @@ Follow these steps to set up the project locally.
     Create a `.env` file in the root directory and add your Supabase credentials:
     ```env
     VITE_SUPABASE_URL=your_supabase_url
-    VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+    VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
     ```
 
 4.  **Database Setup**
@@ -63,6 +63,11 @@ Follow these steps to set up the project locally.
     npm run dev
     ```
     Open [http://localhost:8080](http://localhost:8080) to view it in the browser.
+
+    To run against the RTC test Supabase environment, use:
+    ```bash
+    npm run dev:test
+    ```
 
 ## 📂 Project Structure
 

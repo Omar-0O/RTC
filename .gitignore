@@ -32,12 +32,45 @@ dist-ssr
 # Supabase
 supabase.exe
 supabase/.branches/
+supabase/.temp/
 
 # Local artifacts and dumps
 schema_dump.sql
 error_screenshot.png
 verification_schedule.png
-h origin main
+dump_data.sql
+activity_submissions_debug.txt
+bun_output.txt
+compile_errors.txt
+debug_output.txt
+diff.txt
+migration_list.txt
+migration_log.txt
+recent_submissions.txt
+repair_log.txt
+sessions_triggers.txt
+trainers_debug.txt
+trainers_schema_debug.txt
+
+# One-off local maintenance scripts and queries
+apply_rpc.js
+check-committees.ts
+debug_participation.sql
+fix_course.js
+fix_ui.cjs
+get_sheet_code.cjs
+get_sheet_code.js
+link_lamia_teacher.sql
+link_teacher_test.sql
+repair_migrations.cjs
+run_hr_migration.js
+run_sql.js
+temp_migration_fix.sql
+temp_query_committees.sql
+test.sql
 
 # OS Files
 Thumbs.db
+.DS_Store
+._*
+**/__MACOSX/

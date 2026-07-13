@@ -46,7 +46,7 @@ const migrationSteps = [
     step: 4,
     title_ar: 'إعداد متغيرات البيئة',
     title_en: 'Setup Environment Variables',
-    code: `# أنشئ ملف .env في جذر المشروع\n# Create a .env file in the project root\n\nVITE_SUPABASE_URL=your_supabase_url\nVITE_SUPABASE_ANON_KEY=your_supabase_anon_key`,
+    code: `# أنشئ ملف .env في جذر المشروع\n# Create a .env file in the project root\n\nVITE_SUPABASE_URL=your_supabase_url\nVITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key`,
   },
   {
     step: 5,
