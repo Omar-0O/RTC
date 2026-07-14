@@ -112,7 +112,8 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.welcomeBack': 'Welcome back',
     'auth.loginSubtitle': 'Sign in to your account',
     'auth.demoAccounts': 'Demo Accounts',
-    'auth.rememberMe': 'Remember me',
+    'auth.sessionExpired': 'Session expired',
+    'auth.sessionExpiredDescription': 'Please sign in again to continue.',
 
     // New Auth translations
     'error': 'Error',
@@ -386,7 +387,8 @@ const translations: Record<Language, Record<string, string>> = {
     'auth.welcomeBack': 'مرحباً بعودتك',
     'auth.loginSubtitle': 'سجل دخولك إلى حسابك',
     'auth.demoAccounts': 'حسابات تجريبية',
-    'auth.rememberMe': 'تذكرني',
+    'auth.sessionExpired': 'انتهت الجلسة',
+    'auth.sessionExpiredDescription': 'سجل دخولك مرة أخرى للمتابعة.',
 
     // New Auth translations
     'error': 'خطأ',

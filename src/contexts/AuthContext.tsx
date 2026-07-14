@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
+import { clearLegacyAuthStorage, markReauthenticationRequired, supabase } from '@/integrations/supabase/client';
 import { useProfileHeartbeat } from '@/hooks/useProfileHeartbeat';
 import { getAuthData, type AuthProfile } from '@/services/auth.service';
 import { getPrimaryRole } from '@/utils/roles';
@@ -23,6 +23,12 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const isTerminalRefreshError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return /invalid refresh token|refresh token not found|refresh token revoked|refresh token reuse/i.test(message);
+};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -69,32 +75,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user, fetchProfile]);
 
+  const applySession = useCallback((nextSession: Session | null) => {
+    if (!nextSession) {
+      clearAuthState();
+      return;
+    }
+
+    setSession(nextSession);
+    setUser(nextSession.user);
+
+    const currentProfile = profileRef.current;
+    if (!currentProfile || currentProfile.id !== nextSession.user.id) {
+      void fetchProfile(nextSession.user.id);
+    }
+  }, [clearAuthState, fetchProfile]);
+
   useEffect(() => {
     let mounted = true;
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!mounted) return;
+
+      if (event === 'SIGNED_OUT') {
+        clearAuthState();
+      } else if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        applySession(nextSession);
+      }
+
+      setIsLoading(false);
+    });
 
     async function initializeAuth() {
       try {
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
 
-        if (error) {
-          // A rotated or expired refresh token cannot recover. Remove only local state.
+        if (error && isTerminalRefreshError(error)) {
+          markReauthenticationRequired();
           await supabase.auth.signOut({ scope: 'local' });
           if (mounted) clearAuthState();
           return;
         }
 
         if (mounted) {
-          if (initialSession) {
-            setSession(initialSession);
-            setUser(initialSession.user);
-            void fetchProfile(initialSession.user.id);
-          } else {
-            clearAuthState();
+          if (error) {
+            console.error('Unable to restore auth session:', error.message);
           }
+
+          applySession(initialSession);
         }
       } catch (error) {
         console.error('Error during auth initialization:', error);
-        if (mounted) clearAuthState();
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -104,40 +134,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     initializeAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent | string, session) => {
-        if (!mounted) return;
-
-        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-          setSession(session);
-          setUser(session?.user ?? null);
-          if (session?.user) {
-            const currentProfile = profileRef.current;
-            if (!currentProfile || currentProfile.id !== session.user.id) {
-              void fetchProfile(session.user.id);
-            }
-          } else {
-            clearAuthState();
-          }
-        } else if (event === 'SIGNED_OUT') {
-          clearAuthState();
-          setIsLoading(false);
-        }
-
-        // Ensure loading is false after any auth event if it wasn't already
-        setIsLoading(false);
-      }
-    );
-
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [clearAuthState, fetchProfile]);
+  }, [applySession, clearAuthState]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    clearAuthState();
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+    } finally {
+      clearLegacyAuthStorage();
+      clearAuthState();
+    }
   }, [clearAuthState]);
 
   const hasRole = useCallback((role: AppRole) => {

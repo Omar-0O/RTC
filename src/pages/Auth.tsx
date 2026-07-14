@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Languages, Eye, EyeOff, Sun, Moon, Laptop } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { AUTH_RELOGIN_NOTICE_KEY, supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +12,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useTheme } from 'next-themes';
@@ -24,11 +23,25 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { t, isRTL, language, setLanguage } = useLanguage();
   const { setTheme } = useTheme();
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(AUTH_RELOGIN_NOTICE_KEY) !== '1') return;
+
+      sessionStorage.removeItem(AUTH_RELOGIN_NOTICE_KEY);
+      toast({
+        title: t('auth.sessionExpired'),
+        description: t('auth.sessionExpiredDescription'),
+        variant: 'destructive',
+      });
+    } catch {
+      // Session notices are optional when browser storage is unavailable.
+    }
+  }, [t, toast]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,9 +49,6 @@ export default function Auth() {
 
     // Clean input
     const cleanEmail = email.trim();
-
-    // Save remember me preference before login
-    localStorage.setItem('rememberMe', String(rememberMe));
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -148,19 +158,6 @@ export default function Auth() {
                     )}
                   </button>
                 </div>
-              </div>
-              <div className="flex items-center space-x-2 rtl:space-x-reverse mb-4">
-                <Checkbox
-                  id="rememberMe"
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                />
-                <Label
-                  htmlFor="rememberMe"
-                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                >
-                  {t('auth.rememberMe')}
-                </Label>
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading ? t('signingIn') : t('signIn')}

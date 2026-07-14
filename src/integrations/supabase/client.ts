@@ -1,101 +1,72 @@
 import { createClient } from '@supabase/supabase-js';
-import Cookies from 'js-cookie';
 import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const projectRef = new URL(SUPABASE_URL).hostname.split('.')[0];
 
-// Keeps the current browser session usable when web storage is unavailable.
-const sessionMemoryStore = new Map<string, string>();
+export const AUTH_STORAGE_KEY = `sb-${projectRef}-auth-token`;
+export const AUTH_RELOGIN_NOTICE_KEY = 'rtc-auth-relogin-required';
 
-// High-performance dynamic storage manager
-const customStorage = {
-  getItem: (key: string) => {
-    const memoryValue = sessionMemoryStore.get(key);
-    if (memoryValue) return memoryValue;
+const getLegacyCookie = (key: string) => {
+  const encodedKey = `${encodeURIComponent(key)}=`;
+  const cookie = document.cookie.split('; ').find((entry) => entry.startsWith(encodedKey));
 
-    let value: string | null = null;
-    try {
-      value = localStorage.getItem(key) || sessionStorage.getItem(key);
-    } catch {
-      // Private browsing or restrictive browser settings can reject web storage.
-    }
+  if (!cookie) return null;
 
-    if (value) {
-      sessionMemoryStore.set(key, value);
-      return value;
-    }
-    
-    try {
-      value = Cookies.get(key) || null;
-      if (value) {
-        sessionMemoryStore.set(key, value);
-
-        try {
-          const rememberMe = localStorage.getItem('rememberMe') !== 'false';
-          if (rememberMe) {
-            localStorage.setItem(key, value);
-          } else {
-            sessionStorage.setItem(key, value);
-          }
-        } catch {
-          // Memory storage remains available for this browser session.
-        }
-
-        Cookies.remove(key);
-      }
-    } catch {
-      // Cookie access is optional migration support only.
-    }
-
-    return value;
-  },
-  setItem: (key: string, value: string) => {
-    sessionMemoryStore.set(key, value);
-
-    try {
-      const rememberMe = localStorage.getItem('rememberMe') !== 'false';
-      if (rememberMe) {
-        localStorage.setItem(key, value);
-        sessionStorage.removeItem(key);
-      } else {
-        sessionStorage.setItem(key, value);
-        localStorage.removeItem(key);
-      }
-    } catch {
-      // Memory storage remains available for this browser session.
-    }
-
-    try {
-      Cookies.remove(key);
-    } catch {
-      // Cookie cleanup is best-effort.
-    }
-  },
-  removeItem: (key: string) => {
-    sessionMemoryStore.delete(key);
-    try {
-      localStorage.removeItem(key);
-      sessionStorage.removeItem(key);
-    } catch {
-      // The in-memory copy was already cleared.
-    }
-
-    try {
-      Cookies.remove(key);
-    } catch {
-      // Cookie cleanup is best-effort.
-    }
-  },
+  try {
+    return decodeURIComponent(cookie.slice(encodedKey.length));
+  } catch {
+    return null;
+  }
 };
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+const removeLegacyCookie = (key: string) => {
+  document.cookie = `${encodeURIComponent(key)}=; Max-Age=0; Path=/; SameSite=Lax`;
+};
+
+export const clearLegacyAuthStorage = () => {
+  try {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    localStorage.removeItem('rememberMe');
+    removeLegacyCookie(AUTH_STORAGE_KEY);
+  } catch {
+    // Clearing a legacy copy is best effort when browser storage is unavailable.
+  }
+};
+
+const migrateLegacyAuthStorage = () => {
+  try {
+    const persistedSession = localStorage.getItem(AUTH_STORAGE_KEY);
+    const legacySession = sessionStorage.getItem(AUTH_STORAGE_KEY) ?? getLegacyCookie(AUTH_STORAGE_KEY);
+
+    if (!persistedSession && legacySession) {
+      localStorage.setItem(AUTH_STORAGE_KEY, legacySession);
+    }
+  } catch {
+    // Supabase uses in-memory storage when browser storage is unavailable.
+  } finally {
+    clearLegacyAuthStorage();
+  }
+};
+
+// One-time migration from the former custom adapter. Standard localStorage keeps
+// Supabase refresh tokens synchronized across browser tabs.
+migrateLegacyAuthStorage();
+
+export const markReauthenticationRequired = () => {
+  try {
+    sessionStorage.setItem(AUTH_RELOGIN_NOTICE_KEY, '1');
+  } catch {
+    // The login screen remains usable when sessionStorage is unavailable.
+  }
+};
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: customStorage,
+    storage: localStorage,
+    storageKey: AUTH_STORAGE_KEY,
     persistSession: true,
     autoRefreshToken: true,
-  }
+  },
 });
