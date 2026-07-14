@@ -30,7 +30,6 @@ function RedirectPage() {
             className="h-48 w-auto mx-auto mb-1 object-contain"
           />
           <h1 className="text-lg font-bold">RTC Mohandseen</h1>
-          <p className="text-muted-foreground text-sm">{isRTL ? 'منصة إدارة المتطوعين' : 'Volunteer Management Platform'}</p>
         </div>
 
         {/* Card Component matching application style */}
@@ -41,8 +40,8 @@ function RedirectPage() {
             </CardTitle>
             <CardDescription className="text-sm mt-2 leading-relaxed">
               {isRTL 
-                ? 'لقد قمنا بنقل خوادم واستضافة منصة RTC Mohandseen بالكامل إلى شركة استضافة جديدة فائقة السرعة، وذلك لتحسين الأداء العام وضمان استقرار واستمرارية الخدمة بأعلى كفاءة ممكنة. يرجى استخدام وتثبيت الرابط الجديد كبديل دائم للدخول إلى حسابك.' 
-                : 'We have migrated the entire RTC Mohandseen platform and servers to a new high-speed hosting provider to optimize overall performance, ensure stability, and provide the highest possible service efficiency. Please use and bookmark the new link as your permanent access point.'}
+                ? 'تم نقل منصة RTC Mohandseen بالكامل إلى خوادم جديدة لتحسين الأداء والاستقرار. يرجى استخدام وتثبيت الرابط الجديد كبديل دائم.' 
+                : 'The RTC Mohandseen platform has been fully migrated to new servers for optimized performance and stability. Please use and bookmark the new link as your permanent access point.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5 pt-4">
