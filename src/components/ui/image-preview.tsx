@@ -31,6 +31,7 @@ export function ImagePreview({ src, alt = 'Image preview', children, className }
   const [showControls, setShowControls] = useState(true);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const posStart = useRef({ x: 0, y: 0 });
   const controlsTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -202,6 +203,34 @@ export function ImagePreview({ src, alt = 'Image preview', children, className }
     touchStartDistance.current = 0;
   }, []);
 
+  const downloadImage = useCallback(async () => {
+    if (isDownloading) return;
+
+    setIsDownloading(true);
+
+    try {
+      const response = await fetch(src);
+      if (!response.ok) throw new Error(`Image download failed: ${response.status}`);
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const urlPath = new URL(src, window.location.href).pathname;
+      const filename = decodeURIComponent(urlPath.split('/').pop() || 'image');
+      const link = document.createElement('a');
+
+      link.href = objectUrl;
+      link.download = filename.includes('.') ? filename : 'image';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    } catch (error) {
+      console.error('Failed to download preview image:', error);
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [isDownloading, src]);
+
   if (!isOpen) {
     return (
       <button
@@ -289,17 +318,19 @@ export function ImagePreview({ src, alt = 'Image preview', children, className }
           <div className="w-px h-7 bg-white/20 mx-0.5" />
 
           {/* Download */}
-          <a
-            href={src}
-            download
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => { e.stopPropagation(); resetControlsTimer(); }}
-            className="h-11 w-11 rounded-xl flex items-center justify-center text-white hover:bg-white/15 active:bg-white/25 hover:scale-105 active:scale-95 transition-all"
-            title={isRTL ? 'تحميل' : 'Download'}
+          <button
+            type="button"
+            disabled={isDownloading}
+            onClick={(e) => {
+              e.stopPropagation();
+              resetControlsTimer();
+              void downloadImage();
+            }}
+            className="h-11 w-11 rounded-xl flex items-center justify-center text-white hover:bg-white/15 active:bg-white/25 hover:scale-105 active:scale-95 transition-all disabled:cursor-wait disabled:opacity-60"
+            title={isDownloading ? (isRTL ? 'جارٍ التحميل' : 'Downloading') : (isRTL ? 'تحميل' : 'Download')}
           >
             <Download className="h-5 w-5" />
-          </a>
+          </button>
         </div>
       </div>
 
