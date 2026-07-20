@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, MapPin, User, Users, Phone, FileSpreadsheet, BookOpen, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, MapPin, User, Users, Phone, FileSpreadsheet, BookOpen, ChevronLeft, ChevronRight, Maximize2, Minimize2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
@@ -109,6 +109,27 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
     const [selectedCircle, setSelectedCircle] = useState<QuranCircle | null>(null);
     const [organizers, setOrganizers] = useState<CourseOrganizer[]>([]);
     const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    const toggleFullscreen = useCallback(() => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => {});
+            setIsFullscreen(true);
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(() => {});
+            }
+            setIsFullscreen(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
 
     const canViewDetails = true; // Everyone can view details now, but content varies
     const isHead = !isKiosk && HEAD_ROLES.includes(primaryRole || '');
@@ -122,7 +143,9 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
                 .order('schedule_time', { ascending: true });
             
             const selectedBranchId = isKiosk ? branchId : activeBranch?.id;
-            if ((isKiosk || canViewAllBranches) && selectedBranchId) q = q.eq('branch_id', selectedBranchId);
+            if ((isKiosk || canViewAllBranches) && selectedBranchId) {
+                q = q.or(`branch_id.eq.${selectedBranchId},branch_id.is.null`);
+            }
 
             const { data, error } = await q;
             if (error) throw error;
@@ -141,7 +164,9 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
                 .eq('is_active', true);
             
             const selectedBranchId = isKiosk ? branchId : activeBranch?.id;
-            if ((isKiosk || canViewAllBranches) && selectedBranchId) circlesQuery = circlesQuery.eq('branch_id', selectedBranchId);
+            if ((isKiosk || canViewAllBranches) && selectedBranchId) {
+                circlesQuery = circlesQuery.or(`branch_id.eq.${selectedBranchId},branch_id.is.null`);
+            }
 
             const { data: circlesData, error: circlesError } = await circlesQuery;
             if (circlesError) throw circlesError;
@@ -150,7 +175,9 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
                 .from('quran_teachers')
                 .select('id, name, target_gender');
 
-            if ((isKiosk || canViewAllBranches) && selectedBranchId) teachersQuery = teachersQuery.eq('branch_id', selectedBranchId);
+            if ((isKiosk || canViewAllBranches) && selectedBranchId) {
+                teachersQuery = teachersQuery.or(`branch_id.eq.${selectedBranchId},branch_id.is.null`);
+            }
 
             const { data: teachersData, error: teachersError } = await teachersQuery;
             if (teachersError) throw teachersError;
@@ -310,20 +337,25 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
         checkDate.setHours(0, 0, 0, 0);
 
         courses.forEach(c => {
+            if (!c || !c.schedule_days || !Array.isArray(c.schedule_days)) return;
+            const normalizedDays = c.schedule_days.map((d: string) => String(d).toLowerCase().trim());
             // 1. Check for Lectures
             let isLectureDay = false;
             // Check day of week
-            if (c.schedule_days.includes(dayName)) {
-                const startDate = new Date(c.start_date + 'T00:00:00');
-                // Check start date
-                if (startDate.setHours(0, 0, 0, 0) <= checkDate.getTime()) {
-                    // Check end date
-                    if (!c.end_date) {
-                        isLectureDay = true;
-                    } else {
-                        const endDate = new Date(c.end_date + 'T00:00:00');
-                        if (endDate.setHours(0, 0, 0, 0) >= checkDate.getTime()) {
+            if (normalizedDays.includes(dayName)) {
+                const cleanStartStr = c.start_date ? String(c.start_date).split('T')[0] : '';
+                if (cleanStartStr) {
+                    const startDate = new Date(cleanStartStr + 'T00:00:00');
+                    if (!isNaN(startDate.getTime()) && startDate.setHours(0, 0, 0, 0) <= checkDate.getTime()) {
+                        // Check end date
+                        if (!c.end_date) {
                             isLectureDay = true;
+                        } else {
+                            const cleanEndStr = String(c.end_date).split('T')[0];
+                            const endDate = new Date(cleanEndStr + 'T00:00:00');
+                            if (!isNaN(endDate.getTime()) && endDate.setHours(0, 0, 0, 0) >= checkDate.getTime()) {
+                                isLectureDay = true;
+                            }
                         }
                     }
                 }
@@ -334,7 +366,7 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
                     id: `${c.id}-lecture-${dateStr}`,
                     type: 'lecture',
                     title: c.name,
-                    time: c.schedule_time,
+                    time: c.schedule_time || '00:00',
                     course: c,
                     room: c.room
                 });
@@ -342,20 +374,13 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
 
             // 2. Check for Interviews
             if (c.has_interview && c.interview_date) {
-                // Determine interview date (handling both ISO 'yyyy-MM-dd' and potential time components if any)
-                // Assuming interview_date is YYYY-MM-DD
-                if (c.interview_date === dateStr) {
+                const cleanInterviewStr = String(c.interview_date).split('T')[0];
+                if (cleanInterviewStr === dateStr) {
                     events.push({
                         id: `${c.id}-interview`,
                         type: 'interview',
                         title: `${isRTL ? 'مقابلة' : 'Interview'}: ${c.name}`,
-                        time: "09:00", // Default or if you have a specific time for interviews? 
-                        // Ideally course.schedule_time or a separate field. 
-                        // Just using course time for now or a generic start
-                        // The schema doesn't seem to have specific 'interview_time', 
-                        // so we might assume it starts at a standard time or same as schedule_time?
-                        // Let's use schedule_time for now as a fallback or "All Day" logic if needed.
-                        // But let's stick to schedule_time to sort it properly.
+                        time: c.schedule_time || "09:00",
                         course: c,
                         room: 'interview'
                     });
@@ -364,7 +389,7 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
         });
 
         // Sort by time
-        return events.sort((a, b) => a.time.localeCompare(b.time));
+        return events.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
     }, [courses, isRTL]);
 
     // Get circles for a specific date based on their recurring schedule
@@ -411,7 +436,7 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
 
     return (
         <>
-            <Card className="col-span-full">
+            <Card className={`col-span-full transition-all ${isFullscreen ? 'fixed inset-0 z-50 p-6 bg-background overflow-auto rounded-none border-0' : ''}`}>
                 <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-4">
                     <div>
                         <CardTitle className="flex items-center gap-2 text-xl">
@@ -420,7 +445,7 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
                         </CardTitle>
                         <CardDescription>{format(currentMonth, 'MMMM yyyy', { locale })}</CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                         {/* Only show back button if we're ahead of current month */}
                         {(currentMonth.getFullYear() > new Date().getFullYear() ||
                             (currentMonth.getFullYear() === new Date().getFullYear() && currentMonth.getMonth() > new Date().getMonth())) && (
@@ -434,9 +459,13 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
                         <Button variant="outline" size="icon" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
                             {isRTL ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                         </Button>
-                        <Button variant="outline" size="sm" onClick={exportAllCourses} className="ml-2">
+                        <Button variant="outline" size="sm" onClick={exportAllCourses} className="ml-1">
                             <FileSpreadsheet className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                             {isRTL ? 'تصدير' : 'Export'}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={toggleFullscreen} className="ml-1" title={isRTL ? 'ملء الشاشة' : 'Full Screen'}>
+                            {isFullscreen ? <Minimize2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" /> : <Maximize2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />}
+                            {isFullscreen ? (isRTL ? 'تصغير' : 'Exit Full Screen') : (isRTL ? 'ملء الشاشة' : 'Full Screen')}
                         </Button>
                     </div>
                 </CardHeader>

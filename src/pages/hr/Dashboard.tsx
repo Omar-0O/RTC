@@ -443,7 +443,7 @@ export default function HRDashboard() {
                     <Card className="hover:shadow-md transition-shadow border-emerald-500/20 dark:border-emerald-500/10">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium">
-                                {isRTL ? 'مكتملو التارجت' : 'Target Completed'}
+                                {isRTL ? 'مكملين التارجت' : 'Target Completed'}
                             </CardTitle>
                             <CheckCircle className="h-4 w-4 text-emerald-500" />
                         </CardHeader>

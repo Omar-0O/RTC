@@ -135,8 +135,11 @@ const KIOSK_ROLES = new Set([
 
 function KioskRoute() {
   const { isLoading, isAuthenticated, roles } = useAuth();
+  const savedKioskBranchId = localStorage.getItem('rtc_kiosk_branch_id');
 
   if (isLoading) return <PageLoader />;
+  if (savedKioskBranchId) return <Kiosk />;
+
   if (!isAuthenticated) return <Navigate to="/auth" replace />;
   if (!roles.some((role) => KIOSK_ROLES.has(role))) return <Navigate to="/dashboard" replace />;
 

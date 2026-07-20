@@ -142,10 +142,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signOut = useCallback(async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.warn('SignOut warning:', error);
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // ignore fallback errors
+      }
     } finally {
-      clearLegacyAuthStorage();
       clearAuthState();
     }
   }, [clearAuthState]);

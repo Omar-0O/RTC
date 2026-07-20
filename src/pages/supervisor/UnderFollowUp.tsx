@@ -21,7 +21,6 @@ import {
   StopCircle,
   MessageCircle,
   Star,
-  RefreshCw,
   ChevronRight,
 } from 'lucide-react';
 import { waPhoneLink } from '@/utils/phoneUtils';
@@ -198,9 +197,6 @@ export default function UnderFollowUp() {
               <div className="h-16 w-16 rounded-2xl bg-amber-500 dark:bg-gradient-to-br dark:from-amber-400 dark:to-orange-500 flex items-center justify-center shadow-md shadow-amber-500/10 dark:shadow-amber-500/20 border border-white/10">
                 <UserCheck className="h-8 w-8 text-white" />
               </div>
-              <div className="absolute -bottom-1 -right-1 h-5.5 w-5.5 rounded-full bg-emerald-500 border-2 border-background flex items-center justify-center shadow-sm">
-                <span className="text-white text-[10px] font-bold">{volunteers.length}</span>
-              </div>
             </div>
 
             <div>
@@ -214,18 +210,6 @@ export default function UnderFollowUp() {
               </p>
             </div>
           </div>
-
-          {/* Refresh */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchVolunteers(true)}
-            disabled={refreshing}
-            className="gap-2 bg-background/50 dark:bg-amber-500/5 text-amber-900 dark:text-amber-400 border-amber-200 dark:border-amber-900/30 hover:bg-amber-100/50 dark:hover:bg-amber-500/10 hover:text-amber-950 dark:hover:text-amber-300 self-start sm:self-auto transition-all shadow-sm"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {isRTL ? 'تحديث' : 'Refresh'}
-          </Button>
         </div>
       </div>
 
