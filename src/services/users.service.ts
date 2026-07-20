@@ -419,20 +419,25 @@ export async function updateUser(payload: UpdateUserPayload): Promise<void> {
 
   if (payload.password?.trim()) {
     if (payload.password.length < 6) throw new Error('Password must be at least 6 characters');
-    const { data: rpcData, error: rpcError } = await supabase.rpc('update_user_password' as any, {
-      target_user_id: payload.userId,
-      new_password: payload.password.trim(),
-    });
-
-    if (!rpcError) {
-      const result = rpcData as { success?: boolean; error?: string };
-      if (result?.error) throw new Error(result.error);
-    } else {
-      const { data: pwData, error: pwError } = await supabase.functions.invoke<UpdatePasswordResponse>('update-user-password', {
-        body: { userId: payload.userId, newPassword: payload.password.trim() },
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('update_user_password' as any, {
+        target_user_id: payload.userId,
+        new_password: payload.password.trim(),
       });
-      if (pwError) throw await toFunctionApiError(pwError, 'Failed to update password');
-      if (pwData?.error) throw new Error(pwData.error);
+
+      if (!rpcError) {
+        const result = rpcData as { success?: boolean; error?: string };
+        if (result?.error) throw new Error(result.error);
+      } else {
+        const { data: pwData, error: pwError } = await supabase.functions.invoke<UpdatePasswordResponse>('update-user-password', {
+          body: { userId: payload.userId, newPassword: payload.password.trim() },
+        });
+        if (pwError) throw await toFunctionApiError(pwError, 'Failed to update password');
+        if (pwData?.error) throw new Error(pwData.error);
+      }
+    } catch (err: any) {
+      console.warn('Password update failed:', err);
+      throw new Error(err?.message || 'تعذر تحديث كلمة المرور — يرجى تشغيل ملف الـ SQL Migration في Supabase SQL Editor');
     }
   }
 }
