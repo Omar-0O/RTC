@@ -25,6 +25,7 @@ dist-ssr
 
 # Environment Variables
 .env
+env
 .env.*
 !.env.example
 .auth-migration.env

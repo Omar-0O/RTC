@@ -1,5 +1,3 @@
-/// <reference lib="deno.ns" />
-
 import {
   assertGlobalAdmin,
   assertJsonRequest,

@@ -167,10 +167,10 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
-  const fetchProfiles = (columns: string, applyBranchFilter: boolean) => {
+  const fetchProfiles = (applyBranchFilter: boolean) => {
     let query = supabase
       .from('profiles')
-      .select(columns, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .order('full_name')
       .range(from, to);
 
@@ -183,18 +183,18 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
     return query;
   };
 
-  // Current schema first. Old deployments can still list users with core fields.
-  const profilesRes = await fetchProfiles(USER_PROFILE_COLUMNS, true);
+  // Current schema first with select('*'). Old deployments can still list users.
+  const profilesRes = await fetchProfiles(true);
   let profilesData: LegacyProfileRow[];
   let totalCount: number;
 
   if (profilesRes.error && isMissingColumnError(profilesRes.error)) {
-    // Never drop a non-admin's branch filter: doing so could widen data access.
+    // Missing branch_id column in database
     if (branchId && !canViewAllBranches) {
       throw new Error('Your database needs the branch migration before this account can list volunteers.');
     }
 
-    const legacyProfilesRes = await fetchProfiles(LEGACY_USER_PROFILE_COLUMNS, false);
+    const legacyProfilesRes = await fetchProfiles(false);
     if (legacyProfilesRes.error) throw legacyProfilesRes.error;
     profilesData = (legacyProfilesRes.data ?? []) as unknown as LegacyProfileRow[];
     totalCount = legacyProfilesRes.count ?? 0;
@@ -303,7 +303,7 @@ export async function getUsersForExport({
 }: Pick<FetchUsersOptions, 'branchId' | 'canViewAllBranches'>): Promise<UserExportRow[]> {
   let query = supabase
     .from('profiles')
-    .select('id, full_name, full_name_ar, email, phone, created_at, level, attended_mini_camp, attended_camp, branch_id')
+    .select('*')
     .order('full_name');
 
   if (branchId) {
@@ -411,7 +411,7 @@ export async function updateUser(payload: UpdateUserPayload): Promise<void> {
     if (deleteError) throw deleteError;
 
     if (payload.role !== 'volunteer') {
-      const rolePayload: UserRoleInsert = { user_id: payload.userId, role: payload.role };
+      const rolePayload: UserRoleInsert = { user_id: payload.userId, role: payload.role as any };
       const { error: insertError } = await supabase.from('user_roles').insert(rolePayload);
       if (insertError) throw insertError;
     }
@@ -451,7 +451,7 @@ export async function updateUserRole(userId: string, newRole: string): Promise<v
   if (newRole !== 'volunteer') {
     const { error } = await supabase
       .from('user_roles')
-      .insert({ user_id: userId, role: newRole as UserRole });
+      .insert({ user_id: userId, role: newRole as any });
     if (error) throw error;
   }
 }

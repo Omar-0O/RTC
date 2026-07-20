@@ -19,6 +19,47 @@ import { useTheme } from 'next-themes';
 import logo from '@/assets/logo.webp';
 import { cn } from '@/lib/utils';
 
+interface BranchRecord {
+  id: string;
+  name: string;
+  name_ar: string;
+  code?: string | null;
+}
+
+const normalizeBranchText = (str: string) => {
+  return str
+    .trim()
+    .toLowerCase()
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/\s+/g, ' ');
+};
+
+const findBranchByInput = (input: string, branches: BranchRecord[]) => {
+  const normInput = normalizeBranchText(input);
+  if (!normInput) return null;
+
+  return branches.find(b => {
+    const normName = normalizeBranchText(b.name || '');
+    const normNameAr = normalizeBranchText(b.name_ar || '');
+    const normCode = normalizeBranchText(b.code || '');
+
+    if (normName === normInput || normNameAr === normInput || (normCode && normCode === normInput)) {
+      return true;
+    }
+
+    if (normName && (normName.includes(normInput) || normInput.includes(normName))) {
+      return true;
+    }
+    if (normNameAr && (normNameAr.includes(normInput) || normInput.includes(normNameAr))) {
+      return true;
+    }
+
+    return false;
+  });
+};
+
 export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,15 +75,46 @@ export default function Auth() {
     e.preventDefault();
     setIsLoading(true);
 
-    // Clean input
-    const cleanEmail = email.trim();
+    const cleanInput = email.trim();
 
-    // Save remember me preference before login
     localStorage.setItem('rememberMe', String(rememberMe));
 
     try {
+      // Check if user entered a branch name
+      const { data: branches } = await supabase
+        .from('branches')
+        .select('id, name, name_ar, code');
+
+      if (branches && branches.length > 0) {
+        const matchedBranch = findBranchByInput(cleanInput, branches as BranchRecord[]);
+        if (matchedBranch) {
+          localStorage.setItem('rtc_kiosk_branch_id', matchedBranch.id);
+          localStorage.setItem('active_branch_id', matchedBranch.id);
+          toast({
+            title: isRTL ? 'تم الدخول بنجاح' : 'Kiosk Access Granted',
+            description: isRTL
+              ? `تم التوجيه إلى كشك فرع ${matchedBranch.name_ar || matchedBranch.name}`
+              : `Welcome to ${matchedBranch.name} Branch Kiosk`,
+          });
+          navigate('/kiosk');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Standard email/password login
+      if (!password) {
+        toast({
+          title: t('error'),
+          description: isRTL ? 'يرجى إدخال كلمة المرور' : 'Please enter your password',
+          variant: 'destructive',
+        });
+        setIsLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
+        email: cleanInput,
         password: password,
       });
 
@@ -53,7 +125,6 @@ export default function Auth() {
           variant: 'destructive',
         });
       } else {
-        // Check user role for redirection
         const { data: roles, error: rolesError } = await supabase
           .from('user_roles')
           .select('role')
@@ -102,7 +173,6 @@ export default function Auth() {
             className="h-48 w-auto mx-auto mb-1 object-contain"
           />
           <h1 className="text-lg font-bold">RTC</h1>
-          <p className="text-muted-foreground">{t('volunteerPortal')}</p>
         </div>
 
         <Card>
@@ -113,11 +183,13 @@ export default function Auth() {
           <CardContent>
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">{t('email')}</Label>
+                <Label htmlFor="email">
+                  {isRTL ? 'البريد الإلكتروني أو اسم الفرع' : 'Email or Branch Name'}
+                </Label>
                 <Input
                   id="email"
-                  type="email"
-                  placeholder="you@example.com"
+                  type="text"
+                  placeholder={isRTL ? 'مثال: المهندسين أو user@example.com' : 'e.g. Mohandseen or user@example.com'}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -132,8 +204,6 @@ export default function Auth() {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
                     className="ltr:pr-10 rtl:pl-10"
                   />
                   <button

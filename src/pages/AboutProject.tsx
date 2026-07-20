@@ -116,20 +116,7 @@ export default function AboutProject() {
               ? 'نظام متكامل لإدارة المتطوعين، الأنشطة، الكورسات، الفعاليات، وتتبع مشاركات الأعضاء'
               : 'A comprehensive system for managing volunteers, activities, courses, events, and tracking member participation'}
           </p>
-          <div className="flex flex-wrap gap-2 justify-center">
-            <Badge variant="secondary" className="text-sm py-1 px-3 gap-1">
-              <Sparkles className="h-3 w-3" />
-              React + TypeScript
-            </Badge>
-            <Badge variant="secondary" className="text-sm py-1 px-3 gap-1">
-              <Database className="h-3 w-3" />
-              Supabase
-            </Badge>
-            <Badge variant="secondary" className="text-sm py-1 px-3 gap-1">
-              <Globe className="h-3 w-3" />
-              {isAr ? 'متعدد اللغات' : 'Multilingual'}
-            </Badge>
-          </div>
+
         </div>
       </div>
 
@@ -289,27 +276,7 @@ export default function AboutProject() {
                     والاختبار والتعديل، ولم يبخلوا يومًا بملاحظة أو فكرة أو تشجيع.
                   </p>
 
-                  {/* Supporters placeholder grid — يمكن استبدالها بأسماء حقيقية */}
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-                    {[
-                      { label: 'صورة + اسم — الداعم الأول' },
-                      { label: 'صورة + اسم — الداعم الثاني' },
-                      { label: 'صورة + اسم — الداعم الثالث' },
-                    ].map((item, i) => (
-                      <div key={i} className="flex flex-col items-center gap-3">
-                        <PhotoPlaceholder label={item.label} className="w-24 h-24 rounded-full" />
-                        <div className="h-4 w-28 rounded bg-muted animate-pulse" />
-                        <div className="h-3 w-20 rounded bg-muted/70 animate-pulse" />
-                      </div>
-                    ))}
-                  </div>
 
-                  {/* Second image placeholder */}
-                  <PhotoPlaceholder label="صورة — لقطة من النشاط" className="w-full h-48" />
-
-                  <p className="text-muted-foreground text-sm text-center pt-2">
-                    جزاكم الله خيرًا على كل لحظة دعم وصبر 🤍
-                  </p>
 
                 </CardContent>
               </Card>

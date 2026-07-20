@@ -136,8 +136,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [clearAuthState, fetchProfile]);
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    clearAuthState();
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.warn('SignOut warning:', error);
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // ignore fallback errors
+      }
+    } finally {
+      clearAuthState();
+    }
   }, [clearAuthState]);
 
   const hasRole = useCallback((role: AppRole) => {
