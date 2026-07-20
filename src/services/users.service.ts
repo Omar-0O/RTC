@@ -425,16 +425,17 @@ export async function updateUser(payload: UpdateUserPayload): Promise<void> {
         new_password: payload.password.trim(),
       });
 
-      if (!rpcError) {
-        const result = rpcData as { success?: boolean; error?: string };
-        if (result?.error) throw new Error(result.error);
-      } else {
-        const { data: pwData, error: pwError } = await supabase.functions.invoke<UpdatePasswordResponse>('update-user-password', {
-          body: { userId: payload.userId, newPassword: payload.password.trim() },
-        });
-        if (pwError) throw await toFunctionApiError(pwError, 'Failed to update password');
-        if (pwData?.error) throw new Error(pwData.error);
+      if (rpcError) {
+        console.error('RPC update_user_password error:', rpcError);
+        throw new Error(
+          rpcError.message?.includes('function') || rpcError.code === '42883'
+            ? 'دالة تحديث كلمة المرور غير موجودة — يرجى تشغيل ملف الـ SQL Migration في Supabase SQL Editor'
+            : rpcError.message || 'فشل في تحديث كلمة المرور'
+        );
       }
+
+      const result = rpcData as { success?: boolean; error?: string } | null;
+      if (result?.error) throw new Error(result.error);
     } catch (err: any) {
       console.warn('Password update failed:', err);
       throw new Error(err?.message || 'تعذر تحديث كلمة المرور — يرجى تشغيل ملف الـ SQL Migration في Supabase SQL Editor');
