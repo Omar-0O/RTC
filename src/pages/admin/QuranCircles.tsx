@@ -583,9 +583,9 @@ export default function QuranCircles() {
             await fetchEnrollments(enrollmentCircle.id);
             fetchCircles(); // Refresh count
 
-            // Refresh details view if open for this circle
+            // Refresh details view if open for this circle (preserve current tab)
             if (selectedCircle?.id === enrollmentCircle.id) {
-                openCircleDetails(selectedCircle);
+                openCircleDetails(selectedCircle, true);
             }
         } catch (error: unknown) {
             console.error('Error enrolling:', error);
@@ -596,14 +596,15 @@ export default function QuranCircles() {
     const handleUnenroll = async (beneficiaryId: string) => {
         if (!enrollmentCircle) return;
         try {
-            await unenrollBeneficiary(enrollmentCircle.id, beneficiaryId);
+            // Use deactivate (status → inactive) instead of hard delete to preserve history
+            await deactivateCircleEnrollment(enrollmentCircle.id, beneficiaryId);
             toast.success(isRTL ? 'تم إلغاء التسجيل' : 'Enrollment removed');
             await fetchEnrollments(enrollmentCircle.id);
             fetchCircles(); // Refresh count
 
-            // Refresh details view if open for this circle
+            // Refresh details view if open for this circle (preserve current tab)
             if (selectedCircle?.id === enrollmentCircle.id) {
-                openCircleDetails(selectedCircle);
+                openCircleDetails(selectedCircle, true);
             }
         } catch (error: unknown) {
             console.error('Error unenrolling:', error);
@@ -611,35 +612,43 @@ export default function QuranCircles() {
         }
     };
 
-    const filteredBeneficiariesForEnrollment = useMemo(() => {
-        const normalizedSearch = beneficiarySearch.toLowerCase();
-
-        return allBeneficiaries.filter(b => {
-            const matchesSearch = b.name_ar.toLowerCase().includes(normalizedSearch) ||
-                (b.name_en?.toLowerCase() || '').includes(normalizedSearch);
-
-            if (!matchesSearch) return false;
-            if (!enrollmentCircle) return true;
-
-            const isChild = b.beneficiary_type === 'child';
-            if (enrollmentCircle.target_group === 'children' && !isChild) return false;
-            if (enrollmentCircle.target_group === 'adults' && isChild) return false;
-
-            if (enrollmentCircle.beneficiary_gender === 'male' && b.gender !== 'male') return false;
-            if (enrollmentCircle.beneficiary_gender === 'female' && b.gender !== 'female') return false;
-
-            return true;
-        });
-    }, [allBeneficiaries, beneficiarySearch, enrollmentCircle]);
-
     const enrolledBeneficiaryIds = useMemo(
         () => new Set(enrolledBeneficiaries.map((beneficiary) => beneficiary.id)),
         [enrolledBeneficiaries],
     );
 
-    const openCircleDetails = async (circle: QuranCircle) => {
+    const filteredBeneficiariesForEnrollment = useMemo(() => {
+        const normalizedSearch = beneficiarySearch.toLowerCase();
+
+        return allBeneficiaries
+            .filter(b => {
+                const matchesSearch = b.name_ar.toLowerCase().includes(normalizedSearch) ||
+                    (b.name_en?.toLowerCase() || '').includes(normalizedSearch);
+
+                if (!matchesSearch) return false;
+                if (!enrollmentCircle) return true;
+
+                const isChild = b.beneficiary_type === 'child';
+                if (enrollmentCircle.target_group === 'children' && !isChild) return false;
+                if (enrollmentCircle.target_group === 'adults' && isChild) return false;
+
+                if (enrollmentCircle.beneficiary_gender === 'male' && b.gender !== 'male') return false;
+                if (enrollmentCircle.beneficiary_gender === 'female' && b.gender !== 'female') return false;
+
+                return true;
+            })
+            // Show already-enrolled students first
+            .sort((a, b) => {
+                const aEnrolled = enrolledBeneficiaryIds.has(a.id) ? 0 : 1;
+                const bEnrolled = enrolledBeneficiaryIds.has(b.id) ? 0 : 1;
+                return aEnrolled - bEnrolled;
+            });
+    }, [allBeneficiaries, beneficiarySearch, enrollmentCircle, enrolledBeneficiaryIds]);
+
+
+    const openCircleDetails = async (circle: QuranCircle, preserveTab = false) => {
         setSelectedCircle(circle);
-        setActiveTab('sessions');
+        if (!preserveTab) setActiveTab('sessions');
         setIsDetailsOpen(true);
 
         // Auto-fill defaults for new beneficiary
@@ -708,8 +717,8 @@ export default function QuranCircles() {
             setSessionNotes('');
             setSessionOrganizerId('none');
 
-            // Refresh sessions
-            await openCircleDetails(selectedCircle);
+            // Refresh sessions while preserving the current tab
+            await openCircleDetails(selectedCircle, true);
         } catch (error: unknown) {
             console.error('Error creating session:', error);
             toast.error(getErrorMessage(error));
@@ -757,7 +766,8 @@ export default function QuranCircles() {
 
             toast.success(isRTL ? 'تم حفظ الحضور' : 'Attendance saved');
             setIsAttendanceDialogOpen(false);
-            await openCircleDetails(selectedCircle);
+            // Preserve current tab when refreshing after saving attendance
+            await openCircleDetails(selectedCircle, true);
         } catch (error: unknown) {
             console.error('Error saving attendance:', error);
             toast.error(getErrorMessage(error));
@@ -841,7 +851,8 @@ export default function QuranCircles() {
             await deleteSession(deleteSessionId);
             toast.success(isRTL ? 'تم حذف الجلسة' : 'Session deleted');
             setDeleteSessionId(null);
-            await openCircleDetails(selectedCircle);
+            // Preserve current tab when refreshing after deleting session
+            await openCircleDetails(selectedCircle, true);
         } catch (error: unknown) {
             console.error('Error deleting session:', error);
             toast.error(getErrorMessage(error, 'Error deleting session'));
@@ -942,6 +953,7 @@ export default function QuranCircles() {
             // 4. Refresh data and reset
             setIsAddingBeneficiary(false);
             setEditingBeneficiary(null);
+            setIsEditStudentDialogOpen(false);
             setNewBeneficiary({
                 name_ar: '',
                 name_en: '',
@@ -949,7 +961,8 @@ export default function QuranCircles() {
                 gender: 'male',
                 beneficiary_type: 'adult'
             });
-            await openCircleDetails(selectedCircle);
+            // Preserve current tab when refreshing after add/edit
+            await openCircleDetails(selectedCircle, true);
             fetchCircles(); // Refresh counts
 
         } catch (error: unknown) {
@@ -1452,7 +1465,8 @@ export default function QuranCircles() {
                 isRTL={isRTL}
                 onOpenChange={(open) => {
                     setIsSessionDialogOpen(open);
-                    if (!open) return;
+                    // Reset fields when closing the dialog
+                    if (open) return;
                     const localDate = new Date();
                     setSessionDate(new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0]);
                     setSessionNotes('');
@@ -1621,9 +1635,10 @@ export default function QuranCircles() {
                         }}>
                             {isRTL ? 'إلغاء' : 'Cancel'}
                         </Button>
-                        <Button onClick={() => {
-                            handleAddBeneficiary();
-                            setIsEditStudentDialogOpen(false);
+                        <Button onClick={async () => {
+                            // await the async save before closing so errors can be shown
+                            await handleAddBeneficiary();
+                            // Dialog is closed inside handleAddBeneficiary on success
                         }}>
                             {isRTL ? 'حفظ التغييرات' : 'Save Changes'}
                         </Button>
@@ -1684,7 +1699,7 @@ export default function QuranCircles() {
                                                 <button
                                                     onClick={() => updateSheetAttendanceType(session.id, historyStudent!.id, 'revision')}
                                                     className={`px-3 py-1 rounded text-xs transition-all ${record?.attendance_type === 'revision'
-                                                        ? 'bg-amber-50 text-white shadow-sm'
+                                                        ? 'bg-amber-500 text-white shadow-sm'
                                                         : 'hover:bg-muted'
                                                         }`}
                                                 >

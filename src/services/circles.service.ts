@@ -560,14 +560,40 @@ export async function saveCircle(payload: SaveCirclePayload): Promise<string> {
 }
 
 export async function deleteCircle(circleId: string): Promise<void> {
+  // Clean up enrollments first (orphaned rows won't be auto-deleted by FK unless CASCADE is set)
+  const { error: enrollmentError } = await supabase
+    .from('quran_enrollments')
+    .delete()
+    .eq('circle_id', circleId);
+  if (enrollmentError) throw enrollmentError;
+
   const { error } = await supabase.from('quran_circles').delete().eq('id', circleId);
   if (error) throw error;
 }
 
 export async function enrollBeneficiary(circleId: string, beneficiaryId: string): Promise<void> {
-  const enrollment: QuranEnrollmentInsert = { circle_id: circleId, beneficiary_id: beneficiaryId, status: 'active' };
-  const { error } = await supabase.from('quran_enrollments').insert(enrollment);
-  if (error) throw error;
+  // Check if an enrollment record already exists (possibly inactive)
+  const { data: existing, error: lookupError } = await supabase
+    .from('quran_enrollments')
+    .select('id, status')
+    .eq('circle_id', circleId)
+    .eq('beneficiary_id', beneficiaryId)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+
+  if (existing) {
+    // Re-activate the existing record instead of inserting a duplicate
+    if (existing.status === 'active') return; // Already enrolled, nothing to do
+    const { error } = await supabase
+      .from('quran_enrollments')
+      .update({ status: 'active' })
+      .eq('id', existing.id);
+    if (error) throw error;
+  } else {
+    const enrollment: QuranEnrollmentInsert = { circle_id: circleId, beneficiary_id: beneficiaryId, status: 'active' };
+    const { error } = await supabase.from('quran_enrollments').insert(enrollment);
+    if (error) throw error;
+  }
 }
 
 export async function unenrollBeneficiary(circleId: string, beneficiaryId: string): Promise<void> {
