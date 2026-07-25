@@ -8,33 +8,42 @@ const CURRENT_VERSION_FLAG = 'rtc-v4-clean';
 try {
   const localVersion = localStorage.getItem('app-cache-version-flag');
   if (localVersion !== CURRENT_VERSION_FLAG) {
-    console.warn('[Self-Healing] Version mismatch or first-time v4 loading. Clearing old caches and reloading...');
-    
-    const cleanupTasks: Promise<unknown>[] = [];
-    
-    // Clear all caches
-    if ('caches' in window) {
-      cleanupTasks.push(
-        caches.keys().then((names) =>
-          Promise.all(names.map((name) => caches.delete(name)))
-        )
-      );
-    }
-    
-    // Unregister all SWs
-    if ('serviceWorker' in navigator) {
-      cleanupTasks.push(
-        navigator.serviceWorker.getRegistrations().then((registrations) =>
-          Promise.all(registrations.map((r) => r.unregister()))
-        )
-      );
-    }
-    
+    // Immediately persist version flag to prevent re-entrancy
     localStorage.setItem('app-cache-version-flag', CURRENT_VERSION_FLAG);
     
-    Promise.allSettled(cleanupTasks).then(() => {
-      window.location.reload();
-    });
+    // Prevent infinite reload loops if storage persistence fails or cached SW serves old main.tsx
+    const versionReloadCount = parseInt(sessionStorage.getItem('version_reload_count') || '0', 10);
+    if (versionReloadCount < 1) {
+      sessionStorage.setItem('version_reload_count', '1');
+      console.warn('[Self-Healing] Version mismatch or first-time v4 loading. Clearing old caches and reloading...');
+      
+      const cleanupTasks: Promise<unknown>[] = [];
+      
+      // Clear all caches
+      if ('caches' in window) {
+        cleanupTasks.push(
+          caches.keys().then((names) =>
+            Promise.all(names.map((name) => caches.delete(name)))
+          )
+        );
+      }
+      
+      // Unregister all SWs
+      if ('serviceWorker' in navigator) {
+        cleanupTasks.push(
+          navigator.serviceWorker.getRegistrations().then((registrations) =>
+            Promise.all(registrations.map((r) => r.unregister()))
+          )
+        );
+      }
+      
+      Promise.race([
+        Promise.allSettled(cleanupTasks),
+        new Promise(resolve => setTimeout(resolve, 3000)),
+      ]).then(() => {
+        window.location.reload();
+      });
+    }
   }
 } catch (e) {
   console.error('[Self-Healing] Error during cache purge:', e);
@@ -49,9 +58,21 @@ const triggerChunkErrorReload = () => {
     return;
   }
 
+  // Session-capped reload protection: Max 1 auto-reload per session
+  try {
+    const reloadCount = parseInt(sessionStorage.getItem('chunk_reload_count') || '0', 10);
+    if (reloadCount >= 1) {
+      console.warn('[ChunkReload] Auto-reload already attempted once in this session. Halting auto-reload.');
+      return;
+    }
+    sessionStorage.setItem('chunk_reload_count', '1');
+  } catch (e) {
+    console.error('[ChunkReload] Storage access error:', e);
+  }
+
   const lastReload = localStorage.getItem('last-chunk-error-reload');
   const now = Date.now();
-  // 10 seconds cooldown to prevent infinite reload loops
+  // 10 seconds cooldown to prevent rapid multi-triggers
   if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
     localStorage.setItem('last-chunk-error-reload', now.toString());
 

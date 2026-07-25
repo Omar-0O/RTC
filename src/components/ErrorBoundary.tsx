@@ -45,6 +45,24 @@ class ErrorBoundary extends Component<Props, State> {
                 return;
             }
 
+            // Guard against infinite reload loops: max 1 auto-reload attempt per session
+            let alreadyReloaded = false;
+            try {
+                const reloadCount = parseInt(sessionStorage.getItem('chunk_reload_count') || '0', 10);
+                if (reloadCount >= 1) {
+                    alreadyReloaded = true;
+                } else {
+                    sessionStorage.setItem('chunk_reload_count', '1');
+                }
+            } catch (e) {
+                console.error('[ErrorBoundary] Storage access error:', e);
+            }
+
+            if (alreadyReloaded) {
+                console.warn('[ErrorBoundary] Chunk reload already attempted once in this session. Halting auto-reload.');
+                return;
+            }
+
             // Build cleanup tasks and await them before reloading
             const cleanupTasks: Promise<unknown>[] = [];
 
@@ -100,27 +118,36 @@ class ErrorBoundary extends Component<Props, State> {
             }
 
             const isOffline = this.state.isOfflineError;
-            const isChunkError = (this.state.error?.message.includes('Loading chunk') ||
-                this.state.error?.message.includes('Failed to fetch dynamically imported module')) && !isOffline;
+            const rawIsChunkError = Boolean(this.state.error?.message.includes('Loading chunk') ||
+                this.state.error?.message.includes('Failed to fetch dynamically imported module'));
+            
+            let alreadyReloaded = false;
+            try {
+                alreadyReloaded = parseInt(sessionStorage.getItem('chunk_reload_count') || '0', 10) >= 1;
+            } catch {
+                // Ignore storage errors
+            }
+
+            const showAutoReloadingState = rawIsChunkError && !isOffline && !alreadyReloaded;
 
             return (
                 <div className="min-h-screen flex flex-col items-center justify-center p-4 gap-4 bg-background">
                     <AlertTriangle className="h-12 w-12 text-destructive animate-pulse" />
                     <h2 className="text-xl font-semibold text-center">
-                        {isOffline ? 'أنت أوفلاين 📡' : 'ايرور او Update ايهمَ اقرب 3:'}
+                        {isOffline ? 'أنت أوفلاين 📡' : (showAutoReloadingState ? 'تحديث التطبيق 🔄' : 'حدث خطأ في التحميل')}
                     </h2>
                     <p className="text-muted-foreground text-center text-sm max-w-md">
                         {isOffline
                             ? 'مش قادرين نحمل الجزء ده من التطبيق عشان مفيش إنترنت. اتأكد من الاتصال وحاول تاني 🤍'
-                            : (isChunkError
+                            : (showAutoReloadingState
                                 ? 'تم تحديث التطبيق. جاري إعادة التحميل تلقائياً...'
-                                : 'ممكن تعمل ريفرش لوسمحت 🤍😇')}
+                                : 'تعذر تحميل هذا الجزء من التطبيق. يُرجى إعادة التحميل أو العودة للرئيسية 🤍😇')}
                     </p>
-                    {!isChunkError && (
+                    {!showAutoReloadingState && (
                         <div className="flex gap-2 mt-2">
                             <Button onClick={isOffline ? this.handleRetry : () => window.location.reload()}>
                                 <RefreshCw className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
-                                {isOffline ? 'إعادة المحاولة' : 'ريفرش'}
+                                {isOffline ? 'إعادة المحاولة' : 'إعادة التحميل'}
                             </Button>
                             <Button onClick={this.handleGoHome} variant="outline">
                                 <Home className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
@@ -128,7 +155,7 @@ class ErrorBoundary extends Component<Props, State> {
                             </Button>
                         </div>
                     )}
-                    {isChunkError && (
+                    {showAutoReloadingState && (
                         <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mt-4"></div>
                     )}
                 </div>

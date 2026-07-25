@@ -39,6 +39,18 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (refreshing) return;
       refreshing = true;
+
+      try {
+        const swReloadCount = parseInt(sessionStorage.getItem('sw_reload_count') || '0', 10);
+        if (swReloadCount >= 1) {
+          console.warn('[SW] Service worker controller changed, but page was already reloaded in this session. Suppressing reload.');
+          return;
+        }
+        sessionStorage.setItem('sw_reload_count', '1');
+      } catch (e) {
+        console.error('[SW] Storage access error:', e);
+      }
+
       window.location.reload();
     });
 
