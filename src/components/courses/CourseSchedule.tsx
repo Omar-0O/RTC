@@ -93,6 +93,14 @@ const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
 const HEAD_ROLES = ['admin', 'supervisor', 'head_production', 'head_fourth_year', 'head_events', 'head_caravans', 'committee_leader'];
 const COURSE_SCHEDULE_COLUMNS = 'id, name, trainer_name, trainer_phone, room, schedule_days, schedule_time, has_interview, interview_date, total_lectures, start_date, end_date';
 
+const parseLocalDate = (dateStr: string | null | undefined): Date | null => {
+    if (!dateStr) return null;
+    const cleanStr = String(dateStr).split('T')[0];
+    const parts = cleanStr.split('-').map(Number);
+    if (parts.length < 3 || parts.some(isNaN)) return null;
+    return new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0);
+};
+
 interface CourseScheduleProps {
     isKiosk?: boolean;
     branchId?: string;
@@ -231,8 +239,14 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
 
     useEffect(() => {
         if (!isKiosk && !user?.id) return;
-        const cacheId = isKiosk ? branchId || 'kiosk' : user?.id || 'anonymous';
-        const selectedBranchId = isKiosk ? branchId : activeBranch?.id;
+
+        if (isKiosk) {
+            fetchData(false);
+            return;
+        }
+
+        const cacheId = user?.id || 'anonymous';
+        const selectedBranchId = activeBranch?.id;
         const cacheKey = `rtc_course_schedule_${cacheId}_${selectedBranchId || 'all'}`;
         const cached = getLocalCache<CourseScheduleCache>(cacheKey, isCourseScheduleCache);
         if (cached) {
@@ -341,21 +355,15 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
             const normalizedDays = c.schedule_days.map((d: string) => String(d).toLowerCase().trim());
             // 1. Check for Lectures
             let isLectureDay = false;
-            // Check day of week
             if (normalizedDays.includes(dayName)) {
-                const cleanStartStr = c.start_date ? String(c.start_date).split('T')[0] : '';
-                if (cleanStartStr) {
-                    const startDate = new Date(cleanStartStr + 'T00:00:00');
-                    if (!isNaN(startDate.getTime()) && startDate.setHours(0, 0, 0, 0) <= checkDate.getTime()) {
-                        // Check end date
-                        if (!c.end_date) {
+                const startDate = parseLocalDate(c.start_date);
+                if (startDate && startDate.getTime() <= checkDate.getTime()) {
+                    if (!c.end_date) {
+                        isLectureDay = true;
+                    } else {
+                        const endDate = parseLocalDate(c.end_date);
+                        if (endDate && endDate.getTime() >= checkDate.getTime()) {
                             isLectureDay = true;
-                        } else {
-                            const cleanEndStr = String(c.end_date).split('T')[0];
-                            const endDate = new Date(cleanEndStr + 'T00:00:00');
-                            if (!isNaN(endDate.getTime()) && endDate.setHours(0, 0, 0, 0) >= checkDate.getTime()) {
-                                isLectureDay = true;
-                            }
                         }
                     }
                 }
@@ -374,8 +382,8 @@ export default function CourseSchedule({ isKiosk = false, branchId }: CourseSche
 
             // 2. Check for Interviews
             if (c.has_interview && c.interview_date) {
-                const cleanInterviewStr = String(c.interview_date).split('T')[0];
-                if (cleanInterviewStr === dateStr) {
+                const interviewDate = parseLocalDate(c.interview_date);
+                if (interviewDate && interviewDate.getTime() === checkDate.getTime()) {
                     events.push({
                         id: `${c.id}-interview`,
                         type: 'interview',
