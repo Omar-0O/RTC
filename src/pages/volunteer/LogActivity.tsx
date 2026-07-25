@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { isFutureDate } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -778,7 +779,7 @@ export default function LogActivity() {
                           setIsCalendarOpen(false);
                         }
                       }}
-                      disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                      disabled={(date) => isFutureDate(date) || date < new Date("1900-01-01")}
                       initialFocus
                     />
                   </PopoverContent>

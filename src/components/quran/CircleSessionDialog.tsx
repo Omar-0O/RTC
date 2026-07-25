@@ -12,7 +12,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import type { Organizer } from '@/services/circles.service';
+import { isFutureDate } from '@/utils/dateUtils';
 
 interface CircleSessionDialogProps {
   open: boolean;
@@ -46,7 +46,7 @@ export function CircleSessionDialog({
             <label className="text-sm font-medium">{isRTL ? 'التاريخ' : 'Date'}</label>
             <Popover>
               <PopoverTrigger asChild><Button type="button" variant="outline" className="w-full justify-between text-start font-normal h-10"><span>{date ? format(getLocalDate(date), 'yyyy/MM/dd') : (isRTL ? 'اختر التاريخ' : 'Pick a date')}</span><Calendar className="h-4 w-4 text-muted-foreground shrink-0" /></Button></PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start"><CalendarComponent mode="single" selected={date ? getLocalDate(date) : undefined} onSelect={(selectedDate) => selectedDate && onDateChange(format(selectedDate, 'yyyy-MM-dd'))} disabled={(selectedDate) => selectedDate > new Date()} initialFocus /></PopoverContent>
+              <PopoverContent className="w-auto p-0" align="start"><CalendarComponent mode="single" selected={date ? getLocalDate(date) : undefined} onSelect={(selectedDate) => selectedDate && onDateChange(format(selectedDate, 'yyyy-MM-dd'))} disabled={isFutureDate} initialFocus /></PopoverContent>
             </Popover>
           </div>
           {organizers.length > 0 && <div className="space-y-2"><label className="text-sm font-medium flex items-center gap-1"><User className="h-4 w-4" />{isRTL ? 'المحفظ القائم على الجلسة' : 'Session Supervisor'}</label><Select value={organizerId} onValueChange={onOrganizerChange}><SelectTrigger><SelectValue placeholder={isRTL ? 'اختر المحفظ...' : 'Select supervisor...'} /></SelectTrigger><SelectContent><SelectItem value="none">{isRTL ? 'غير محدد' : 'Not specified'}</SelectItem>{organizers.map((organizer, index) => <SelectItem key={organizer.volunteer_id || index} value={organizer.volunteer_id || `idx-${index}`}>{organizer.name}</SelectItem>)}</SelectContent></Select></div>}

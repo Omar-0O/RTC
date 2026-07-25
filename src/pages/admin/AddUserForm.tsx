@@ -32,6 +32,7 @@ import { toast } from 'sonner';
 import { Slider } from '@/components/ui/slider';
 import type { Database } from '@/integrations/supabase/types';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
+import { isFutureDate } from '@/utils/dateUtils';
 
 type CommitteeOption = Pick<Database['public']['Tables']['committees']['Row'], 'id' | 'name' | 'name_ar'>;
 type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
@@ -593,7 +594,7 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
                 mode="single"
                 selected={new Date(formJoinDate)}
                 onSelect={(date) => date && setFormJoinDate(format(date, 'yyyy-MM-dd'))}
-                disabled={(date) => date > new Date()}
+                disabled={isFutureDate}
                 initialFocus
                 captionLayout="dropdown-buttons"
                 fromYear={1900}

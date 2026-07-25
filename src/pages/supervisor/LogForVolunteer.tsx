@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { isFutureDate } from '@/utils/dateUtils';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -400,7 +401,7 @@ export default function LogForVolunteer() {
                           setIsCalendarOpen(false);
                         }
                       }}
-                      disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                      disabled={(date) => isFutureDate(date) || date < new Date("1900-01-01")}
                       initialFocus
                       captionLayout="dropdown-buttons"
                       fromYear={2020}

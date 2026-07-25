@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { isFutureDate } from '@/utils/dateUtils';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { ProofImagePreview } from '@/components/ProofImagePreview';
@@ -445,7 +446,7 @@ export default function VolunteerPortal() {
                             setIsCalendarOpen(false);
                           }
                         }}
-                        disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                        disabled={(date) => isFutureDate(date) || date < new Date("1900-01-01")}
                         initialFocus
                         captionLayout="dropdown-buttons"
                         fromYear={2020}

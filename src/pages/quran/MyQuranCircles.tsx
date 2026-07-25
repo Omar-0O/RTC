@@ -46,6 +46,7 @@ import { ar, enUS } from 'date-fns/locale';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { exportQuranCircleReportToXlsx } from '@/utils/quranCircleExport';
+import { getTodayLocalDateString } from '@/utils/dateUtils';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -186,7 +187,7 @@ export default function MyQuranCircles() {
 
     // Session creation
     const [isSessionDialogOpen, setIsSessionDialogOpen] = useState(false);
-    const [sessionDate, setSessionDate] = useState(new Date().toISOString().split('T')[0]);
+    const [sessionDate, setSessionDate] = useState(getTodayLocalDateString());
     const [sessionNotes, setSessionNotes] = useState('');
 
     // Attendance dialog
@@ -395,9 +396,7 @@ export default function MyQuranCircles() {
             toast.success(isRTL ? 'تم إنشاء الجلسة' : 'Session created');
             setIsSessionDialogOpen(false);
             // Reset date to local today
-            const localDate = new Date();
-            const localDateString = new Date(localDate.getTime() - (localDate.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-            setSessionDate(localDateString);
+            setSessionDate(getTodayLocalDateString());
             setSessionNotes('');
 
             // Refresh sessions preserving current tab
@@ -730,7 +729,7 @@ export default function MyQuranCircles() {
 
     // Smart date: get next scheduled day from circle schedule
     const getNextScheduleDate = (schedule: ScheduleItem[]) => {
-        if (!schedule || schedule.length === 0) return new Date().toISOString().split('T')[0];
+        if (!schedule || schedule.length === 0) return getTodayLocalDateString();
         const today = new Date();
         const todayDay = today.getDay();
         const scheduledDays = schedule.map(s => s.day).sort((a, b) => a - b);
@@ -742,7 +741,7 @@ export default function MyQuranCircles() {
         const diff = (nextDay - todayDay + 7) % 7;
         const nextDate = new Date(today);
         nextDate.setDate(today.getDate() + diff);
-        return nextDate.toISOString().split('T')[0];
+        return getTodayLocalDateString(nextDate);
     };
 
     // Get attendance percentage for a session
@@ -1813,7 +1812,7 @@ export default function MyQuranCircles() {
                             <label className="text-sm font-medium">{isRTL ? 'التاريخ' : 'Date'}</label>
                             <Input
                                 type="date"
-                                max={new Date().toISOString().split('T')[0]}
+                                max={getTodayLocalDateString()}
                                 value={sessionDate}
                                 onChange={e => setSessionDate(e.target.value)}
                             />

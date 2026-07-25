@@ -15,6 +15,7 @@ import type { Committee } from '@/hooks/useUsers';
 import type { Branch } from '@/contexts/BranchContext';
 import { cn } from '@/lib/utils';
 import type { UserRole } from '@/types';
+import { isFutureDate } from '@/utils/dateUtils';
 
 export interface UserAccountForm {
   name: string; nameAr: string; email: string; phone: string; password: string; role: UserRole; level: string;
@@ -64,7 +65,7 @@ function UserDatePicker({ label, value, isRTL, onChange }: UserDatePickerProps) 
             mode="single"
             selected={selectedDate}
             onSelect={(date) => onChange(date ? format(date, 'yyyy-MM-dd') : '')}
-            disabled={(date) => date > new Date()}
+            disabled={isFutureDate}
             initialFocus
             captionLayout="dropdown-buttons"
             fromYear={1900}
