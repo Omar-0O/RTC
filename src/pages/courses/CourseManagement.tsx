@@ -32,7 +32,6 @@ import { Calendar as CalendarComponent, MonthPicker } from '@/components/ui/cale
 import { format, addDays, getDay, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { CourseAdsTable } from '@/components/dashboard/CourseAdsTable';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { exportCourseReportToXlsx, type CourseExportCourse } from '@/utils/courseExport';
 import { updateCourseCertificateEligibility } from '@/services/courseCertificates.service';
@@ -2606,113 +2605,7 @@ export default function CourseManagement() {
                 )}
             </div>
 
-            {/* Ads Overview & Management */}
-            <div className="mt-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
 
-                {/* Calendar Overview */}
-                <CourseAdsTable ads={allAds} title={isRTL ? 'تقويم الإعلانات' : 'Ads Calendar'} />
-
-                {/* Management Grid */}
-                <div className="space-y-4">
-                    <div className="flex items-center gap-2 border-b pb-4">
-                        <Clock className="w-5 h-5 text-primary" />
-                        <h2 className="text-xl font-bold">{isRTL ? 'إدارة الإعلانات' : 'Ads Management'}</h2>
-                    </div>
-
-                    {allAds.length > 0 ? (
-                        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                            {allAds.map((ad) => (
-                                <Card key={ad.id} className="relative overflow-hidden group hover:shadow-md transition-shadow">
-                                    <div className={`absolute top-0 w-full h-1 ${ad.poster_done && ad.content_done ? 'bg-green-500' : 'bg-primary/20'}`} />
-                                    <CardHeader className="pb-2">
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <span className="text-xs text-muted-foreground block mb-1">
-                                                    {ad.course?.name}
-                                                </span>
-                                                <CardTitle className="text-lg">
-                                                    {isRTL ? 'إعلان رقم' : 'Ad #'} {ad.ad_number}
-                                                </CardTitle>
-                                            </div>
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </AlertDialogTrigger>
-                                                <AlertDialogContent>
-                                                    <AlertDialogHeader>
-                                                        <AlertDialogTitle>{isRTL ? 'حذف الإعلان' : 'Delete Ad'}</AlertDialogTitle>
-                                                        <AlertDialogDescription>
-                                                            {isRTL
-                                                                ? `هل أنت متأكد من حذف الإعلان رقم ${ad.ad_number}؟`
-                                                                : `Are you sure you want to delete ad #${ad.ad_number}?`}
-                                                        </AlertDialogDescription>
-                                                    </AlertDialogHeader>
-                                                    <AlertDialogFooter>
-                                                        <AlertDialogCancel>{isRTL ? 'إلغاء' : 'Cancel'}</AlertDialogCancel>
-                                                        <AlertDialogAction
-                                                            onClick={() => handleDeleteAd(ad.id)}
-                                                            className="bg-destructive hover:bg-destructive/90"
-                                                        >
-                                                            {isRTL ? 'حذف' : 'Delete'}
-                                                        </AlertDialogAction>
-                                                    </AlertDialogFooter>
-                                                </AlertDialogContent>
-                                            </AlertDialog>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="space-y-2">
-                                            <Label className="text-xs text-muted-foreground">{isRTL ? 'تاريخ النشر' : 'Publish Date'}</Label>
-                                            <Input
-                                                type="date"
-                                                value={ad.ad_date}
-                                                onChange={(e) => handleUpdateAdDate(ad.id, e.target.value)}
-                                                className="w-full"
-                                            />
-                                        </div>
-
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                            <Button
-                                                variant={ad.poster_done ? "default" : "outline"}
-                                                size="sm"
-                                                className={`w-full ${ad.poster_done ? "bg-green-600 hover:bg-green-700" : ""}`}
-                                                onClick={() => handleUpdateAd(ad.id, { poster_done: !ad.poster_done })}
-                                            >
-                                                {ad.poster_done ? <Check className="h-3 w-3 mr-1" /> : null}
-                                                {isRTL ? 'البوستر' : 'Poster'}
-                                            </Button>
-                                            <Button
-                                                variant={ad.content_done ? "default" : "outline"}
-                                                size="sm"
-                                                className={`w-full ${ad.content_done ? "bg-green-600 hover:bg-green-700" : ""}`}
-                                                onClick={() => handleUpdateAd(ad.id, { content_done: !ad.content_done })}
-                                            >
-                                                {ad.content_done ? <Check className="h-3 w-3 mr-1" /> : null}
-                                                {isRTL ? 'المحتوى' : 'Content'}
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                    <CardFooter className="pt-0 text-xs text-muted-foreground flex justify-between">
-                                        {ad.updater && (
-                                            <span className="flex items-center gap-1 opacity-70">
-                                                <User className="h-3 w-3" />
-                                                {isRTL ? ad.updater.full_name_ar : ad.updater.full_name}
-                                            </span>
-                                        )}
-                                    </CardFooter>
-                                </Card>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center p-8 border rounded-lg border-dashed text-muted-foreground">
-                            <Calendar className="w-12 h-12 mb-2 opacity-20" />
-                            <p>{isRTL ? 'لا توجد إعلانات مخططة للكورسات الحالية' : 'No ads scheduled for active courses'}</p>
-                        </div>
-                    )}
-                </div>
-            </div>
 
 
             {/* Edit Course Dialog */}
