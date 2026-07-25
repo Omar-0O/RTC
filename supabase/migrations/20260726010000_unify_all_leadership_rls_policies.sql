@@ -66,138 +66,194 @@ CREATE POLICY "Privileged users can update fines" ON public.volunteer_fines
     );
 
 -- 2. Trainers Table Policies
-DROP POLICY IF EXISTS "Manage trainers for heads" ON public.trainers;
-CREATE POLICY "Manage trainers for heads" ON public.trainers
-    FOR ALL USING (
-        auth.uid() IN (
-            SELECT user_id FROM user_roles 
-            WHERE role IN (
-                'admin', 'executive', 'branch_admin', 'supervisor',
-                'committee_leader', 'head_production', 'head_fourth_year',
-                'head_events', 'head_caravans', 'head_ethics', 'head_quran',
-                'head_marketing', 'head_ashbal', 'head_hr'
+DO $$ BEGIN
+IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'trainers') THEN
+    DROP POLICY IF EXISTS "Manage trainers for heads" ON public.trainers;
+    CREATE POLICY "Manage trainers for heads" ON public.trainers
+        FOR ALL USING (
+            auth.uid() IN (
+                SELECT user_id FROM user_roles 
+                WHERE role IN (
+                    'admin', 'executive', 'branch_admin', 'supervisor',
+                    'committee_leader', 'head_production', 'head_fourth_year',
+                    'head_events', 'head_caravans', 'head_ethics', 'head_quran',
+                    'head_marketing', 'head_ashbal', 'head_hr'
+                )
             )
-        )
-    );
+        );
+END IF;
+END $$;
 
 -- 3. Caravans Table Policies
-DROP POLICY IF EXISTS "Manage caravans for heads" ON public.caravans;
-CREATE POLICY "Manage caravans for heads" ON public.caravans
-    FOR ALL USING (
-        auth.uid() IN (
-            SELECT user_id FROM user_roles 
-            WHERE role IN (
-                'admin', 'executive', 'branch_admin', 'supervisor',
-                'committee_leader', 'head_caravans', 'head_events',
-                'head_production', 'head_fourth_year', 'head_ethics',
-                'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
+DO $$ BEGIN
+IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'caravans') THEN
+    DROP POLICY IF EXISTS "Manage caravans for heads" ON public.caravans;
+    CREATE POLICY "Manage caravans for heads" ON public.caravans
+        FOR ALL USING (
+            auth.uid() IN (
+                SELECT user_id FROM user_roles 
+                WHERE role IN (
+                    'admin', 'executive', 'branch_admin', 'supervisor',
+                    'committee_leader', 'head_caravans', 'head_events',
+                    'head_production', 'head_fourth_year', 'head_ethics',
+                    'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
+                )
             )
-        )
-    );
+        );
+END IF;
+END $$;
 
-DROP POLICY IF EXISTS "Manage caravan beneficiaries for heads" ON public.caravan_beneficiaries;
-CREATE POLICY "Manage caravan beneficiaries for heads" ON public.caravan_beneficiaries
-    FOR ALL USING (
-        auth.uid() IN (
-            SELECT user_id FROM user_roles 
-            WHERE role IN (
-                'admin', 'executive', 'branch_admin', 'supervisor',
-                'committee_leader', 'head_caravans', 'head_events',
-                'head_production', 'head_fourth_year', 'head_ethics',
-                'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
+DO $$ BEGIN
+IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'caravan_participants') THEN
+    DROP POLICY IF EXISTS "Manage caravan participants for heads" ON public.caravan_participants;
+    CREATE POLICY "Manage caravan participants for heads" ON public.caravan_participants
+        FOR ALL USING (
+            auth.uid() IN (
+                SELECT user_id FROM user_roles 
+                WHERE role IN (
+                    'admin', 'executive', 'branch_admin', 'supervisor',
+                    'committee_leader', 'head_caravans', 'head_events',
+                    'head_production', 'head_fourth_year', 'head_ethics',
+                    'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
+                )
             )
-        )
-    );
-
-DROP POLICY IF EXISTS "Manage caravan organizers for heads" ON public.caravan_organizers;
-CREATE POLICY "Manage caravan organizers for heads" ON public.caravan_organizers
-    FOR ALL USING (
-        auth.uid() IN (
-            SELECT user_id FROM user_roles 
-            WHERE role IN (
-                'admin', 'executive', 'branch_admin', 'supervisor',
-                'committee_leader', 'head_caravans', 'head_events',
-                'head_production', 'head_fourth_year', 'head_ethics',
-                'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
-            )
-        )
-    );
+        );
+END IF;
+END $$;
 
 -- 4. Events Table Policies
-DROP POLICY IF EXISTS "Manage events for heads" ON public.events;
-CREATE POLICY "Manage events for heads" ON public.events
-    FOR ALL USING (
-        auth.uid() IN (
-            SELECT user_id FROM user_roles 
-            WHERE role IN (
-                'admin', 'executive', 'branch_admin', 'supervisor',
-                'committee_leader', 'head_events', 'head_caravans',
-                'head_production', 'head_fourth_year', 'head_ethics',
-                'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
+DO $$ BEGIN
+IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'events') THEN
+    DROP POLICY IF EXISTS "Manage events for heads" ON public.events;
+    CREATE POLICY "Manage events for heads" ON public.events
+        FOR ALL USING (
+            auth.uid() IN (
+                SELECT user_id FROM user_roles 
+                WHERE role IN (
+                    'admin', 'executive', 'branch_admin', 'supervisor',
+                    'committee_leader', 'head_events', 'head_caravans',
+                    'head_production', 'head_fourth_year', 'head_ethics',
+                    'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
+                )
             )
-        )
-    );
+        );
+END IF;
+END $$;
 
-DROP POLICY IF EXISTS "Manage event beneficiaries for heads" ON public.event_beneficiaries;
-CREATE POLICY "Manage event beneficiaries for heads" ON public.event_beneficiaries
-    FOR ALL USING (
-        auth.uid() IN (
-            SELECT user_id FROM user_roles 
-            WHERE role IN (
-                'admin', 'executive', 'branch_admin', 'supervisor',
-                'committee_leader', 'head_events', 'head_caravans',
-                'head_production', 'head_fourth_year', 'head_ethics',
-                'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
+DO $$ BEGIN
+IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'event_participants') THEN
+    DROP POLICY IF EXISTS "Manage event participants for heads" ON public.event_participants;
+    CREATE POLICY "Manage event participants for heads" ON public.event_participants
+        FOR ALL USING (
+            auth.uid() IN (
+                SELECT user_id FROM user_roles 
+                WHERE role IN (
+                    'admin', 'executive', 'branch_admin', 'supervisor',
+                    'committee_leader', 'head_events', 'head_caravans',
+                    'head_production', 'head_fourth_year', 'head_ethics',
+                    'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
+                )
             )
-        )
-    );
+        );
+END IF;
+END $$;
 
-DROP POLICY IF EXISTS "Manage event organizers for heads" ON public.event_organizers;
-CREATE POLICY "Manage event organizers for heads" ON public.event_organizers
-    FOR ALL USING (
-        auth.uid() IN (
-            SELECT user_id FROM user_roles 
-            WHERE role IN (
-                'admin', 'executive', 'branch_admin', 'supervisor',
-                'committee_leader', 'head_events', 'head_caravans',
-                'head_production', 'head_fourth_year', 'head_ethics',
-                'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
+DO $$ BEGIN
+IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'event_beneficiaries') THEN
+    DROP POLICY IF EXISTS "Manage event beneficiaries for heads" ON public.event_beneficiaries;
+    CREATE POLICY "Manage event beneficiaries for heads" ON public.event_beneficiaries
+        FOR ALL USING (
+            auth.uid() IN (
+                SELECT user_id FROM user_roles 
+                WHERE role IN (
+                    'admin', 'executive', 'branch_admin', 'supervisor',
+                    'committee_leader', 'head_events', 'head_caravans',
+                    'head_production', 'head_fourth_year', 'head_ethics',
+                    'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
+                )
             )
-        )
-    );
+        );
+END IF;
+END $$;
+
+DO $$ BEGIN
+IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'event_organizers') THEN
+    DROP POLICY IF EXISTS "Manage event organizers for heads" ON public.event_organizers;
+    CREATE POLICY "Manage event organizers for heads" ON public.event_organizers
+        FOR ALL USING (
+            auth.uid() IN (
+                SELECT user_id FROM user_roles 
+                WHERE role IN (
+                    'admin', 'executive', 'branch_admin', 'supervisor',
+                    'committee_leader', 'head_events', 'head_caravans',
+                    'head_production', 'head_fourth_year', 'head_ethics',
+                    'head_quran', 'head_marketing', 'head_ashbal', 'head_hr'
+                )
+            )
+        );
+END IF;
+END $$;
 
 -- 5. Ethics Tables Policies
-DROP POLICY IF EXISTS "Manage competition for ethics head" ON public.ethics_competitions;
-CREATE POLICY "Manage competition for ethics head" ON public.ethics_competitions
-    FOR ALL USING (
-        auth.uid() IN (
-            SELECT user_id FROM user_roles 
-            WHERE role IN (
-                'admin', 'executive', 'branch_admin', 'supervisor',
-                'committee_leader', 'head_ethics'
+DO $$ BEGIN
+IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'competition_participants') THEN
+    DROP POLICY IF EXISTS "Manage competition_participants for heads" ON public.competition_participants;
+    CREATE POLICY "Manage competition_participants for heads" ON public.competition_participants
+        FOR ALL USING (
+            auth.uid() IN (
+                SELECT user_id FROM user_roles 
+                WHERE role IN (
+                    'admin', 'executive', 'branch_admin', 'supervisor',
+                    'committee_leader', 'head_ethics', 'head_hr'
+                )
             )
-        )
-    );
+        );
+END IF;
+END $$;
 
-DROP POLICY IF EXISTS "Manage ethics calls for ethics head" ON public.ethics_calls;
-CREATE POLICY "Manage ethics calls for ethics head" ON public.ethics_calls
-    FOR ALL USING (
-        auth.uid() IN (
-            SELECT user_id FROM user_roles 
-            WHERE role IN (
-                'admin', 'executive', 'branch_admin', 'supervisor',
-                'committee_leader', 'head_ethics'
+DO $$ BEGIN
+IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'competition_entries') THEN
+    DROP POLICY IF EXISTS "Manage competition_entries for heads" ON public.competition_entries;
+    CREATE POLICY "Manage competition_entries for heads" ON public.competition_entries
+        FOR ALL USING (
+            auth.uid() IN (
+                SELECT user_id FROM user_roles 
+                WHERE role IN (
+                    'admin', 'executive', 'branch_admin', 'supervisor',
+                    'committee_leader', 'head_ethics', 'head_hr'
+                )
             )
-        )
-    );
+        );
+END IF;
+END $$;
+
+DO $$ BEGIN
+IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'ethics_calls') THEN
+    DROP POLICY IF EXISTS "Manage ethics calls for ethics head" ON public.ethics_calls;
+    CREATE POLICY "Manage ethics calls for ethics head" ON public.ethics_calls
+        FOR ALL USING (
+            auth.uid() IN (
+                SELECT user_id FROM user_roles 
+                WHERE role IN (
+                    'admin', 'executive', 'branch_admin', 'supervisor',
+                    'committee_leader', 'head_ethics'
+                )
+            )
+        );
+END IF;
+END $$;
 
 -- 6. Form Submissions Delete Policy
-DROP POLICY IF EXISTS "Allow privileged users to delete submissions" ON public.form_submissions;
-CREATE POLICY "Allow privileged users to delete submissions" ON public.form_submissions
-    FOR DELETE USING (
-        EXISTS (
-            SELECT 1 FROM public.user_roles 
-            WHERE user_id = auth.uid() 
-            AND role IN ('admin', 'executive', 'branch_admin', 'supervisor', 'head_hr', 'hr')
-        )
-    );
+DO $$ BEGIN
+IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'form_submissions') THEN
+    DROP POLICY IF EXISTS "Allow privileged users to delete submissions" ON public.form_submissions;
+    CREATE POLICY "Allow privileged users to delete submissions" ON public.form_submissions
+        FOR DELETE USING (
+            EXISTS (
+                SELECT 1 FROM public.user_roles 
+                WHERE user_id = auth.uid() 
+                AND role IN ('admin', 'executive', 'branch_admin', 'supervisor', 'head_hr', 'hr')
+            )
+        );
+END IF;
+END $$;
