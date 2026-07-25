@@ -573,14 +573,15 @@ export async function deleteCircle(circleId: string): Promise<void> {
 
 export async function enrollBeneficiary(circleId: string, beneficiaryId: string): Promise<void> {
   // Check if an enrollment record already exists (possibly inactive)
-  const { data: existing, error: lookupError } = await supabase
+  const { data: existingList, error: lookupError } = await supabase
     .from('quran_enrollments')
     .select('id, status')
     .eq('circle_id', circleId)
     .eq('beneficiary_id', beneficiaryId)
-    .maybeSingle();
+    .limit(1);
   if (lookupError) throw lookupError;
 
+  const existing = existingList?.[0];
   if (existing) {
     // Re-activate the existing record instead of inserting a duplicate
     if (existing.status === 'active') return; // Already enrolled, nothing to do
@@ -627,9 +628,9 @@ export async function saveCircleBeneficiary(payload: SaveCircleBeneficiaryPayloa
   }
 
   if (payload.phone) {
-    const { data, error } = await supabase.from('quran_beneficiaries').select('id').eq('phone', payload.phone).maybeSingle();
+    const { data: benList, error } = await supabase.from('quran_beneficiaries').select('id').eq('phone', payload.phone).limit(1);
     if (error) throw error;
-    beneficiaryId = data?.id;
+    beneficiaryId = benList?.[0]?.id;
   }
 
   if (!beneficiaryId) {
@@ -642,14 +643,15 @@ export async function saveCircleBeneficiary(payload: SaveCircleBeneficiaryPayloa
     beneficiaryId = data.id;
   }
 
-  const { data: enrollment, error: enrollmentLookupError } = await supabase
+  const { data: enrollments, error: enrollmentLookupError } = await supabase
     .from('quran_enrollments')
     .select('id, status')
     .eq('circle_id', payload.circleId)
     .eq('beneficiary_id', beneficiaryId)
-    .maybeSingle();
+    .limit(1);
   if (enrollmentLookupError) throw enrollmentLookupError;
 
+  const enrollment = enrollments?.[0];
   if (enrollment?.status === 'active') return { beneficiaryId, alreadyEnrolled: true };
   if (enrollment) {
     const { error } = await supabase.from('quran_enrollments').update({ status: 'active' }).eq('id', enrollment.id);
@@ -667,10 +669,10 @@ export async function createSession(params: {
 }): Promise<Session> {
   let resolvedOrganizerId: string | null = null;
   if (params.organizerVolunteerId && params.organizerVolunteerId !== 'none') {
-    const { data: orgRow, error } = await supabase.from('quran_circle_organizers')
-      .select('id').eq('circle_id', params.circleId).eq('volunteer_id', params.organizerVolunteerId).maybeSingle();
+    const { data: orgList, error } = await supabase.from('quran_circle_organizers')
+      .select('id').eq('circle_id', params.circleId).eq('volunteer_id', params.organizerVolunteerId).limit(1);
     if (error) throw error;
-    resolvedOrganizerId = orgRow?.id ?? null;
+    resolvedOrganizerId = orgList?.[0]?.id ?? null;
   }
   const sessionToCreate: QuranCircleSessionInsert = {
     circle_id: params.circleId,

@@ -1,12 +1,10 @@
 export type VolunteerLevel = 'under_follow_up' | 'project_responsible' | 'responsible';
 
 export function getLevelProgress(points: number): { level: VolunteerLevel; progress: number; nextThreshold: number } {
-  const thresholds = [
-    { level: 'bronze', max: 100 },
-    { level: 'silver', max: 300 },
-    { level: 'gold', max: 600 },
-    { level: 'platinum', max: 1000 },
-    { level: 'diamond', max: Infinity },
+  const thresholds: { level: VolunteerLevel; max: number }[] = [
+    { level: 'under_follow_up', max: 300 },
+    { level: 'project_responsible', max: 600 },
+    { level: 'responsible', max: Infinity },
   ];
 
   let currentLevel = thresholds[0];

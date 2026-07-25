@@ -1,6 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const MY_COURSE_COLUMNS = 'id, name, trainer_id, trainer_name, trainer_phone, room, schedule_days, schedule_time, schedule_end_time, has_interview, interview_date, total_lectures, start_date, end_date, committee_id, course_lectures(status)';
+const MY_COURSE_COLUMNS = 'id, name, trainer_id, trainer_name, trainer_phone, room, schedule_days, schedule_time, schedule_end_time, has_interview, interview_date, total_lectures, start_date, end_date, committee_id, course_lectures(status), course_trainers(trainer_id, trainers(name_ar, name_en)), trainers:trainer_id(name_ar, name_en)';
 
 export async function getMyCourseOverview(userId: string) {
   const [organizers, marketers, trainerResult] = await Promise.all([

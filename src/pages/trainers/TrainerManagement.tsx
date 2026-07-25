@@ -261,7 +261,47 @@ export default function TrainerManagement(): JSX.Element {
                 p_today: new Date().toISOString().split('T')[0],
             });
 
-            if (error) throw error;
+            if (error) {
+                console.warn('RPC list_trainers_with_stats failed, using fallback query:', error);
+                let fallbackQuery = supabase
+                    .from('trainers')
+                    .select('*, committees(name, name_ar), profiles:user_id(full_name, email)')
+                    .order('name_ar');
+
+                if (isRestricted && profile?.committee_id) {
+                    fallbackQuery = fallbackQuery.eq('committee_id', profile.committee_id);
+                }
+                if (canViewAllBranches && activeBranch?.id) {
+                    fallbackQuery = fallbackQuery.eq('branch_id', activeBranch.id);
+                }
+
+                const { data: fbData, error: fbError } = await fallbackQuery;
+                if (fbError) throw fbError;
+
+                const fallbackRows: TrainerStatsRow[] = (fbData || []).map((t: any) => ({
+                    id: t.id,
+                    name_en: t.name_en,
+                    name_ar: t.name_ar,
+                    phone: t.phone,
+                    image_url: t.image_url,
+                    specialization: t.specialization,
+                    committee_id: t.committee_id,
+                    user_id: t.user_id,
+                    created_at: t.created_at,
+                    join_date: t.join_date,
+                    committee_name: t.committees?.name || null,
+                    committee_name_ar: t.committees?.name_ar || null,
+                    linked_user_full_name: t.profiles?.full_name || null,
+                    linked_user_email: t.profiles?.email || null,
+                    courses_count: 0,
+                    completed_courses_count: 0,
+                    certificates_delivered_count: 0,
+                    is_active: true
+                }));
+
+                setTrainers(fallbackRows.map((row) => toTrainer(row, isRTL)));
+                return;
+            }
 
             setTrainers((data || []).map((row) => toTrainer(row, isRTL)));
         } catch (error) {

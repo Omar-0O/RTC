@@ -79,7 +79,24 @@ interface Course {
     end_date: string | null;
     committee_id?: string | null;
     course_lectures?: { status: string }[];
+    course_trainers?: { trainer_id: string; trainers?: { name_ar: string; name_en: string } }[];
+    trainers?: { name_ar: string; name_en: string } | null;
 }
+
+const getTrainerDisplayName = (course: Course | null | undefined, isRTL: boolean) => {
+    if (!course) return '';
+    if (course.course_trainers && course.course_trainers.length > 0) {
+        const names = course.course_trainers
+            .map(ct => (isRTL ? ct.trainers?.name_ar : (ct.trainers?.name_en || ct.trainers?.name_ar)))
+            .filter(Boolean);
+        if (names.length > 0) return names.join(' · ');
+    }
+    if (course.trainers) {
+        const name = isRTL ? course.trainers.name_ar : (course.trainers.name_en || course.trainers.name_ar);
+        if (name) return name;
+    }
+    return course.trainer_name || '';
+};
 
 interface CourseLecture {
     id: string;
@@ -550,7 +567,7 @@ export default function MyCourses() {
                                 <div className="flex justify-between items-start">
                                     <div>
                                         <CardTitle className="text-lg">{course.name}</CardTitle>
-                                        <CardDescription>{course.trainer_name}</CardDescription>
+                                        <CardDescription>{getTrainerDisplayName(course, isRTL)}</CardDescription>
                                     </div>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>

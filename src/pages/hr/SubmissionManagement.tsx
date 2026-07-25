@@ -322,10 +322,15 @@ export default function SubmissionManagement() {
     };
 
     const getLevelLabel = (levelValue: string) => {
-        if (levelValue === 'bronze') return isRTL ? 'تحت المتابعة' : 'Under Follow-up';
-        const level = volunteerLevels.find(l => l.value === levelValue);
-        return level ? level.label[isRTL ? 'ar' : 'en'] : levelValue;
-    }
+        const val = levelValue?.toLowerCase() || '';
+        if (['responsible', 'platinum', 'diamond'].includes(val)) {
+            return isRTL ? 'مسؤول' : 'Responsible';
+        }
+        if (['project_responsible', 'gold'].includes(val)) {
+            return isRTL ? 'مشروع مسؤول' : 'Project Responsible';
+        }
+        return isRTL ? 'تحت المتابعة' : 'Under Follow-up';
+    };
 
     const handleDelete = async (id: string) => {
         setSubmissionToDelete(id);

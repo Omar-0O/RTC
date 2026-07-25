@@ -246,15 +246,24 @@ export default function Kiosk() {
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState<boolean>(false);
 
-  // Top 5 Volunteers list
+  // Top volunteers by level
+  type VolunteerGrade = 'under_follow_up' | 'project_responsible' | 'responsible';
   interface TopVolunteer {
     id: string;
     full_name: string;
     full_name_ar?: string;
     avatar_url?: string;
+    level?: string;
     count: number;
   }
-  const [topVolunteers, setTopVolunteers] = useState<TopVolunteer[]>([]);
+  interface TopByLevel {
+    grade: VolunteerGrade;
+    label_ar: string;
+    label_en: string;
+    color: string;
+    volunteers: TopVolunteer[];
+  }
+  const [topByLevel, setTopByLevel] = useState<TopByLevel[]>([]);
   const [loadingTopVolunteers, setLoadingTopVolunteers] = useState<boolean>(false);
 
   const loadTopVolunteers = useCallback(async () => {
@@ -263,7 +272,7 @@ export default function Kiosk() {
     try {
       const { data, error } = await supabase
         .from('activity_submissions')
-        .select('volunteer_id, profiles:volunteer_id(id, full_name, full_name_ar, avatar_url)')
+        .select('volunteer_id, profiles:volunteer_id(id, full_name, full_name_ar, avatar_url, level)')
         .eq('branch_id', selectedBranchId)
         .eq('status', 'approved')
         .not('volunteer_id', 'is', null);
@@ -281,18 +290,36 @@ export default function Kiosk() {
         counts[sub.volunteer_id].count += 1;
       });
 
-      const sorted = Object.values(counts)
+      const allSorted = Object.values(counts)
         .sort((a, b) => b.count - a.count)
-        .slice(0, 5)
         .map(item => ({
           id: item.profile.id,
           full_name: item.profile.full_name || '',
           full_name_ar: item.profile.full_name_ar || '',
           avatar_url: item.profile.avatar_url,
+          level: item.profile.level || 'under_follow_up',
           count: item.count
         }));
 
-      setTopVolunteers(sorted);
+      const gradeMap: Record<VolunteerGrade, string[]> = {
+        under_follow_up: ['under_follow_up', 'newbie', 'active'],
+        project_responsible: ['project_responsible'],
+        responsible: ['responsible'],
+      };
+
+      const grades: TopByLevel[] = [
+        { grade: 'responsible', label_ar: 'مسئول', label_en: 'Responsible', color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', volunteers: [] },
+        { grade: 'project_responsible', label_ar: 'مسئول مشروع', label_en: 'Project Responsible', color: 'text-blue-500 bg-blue-500/10 border-blue-500/20', volunteers: [] },
+        { grade: 'under_follow_up', label_ar: 'تحت المتابعة', label_en: 'Under Follow-up', color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', volunteers: [] },
+      ];
+
+      grades.forEach(g => {
+        g.volunteers = allSorted
+          .filter(v => gradeMap[g.grade].includes(v.level || ''))
+          .slice(0, 3);
+      });
+
+      setTopByLevel(grades.filter(g => g.volunteers.length > 0));
     } catch (err) {
       console.error('Error fetching top volunteers for branch:', err);
     } finally {
@@ -985,7 +1012,7 @@ export default function Kiosk() {
           <div className="flex flex-col items-center justify-center p-12 text-center space-y-6">
             <div className="relative">
               <div className="absolute inset-0 rounded-full bg-success/20 blur-xl p-4 animate-pulse" />
-              <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-success to-emerald-600 flex items-center justify-center shadow-lg float-start ring-8 ring-success/10">
+              <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-success to-emerald-600 flex items-center justify-center shadow-lg ring-8 ring-success/10">
                 <CheckCircle2 className="h-12 w-12 text-white" />
               </div>
             </div>
@@ -1497,7 +1524,7 @@ export default function Kiosk() {
                             {isRTL ? 'بالفرع' : 'Branch'}
                           </span>
                           {location === 'branch' && (
-                            <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                            <div className="absolute top-2 end-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
                               <Check className="h-3 w-3 text-white" />
                             </div>
                           )}
@@ -1525,7 +1552,7 @@ export default function Kiosk() {
                             {isRTL ? 'من البيت' : 'Home'}
                           </span>
                           {location === 'home' && (
-                            <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                            <div className="absolute top-2 end-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
                               <Check className="h-3 w-3 text-white" />
                             </div>
                           )}
@@ -1649,12 +1676,12 @@ export default function Kiosk() {
                       >
                         {submitting ? (
                           <>
-                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            <Loader2 className="ltr:mr-2 rtl:ml-2 h-5 w-5 animate-spin" />
                             {isRTL ? 'جاري التسجيل...' : 'Logging...'}
                           </>
                         ) : (
                           <>
-                            <CheckCircle2 className="mr-2 h-5 w-5" />
+                            <CheckCircle2 className="ltr:mr-2 rtl:ml-2 h-5 w-5" />
                             {isRTL ? 'تأكيد تسجيل المشاركة' : 'Confirm Participation'}
                           </>
                         )}
@@ -1677,9 +1704,9 @@ export default function Kiosk() {
             </CardContent>
           </Card>
 
-          {/* Right Column: Top 5 Volunteers & History panel */}
+          {/* Right Column: Top 3 per level & History panel */}
           <div className="space-y-6">
-            {/* Top 5 Field Participations Card */}
+            {/* Top 3 per level Card */}
             <Card className="border-0 shadow-xl bg-gradient-to-b from-card to-card/95 overflow-hidden">
               <CardHeader className="pb-4 border-b border-border/50 bg-gradient-to-r from-amber-500/10 via-primary/10 to-transparent">
                 <div className="flex items-center gap-3">
@@ -1688,11 +1715,11 @@ export default function Kiosk() {
                   </div>
                   <div>
                     <CardTitle className="text-xl flex items-center gap-2">
-                      <span>{isRTL ? 'أعلى 5 مشاركات ميداني بالفرع' : 'Top 5 Field Volunteers'}</span>
+                      <span>{isRTL ? 'أعلى 3 من كل درجة تطوعية' : 'Top 3 Per Volunteer Grade'}</span>
                       <Sparkles className="h-4 w-4 text-amber-500" />
                     </CardTitle>
                     <CardDescription className="text-sm">
-                      {isRTL ? 'أكثر المتطوعين تفاعلاً في المشاركات الميدانية المقبولة بالفرع' : 'Most active field volunteers with approved check-ins'}
+                      {isRTL ? 'أكثر المتطوعين مشاركةً في كل درجة من درجات التطوع' : 'Most active volunteers per grade with approved participations'}
                     </CardDescription>
                   </div>
                 </div>
@@ -1702,53 +1729,74 @@ export default function Kiosk() {
                   <div className="flex justify-center py-6">
                     <Loader2 className="h-6 w-6 animate-spin text-primary" />
                   </div>
-                ) : topVolunteers.length === 0 ? (
+                ) : topByLevel.length === 0 ? (
                   <p className="text-center text-sm text-muted-foreground py-6">
                     {isRTL ? 'لا توجد مشاركات ميدانية مسجلة حتى الآن' : 'No field participations logged yet'}
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {topVolunteers.map((vol, idx) => {
-                      const displayName = isRTL
-                        ? (vol.full_name_ar || vol.full_name)
-                        : (vol.full_name || vol.full_name_ar);
-
-                      return (
-                        <div
-                          key={vol.id}
-                          className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border/40 hover:bg-muted/70 transition-colors"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={cn(
-                              "h-7 w-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0",
-                              idx === 0 ? "bg-amber-500 text-white shadow-md" :
-                              idx === 1 ? "bg-slate-400 text-white shadow-sm" :
-                              idx === 2 ? "bg-amber-700 text-white shadow-sm" :
-                              "bg-muted-foreground/20 text-muted-foreground"
-                            )}>
-                              {idx + 1}
-                            </div>
-                            <Avatar className="h-9 w-9 border border-primary/20 shrink-0">
-                              <AvatarImage src={vol.avatar_url || undefined} />
-                              <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
-                                {displayName?.charAt(0).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="font-semibold text-sm line-clamp-1">{displayName}</span>
-                          </div>
-                          <div className="flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold shrink-0" dir="ltr">
-                            <span>+{vol.count}</span>
-                            <span className="rtl:mr-1 ltr:ml-1">{isRTL ? 'مشاركة' : 'participations'}</span>
-                          </div>
+                  <div className="space-y-5">
+                    {topByLevel.map((group) => (
+                      <div key={group.grade}>
+                        <div className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border mb-2",
+                          group.color
+                        )}>
+                          <Trophy className="h-3 w-3" />
+                          {isRTL ? group.label_ar : group.label_en}
                         </div>
-                      );
-                    })}
+                        <div className="space-y-2">
+                          {group.volunteers.map((vol, idx) => {
+                            const displayName = isRTL
+                              ? (vol.full_name_ar || vol.full_name)
+                              : (vol.full_name || vol.full_name_ar);
+                            return (
+                              <div
+                                key={vol.id}
+                                className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border/40 hover:bg-muted/70 transition-colors"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={cn(
+                                    "h-7 w-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0",
+                                    idx === 0 ? "bg-amber-500 text-white shadow-md" :
+                                    idx === 1 ? "bg-slate-400 text-white shadow-sm" :
+                                    "bg-amber-700 text-white shadow-sm"
+                                  )}>
+                                    {idx + 1}
+                                  </div>
+                                  <Avatar className="h-9 w-9 border border-primary/20 shrink-0">
+                                    <AvatarImage src={vol.avatar_url || undefined} />
+                                    <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
+                                      {displayName?.charAt(0).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="font-semibold text-sm line-clamp-1">{displayName}</span>
+                                </div>
+                                <div className="flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold shrink-0">
+                                  {isRTL ? (
+                                    <>
+                                      <span>مشاركة</span>
+                                      <span dir="ltr">+{vol.count}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <span dir="ltr">+{vol.count}</span>
+                                      <span>pts</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            {/* History panel */}
+            {/* History panel — only show when phone typed */}
+            {phone.trim() && (
             <Card className="border-0 shadow-xl bg-gradient-to-b from-card to-card/95 overflow-hidden">
             <CardHeader className="pb-4 border-b border-border/50 bg-muted/30">
               <div className="flex items-center gap-3">
@@ -1831,7 +1879,8 @@ export default function Kiosk() {
                 </div>
               )}
             </CardContent>
-          </Card>
+            </Card>
+            )}
           </div>
 
         </div>

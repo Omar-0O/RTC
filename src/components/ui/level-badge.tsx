@@ -41,9 +41,17 @@ export const LevelBadge = memo(function LevelBadge({ level, size = 'md', showLab
   const { t } = useLanguage();
   // Handle both capitalized and lowercase inputs gracefully
   const normalizedLevel = level?.toLowerCase() || 'under_follow_up';
+  let matchedKey = normalizedLevel;
+  if (['under_follow_up', 'bronze', 'silver', 'newbie', 'active'].includes(normalizedLevel)) {
+    matchedKey = 'under_follow_up';
+  } else if (['project_responsible', 'gold'].includes(normalizedLevel)) {
+    matchedKey = 'project_responsible';
+  } else if (['responsible', 'platinum', 'diamond'].includes(normalizedLevel)) {
+    matchedKey = 'responsible';
+  }
 
   // Try direct match first or fallback
-  const config = levelConfig[normalizedLevel] || levelConfig['under_follow_up'];
+  const config = levelConfig[matchedKey] || levelConfig['under_follow_up'];
 
   return (
     <div
@@ -55,7 +63,7 @@ export const LevelBadge = memo(function LevelBadge({ level, size = 'md', showLab
       )}
     >
       <span className={iconSizes[size]}>{config.icon}</span>
-      {showLabel && <span className="truncate">{t(`level.${normalizedLevel}`)}</span>}
+      {showLabel && <span className="truncate">{t(`level.${matchedKey}`)}</span>}
     </div>
   );
 });

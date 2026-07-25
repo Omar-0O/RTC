@@ -591,65 +591,68 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-2">
-        <div className={cn("flex items-center w-full gap-1", collapsed && "justify-center")}>
-          <Button
-            variant="ghost"
-            className={cn(
-              "flex-1 justify-start gap-2 px-2 min-w-0",
-              collapsed && "justify-center px-0 flex-none"
-            )}
-            onClick={() => {
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className={cn(
+                "w-full justify-between gap-2 px-2 h-auto py-1.5 min-w-0 text-sidebar-foreground hover:bg-sidebar-accent",
+                collapsed && "justify-center px-0"
+              )}
+            >
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Avatar
+                  className="h-8 w-8 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const profileItem = navItems.find(item => item.url.endsWith('/profile'));
+                    navigate(profileItem?.url || '/profile');
+                    handleNavClick();
+                  }}
+                  title={t('nav.profile')}
+                >
+                  <AvatarImage src={profile?.avatar_url || undefined} alt={displayName} />
+                  <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                    {userInitials}
+                  </AvatarFallback>
+                </Avatar>
+                {!collapsed && (
+                  <div className="flex flex-col items-start text-left rtl:text-right flex-1 min-w-0">
+                    <span className="text-sm font-medium truncate w-full">{displayName}</span>
+                    <span className="text-xs text-muted-foreground capitalize">{primaryRole}</span>
+                  </div>
+                )}
+              </div>
+              {!collapsed && (
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align={isRTL ? 'start' : 'end'} side="top" className="w-56">
+            <div className="px-2 py-1.5">
+              <p className="text-sm font-medium">{displayName}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
+            </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => {
               const profileItem = navItems.find(item => item.url.endsWith('/profile'));
               navigate(profileItem?.url || '/profile');
               handleNavClick();
-            }}
-          >
-            <Avatar className="h-8 w-8 shrink-0">
-              <AvatarImage src={profile?.avatar_url || undefined} alt={displayName} />
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                {userInitials}
-              </AvatarFallback>
-            </Avatar>
-            {!collapsed && (
-              <div className="flex flex-col items-start text-left flex-1 min-w-0">
-                <span className="text-sm font-medium truncate w-full">{displayName}</span>
-                <span className="text-xs text-muted-foreground capitalize">{primaryRole}</span>
-              </div>
-            )}
-          </Button>
-          {!collapsed && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align={isRTL ? 'start' : 'end'} side="top" className="w-56">
-                <div className="px-2 py-1.5">
-                  <p className="text-sm font-medium">{displayName}</p>
-                  <p className="text-xs text-muted-foreground">{user?.email}</p>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => {
-                  const profileItem = navItems.find(item => item.url.endsWith('/profile'));
-                  navigate(profileItem?.url || '/profile');
-                }}>
-                  <User className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-                  {t('nav.profile')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { navigate('/about'); handleNavClick(); }}>
-                  <Info className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-                  {language === 'ar' ? 'عن المشروع' : 'About Project'}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-                  <LogOut className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-                  {t('common.logout')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
+            }}>
+              <User className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+              {t('nav.profile')}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { navigate('/about'); handleNavClick(); }}>
+              <Info className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+              {language === 'ar' ? 'عن المشروع' : 'About Project'}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive">
+              <LogOut className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+              {t('common.logout')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SidebarFooter>
     </Sidebar>
   );

@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
     BookOpen, Calendar, Clock, Users, Plus, Check, X, Trash2,
-    MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User, CalendarDays, TrendingUp, Percent, UserPlus, Pencil, UserMinus, Search, Megaphone
+    MoreHorizontal, Loader2, Download, Globe, MapPin, MonitorPlay, User, CalendarDays, TrendingUp, Percent, UserPlus, Pencil, UserMinus, Search, Megaphone, MessageSquare
 
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -335,10 +335,12 @@ export default function MyQuranCircles() {
         }
     }, [user?.id, isRTL]);
 
-    const openCircleDetails = useCallback(async (circle: QuranCircle) => {
+    const openCircleDetails = useCallback(async (circle: QuranCircle, preserveTab = false) => {
         setSelectedCircle(circle);
         const isMarketerOnly = marketerCircleIds.has(circle.id) && !organizerCircleIds.has(circle.id);
-        setActiveTab(isMarketerOnly ? 'ads' : 'sessions');
+        if (!preserveTab) {
+            setActiveTab(isMarketerOnly ? 'ads' : 'beneficiaries');
+        }
         setIsDetailsOpen(true);
 
         const formattedSessions = await getCircleSessions(circle.id);
@@ -398,8 +400,8 @@ export default function MyQuranCircles() {
             setSessionDate(localDateString);
             setSessionNotes('');
 
-            // Refresh sessions
-            await openCircleDetails(selectedCircle);
+            // Refresh sessions preserving current tab
+            await openCircleDetails(selectedCircle, true);
 
             // Auto-open attendance
             // setSelectedSession(data);
@@ -451,7 +453,7 @@ export default function MyQuranCircles() {
 
             toast.success(isRTL ? 'تم حفظ الحضور' : 'Attendance saved');
             setIsAttendanceDialogOpen(false);
-            await openCircleDetails(selectedCircle);
+            await openCircleDetails(selectedCircle, true);
         } catch (error: unknown) {
             console.error('Error saving attendance:', error);
             toast.error(getErrorMessage(error));
@@ -539,7 +541,7 @@ export default function MyQuranCircles() {
 
             if (error) throw error;
             toast.success(isRTL ? 'تم إلغاء التسجيل' : 'Unenrolled successfully');
-            openCircleDetails(selectedCircle);
+            openCircleDetails(selectedCircle, true);
             fetchMyCircles();
         } catch (error: unknown) {
             toast.error(getErrorMessage(error));
@@ -610,7 +612,7 @@ export default function MyQuranCircles() {
             await deleteSession(deleteSessionId);
             toast.success(isRTL ? 'تم حذف الجلسة' : 'Session deleted');
             setDeleteSessionId(null);
-            await openCircleDetails(selectedCircle);
+            await openCircleDetails(selectedCircle, true);
         } catch (error: unknown) {
             console.error('Error deleting session:', error);
             toast.error(getErrorMessage(error, 'Error deleting session'));
@@ -646,13 +648,15 @@ export default function MyQuranCircles() {
 
                 // 1. Check if beneficiary exists by phone (if phone is provided)
                 if (newBeneficiary.phone) {
-                    const { data: existingBen } = await supabase
+                    const { data: existingBenList } = await supabase
                         .from('quran_beneficiaries')
                         .select('id')
                         .eq('phone', newBeneficiary.phone)
-                        .single();
+                        .limit(1);
 
-                    if (existingBen) beneficiaryId = existingBen.id;
+                    if (existingBenList && existingBenList.length > 0) {
+                        beneficiaryId = existingBenList[0].id;
+                    }
                 }
 
                 // 2. If not exists, create new
@@ -677,13 +681,14 @@ export default function MyQuranCircles() {
                 // 3. Enroll in current circle
                 if (beneficiaryId) {
                     // Check if already enrolled
-                    const { data: existingEnrollment } = await supabase
+                    const { data: existingEnrollmentList } = await supabase
                         .from('quran_enrollments')
                         .select('id')
                         .eq('circle_id', selectedCircle.id)
                         .eq('beneficiary_id', beneficiaryId)
-                        .single();
+                        .limit(1);
 
+                    const existingEnrollment = existingEnrollmentList?.[0];
                     if (existingEnrollment) {
                         toast.warning(isRTL ? 'المستفيد مسجل بالفعل في هذه الحلقة' : 'Beneficiary already enrolled');
                     } else {
@@ -1291,7 +1296,22 @@ export default function MyQuranCircles() {
                                                                         </div>
                                                                     </div>
                                                                 </TableCell>
-                                                                <TableCell className="text-xs font-mono text-muted-foreground">{b.phone || '-'}</TableCell>
+                                                                <TableCell className="text-xs font-mono text-muted-foreground" dir="ltr">
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span>{b.phone || '-'}</span>
+                                                                        {b.phone && (
+                                                                            <a
+                                                                                href={`https://wa.me/${b.phone.replace(/\D/g, '')}`}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                className="text-green-500 hover:text-green-600 transition-colors p-1"
+                                                                                title={isRTL ? 'مراسلة عبر واتساب' : 'Chat on WhatsApp'}
+                                                                            >
+                                                                                <MessageSquare className="w-3.5 h-3.5" />
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
+                                                                </TableCell>
                                                                 <TableCell>
                                                                     <Badge variant="outline" className={`text-xs px-2 py-0.5 ${b.gender === 'male' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400' : 'bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-950/20 dark:text-pink-400'}`}>
                                                                         {b.gender === 'male' ? (isRTL ? 'ذكر' : 'Male') : (isRTL ? 'أنثى' : 'Female')}
@@ -1485,94 +1505,126 @@ export default function MyQuranCircles() {
                                     </div>
                                 </TabsContent>
 
-                                {/* Attendance Sheet Tab */}
+                                 {/* Attendance Sheet Tab */}
                                 <TabsContent value="sheet" className="py-0 outline-none">
                                     {/* Desktop View Table */}
                                     <div className="hidden sm:block border rounded-xl overflow-x-auto max-h-[600px] shadow-sm bg-card">
-                                        <Table>
-                                            <TableHeader className="bg-muted/40 sticky top-0 z-20">
-                                                <TableRow>
-                                                    <TableHead className="min-w-[180px] whitespace-nowrap sticky left-0 z-30 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">{isRTL ? 'الاسم' : 'Name'}</TableHead>
-                                                    <TableHead className="min-w-[120px] whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
-                                                    {sessions.map((s, idx) => (
-                                                        <TableHead key={s.id} className="text-center min-w-[80px] whitespace-nowrap">
-                                                            <div className="flex flex-col items-center">
-                                                                <span className="font-mono text-xs text-primary font-bold">#{sessions.length - idx}</span>
-                                                                <span className="text-[10px] font-normal text-muted-foreground">
-                                                                    {format(new Date(s.session_date), 'd/M')}
-                                                                </span>
-                                                            </div>
-                                                        </TableHead>
-                                                    ))}
-                                                    <TableHead className="text-center min-w-[70px] whitespace-nowrap bg-green-50/50 dark:bg-green-950/20">{isRTL ? 'حضر' : 'Attended'}</TableHead>
-                                                    <TableHead className="text-center min-w-[70px] whitespace-nowrap bg-red-50/50 dark:bg-red-950/20">{isRTL ? 'غاب' : 'Missed'}</TableHead>
-                                                    <TableHead className="text-center min-w-[80px] whitespace-nowrap bg-primary/5">{isRTL ? 'نسبة' : '%'}</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {beneficiaries.map(beneficiary => {
-                                                    const studentAttendance = sessions.map(s =>
-                                                        attendanceData[s.id]?.find(a => a.beneficiary_id === beneficiary.id)
-                                                    );
-                                                    const attendedCount = studentAttendance.filter(Boolean).length;
-                                                    const missedCount = sessions.length - attendedCount;
-                                                    const attendanceRate = sessions.length > 0 ? Math.round((attendedCount / sessions.length) * 100) : 0;
-
-                                                    return (
-                                                        <TableRow key={beneficiary.id} className="hover:bg-muted/10 transition-colors">
-                                                            <TableCell className="font-medium whitespace-nowrap sticky left-0 z-10 bg-background shadow-[1px_0_0_0_#e5e7eb] dark:shadow-[1px_0_0_0_#1f2937]">
-                                                                <div className="text-sm font-semibold">{beneficiary.name_ar}</div>
-                                                            </TableCell>
-                                                            <TableCell className="text-xs text-muted-foreground font-mono whitespace-nowrap">{beneficiary.phone || '-'}</TableCell>
-                                                            {sessions.map((session) => {
-                                                                const attendanceRecord = attendanceData[session.id]?.find(a => a.beneficiary_id === beneficiary.id);
-                                                                const isPresent = !!attendanceRecord;
-
-                                                                return (
-                                                                    <TableCell key={session.id} className="text-center p-2">
-                                                                        <div className="flex flex-col items-center gap-1">
-                                                                            <Checkbox
-                                                                                checked={isPresent}
-                                                                                onCheckedChange={() => toggleCircleAttendance(session.id, beneficiary.id)}
-                                                                                className="mx-auto h-4 w-4 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
-                                                                            />
-                                                                            {isPresent && (
-                                                                                <Select
-                                                                                    value={attendanceRecord?.attendance_type}
-                                                                                    onValueChange={(val: 'memorization' | 'revision') => updateSheetAttendanceType(session.id, beneficiary.id, val)}
-                                                                                >
-                                                                                    <SelectTrigger className={`h-6 text-[10px] w-[65px] px-1 bg-background border ${attendanceRecord?.attendance_type === 'memorization' ? 'text-green-600 border-green-200 bg-green-50/30' : 'text-amber-600 border-amber-200 bg-amber-50/30'}`}>
-                                                                                        <SelectValue />
-                                                                                    </SelectTrigger>
-                                                                                    <SelectContent>
-                                                                                        <SelectItem value="memorization" className="text-[10px]">{isRTL ? 'حفظ' : 'Mem'}</SelectItem>
-                                                                                        <SelectItem value="revision" className="text-[10px]">{isRTL ? 'مراجعة' : 'Rev'}</SelectItem>
-                                                                                    </SelectContent>
-                                                                                </Select>
-                                                                            )}
-                                                                        </div>
-                                                                    </TableCell>
-                                                                );
-                                                            })}
-                                                            <TableCell className="text-center font-bold text-green-600 bg-green-50/30 dark:bg-green-950/10">{attendedCount}</TableCell>
-                                                            <TableCell className="text-center font-bold text-red-600 bg-red-50/30 dark:bg-red-950/10">{missedCount}</TableCell>
-                                                            <TableCell className="text-center font-bold bg-primary/5">
-                                                                <span className={`text-xs px-2 py-0.5 rounded-full ${attendanceRate >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : attendanceRate >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-                                                                    {attendanceRate}%
-                                                                </span>
-                                                            </TableCell>
+                                        {(() => {
+                                            const displaySessions = [...sessions].reverse();
+                                            return (
+                                                <Table>
+                                                    <TableHeader className="bg-muted/40 sticky top-0 z-20">
+                                                        <TableRow>
+                                                            <TableHead className="min-w-[180px] whitespace-nowrap sticky ltr:left-0 rtl:right-0 z-30 bg-card border-b border-border shadow-sm">{isRTL ? 'الاسم' : 'Name'}</TableHead>
+                                                            <TableHead className="min-w-[120px] whitespace-nowrap">{isRTL ? 'رقم الهاتف' : 'Phone'}</TableHead>
+                                                            {displaySessions.map((s, idx) => (
+                                                                <TableHead key={s.id} className="text-center min-w-[90px] whitespace-nowrap">
+                                                                    <div className="flex flex-col items-center">
+                                                                        <span className="font-mono text-xs text-primary font-bold">#{idx + 1}</span>
+                                                                        <span className="text-[10px] font-normal text-muted-foreground">
+                                                                            {format(new Date(s.session_date), 'd/M')}
+                                                                        </span>
+                                                                    </div>
+                                                                </TableHead>
+                                                            ))}
+                                                            <TableHead className="text-center min-w-[70px] whitespace-nowrap bg-emerald-500/5">{isRTL ? 'حضر' : 'Attended'}</TableHead>
+                                                            <TableHead className="text-center min-w-[70px] whitespace-nowrap bg-rose-500/5">{isRTL ? 'غاب' : 'Missed'}</TableHead>
+                                                            <TableHead className="text-center min-w-[80px] whitespace-nowrap bg-primary/5">{isRTL ? 'نسبة' : '%'}</TableHead>
                                                         </TableRow>
-                                                    );
-                                                })}
-                                                {beneficiaries.length === 0 && (
-                                                    <TableRow>
-                                                        <TableCell colSpan={sessions.length + 5} className="text-center py-8 text-muted-foreground">
-                                                            {isRTL ? 'لا يوجد طلاب مسجلين' : 'No students enrolled'}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )}
-                                            </TableBody>
-                                        </Table>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {beneficiaries.map(beneficiary => {
+                                                            const studentAttendance = displaySessions.map(s =>
+                                                                attendanceData[s.id]?.find(a => a.beneficiary_id === beneficiary.id)
+                                                            );
+                                                            const attendedCount = studentAttendance.filter(Boolean).length;
+                                                            const missedCount = displaySessions.length - attendedCount;
+                                                            const attendanceRate = displaySessions.length > 0 ? Math.round((attendedCount / displaySessions.length) * 100) : 0;
+
+                                                            return (
+                                                                <TableRow key={beneficiary.id} className="hover:bg-muted/20 transition-colors">
+                                                                    <TableCell className="font-medium whitespace-nowrap sticky ltr:left-0 rtl:right-0 z-10 bg-card border-b border-border shadow-sm">
+                                                                        <div className="text-xs font-semibold text-foreground">{beneficiary.name_ar}</div>
+                                                                    </TableCell>
+                                                                    <TableCell className="text-xs text-foreground/80 font-mono whitespace-nowrap" dir="ltr">{beneficiary.phone || '-'}</TableCell>
+                                                                    {displaySessions.map((session) => {
+                                                                        const attendanceRecord = attendanceData[session.id]?.find(a => a.beneficiary_id === beneficiary.id);
+                                                                        const isPresent = !!attendanceRecord;
+                                                                        const type = attendanceRecord?.attendance_type || 'memorization';
+
+                                                                        return (
+                                                                            <TableCell key={session.id} className="text-center p-1.5">
+                                                                                {!isPresent ? (
+                                                                                    <button
+                                                                                        onClick={() => toggleCircleAttendance(session.id, beneficiary.id)}
+                                                                                        className="h-7 w-7 rounded-lg border border-dashed border-muted-foreground/30 hover:border-emerald-500 hover:bg-emerald-500/10 text-muted-foreground/50 hover:text-emerald-600 dark:hover:text-emerald-400 font-bold text-xs flex items-center justify-center mx-auto transition-all"
+                                                                                        title={isRTL ? 'تسجيل حضور' : 'Mark Present'}
+                                                                                    >
+                                                                                        —
+                                                                                    </button>
+                                                                                ) : (
+                                                                                    <DropdownMenu>
+                                                                                        <DropdownMenuTrigger asChild>
+                                                                                            <button
+                                                                                                className={`h-7 px-2 rounded-lg font-bold text-[11px] flex items-center justify-center gap-1 mx-auto shadow-sm transition-all hover:scale-105 active:scale-95 ${
+                                                                                                    type === 'memorization'
+                                                                                                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25'
+                                                                                                        : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25'
+                                                                                                }`}
+                                                                                            >
+                                                                                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                                                                                <span>{type === 'memorization' ? (isRTL ? 'حفظ' : 'Mem') : (isRTL ? 'مراجعة' : 'Rev')}</span>
+                                                                                            </button>
+                                                                                        </DropdownMenuTrigger>
+                                                                                        <DropdownMenuContent align="center" className="min-w-[120px]">
+                                                                                            <DropdownMenuItem
+                                                                                                onClick={() => updateSheetAttendanceType(session.id, beneficiary.id, 'memorization')}
+                                                                                                className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 gap-2"
+                                                                                            >
+                                                                                                <Check className="w-3.5 h-3.5" />
+                                                                                                {isRTL ? 'حفظ' : 'Memorization'}
+                                                                                            </DropdownMenuItem>
+                                                                                            <DropdownMenuItem
+                                                                                                onClick={() => updateSheetAttendanceType(session.id, beneficiary.id, 'revision')}
+                                                                                                className="text-xs font-semibold text-amber-600 dark:text-amber-400 gap-2"
+                                                                                            >
+                                                                                                <Check className="w-3.5 h-3.5" />
+                                                                                                {isRTL ? 'مراجعة' : 'Revision'}
+                                                                                            </DropdownMenuItem>
+                                                                                            <DropdownMenuItem
+                                                                                                onClick={() => toggleCircleAttendance(session.id, beneficiary.id)}
+                                                                                                className="text-xs font-semibold text-destructive gap-2 border-t mt-1 pt-1"
+                                                                                            >
+                                                                                                <X className="w-3.5 h-3.5" />
+                                                                                                {isRTL ? 'تسجيل غياب' : 'Mark Absent'}
+                                                                                            </DropdownMenuItem>
+                                                                                        </DropdownMenuContent>
+                                                                                    </DropdownMenu>
+                                                                                )}
+                                                                            </TableCell>
+                                                                        );
+                                                                    })}
+                                                                    <TableCell className="text-center font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/5">{attendedCount}</TableCell>
+                                                                    <TableCell className="text-center font-bold text-rose-600 dark:text-rose-400 bg-rose-500/5">{missedCount}</TableCell>
+                                                                    <TableCell className="text-center font-bold bg-primary/5">
+                                                                        <span className={`text-xs px-2 py-0.5 rounded-full ${attendanceRate >= 80 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400' : attendanceRate >= 50 ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400'}`}>
+                                                                            {attendanceRate}%
+                                                                        </span>
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            );
+                                                        })}
+                                                        {beneficiaries.length === 0 && (
+                                                            <TableRow>
+                                                                <TableCell colSpan={displaySessions.length + 5} className="text-center py-8 text-muted-foreground">
+                                                                    {isRTL ? 'لا يوجد طلاب مسجلين' : 'No students enrolled'}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        )}
+                                                    </TableBody>
+                                                </Table>
+                                            );
+                                        })()}
                                     </div>
 
                                     {/* Mobile View - Student Cards with detailed history dialog */}

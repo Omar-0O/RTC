@@ -832,15 +832,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                   </span>
                 </div>
 
-                {/* Birth Date */}
-                {displayProfile?.birth_date && (
-                  <div className="bg-muted/40 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-muted-foreground/10 flex items-center gap-1.5 text-xs text-muted-foreground shadow-sm shrink-0 whitespace-nowrap">
-                    <Cake className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
-                    <span>
-                      {isRTL ? 'ميلاد:' : 'Born:'} {formatDate(displayProfile.birth_date)}
-                    </span>
-                  </div>
-                )}
+
               </div>
             </div>
 

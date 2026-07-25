@@ -648,7 +648,7 @@ export default function QuranCircles() {
 
     const openCircleDetails = async (circle: QuranCircle, preserveTab = false) => {
         setSelectedCircle(circle);
-        if (!preserveTab) setActiveTab('sessions');
+        if (!preserveTab) setActiveTab('beneficiaries');
         setIsDetailsOpen(true);
 
         // Auto-fill defaults for new beneficiary
