@@ -102,12 +102,12 @@ export default function Auth() {
           localStorage.setItem('rtc_kiosk_branch_id', matchedBranch.id);
           localStorage.setItem('active_branch_id', matchedBranch.id);
           toast({
-            title: isRTL ? 'تم الدخول بنجاح' : 'Kiosk Access Granted',
+            title: isRTL ? 'تم الدخول بنجاح' : 'Access Granted',
             description: isRTL
-              ? `تم التوجيه إلى كشك فرع ${matchedBranch.name_ar || matchedBranch.name}`
-              : `Welcome to ${matchedBranch.name} Branch Kiosk`,
+              ? `تم التوجيه إلى صفحة تسجيل مشاركات الميداني لفرع ${matchedBranch.name_ar || matchedBranch.name}`
+              : `Welcome to ${matchedBranch.name} Branch Field Logging`,
           });
-          navigate('/kiosk');
+          navigate('/field-logging');
           setIsLoading(false);
           return;
         }

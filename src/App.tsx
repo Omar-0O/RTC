@@ -68,7 +68,7 @@ const FollowUpManagement = lazy(() => import("./pages/admin/FollowUpManagement")
 const UnderFollowUp = lazy(() => import("./pages/supervisor/UnderFollowUp"));
 const LogForVolunteer = lazy(() => import("./pages/supervisor/LogForVolunteer"));
 const VolunteerPortal = lazy(() => import("./pages/VolunteerPortal"));
-const Kiosk = lazy(() => import("./pages/Kiosk"));
+const FieldLogging = lazy(() => import("./pages/FieldLogging"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ExecutiveDashboard = lazy(() => import("./pages/executive/Dashboard"));
 const AboutProject = lazy(() => import("./pages/AboutProject"));
@@ -134,11 +134,11 @@ const KIOSK_ROLES = new Set([
   'head_hr',
 ]);
 
-function KioskRoute() {
+function FieldLoggingRoute() {
   const { isLoading } = useAuth();
 
   if (isLoading) return <PageLoader />;
-  return <Kiosk />;
+  return <FieldLogging />;
 }
 
 function AppRoutes() {
@@ -295,7 +295,8 @@ function AppRoutes() {
 
       {/* Public Volunteer Portal — no auth required */}
       <Route path="/volunteer-portal/:volunteerId" element={<VolunteerPortal />} />
-      <Route path="/kiosk" element={<KioskRoute />} />
+      <Route path="/field-logging" element={<FieldLoggingRoute />} />
+      <Route path="/kiosk" element={<Navigate to="/field-logging" replace />} />
 
       <Route path="*" element={<NotFound />} />
     </Routes>

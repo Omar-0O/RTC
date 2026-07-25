@@ -1,11 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { normalizePhoneE164 } from '@/utils/phoneUtils';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
+
+// Kiosk service account credentials.
+// This user has basic volunteer-level access (branch-scoped via RLS).
+const KIOSK_EMAIL = 'kiosk@rtc.internal';
+const KIOSK_PASSWORD = 'RTC-kiosk-2026!';
 import {
   Loader2,
   Phone,
@@ -132,13 +138,88 @@ type ApiError = {
 const isApiError = (value: unknown): value is ApiError =>
   typeof value === 'object' && value !== null;
 
-export default function Kiosk() {
+export default function FieldLogging() {
+  const { user, isLoading: authLoading } = useAuth();
   const { isRTL, language, t, setLanguage } = useLanguage();
   const { setTheme } = useTheme();
   const { activeBranch, branches, canViewAllBranches } = useBranch();
 
   const [activeTab, setActiveTab] = useState<'schedule' | 'participation'>('schedule');
   const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [savedBranchId, setSavedBranchId] = useState<string | null>(
+    localStorage.getItem('rtc_kiosk_branch_id')
+  );
+
+  // ── Kiosk Auto-Login ─────────────────────────────────────────────────
+  // If no user is signed in, automatically authenticate as the kiosk
+  // service account so all Supabase queries run as `authenticated` role.
+  const [kioskAuthing, setKioskAuthing] = useState(false);
+  const [kioskAuthFailed, setKioskAuthFailed] = useState(false);
+
+  useEffect(() => {
+    if (authLoading || user || kioskAuthing || kioskAuthFailed) return;
+
+    let cancelled = false;
+    setKioskAuthing(true);
+
+    (async () => {
+      try {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: KIOSK_EMAIL,
+          password: KIOSK_PASSWORD,
+        });
+
+        if (error) {
+          console.error('Kiosk auto-login failed:', error.message);
+          if (!cancelled) setKioskAuthFailed(true);
+        }
+      } catch (err) {
+        console.error('Kiosk auth error:', err);
+        if (!cancelled) setKioskAuthFailed(true);
+      } finally {
+        if (!cancelled) setKioskAuthing(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [authLoading, user, kioskAuthing, kioskAuthFailed]);
+
+  // Show loading while auth initializes or kiosk is signing in
+  if (authLoading || (!user && kioskAuthing)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
+        <p className="text-muted-foreground text-sm">
+          {isRTL ? 'جاري تهيئة الصفحة...' : 'Initializing page...'}
+        </p>
+      </div>
+    );
+  }
+
+  // Show error if auto-login failed and no user is signed in
+  if (!user && kioskAuthFailed) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background text-center p-8">
+        <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
+          <X className="h-8 w-8 text-destructive" />
+        </div>
+        <h2 className="text-xl font-bold">
+          {isRTL ? 'فشل تهيئة الصفحة' : 'Page Initialization Failed'}
+        </h2>
+        <p className="text-muted-foreground max-w-md">
+          {isRTL
+            ? 'تعذّر تسجيل الدخول التلقائي للصفحة. يرجى التحقق من الخادم والمحاولة مرة أخرى.'
+            : 'Auto-login failed for the page. Please check the server and try again.'}
+        </p>
+        <button
+          onClick={() => { setKioskAuthFailed(false); }}
+          className="mt-4 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+        >
+          {isRTL ? 'إعادة المحاولة' : 'Retry'}
+        </button>
+      </div>
+    );
+  }
 
 
   // Form states
@@ -410,18 +491,15 @@ export default function Kiosk() {
   }, []);
 
   useEffect(() => {
-    const savedBranchId = localStorage.getItem('rtc_kiosk_branch_id');
-    if (savedBranchId && branches.some((b) => b.id === savedBranchId)) {
-      setSelectedBranchId(savedBranchId);
+    const saved = localStorage.getItem('rtc_kiosk_branch_id');
+    if (saved && branches.some((b) => b.id === saved)) {
+      setSelectedBranchId(saved);
+      setSavedBranchId(saved);
       return;
     }
 
-    if (activeBranch?.id) {
-      setSelectedBranchId(activeBranch.id);
-      return;
-    }
-
-    const defaultBranchId = branches.find((branch) => branch.is_default)?.id || branches[0]?.id || '';
+    // Default selected branch in dropdown to active/default/first
+    const defaultBranchId = activeBranch?.id || branches.find((branch) => branch.is_default)?.id || branches[0]?.id || '';
     if (defaultBranchId) {
       setSelectedBranchId(defaultBranchId);
     }
@@ -471,11 +549,12 @@ export default function Kiosk() {
   // Save selected branch to local storage
   const handleBranchChange = (id: string) => {
     setSelectedBranchId(id);
+    setSavedBranchId(id);
     localStorage.setItem('rtc_kiosk_branch_id', id);
     toast.success(
       isRTL
-        ? 'تم تحديث فرع التابلت بنجاح'
-        : 'Tablet branch updated successfully'
+        ? 'تم تحديث الفرع بنجاح'
+        : 'Branch updated successfully'
     );
   };
 
@@ -1042,6 +1121,74 @@ export default function Kiosk() {
                 </span>
               </Button>
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If the branch is not yet selected/saved, show a simple setup screen
+  if (!savedBranchId) {
+    return (
+      <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-4 sm:p-8" dir={isRTL ? 'rtl' : 'ltr'}>
+        <div className="w-full max-w-md overflow-hidden rounded-3xl bg-gradient-to-br from-card via-card to-secondary/5 border border-primary/20 shadow-2xl p-8 space-y-6">
+          <div className="flex flex-col items-center text-center space-y-2">
+            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg mb-2">
+              <Building2 className="h-9 w-9 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold">
+              {isRTL ? 'تسجيل مشاركات الميداني' : 'Field Participation Logging'}
+            </h1>
+            <p className="text-muted-foreground text-sm">
+              {isRTL 
+                ? 'يرجى تحديد فرع هذا الجهاز للبدء:' 
+                : 'Please select this device\'s branch to start:'}
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-semibold">
+                {isRTL ? 'اسم الفرع' : 'Branch Name'}
+              </label>
+              <Select value={selectedBranchId} onValueChange={(val) => setSelectedBranchId(val)}>
+                <SelectTrigger className="h-12 rounded-xl">
+                  <SelectValue placeholder={isRTL ? 'اختر الفرع من هنا...' : 'Select branch...'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {isRTL ? b.name_ar : b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button
+              className="w-full h-12 rounded-xl font-bold text-base shadow-md bg-gradient-to-r from-primary to-primary/90 text-white hover:from-primary/90 hover:to-primary transition-all mt-2"
+              disabled={!selectedBranchId}
+              onClick={() => {
+                localStorage.setItem('rtc_kiosk_branch_id', selectedBranchId);
+                setSavedBranchId(selectedBranchId);
+                toast.success(isRTL ? 'تم تفعيل الجهاز للفرع المحدد بنجاح' : 'Device activated for the selected branch successfully');
+              }}
+            >
+              {isRTL ? 'تفعيل الجهاز للفرع' : 'Activate Device'}
+            </Button>
+          </div>
+
+          {/* Theme & Language footer */}
+          <div className="flex justify-center gap-4 pt-4 border-t border-border/50">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLanguage(language === 'en' ? 'ar' : 'en')}
+              className="text-muted-foreground hover:text-foreground text-xs gap-1.5"
+            >
+              <Languages className="h-4 w-4" />
+              {language === 'en' ? 'العربية' : 'English'}
+            </Button>
           </div>
         </div>
       </div>
