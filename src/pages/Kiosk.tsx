@@ -1154,32 +1154,31 @@ export default function Kiosk() {
                     <Phone className="h-4 w-4 text-muted-foreground" />
                     {isRTL ? 'رقم الموبايل' : 'Mobile Number'} <span className="text-destructive">*</span>
                   </Label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Input
-                        id="phone-input"
-                        ref={phoneInputRef}
-                        type="tel"
-                        placeholder={isRTL ? 'مثال: 01012345678' : 'e.g. 01012345678'}
-                        value={phone}
-                        onChange={handlePhoneChange}
-                        className="h-12 text-base px-4 border-2 hover:border-primary/50 transition-colors bg-background"
-                        disabled={searchLoading || submitting}
-                        dir="ltr"
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      onClick={() => lookupVolunteer()}
-                      disabled={searchLoading || submitting || !phone.trim()}
-                      className="bg-primary hover:bg-primary/90 text-white rounded-lg h-12 px-6 font-bold flex items-center gap-2 shrink-0 shadow-md"
-                    >
-                      {searchLoading ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <span>{isRTL ? 'تحقق' : 'Verify'}</span>
-                      )}
-                    </Button>
+                  <div className="relative">
+                    <Input
+                      id="phone-input"
+                      ref={phoneInputRef}
+                      type="tel"
+                      placeholder={isRTL ? 'مثال: 01012345678 (اضغط Enter للبحث)' : 'e.g. 01012345678 (Press Enter to search)'}
+                      value={phone}
+                      onChange={handlePhoneChange}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (phone.trim()) {
+                            lookupVolunteer();
+                          }
+                        }
+                      }}
+                      className="h-12 text-base px-4 border-2 hover:border-primary/50 transition-colors bg-background"
+                      disabled={searchLoading || submitting}
+                      dir="ltr"
+                    />
+                    {searchLoading && (
+                      <div className="absolute inset-y-0 ltr:right-3 rtl:left-3 flex items-center pointer-events-none">
+                        <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      </div>
+                    )}
                   </div>
                 </div>
 
