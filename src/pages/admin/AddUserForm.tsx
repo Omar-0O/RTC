@@ -304,7 +304,10 @@ export function AddUserForm({ onSuccess, defaultIsAshbal = false }: AddUserFormP
         const updates: ProfileUpdate = {};
         if (formLevel === 'under_follow_up') updates.attended_mini_camp = formAttendedMiniCamp;
         if (formLevel === 'project_responsible') updates.attended_camp = formAttendedCamp;
-        if (formIsAshbal) updates.is_ashbal = true;
+        if (formIsAshbal) {
+          updates.is_ashbal = true;
+          updates.ashbal_status = 'active';
+        }
         if (formBirthDate) updates.birth_date = formBirthDate;
 
         if (Object.keys(updates).length > 0) {

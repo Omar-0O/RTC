@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -150,6 +150,8 @@ const getCreatedByFromRelation = (relation: CreatedByRelation) => {
 
 export default function Profile({ userId: propUserId }: ProfileProps) {
   const { id: paramUserId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'activities';
   const userId = propUserId || paramUserId;
 
   const { user, profile: authProfile, refreshProfile, hasRole } = useAuth();
@@ -498,42 +500,8 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
     try {
       if (itemToDelete.type === 'fine') {
-        const sourceType = itemToDelete.fineSourceType;
-
-        if (sourceType === 'manual') {
-          // Delete manual fine from volunteer_fines table
-          const { error } = await supabase.from('volunteer_fines').delete().eq('id', itemToDelete.id);
-          if (error) throw error;
-        } else if (sourceType === 'activity') {
-          // For activity fines, set wore_vest to true
-          const { error } = await supabase
-            .from('activity_submissions')
-            .update({ wore_vest: true })
-            .eq('id', itemToDelete.id);
-          if (error) throw error;
-        } else if (sourceType === 'caravan') {
-          // For caravan fines, set wore_vest to true
-          const { error } = await supabase
-            .from('caravan_participants')
-            .update({ wore_vest: true })
-            .eq('id', itemToDelete.id);
-          if (error) throw error;
-        } else if (sourceType === 'event') {
-          // For event fines, set wore_vest to true
-          const { error } = await supabase
-            .from('event_participants')
-            .update({ wore_vest: true })
-            .eq('id', itemToDelete.id);
-          if (error) throw error;
-        } else if (sourceType === 'ethics_call') {
-          // For ethics call fines, set wore_vest to true
-          const { error } = await supabase
-            .from('ethics_calls_participants')
-            .update({ wore_vest: true })
-            .eq('id', itemToDelete.id);
-          if (error) throw error;
-        }
-
+        const { error } = await supabase.from('volunteer_fines').delete().eq('id', itemToDelete.id);
+        if (error) throw error;
         toast.success(isRTL ? 'تم حذف الغرامة' : 'Fine removed');
       } else {
         const { error } = await supabase.from('volunteer_feedbacks').delete().eq('id', itemToDelete.id);
@@ -765,62 +733,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 </div>
               )}
 
-              {/* Personal Info Grid */}
-              <div className="flex flex-col items-start gap-y-2 text-sm text-muted-foreground pt-1 w-fit mx-auto sm:mx-0 rtl:-translate-x-3 sm:rtl:translate-x-0">
-                {/* Email */}
-                <span className="flex items-center gap-2 justify-start transition-colors hover:text-foreground group/email">
-                  <Mail className="h-4 w-4 shrink-0 text-muted-foreground/80" />
-                  <span className="truncate">{displayProfile?.email}</span>
-                  <button
-                    onClick={handleCopyEmail}
-                    className="p-1 rounded-md hover:bg-muted transition-colors opacity-0 group-hover/email:opacity-100 focus:opacity-100"
-                    title={isRTL ? 'نسخ' : 'Copy'}
-                  >
-                    {copiedEmail ? (
-                      <Check className="h-3 w-3 text-green-500" />
-                    ) : (
-                      <Copy className="h-3 w-3" />
-                    )}
-                  </button>
-                </span>
 
-                {/* Phone */}
-                {displayProfile?.phone && (
-                  <div className="flex items-center gap-2 justify-start transition-colors hover:text-foreground group/phone whitespace-nowrap min-w-0 max-w-full">
-                    <Phone className="h-4 w-4 shrink-0 text-muted-foreground/80" />
-                    <span dir="ltr" className="select-all font-mono text-sm tracking-wide whitespace-nowrap">
-                      {displayProfile.phone}
-                    </span>
-                    <div className="flex items-center gap-1 opacity-60 group-hover/phone:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
-                      <button
-                        onClick={() => {
-                          if (displayProfile?.phone) {
-                            navigator.clipboard.writeText(displayProfile.phone);
-                            toast.success(isRTL ? 'تم نسخ رقم الهاتف' : 'Phone number copied');
-                          }
-                        }}
-                        className="p-1 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                        title={isRTL ? 'نسخ الرقم' : 'Copy number'}
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                      </button>
-                      <a
-                        href={(() => {
-                          const clean = displayProfile.phone.replace(/[^0-9]/g, '');
-                          const num = clean.startsWith('0') ? '2' + clean : clean;
-                          return `https://wa.me/${num}`;
-                        })()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1 rounded-md hover:bg-green-500/10 hover:text-green-500 transition-colors text-muted-foreground hover:text-green-500"
-                        title={isRTL ? 'إرسال واتساب' : 'Send WhatsApp'}
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                      </a>
-                    </div>
-                  </div>
-                )}
-              </div>
 
               {/* Dates Row (Join Date & Birth Date) */}
               <div className="flex flex-row gap-1.5 justify-center sm:justify-start w-full pt-1.5 flex-nowrap overflow-x-auto no-scrollbar">
@@ -828,7 +741,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 <div className="bg-muted/40 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-muted-foreground/10 flex items-center gap-1.5 text-xs text-muted-foreground shadow-sm shrink-0 whitespace-nowrap">
                   <Calendar className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
                   <span>
-                    {isRTL ? 'انضم:' : 'Joined:'} {formatDate(displayProfile?.join_date || new Date().toISOString())}
+                    Family member since {formatDate(displayProfile?.join_date || new Date().toISOString())}
                   </span>
                 </div>
 

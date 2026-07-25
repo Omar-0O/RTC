@@ -24,7 +24,8 @@ import {
   Laptop,
   Cake,
   Heart,
-  Info
+  Info,
+  AlertTriangle,
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
@@ -77,6 +78,7 @@ export function AppSidebar() {
   const [isCourseAccess, setIsCourseAccess] = useState(false);
   const [isCircleOrganizer, setIsCircleOrganizer] = useState(false);
   const [isEventOrganizer, setIsEventOrganizer] = useState(false);
+  const [hasActiveFines, setHasActiveFines] = useState(false);
 
   // Check if user is a course organizer
   useEffect(() => {
@@ -147,6 +149,21 @@ export function AppSidebar() {
       setIsEventOrganizer(data != null && data.length > 0);
     };
     checkEventOrganizer();
+
+    // Check if volunteer has active unpaid fines
+    const checkFines = async () => {
+      if (!user?.id) return;
+      const { data } = await supabase
+        .from('volunteer_fines_view')
+        .select('source_id')
+        .eq('volunteer_id', user.id)
+        .eq('source_type', 'manual')
+        .eq('is_paid', false)
+        .limit(1);
+
+      setHasActiveFines(Boolean(data && data.length > 0));
+    };
+    checkFines();
   }, [user?.id]);
 
   // Base volunteer nav items
@@ -164,6 +181,11 @@ export function AppSidebar() {
   // Add My Quran Circles if user is a circle organizer
   if (isCircleOrganizer) {
     volunteerNavItems = [...volunteerNavItems, { title: isRTL ? 'حلقاتي' : 'My Circles', url: '/my-quran-circles', icon: BookOpen }];
+  }
+
+  // Add My Fines if user has active unpaid fines
+  if (hasActiveFines) {
+    volunteerNavItems = [...volunteerNavItems, { title: isRTL ? 'غراماتك' : 'Your Fines', url: '/my-fines', icon: AlertTriangle }];
   }
 
   const supervisorNavItems = [
@@ -456,6 +478,25 @@ export function AppSidebar() {
   if (isEventOrganizer && !navItems.some(i => i.url === '/my-events')) {
     navItems = [...navItems, { title: isRTL ? 'إيفينتاتي' : 'My Events', url: '/my-events', icon: Calendar }];
   }
+
+  // Ensure ONLY admin and branch_admin see Fines Management
+  const isAdminOrBranchAdmin = ['admin', 'branch_admin'].includes(primaryRole) || features?.includes('fines_management');
+  if (isAdminOrBranchAdmin && !navItems.some(i => i.url === '/admin/fines')) {
+    navItems = [...navItems, { title: isRTL ? 'إدارة الغرامات' : 'Fines Management', url: '/admin/fines', icon: FileCheck }];
+  }
+
+  // Ensure ANY user with active unpaid fines sees "غراماتك" (/my-fines)
+  if (hasActiveFines && !navItems.some(i => i.url === '/my-fines')) {
+    navItems = [...navItems, { title: isRTL ? 'غراماتك' : 'Your Fines', url: '/my-fines', icon: AlertTriangle }];
+  }
+
+  // Push "غراماتك" (/my-fines) to the very bottom of the nav list if present so it stands out
+  const myFinesIdx = navItems.findIndex(i => i.url === '/my-fines');
+  if (myFinesIdx !== -1 && myFinesIdx !== navItems.length - 1) {
+    const myFinesItem = navItems[myFinesIdx];
+    navItems = [...navItems.slice(0, myFinesIdx), ...navItems.slice(myFinesIdx + 1), myFinesItem];
+  }
+
   const displayName = profile?.full_name || user?.email || 'User';
   const userInitials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
 
@@ -493,20 +534,30 @@ export function AppSidebar() {
           <SidebarGroupLabel>{t('nav.navigation')}</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location.pathname === item.url}
-                    tooltip={item.title}
-                  >
-                    <NavLink to={item.url} onClick={handleNavClick}>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {navItems.map((item) => {
+                const isRed = item.url === '/my-fines';
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location.pathname === item.url}
+                      tooltip={item.title}
+                      className={cn(
+                        isRed && "text-red-600 dark:text-red-400 font-bold hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10"
+                      )}
+                    >
+                      <NavLink
+                        to={item.url}
+                        onClick={handleNavClick}
+                        className={cn(isRed && "text-red-600 dark:text-red-400 font-bold flex items-center gap-2")}
+                      >
+                        <item.icon className={cn("h-4 w-4", isRed && "text-red-600 dark:text-red-400")} />
+                        <span className={cn(isRed && "text-red-600 dark:text-red-400 font-bold")}>{item.title}</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

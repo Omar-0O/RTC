@@ -7,7 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { StatsCard } from '@/components/ui/stats-card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from 'react-router-dom';
-import { Activity, Star, ArrowRight, Loader2, Award } from 'lucide-react';
+import { Activity, Star, ArrowRight, Loader2, Award, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import CourseSchedule from '@/components/courses/CourseSchedule';
@@ -54,6 +54,8 @@ export default function VolunteerDashboard() {
   // const points = profile?.total_points || 0; // Deprecated, using dynamic impact calculation
   const [totalActivities, setTotalActivities] = useState(0);
   const [monthlyActivities, setMonthlyActivities] = useState(0);
+  const [finesCount, setFinesCount] = useState(0);
+  const [finesAmount, setFinesAmount] = useState(0);
 
   const [canViewAds, setCanViewAds] = useState(false);
 
@@ -98,7 +100,7 @@ export default function VolunteerDashboard() {
     try {
       const now = new Date();
 
-      const [submissionsRes, badgesRes, allActivitiesRes] = await Promise.all([
+      const [submissionsRes, badgesRes, allActivitiesRes, finesRes] = await Promise.all([
         supabase
           .from('activity_submissions')
           .select(`
@@ -120,8 +122,22 @@ export default function VolunteerDashboard() {
           .from('activity_submissions')
           .select('id, points_awarded, submitted_at')
           .eq('volunteer_id', user.id)
-          .is('fine_type_id', null) // Exclude fines (ALL TIME)
+          .is('fine_type_id', null), // Exclude fines (ALL TIME)
+        supabase
+          .from('volunteer_fines_view')
+          .select('amount, is_paid')
+          .eq('volunteer_id', user.id)
+          .eq('source_type', 'manual')
+          .eq('is_paid', false),
       ]);
+
+      if (finesRes.data) {
+        setFinesCount(finesRes.data.length);
+        setFinesAmount(finesRes.data.reduce((sum, f) => sum + (f.amount || 0), 0));
+      } else {
+        setFinesCount(0);
+        setFinesAmount(0);
+      }
 
       let updatedRecentSubmissions: RecentSubmission[] = [];
       if (submissionsRes.data) {
@@ -256,6 +272,37 @@ export default function VolunteerDashboard() {
           </Link>
         </Button>
       </div>
+
+      {/* Fines Alert Box */}
+      {finesCount > 0 && (
+        <div className="relative overflow-hidden rounded-xl border border-rose-500/30 bg-rose-500/5 p-3 sm:px-4 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold">
+              <AlertTriangle className="h-4 w-4 stroke-[2.5]" />
+            </div>
+            <div className="min-w-0 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs sm:text-sm">
+              <span className="font-semibold text-foreground">
+                {isRTL ? 'تنبيه غرامات' : 'Fines Alert'}:
+              </span>
+              <span className="text-muted-foreground">
+                {isRTL
+                  ? `عندك ${finesCount} غرامة بقيمة ${finesAmount} ج.م`
+                  : `${finesCount} fine(s) totaling ${finesAmount} EGP`}
+              </span>
+            </div>
+          </div>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-8 px-3 text-xs shrink-0 border-rose-500/30 text-rose-600 hover:bg-rose-600 hover:text-white dark:text-rose-400 dark:hover:bg-rose-600 font-semibold"
+          >
+            <Link to="/my-fines">
+              {isRTL ? 'عرض غراماتك' : 'View'}
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid gap-3 sm:gap-4 grid-cols-2 max-w-2xl">

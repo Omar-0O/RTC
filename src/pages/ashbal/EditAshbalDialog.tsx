@@ -50,6 +50,7 @@ type EditableAshbalUser = Pick<
   | 'created_at'
   | 'birth_date'
   | 'avatar_url'
+  | 'ashbal_status'
 > & Partial<Pick<Tables<'profiles'>, 'email'>>;
 
 const DEFAULT_ASHBAL_LEVEL: VolunteerLevel = 'under_follow_up';
@@ -148,6 +149,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
   const [formLevel, setFormLevel] = useState<VolunteerLevel>(DEFAULT_ASHBAL_LEVEL);
   const [formJoinDate, setFormJoinDate] = useState<string>('');
   const [formBirthDate, setFormBirthDate] = useState<string>('');
+  const [formAshbalStatus, setFormAshbalStatus] = useState<string>('active');
 
   // Avatar states
   const [formAvatarFile, setFormAvatarFile] = useState<File | null>(null);
@@ -166,6 +168,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
       setFormLevel(user.level || DEFAULT_ASHBAL_LEVEL);
       setFormJoinDate(user.join_date ? format(new Date(user.join_date), 'yyyy-MM-dd') : (user.created_at ? format(new Date(user.created_at), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd')));
       setFormBirthDate(user.birth_date || '');
+      setFormAshbalStatus(user.ashbal_status || 'active');
       setFormAvatarPreview(user.avatar_url);
       setFormAvatarFile(null);
       setTempImageSrc(null);
@@ -267,6 +270,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
         // types.ts says profiles has 'join_date'.
         join_date: formJoinDate,
         birth_date: formBirthDate || null,
+        ashbal_status: formAshbalStatus,
       };
 
       const { error: profileError } = await supabase
@@ -403,7 +407,7 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="edit-phone">{t('users.phoneNumber')}</Label>
                 <Input
@@ -428,6 +432,22 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
                     <SelectItem value="under_follow_up">{t('level.under_follow_up')}</SelectItem>
                     <SelectItem value="project_responsible">{t('level.project_responsible')}</SelectItem>
                     <SelectItem value="responsible">{t('level.responsible')}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-ashbal-status">{language === 'ar' ? 'حالة التارجت' : 'Target Status'}</Label>
+                <Select
+                  value={formAshbalStatus}
+                  onValueChange={(value) => setFormAshbalStatus(value)}
+                  disabled={!['admin', 'head_ashbal'].includes(primaryRole)}
+                >
+                  <SelectTrigger id="edit-ashbal-status">
+                    <SelectValue placeholder={language === 'ar' ? 'حالة التارجت' : 'Target Status'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">{language === 'ar' ? 'التارجت الحالي' : 'Current Target'}</SelectItem>
+                    <SelectItem value="previous">{language === 'ar' ? 'الأشبال السابقين' : 'Previous Ashbals'}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

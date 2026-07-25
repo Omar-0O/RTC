@@ -114,8 +114,8 @@ export default function AshbalManagement() {
         u.phone?.includes(searchQuery)
     );
 
-    // Active users are those with status 'active' OR null (for backward compatibility)
-    const currentTrimesterUsers = filteredUsers.filter(u => u.ashbal_status === 'active' || !u.ashbal_status);
+    // Active users are those with status 'active' OR null/undefined OR 'current'
+    const currentTrimesterUsers = filteredUsers.filter(u => u.ashbal_status === 'active' || !u.ashbal_status || u.ashbal_status === 'current');
 
     // Previous users are those with status 'previous'
     const previousUsers = filteredUsers.filter(u => u.ashbal_status === 'previous');
@@ -162,6 +162,27 @@ export default function AshbalManagement() {
             toast.error(getErrorMessage(error, isRTL ? "حدث خطأ أثناء حذف المستخدم" : "Error deleting user"));
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    const handleToggleStatus = async (targetUser: AshbalUser, newStatus: 'active' | 'previous') => {
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({ ashbal_status: newStatus })
+                .eq('id', targetUser.id);
+
+            if (error) throw error;
+
+            toast.success(
+                newStatus === 'active'
+                    ? (isRTL ? "تم إضافة الشبل للتارجت الحالي" : "Moved to current target")
+                    : (isRTL ? "تم نقل الشبل للأشبال السابقين" : "Moved to previous ashbals")
+            );
+            fetchAshbalUsers();
+        } catch (error) {
+            console.error('Error toggling ashbal status:', error);
+            toast.error(isRTL ? "حدث خطأ أثناء تغيير الحالة" : "Error changing status");
         }
     };
 
@@ -235,6 +256,17 @@ export default function AshbalManagement() {
                                                                 <Pencil className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                                 {t('common.edit')}
                                                             </DropdownMenuItem>
+                                                            {user.ashbal_status === 'previous' ? (
+                                                                <DropdownMenuItem onClick={() => handleToggleStatus(user, 'active')}>
+                                                                    <RefreshCw className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                                    {isRTL ? "نقل للتارجت الحالي" : "Move to Current Target"}
+                                                                </DropdownMenuItem>
+                                                            ) : (
+                                                                <DropdownMenuItem onClick={() => handleToggleStatus(user, 'previous')}>
+                                                                    <RefreshCw className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+                                                                    {isRTL ? "نقل للأشبال السابقين" : "Move to Previous Ashbals"}
+                                                                </DropdownMenuItem>
+                                                            )}
                                                             <DropdownMenuItem onClick={() => setDeleteUser(user)} className="text-red-600 focus:text-red-600">
                                                                 <Trash2 className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                                 {isRTL ? "حذف" : "Delete"}
