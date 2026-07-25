@@ -411,21 +411,21 @@ export default function Kiosk() {
 
   useEffect(() => {
     const savedBranchId = localStorage.getItem('rtc_kiosk_branch_id');
-    if (savedBranchId) {
+    if (savedBranchId && branches.some((b) => b.id === savedBranchId)) {
       setSelectedBranchId(savedBranchId);
       return;
     }
 
-    if (!canViewAllBranches) {
-      if (activeBranch?.id) {
-        setSelectedBranchId(activeBranch.id);
-      }
+    if (activeBranch?.id) {
+      setSelectedBranchId(activeBranch.id);
       return;
     }
 
-    const defaultBranchId = activeBranch?.id || branches.find((branch) => branch.is_default)?.id || branches[0]?.id || '';
-    setSelectedBranchId(defaultBranchId);
-  }, [activeBranch?.id, branches, canViewAllBranches]);
+    const defaultBranchId = branches.find((branch) => branch.is_default)?.id || branches[0]?.id || '';
+    if (defaultBranchId) {
+      setSelectedBranchId(defaultBranchId);
+    }
+  }, [activeBranch?.id, branches]);
 
   // Fetch activity types when branch changes
   useEffect(() => {
@@ -470,7 +470,6 @@ export default function Kiosk() {
 
   // Save selected branch to local storage
   const handleBranchChange = (id: string) => {
-    if (!canViewAllBranches) return;
     setSelectedBranchId(id);
     localStorage.setItem('rtc_kiosk_branch_id', id);
     toast.success(
@@ -1075,9 +1074,26 @@ export default function Kiosk() {
                 ? (isRTL ? 'جدول الكورسات والفعاليات' : 'Course & Event Schedule')
                 : (isRTL ? 'تسجيل مشاركات الميداني' : 'Field Participation Logging')}
             </h1>
-            <span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
-              {isRTL ? `فرع ${currentBranchName || 'المهندسين'}` : `${currentBranchName || 'Mohandseen'} Branch`}
-            </span>
+            {branches.length > 1 ? (
+              <Select value={selectedBranchId} onValueChange={handleBranchChange}>
+                <SelectTrigger className="h-9 rounded-full bg-primary/10 border-primary/20 text-primary font-bold text-sm px-3 hover:bg-primary/20 transition-colors w-auto gap-1.5 shadow-sm">
+                  <Building2 className="h-4 w-4 text-primary shrink-0" />
+                  <SelectValue placeholder={isRTL ? 'اختر الفرع' : 'Select Branch'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {branches.map((b) => (
+                    <SelectItem key={b.id} value={b.id} className="font-medium">
+                      {isRTL ? b.name_ar : b.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20 flex items-center gap-1.5">
+                <Building2 className="h-4 w-4 text-primary shrink-0" />
+                {isRTL ? `فرع ${currentBranchName || 'المهندسين'}` : `${currentBranchName || 'Mohandseen'} Branch`}
+              </span>
+            )}
           </div>
         </div>
 
