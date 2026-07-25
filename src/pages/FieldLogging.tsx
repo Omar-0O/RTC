@@ -171,12 +171,12 @@ export default function FieldLogging() {
         });
 
         if (error) {
-          console.error('Kiosk auto-login failed:', error.message);
-          if (!cancelled) setKioskAuthFailed(true);
+          console.warn('Kiosk service account auto-login failed, falling back to anonymous kiosk access:', error.message);
+          if (!cancelled) setBypassKioskAuth(true);
         }
       } catch (err) {
-        console.error('Kiosk auth error:', err);
-        if (!cancelled) setKioskAuthFailed(true);
+        console.warn('Kiosk auth error, falling back to anonymous kiosk access:', err);
+        if (!cancelled) setBypassKioskAuth(true);
       } finally {
         if (!cancelled) setKioskAuthing(false);
       }
