@@ -822,7 +822,9 @@ export default function CourseManagement() {
             start_date: format(new Date(), 'yyyy-MM-dd'),
             end_date: '',
             has_certificates: false,
-            committee_id: isRestricted && profile?.committee_id ? profile.committee_id : null
+            committee_id: isRestricted && profile?.committee_id ? profile.committee_id : null,
+            created_by: null,
+            branch_id: null,
         });
         setOrganizers([]);
         setMarketers([]);
@@ -2954,7 +2956,7 @@ export default function CourseManagement() {
                                                         </Label>
                                                         <Select
                                                             value={selectedCourse.certificate_status}
-                                                            onValueChange={(val) => updateCertificateStatus(selectedCourse.id, val)}
+                                                            onValueChange={(val) => updateCertificateStatus(selectedCourse.id, val as CertificateStatus)}
                                                             disabled={!selectedCourse.end_date || new Date(selectedCourse.end_date) > new Date()}
                                                         >
                                                             <SelectTrigger className="h-10 bg-background">
