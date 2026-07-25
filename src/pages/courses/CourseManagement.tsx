@@ -348,8 +348,9 @@ export default function CourseManagement() {
     };
 
     // roles and profile already destructured above
-    const isRestricted = roles.includes('committee_leader') &&
-        !roles.some(r => ['admin', 'supervisor', 'head_production', 'head_fourth_year', 'head_events', 'head_caravans', 'head_hr', 'head_marketing'].includes(r));
+    const isGlobalAdmin = roles.some(r => ['admin', 'executive', 'branch_admin', 'supervisor'].includes(r));
+    const isHeadOrLeader = roles.some(r => r.startsWith('head_') || r === 'committee_leader');
+    const isRestricted = isHeadOrLeader && !isGlobalAdmin;
 
     // First: Filter by active/past status
     const statusFilteredCourses = useMemo(() => courses.filter(course => {
@@ -1076,7 +1077,7 @@ export default function CourseManagement() {
             start_date: course.start_date || format(new Date(), 'yyyy-MM-dd'),
             end_date: course.end_date || '',
             has_certificates: course.has_certificates || false,
-            committee_id: course.committee_id || null,
+            committee_id: course.committee_id || (isRestricted ? profile?.committee_id : null) || null,
         });
         setSelectedTrainerId(course.trainer_id || '');
 
@@ -1984,7 +1985,6 @@ export default function CourseManagement() {
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     {committees
-                                                        .filter(c => c.committee_type === 'production')
                                                         .map(committee => (
                                                             <SelectItem key={committee.id} value={committee.id} className="py-3">
                                                                 {isRTL ? committee.name_ar : committee.name}
@@ -2752,7 +2752,6 @@ export default function CourseManagement() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     {committees
-                                        .filter(c => c.committee_type === 'production')
                                         .map(committee => (
                                             <SelectItem key={committee.id} value={committee.id} className="py-3">
                                                 {isRTL ? committee.name_ar : committee.name}
