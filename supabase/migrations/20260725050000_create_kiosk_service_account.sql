@@ -51,7 +51,7 @@ BEGIN
       'تسجيل المشاركات الميداني',
       '+200000000000',
       'responsible',
-      get_default_branch_id(),
+      (SELECT id FROM public.branches LIMIT 1),
       false  -- Mark inactive so it doesn't appear in volunteer lists/leaderboards
     )
     ON CONFLICT (id) DO UPDATE SET
