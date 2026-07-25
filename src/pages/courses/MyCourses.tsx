@@ -333,6 +333,12 @@ export default function MyCourses() {
     };
 
     const updateLectureStatus = async (lectureId: string, status: 'scheduled' | 'completed' | 'cancelled') => {
+        const targetLecture = lectures.find(l => l.id === lectureId);
+        if (status === 'completed' && targetLecture && !isLectureOpen(targetLecture.date)) {
+            toast.error(isRTL ? 'لا يمكن إتمام محاضرة تاريخها في المستقبل' : 'Cannot complete a future lecture');
+            return;
+        }
+
         try {
             await updateCourseLectureStatus(lectureId, status);
         } catch (error) {
@@ -1030,6 +1036,8 @@ export default function MyCourses() {
                                                                         size="sm"
                                                                         variant={lecture.status === 'completed' ? 'outline' : 'secondary'}
                                                                         onClick={() => updateLectureStatus(lecture.id, 'completed')}
+                                                                        disabled={!isLectureOpen(lecture.date) && lecture.status !== 'completed'}
+                                                                        title={!isLectureOpen(lecture.date) ? (isRTL ? 'لا يمكن إتمام محاضرة تاريخها في المستقبل' : 'Cannot complete a future lecture') : undefined}
                                                                         className="flex-1 sm:flex-none"
                                                                     >
                                                                         <Check className="w-4 h-4 ltr:mr-1 rtl:ml-1 sm:ltr:mr-2 sm:rtl:ml-2" />
