@@ -356,17 +356,15 @@ export default function CourseManagement() {
     const statusFilteredCourses = useMemo(() => courses.filter(course => {
         if (showPastCourses) return true;
 
+        const totalLecs = Number(course.total_lectures) || 0;
         const finishedLectures = course.course_lectures?.filter((lecture) =>
             lecture.status === 'completed' || lecture.status === 'cancelled'
         ).length || 0;
-        const remainingLectures = Math.max(0, course.total_lectures - finishedLectures);
-        const isFinished = remainingLectures === 0;
+
+        // A course is only considered finished if total_lectures > 0 and finishedLectures >= total_lectures
+        const isFinished = totalLecs > 0 && finishedLectures >= totalLecs;
 
         if (isFinished) return false;
-
-        if (course.end_date && new Date(course.end_date) < new Date(new Date().toDateString())) {
-            return false;
-        }
 
         return true;
     }), [courses, showPastCourses]);
@@ -689,7 +687,7 @@ export default function CourseManagement() {
                 .order('start_date', { ascending: false });
 
             if (isRestricted && profile?.committee_id) {
-                query = query.eq('committee_id', profile.committee_id);
+                query = query.or(`committee_id.eq.${profile.committee_id},committee_id.is.null,created_by.eq.${user?.id}`);
             }
 
             if (activeBranch?.id) {
