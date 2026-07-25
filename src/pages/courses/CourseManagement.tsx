@@ -81,6 +81,7 @@ interface Course {
     end_date: string | null;
     created_by: string;
     committee_id: string | null;
+    branch_id?: string | null;
     trainer_id: string | null;
     course_lectures?: { status: string }[];
     course_organizers?: { id: string }[];
@@ -107,6 +108,7 @@ const COURSE_LIST_SELECT = `
     end_date,
     created_by,
     committee_id,
+    branch_id,
     trainer_id,
     has_certificates,
     certificate_status,
@@ -492,6 +494,8 @@ export default function CourseManagement() {
         end_date: '',
         has_certificates: false,
         committee_id: null as string | null,
+        created_by: null as string | null,
+        branch_id: null as string | null,
     });
 
     const [organizers, setOrganizers] = useState<CourseOrganizer[]>([]);
@@ -1076,6 +1080,8 @@ export default function CourseManagement() {
             end_date: course.end_date || '',
             has_certificates: course.has_certificates || false,
             committee_id: course.committee_id || (isRestricted ? profile?.committee_id : null) || null,
+            created_by: course.created_by || user?.id || null,
+            branch_id: course.branch_id || activeBranch?.id || null,
         });
         setSelectedTrainerId(course.trainer_id || '');
 
@@ -1153,7 +1159,9 @@ export default function CourseManagement() {
                 start_date: formData.start_date, // Use user selected date
                 end_date: actualEndDate,
                 interview_date: formData.interview_date || null,
-                committee_id: formData.committee_id
+                committee_id: formData.committee_id,
+                created_by: formData.created_by || user?.id || null,
+                branch_id: formData.branch_id || activeBranch?.id || null,
             };
 
             await saveCourseWithRelations({

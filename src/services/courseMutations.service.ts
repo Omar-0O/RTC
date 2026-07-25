@@ -59,12 +59,32 @@ export async function saveCourseWithRelations({
     if (insertError) throw insertError;
     targetCourseId = inserted.id;
   } else {
+    const updatePayload: Record<string, any> = {
+      name: c.name,
+      trainer_id: c.trainer_id || null,
+      trainer_name: c.trainer_name || '',
+      trainer_phone: c.trainer_phone || null,
+      room: c.room,
+      schedule_days: c.schedule_days || [],
+      schedule_time: c.schedule_time,
+      schedule_end_time: c.schedule_end_time || null,
+      has_interview: !!c.has_interview,
+      interview_date: c.interview_date || null,
+      total_lectures: Number(c.total_lectures) || 8,
+      start_date: c.start_date,
+      end_date: c.end_date || null,
+      has_certificates: !!c.has_certificates,
+      certificate_status: c.certificate_status || 'pending',
+      committee_id: c.committee_id || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (c.created_by) updatePayload.created_by = c.created_by;
+    if (c.branch_id) updatePayload.branch_id = c.branch_id;
+
     const { error: updateError } = await supabase
       .from('courses')
-      .update({
-        ...coursePayload,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', targetCourseId);
 
     if (updateError) throw updateError;
