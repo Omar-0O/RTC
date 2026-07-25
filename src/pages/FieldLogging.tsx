@@ -153,15 +153,12 @@ export default function FieldLogging() {
   // ── Kiosk Auto-Login ─────────────────────────────────────────────────
   // If no user is signed in, automatically authenticate as the kiosk
   // service account so all Supabase queries run as `authenticated` role.
-  const [kioskAuthing, setKioskAuthing] = useState(false);
-  const [kioskAuthFailed, setKioskAuthFailed] = useState(false);
-  const [bypassKioskAuth, setBypassKioskAuth] = useState(false);
+  const [kioskAuthAttempted, setKioskAuthAttempted] = useState(false);
 
   useEffect(() => {
-    if (authLoading || user || kioskAuthing || kioskAuthFailed || bypassKioskAuth) return;
+    if (authLoading || user || kioskAuthAttempted) return;
 
-    let cancelled = false;
-    setKioskAuthing(true);
+    setKioskAuthAttempted(true);
 
     (async () => {
       try {
@@ -172,18 +169,12 @@ export default function FieldLogging() {
 
         if (error) {
           console.warn('Kiosk service account auto-login failed, falling back to anonymous kiosk access:', error.message);
-          if (!cancelled) setBypassKioskAuth(true);
         }
       } catch (err) {
         console.warn('Kiosk auth error, falling back to anonymous kiosk access:', err);
-        if (!cancelled) setBypassKioskAuth(true);
-      } finally {
-        if (!cancelled) setKioskAuthing(false);
       }
     })();
-
-    return () => { cancelled = true; };
-  }, [authLoading, user, kioskAuthing, kioskAuthFailed, bypassKioskAuth]);
+  }, [authLoading, user, kioskAuthAttempted]);
 
 
 
@@ -511,48 +502,14 @@ export default function FieldLogging() {
     fetchBranchActivityTypes();
   }, [selectedBranchId]);
 
-  // Show loading while auth initializes or kiosk is signing in
-  if (authLoading || (!user && kioskAuthing && !bypassKioskAuth)) {
+  // Show loading while auth initializes
+  if (authLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
         <p className="text-muted-foreground text-sm">
           {isRTL ? 'جاري تهيئة الصفحة...' : 'Initializing page...'}
         </p>
-      </div>
-    );
-  }
-
-  // Show error if auto-login failed and no user is signed in
-  if (!user && kioskAuthFailed && !bypassKioskAuth) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background text-center p-8">
-        <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center">
-          <X className="h-8 w-8 text-destructive" />
-        </div>
-        <h2 className="text-xl font-bold">
-          {isRTL ? 'فشل تهيئة الصفحة' : 'Page Initialization Failed'}
-        </h2>
-        <p className="text-muted-foreground max-w-md">
-          {isRTL
-            ? 'تعذّر تسجيل الدخول التلقائي للصفحة. يرجى التحقق من الخادم والمحاولة مرة أخرى.'
-            : 'Auto-login failed for the page. Please check the server and try again.'}
-        </p>
-        <div className="flex flex-wrap gap-3 justify-center mt-4">
-          <button
-            onClick={() => { setKioskAuthFailed(false); }}
-            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors flex items-center gap-2"
-          >
-            <RefreshCw className="h-4 w-4" />
-            {isRTL ? 'إعادة المحاولة' : 'Retry'}
-          </button>
-          <button
-            onClick={() => { setBypassKioskAuth(true); }}
-            className="px-6 py-3 bg-secondary text-secondary-foreground rounded-lg font-medium hover:bg-secondary/80 transition-colors"
-          >
-            {isRTL ? 'المتابعة كزائر' : 'Continue as Guest'}
-          </button>
-        </div>
       </div>
     );
   }
