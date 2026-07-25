@@ -6,8 +6,8 @@ DO $$
 DECLARE
   _uid uuid;
 BEGIN
-  -- Check if the kiosk user already exists
-  SELECT id INTO _uid FROM auth.users WHERE email = 'kiosk@rtc.internal';
+  -- Check if the kiosk user already exists with either email
+  SELECT id INTO _uid FROM auth.users WHERE email = 'Medaniparticipations@rtc.org' OR email = 'kiosk@rtc.internal';
 
   IF _uid IS NULL THEN
     _uid := gen_random_uuid();
@@ -21,8 +21,8 @@ BEGIN
     ) VALUES (
       _uid,
       '00000000-0000-0000-0000-000000000000',
-      'kiosk@rtc.internal',
-      crypt('RTC-kiosk-2026!', gen_salt('bf')),
+      'Medaniparticipations@rtc.org',
+      crypt('Medani', gen_salt('bf')),
       now(),
       'authenticated',
       'authenticated',
@@ -37,7 +37,7 @@ BEGIN
       last_sign_in_at, created_at, updated_at
     ) VALUES (
       _uid, _uid,
-      jsonb_build_object('sub', _uid::text, 'email', 'kiosk@rtc.internal'),
+      jsonb_build_object('sub', _uid::text, 'email', 'Medaniparticipations@rtc.org'),
       'email', _uid::text,
       now(), now(), now()
     );
@@ -46,9 +46,9 @@ BEGIN
     INSERT INTO public.profiles (id, email, full_name, full_name_ar, phone, level, branch_id, is_active)
     VALUES (
       _uid,
-      'kiosk@rtc.internal',
+      'Medaniparticipations@rtc.org',
       'Kiosk Terminal',
-      'جهاز الكيوسك',
+      'تسجيل المشاركات الميداني',
       '+200000000000',
       'responsible',
       get_default_branch_id(),
@@ -62,7 +62,19 @@ BEGIN
 
     RAISE NOTICE 'Kiosk service account created with id: %', _uid;
   ELSE
-    RAISE NOTICE 'Kiosk service account already exists with id: %', _uid;
+    -- Update existing user credentials and email
+    UPDATE auth.users 
+    SET email = 'Medaniparticipations@rtc.org',
+        encrypted_password = crypt('Medani', gen_salt('bf')),
+        updated_at = now()
+    WHERE id = _uid;
+
+    UPDATE public.profiles
+    SET email = 'Medaniparticipations@rtc.org',
+        full_name_ar = 'تسجيل المشاركات الميداني'
+    WHERE id = _uid;
+
+    RAISE NOTICE 'Kiosk service account updated for email Medaniparticipations@rtc.org';
   END IF;
 END;
 $$;

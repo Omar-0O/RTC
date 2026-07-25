@@ -10,8 +10,8 @@ import { useTheme } from 'next-themes';
 
 // Kiosk service account credentials.
 // This user has basic volunteer-level access (branch-scoped via RLS).
-const KIOSK_EMAIL = 'kiosk@rtc.internal';
-const KIOSK_PASSWORD = 'RTC-kiosk-2026!';
+const KIOSK_EMAIL = 'Medaniparticipations@rtc.org';
+const KIOSK_PASSWORD = 'Medani';
 import {
   Loader2,
   Phone,
