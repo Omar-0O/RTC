@@ -309,7 +309,7 @@ export default function Kiosk() {
 
       const grades: TopByLevel[] = [
         { grade: 'responsible', label_ar: 'مسئول', label_en: 'Responsible', color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', volunteers: [] },
-        { grade: 'project_responsible', label_ar: 'مسئول مشروع', label_en: 'Project Responsible', color: 'text-blue-500 bg-blue-500/10 border-blue-500/20', volunteers: [] },
+        { grade: 'project_responsible', label_ar: 'مشروع مسئول', label_en: 'Project Responsible', color: 'text-blue-500 bg-blue-500/10 border-blue-500/20', volunteers: [] },
         { grade: 'under_follow_up', label_ar: 'تحت المتابعة', label_en: 'Under Follow-up', color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', volunteers: [] },
       ];
 
@@ -953,7 +953,7 @@ export default function Kiosk() {
       case 'active':
         return isRTL ? 'تحت المتابعة' : 'Under Follow-up';
       case 'project_responsible':
-        return isRTL ? 'مسئول مشروع' : 'Project Responsible';
+        return isRTL ? 'مشروع مسئول' : 'Project Responsible';
       case 'responsible':
         return isRTL ? 'مسئول' : 'Responsible';
       default:

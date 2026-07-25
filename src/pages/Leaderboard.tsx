@@ -41,7 +41,7 @@ const isLeaderboardCache = (value: unknown): value is LeaderboardCache =>
 const LEVELS = [
   { value: 'all', labelEn: 'All Levels', labelAr: 'كل الدرجات', icon: '🏆' },
   { value: 'under_follow_up', labelEn: 'Under Follow Up', labelAr: 'تحت المتابعة', icon: '👀' },
-  { value: 'project_responsible', labelEn: 'Project Responsible', labelAr: 'مسؤول مشروع', icon: '📋' },
+  { value: 'project_responsible', labelEn: 'Project Responsible', labelAr: 'مشروع مسئول', icon: '📋' },
   { value: 'responsible', labelEn: 'Responsible', labelAr: 'مسؤول', icon: '👑' },
 ];
 

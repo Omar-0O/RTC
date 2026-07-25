@@ -147,7 +147,7 @@ export default function SubmissionManagement() {
     const volunteerLevels = [
         { value: 'all', label: { ar: 'كل الدرجات', en: 'All Degrees' } },
         { value: 'under_follow_up', label: { ar: 'تحت المتابعة', en: 'Under Follow-up' } },
-        { value: 'project_responsible', label: { ar: 'مسؤول مشروع', en: 'Project Responsible' } },
+        { value: 'project_responsible', label: { ar: 'مشروع مسئول', en: 'Project Responsible' } },
         { value: 'responsible', label: { ar: 'مسؤول', en: 'Responsible' } },
     ];
 
