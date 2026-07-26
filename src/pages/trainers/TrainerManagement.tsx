@@ -278,7 +278,7 @@ export default function TrainerManagement(): JSX.Element {
                 const { data: fbData, error: fbError } = await fallbackQuery;
                 if (fbError) throw fbError;
 
-                const fallbackRows: TrainerStatsRow[] = (fbData || []).map((t: any) => ({
+                const fallbackRows: TrainerStatsRow[] = (fbData || []).map((t: TrainerStatsRow) => ({
                     id: t.id,
                     name_en: t.name_en,
                     name_ar: t.name_ar,

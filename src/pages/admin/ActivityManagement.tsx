@@ -146,14 +146,9 @@ export default function ActivityManagement() {
       name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (description || '').toLowerCase().includes(searchQuery.toLowerCase());
 
-    let matchesCommittee = false;
-    if (committeeFilter === 'all') {
-      matchesCommittee = true;
-    } else {
-      const inLinked = activity.activity_type_committees?.some(c => c.committee_id === committeeFilter);
-      const inLegacy = activity.committee_id === committeeFilter;
-      matchesCommittee = inLinked || inLegacy;
-    }
+    const matchesCommittee = committeeFilter === 'all' ||
+      activity.activity_type_committees?.some(c => c.committee_id === committeeFilter) ||
+      activity.committee_id === committeeFilter;
 
     return matchesSearch && matchesCommittee;
   });

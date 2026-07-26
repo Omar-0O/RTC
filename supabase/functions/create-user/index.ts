@@ -34,8 +34,8 @@ Deno.serve(async (req: Request) => {
         let body: CreateUserBody;
         try {
             body = await req.json() as CreateUserBody
-        } catch (e) {
-            throw new Error('Invalid JSON body')
+        } catch (cause) {
+            throw new Error('Invalid JSON body', { cause })
         }
 
         const { email, password, fullName, fullNameAr, role, committeeId, phone, level, joinDate, isAshbal } = body;
@@ -138,22 +138,6 @@ Deno.serve(async (req: Request) => {
             console.error('Profile update exception:', profileErr)
         }
 
-        // Store visible password
-        if (password) {
-            try {
-                const { error: privateDetailsError } = await supabaseAdmin
-                    .from('user_private_details')
-                    .upsert({
-                        id: userData.user.id,
-                        visible_password: password
-                    }, { onConflict: 'id', ignoreDuplicates: false })
-
-                if (privateDetailsError) console.warn('Private details insert warning:', privateDetailsError.message)
-            } catch (detailsErr) {
-                console.error('Private details insert exception:', detailsErr)
-            }
-        }
-
         return new Response(
             JSON.stringify({ success: true, user: userData.user }),
             {
@@ -167,7 +151,7 @@ Deno.serve(async (req: Request) => {
         if (error instanceof Error) {
             errorMessage = error.message;
         } else if (typeof error === 'object' && error !== null) {
-            const errObj = error as any;
+            const errObj = error as { message?: string; error_description?: string; error?: string };
             errorMessage = errObj.message || errObj.error_description || errObj.error || JSON.stringify(error);
         } else if (typeof error === 'string') {
             errorMessage = error;

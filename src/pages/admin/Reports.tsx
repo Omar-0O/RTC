@@ -676,7 +676,7 @@ export default function Reports() {
               : '');
 
           // Determine participant type and name - CHECK participant_type FIRST before profile lookup
-          let participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
+          let participantType: string;
           let participantName = language === 'ar' ? 'غير معروف' : 'Unknown';
           let participantPhone = '';
 
@@ -1510,7 +1510,7 @@ export default function Reports() {
                                   ? (s.wore_vest ? (language === 'ar' ? 'نعم' : 'Yes') : (language === 'ar' ? 'لا' : 'No'))
                                   : '');
 
-                              let participantType = language === 'ar' ? 'متطوع' : 'Volunteer';
+                              let participantType: string;
                               let participantName = language === 'ar' ? 'غير معروف' : 'Unknown';
                               let participantPhone = '';
 

@@ -92,6 +92,8 @@ interface VolunteerProfile {
   avatar_url: string | null;
 }
 
+type TopVolunteerProfile = Pick<VolunteerProfile, 'id' | 'full_name' | 'full_name_ar' | 'avatar_url' | 'level'>;
+
 interface Committee {
   id: string;
   name: string;
@@ -316,10 +318,10 @@ export default function FieldLogging() {
 
       if (error) throw error;
 
-      const counts: Record<string, { profile: any; count: number }> = {};
+      const counts: Record<string, { profile: TopVolunteerProfile; count: number }> = {};
       (data || []).forEach(sub => {
         if (!sub.volunteer_id || !sub.profiles) return;
-        const prof = Array.isArray(sub.profiles) ? sub.profiles[0] : sub.profiles;
+        const prof = (Array.isArray(sub.profiles) ? sub.profiles[0] : sub.profiles) as TopVolunteerProfile | null;
         if (!prof) return;
         if (!counts[sub.volunteer_id]) {
           counts[sub.volunteer_id] = { profile: prof, count: 0 };
@@ -503,6 +505,49 @@ export default function FieldLogging() {
   }, [selectedBranchId]);
 
   // Show loading while auth initializes
+  const handleReset = () => {
+    setPhone('');
+    setVolunteer(null);
+    setGuestName('');
+    setHasSearched(false);
+    setSelectedCommitteeId('general');
+    setSelectedActivityId('');
+    setDescription('');
+    setLocation('branch');
+    setWoreVest(false);
+    setProofFile(null);
+    setProofPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    setSuccess(false);
+    setSubmissions([]);
+    setActivityDate(new Date().toISOString().split('T')[0]);
+    if (phoneInputRef.current) {
+      phoneInputRef.current.focus();
+    }
+  };
+
+  // Success countdown trigger
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    if (success) {
+      setCountdown(5);
+      timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            handleReset();
+            return 5;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [success]);
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
@@ -946,49 +991,6 @@ export default function FieldLogging() {
       toast.error(isRTL ? 'فشل في تسجيل المشاركة' : 'Failed to register participation');
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  // Success countdown trigger
-  useEffect(() => {
-    let timer: ReturnType<typeof setInterval> | undefined;
-    if (success) {
-      setCountdown(5);
-      timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            handleReset();
-            return 5;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [success]);
-
-  const handleReset = () => {
-    setPhone('');
-    setVolunteer(null);
-    setGuestName('');
-    setHasSearched(false);
-    setSelectedCommitteeId('general');
-    setSelectedActivityId('');
-    setDescription('');
-    setLocation('branch');
-    setWoreVest(false);
-    setProofFile(null);
-    setProofPreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    setSuccess(false);
-    setSubmissions([]);
-    setActivityDate(new Date().toISOString().split('T')[0]);
-    if (phoneInputRef.current) {
-      phoneInputRef.current.focus();
     }
   };
 

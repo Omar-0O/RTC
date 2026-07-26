@@ -75,18 +75,6 @@ Deno.serve(async (req: Request) => {
 
     if (updateError) throw updateError
 
-    // Store visible password for admin reference
-    const { error: privateDetailsError } = await supabaseAdmin
-      .from('user_private_details')
-      .upsert({
-        id: userId,
-        visible_password: newPassword
-      }, { onConflict: 'id' })
-
-    if (privateDetailsError) {
-      console.warn('Failed to update visible password:', privateDetailsError.message)
-    }
-
     return new Response(
       JSON.stringify({ success: true, message: 'Password updated successfully' }),
       {
@@ -95,8 +83,8 @@ Deno.serve(async (req: Request) => {
       }
     )
 
-  } catch (error: any) {
-    const errorMessage = error?.message || 'Unknown error';
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in update-user-password:', errorMessage);
     const statusCode = errorMessage.includes('Unauthorized') ? 401 : 400;
     return new Response(

@@ -241,7 +241,7 @@ export default function SubmissionManagement() {
             else if (isGuest) typeLabel = isRTL ? 'ضيف' : 'Guest';
 
             // Resolve Name
-            let name = volunteer?.full_name || '';
+            let name: string;
             if (isGuest) {
                 name = s.guest_name || (isRTL ? 'ضيف' : 'Guest');
             } else if (isTrainer) {

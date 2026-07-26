@@ -195,23 +195,18 @@ export default function AdminDashboard() {
       // Recent submissions
       const submissions = ((submissionsRes.data ?? []) as SubmissionRow[]).map((submission) => {
         // Determine participant name and type label
-        let volunteerName = '';
-        let participantLabel = '';
-
-        if (submission.participant_type === 'trainer' || submission.trainer_id) {
-          // Use fetched trainer name, falling back to other fields
-          volunteerName = isRTL
+        const isTrainer = submission.participant_type === 'trainer' || Boolean(submission.trainer_id);
+        const isGuest = submission.participant_type === 'guest' || (!submission.volunteer && Boolean(submission.guest_name));
+        const participantLabel = isTrainer ? (isRTL ? 'مدرب' : 'Trainer') : isGuest ? (isRTL ? 'ضيف' : 'Guest') : '';
+        const volunteerName = isTrainer
+          ? (isRTL
             ? (submission.trainer?.name_ar || submission.trainer?.name_en || submission.guest_name || 'مدرب')
-            : (submission.trainer?.name_en || submission.trainer?.name_ar || submission.guest_name || 'Trainer');
-          participantLabel = isRTL ? 'مدرب' : 'Trainer';
-        } else if (submission.participant_type === 'guest' || (!submission.volunteer && submission.guest_name)) {
-          volunteerName = submission.guest_name || (isRTL ? 'ضيف' : 'Guest');
-          participantLabel = isRTL ? 'ضيف' : 'Guest';
-        } else {
-          volunteerName = isRTL
-            ? (submission.volunteer?.full_name_ar || submission.volunteer?.full_name || '')
-            : (submission.volunteer?.full_name || '');
-        }
+            : (submission.trainer?.name_en || submission.trainer?.name_ar || submission.guest_name || 'Trainer'))
+          : isGuest
+            ? submission.guest_name || (isRTL ? 'ضيف' : 'Guest')
+            : isRTL
+              ? (submission.volunteer?.full_name_ar || submission.volunteer?.full_name || '')
+              : (submission.volunteer?.full_name || '');
 
         return {
           id: submission.id,

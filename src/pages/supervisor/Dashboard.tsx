@@ -189,20 +189,16 @@ export default function SupervisorDashboard() {
             // Recent submissions
             const submissions = ((submissionsRes.data ?? []) as SubmissionRow[]).map((submission) => {
                 // Determine participant name and type label
-                let volunteerName = '';
-                let participantLabel = '';
-
-                if (submission.participant_type === 'trainer' || submission.trainer_id) {
-                    volunteerName = submission.volunteer?.full_name_ar || submission.volunteer?.full_name || submission.guest_name || (isRTL ? 'مدرب' : 'Trainer');
-                    participantLabel = isRTL ? 'مدرب' : 'Trainer';
-                } else if (submission.participant_type === 'guest' || (!submission.volunteer && submission.guest_name)) {
-                    volunteerName = submission.guest_name || (isRTL ? 'ضيف' : 'Guest');
-                    participantLabel = isRTL ? 'ضيف' : 'Guest';
-                } else {
-                    volunteerName = isRTL
-                        ? (submission.volunteer?.full_name_ar || submission.volunteer?.full_name || '')
-                        : (submission.volunteer?.full_name || '');
-                }
+                const isTrainer = submission.participant_type === 'trainer' || Boolean(submission.trainer_id);
+                const isGuest = submission.participant_type === 'guest' || (!submission.volunteer && Boolean(submission.guest_name));
+                const participantLabel = isTrainer ? (isRTL ? 'مدرب' : 'Trainer') : isGuest ? (isRTL ? 'ضيف' : 'Guest') : '';
+                const volunteerName = isTrainer
+                    ? submission.volunteer?.full_name_ar || submission.volunteer?.full_name || submission.guest_name || (isRTL ? 'مدرب' : 'Trainer')
+                    : isGuest
+                        ? submission.guest_name || (isRTL ? 'ضيف' : 'Guest')
+                        : isRTL
+                            ? (submission.volunteer?.full_name_ar || submission.volunteer?.full_name || '')
+                            : (submission.volunteer?.full_name || '');
 
                 return {
                     id: submission.id,

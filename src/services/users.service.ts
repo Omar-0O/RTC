@@ -411,7 +411,7 @@ export async function updateUser(payload: UpdateUserPayload): Promise<void> {
     if (deleteError) throw deleteError;
 
     if (payload.role !== 'volunteer') {
-      const rolePayload: UserRoleInsert = { user_id: payload.userId, role: payload.role as any };
+      const rolePayload: UserRoleInsert = { user_id: payload.userId, role: payload.role as UserRoleInsert['role'] };
       const { error: insertError } = await supabase.from('user_roles').insert(rolePayload);
       if (insertError) throw insertError;
     }
@@ -420,7 +420,7 @@ export async function updateUser(payload: UpdateUserPayload): Promise<void> {
   if (payload.password?.trim()) {
     if (payload.password.length < 6) throw new Error('Password must be at least 6 characters');
     try {
-      const { data: rpcData, error: rpcError } = await supabase.rpc('update_user_password' as any, {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('update_user_password', {
         target_user_id: payload.userId,
         new_password: payload.password.trim(),
       });
@@ -435,9 +435,10 @@ export async function updateUser(payload: UpdateUserPayload): Promise<void> {
         if (pwError) throw await toFunctionApiError(pwError, 'Failed to update password');
         if (pwData?.error) throw new Error(pwData.error);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('Password update failed:', err);
-      throw new Error(err?.message || 'تعذر تحديث كلمة المرور — يرجى تشغيل ملف الـ SQL Migration في Supabase SQL Editor');
+      const message = err instanceof Error ? err.message : 'تعذر تحديث كلمة المرور — يرجى تشغيل ملف الـ SQL Migration في Supabase SQL Editor';
+      throw new Error(message, { cause: err });
     }
   }
 }
@@ -466,7 +467,7 @@ export async function updateUserRole(userId: string, newRole: string): Promise<v
   if (newRole !== 'volunteer') {
     const { error } = await supabase
       .from('user_roles')
-      .insert({ user_id: userId, role: newRole as any });
+      .insert({ user_id: userId, role: newRole as UserRoleInsert['role'] });
     if (error) throw error;
   }
 }

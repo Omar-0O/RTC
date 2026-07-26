@@ -9,13 +9,13 @@ declare namespace Deno {
 }
 
 declare module 'https://*' {
-  const content: any;
-  export const createClient: any;
+  const content: unknown;
+  export const createClient: unknown;
   export default content;
 }
 
 declare module 'https://esm.sh/*' {
-  const content: any;
-  export const createClient: any;
+  const content: unknown;
+  export const createClient: unknown;
   export default content;
 }

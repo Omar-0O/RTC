@@ -7,6 +7,27 @@ export type CourseRelationInput = {
   phone: string | null;
 };
 
+type CoursePayload = {
+  name?: string;
+  trainer_id?: string | null;
+  trainer_name?: string | null;
+  trainer_phone?: string | null;
+  room?: string;
+  schedule_days?: string[];
+  schedule_time?: string | null;
+  schedule_end_time?: string | null;
+  has_interview?: boolean;
+  interview_date?: string | null;
+  total_lectures?: number;
+  start_date?: string | null;
+  end_date?: string | null;
+  has_certificates?: boolean;
+  certificate_status?: string | null;
+  created_by?: string | null;
+  committee_id?: string | null;
+  branch_id?: string | null;
+};
+
 export async function saveCourseWithRelations({
   courseId,
   course,
@@ -24,21 +45,21 @@ export async function saveCourseWithRelations({
   lectureDates: string[];
   adDates?: string[];
 }): Promise<string> {
-  const c = course as Record<string, any>;
+  const c = course as CoursePayload;
 
   const coursePayload = {
-    name: c.name,
+    name: c.name || '',
     trainer_id: c.trainer_id || null,
     trainer_name: c.trainer_name || '',
     trainer_phone: c.trainer_phone || null,
-    room: c.room,
+    room: c.room || '',
     schedule_days: c.schedule_days || [],
     schedule_time: c.schedule_time,
     schedule_end_time: c.schedule_end_time || null,
     has_interview: !!c.has_interview,
     interview_date: c.interview_date || null,
     total_lectures: Number(c.total_lectures) || 8,
-    start_date: c.start_date,
+    start_date: c.start_date || null,
     end_date: c.end_date || null,
     has_certificates: !!c.has_certificates,
     certificate_status: c.certificate_status || 'pending',
@@ -59,19 +80,19 @@ export async function saveCourseWithRelations({
     if (insertError) throw insertError;
     targetCourseId = inserted.id;
   } else {
-    const updatePayload: Record<string, any> = {
-      name: c.name,
+    const updatePayload = {
+      name: c.name || '',
       trainer_id: c.trainer_id || null,
       trainer_name: c.trainer_name || '',
       trainer_phone: c.trainer_phone || null,
-      room: c.room,
+      room: c.room || '',
       schedule_days: c.schedule_days || [],
       schedule_time: c.schedule_time,
       schedule_end_time: c.schedule_end_time || null,
       has_interview: !!c.has_interview,
       interview_date: c.interview_date || null,
       total_lectures: Number(c.total_lectures) || 8,
-      start_date: c.start_date,
+      start_date: c.start_date || null,
       end_date: c.end_date || null,
       has_certificates: !!c.has_certificates,
       certificate_status: c.certificate_status || 'pending',
@@ -188,5 +209,4 @@ export async function saveCourseWithRelations({
 
   return targetCourseId;
 }
-
 
