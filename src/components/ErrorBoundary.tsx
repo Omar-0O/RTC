@@ -31,13 +31,19 @@ class ErrorBoundary extends Component<Props, State> {
 
         this.setState({ errorInfo });
 
-        // Auto-recover from chunk loading errors (happens when app is updated)
-        if (
+        // Auto-recover from chunk / module loading errors (happens when app is updated)
+        const isChunkError = (
+            error.name === 'ChunkLoadError' ||
             error.message.includes('Loading chunk') ||
             error.message.includes('Failed to fetch dynamically imported module') ||
             error.message.includes('Importing a module script failed') ||
-            error.name === 'ChunkLoadError'
-        ) {
+            error.message.includes('Failed to load module script') ||
+            error.message.includes('Expected a JavaScript-or-Wasm module script') ||
+            error.message.includes('text/html') ||
+            error.message.includes('MIME type')
+        );
+
+        if (isChunkError) {
             // Check if offline to prevent destroying cache and page bricking
             if (!navigator.onLine) {
                 console.warn('Chunk loading error caught while offline. Rendering fallback without auto-reload.');
@@ -74,12 +80,22 @@ class ErrorBoundary extends Component<Props, State> {
                 );
             }
 
-            // Wait for cleanup (max 3 seconds), then reload
+            if ('serviceWorker' in navigator) {
+                cleanupTasks.push(
+                    navigator.serviceWorker.getRegistrations().then(registrations =>
+                        Promise.all(registrations.map(r => r.unregister()))
+                    )
+                );
+            }
+
+            // Wait for cleanup (max 1.5 seconds), then hard reload with cache-busting
             Promise.race([
                 Promise.allSettled(cleanupTasks),
-                new Promise(resolve => setTimeout(resolve, 3000)),
+                new Promise(resolve => setTimeout(resolve, 1500)),
             ]).then(() => {
-                window.location.reload();
+                const url = new URL(window.location.href);
+                url.searchParams.set('_v', Date.now().toString());
+                window.location.href = url.toString();
             });
             return;
         }

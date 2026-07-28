@@ -49,12 +49,28 @@ try {
   console.error('[Self-Healing] Error during cache purge:', e);
 }
 
+// Helper to detect chunk / module script load errors (including 404 falling back to text/html)
+const isChunkOrModuleError = (err: unknown): boolean => {
+  if (!err) return false;
+  const msg = typeof err === 'string' ? err : ((err as { message?: string })?.message || '');
+  const name = ((err as { name?: string })?.name || '');
+  return (
+    name === 'ChunkLoadError' ||
+    msg.includes('Loading chunk') ||
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('Importing a module script failed') ||
+    msg.includes('Failed to load module script') ||
+    msg.includes('Expected a JavaScript-or-Wasm module script') ||
+    msg.includes('text/html') ||
+    msg.includes('MIME type')
+  );
+};
+
 // Auto-recover from chunk loading errors and assets failing to load
 const triggerChunkErrorReload = () => {
   // If offline, do NOT trigger reload or clear caches.
-  // The fetch failure is likely just due to lack of connectivity.
   if (!navigator.onLine) {
-    console.warn('Chunk loading error occurred while offline. Ignoring reload/cache clear to preserve offline functionality.');
+    console.warn('Chunk loading error occurred while offline. Ignoring reload/cache clear.');
     return;
   }
 
@@ -72,14 +88,11 @@ const triggerChunkErrorReload = () => {
 
   const lastReload = localStorage.getItem('last-chunk-error-reload');
   const now = Date.now();
-  // 10 seconds cooldown to prevent rapid multi-triggers
   if (!lastReload || now - parseInt(lastReload, 10) > 10000) {
     localStorage.setItem('last-chunk-error-reload', now.toString());
 
-    // Build an array of cleanup promises to await before reloading
     const cleanupTasks: Promise<unknown>[] = [];
 
-    // Clear service worker caches
     if ('caches' in window) {
       cleanupTasks.push(
         caches.keys().then(names =>
@@ -88,7 +101,6 @@ const triggerChunkErrorReload = () => {
       );
     }
 
-    // Unregister service workers
     if ('serviceWorker' in navigator) {
       cleanupTasks.push(
         navigator.serviceWorker.getRegistrations().then(registrations =>
@@ -97,13 +109,13 @@ const triggerChunkErrorReload = () => {
       );
     }
 
-    // Wait for ALL cleanup to finish, then reload
-    // Max 3 seconds — if cleanup hangs, reload anyway
     Promise.race([
       Promise.allSettled(cleanupTasks),
-      new Promise(resolve => setTimeout(resolve, 3000)),
+      new Promise(resolve => setTimeout(resolve, 1500)),
     ]).then(() => {
-      window.location.reload();
+      const url = new URL(window.location.href);
+      url.searchParams.set('_v', Date.now().toString());
+      window.location.href = url.toString();
     });
   }
 };
@@ -133,14 +145,7 @@ window.addEventListener('error', (event) => {
   const error = event.error || event.message;
   console.error('Global error handler:', error);
 
-  if (
-    (typeof error === 'string' && error.includes('Loading chunk')) ||
-    (error?.message && (
-      error.message.includes('Loading chunk') ||
-      error.message.includes('Failed to fetch dynamically imported module') ||
-      error.message.includes('Importing a module script failed')
-    ))
-  ) {
+  if (isChunkOrModuleError(error)) {
     triggerChunkErrorReload();
     event.preventDefault();
   }
@@ -150,13 +155,7 @@ window.addEventListener('unhandledrejection', (event) => {
   const error = event.reason;
   console.error('Unhandled promise rejection:', error);
 
-  if (
-    error?.message && (
-      error.message.includes('Loading chunk') ||
-      error.message.includes('Failed to fetch dynamically imported module') ||
-      error.message.includes('Importing a module script failed')
-    )
-  ) {
+  if (isChunkOrModuleError(error)) {
     triggerChunkErrorReload();
     event.preventDefault();
   }
