@@ -156,11 +156,13 @@ export default function FieldLogging() {
   // If no user is signed in, automatically authenticate as the kiosk
   // service account so all Supabase queries run as `authenticated` role.
   const [kioskAuthAttempted, setKioskAuthAttempted] = useState(false);
+  const [kioskLoggingIn, setKioskLoggingIn] = useState(false);
 
   useEffect(() => {
     if (authLoading || user || kioskAuthAttempted) return;
 
     setKioskAuthAttempted(true);
+    setKioskLoggingIn(true);
 
     (async () => {
       try {
@@ -174,6 +176,8 @@ export default function FieldLogging() {
         }
       } catch (err) {
         console.warn('Kiosk auth error, falling back to anonymous kiosk access:', err);
+      } finally {
+        setKioskLoggingIn(false);
       }
     })();
   }, [authLoading, user, kioskAuthAttempted]);
@@ -305,13 +309,21 @@ export default function FieldLogging() {
   const [topByLevel, setTopByLevel] = useState<TopByLevel[]>([]);
   const [loadingTopVolunteers, setLoadingTopVolunteers] = useState<boolean>(false);
 
+  interface TopVolunteerProfile {
+    id: string;
+    full_name?: string;
+    full_name_ar?: string;
+    avatar_url?: string;
+    level?: string;
+  }
+
   const loadTopVolunteers = useCallback(async () => {
     if (!selectedBranchId) return;
     setLoadingTopVolunteers(true);
     try {
       const { data, error } = await supabase
         .from('activity_submissions')
-        .select('volunteer_id, profiles:volunteer_id(id, full_name, full_name_ar, avatar_url, level)')
+        .select('volunteer_id, profiles!volunteer_id(id, full_name, full_name_ar, avatar_url, level)')
         .eq('branch_id', selectedBranchId)
         .eq('status', 'approved')
         .not('volunteer_id', 'is', null);
@@ -321,8 +333,8 @@ export default function FieldLogging() {
       const counts: Record<string, { profile: TopVolunteerProfile; count: number }> = {};
       (data || []).forEach(sub => {
         if (!sub.volunteer_id || !sub.profiles) return;
-        const prof = (Array.isArray(sub.profiles) ? sub.profiles[0] : sub.profiles) as TopVolunteerProfile | null;
-        if (!prof) return;
+        const prof = (Array.isArray(sub.profiles) ? sub.profiles[0] : sub.profiles) as unknown as TopVolunteerProfile | null;
+        if (!prof || !prof.id) return;
         if (!counts[sub.volunteer_id]) {
           counts[sub.volunteer_id] = { profile: prof, count: 0 };
         }
@@ -341,9 +353,9 @@ export default function FieldLogging() {
         }));
 
       const gradeMap: Record<VolunteerGrade, string[]> = {
-        under_follow_up: ['under_follow_up', 'newbie', 'active'],
-        project_responsible: ['project_responsible'],
-        responsible: ['responsible'],
+        responsible: ['responsible', 'gold'],
+        project_responsible: ['project_responsible', 'silver'],
+        under_follow_up: ['under_follow_up', 'newbie', 'active', 'bronze'],
       };
 
       const grades: TopByLevel[] = [
@@ -354,7 +366,7 @@ export default function FieldLogging() {
 
       grades.forEach(g => {
         g.volunteers = allSorted
-          .filter(v => gradeMap[g.grade].includes(v.level || ''))
+          .filter(v => gradeMap[g.grade].includes(v.level || 'under_follow_up'))
           .slice(0, 3);
       });
 
@@ -368,7 +380,7 @@ export default function FieldLogging() {
 
   useEffect(() => {
     loadTopVolunteers();
-  }, [selectedBranchId, loadTopVolunteers]);
+  }, [selectedBranchId, loadTopVolunteers, user?.id]);
 
   // Calendar state
   const [isCalendarOpen, setIsCalendarOpen] = useState<boolean>(false);
@@ -446,7 +458,7 @@ export default function FieldLogging() {
       }
     }
     loadConfig();
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     const saved = localStorage.getItem('rtc_kiosk_branch_id');
@@ -460,10 +472,12 @@ export default function FieldLogging() {
     const defaultBranchId = activeBranch?.id || branches.find((branch) => branch.is_default)?.id || branches[0]?.id || '';
     if (defaultBranchId) {
       setSelectedBranchId(defaultBranchId);
+      setSavedBranchId(defaultBranchId);
+      localStorage.setItem('rtc_kiosk_branch_id', defaultBranchId);
     }
   }, [activeBranch?.id, branches]);
 
-  // Fetch activity types when branch changes
+  // Fetch activity types when branch changes or user logs in
   useEffect(() => {
     async function fetchBranchActivityTypes() {
       try {
@@ -502,7 +516,7 @@ export default function FieldLogging() {
     }
 
     fetchBranchActivityTypes();
-  }, [selectedBranchId]);
+  }, [selectedBranchId, user?.id]);
 
   // Show loading while auth initializes
   const handleReset = () => {
@@ -548,12 +562,12 @@ export default function FieldLogging() {
     };
   }, [success]);
 
-  if (authLoading) {
+  if (authLoading || kioskLoggingIn) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary" />
         <p className="text-muted-foreground text-sm">
-          {isRTL ? 'جاري تهيئة الصفحة...' : 'Initializing page...'}
+          {isRTL ? 'جاري تهيئة الصفحة وتسجيل الدخول...' : 'Initializing kiosk login...'}
         </p>
       </div>
     );
