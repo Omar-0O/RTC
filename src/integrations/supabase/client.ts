@@ -70,3 +70,12 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   },
 });
+
+export const kioskSupabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    storage: sessionStorage,
+    storageKey: 'rtc-kiosk-auth-token',
+    persistSession: false,
+    autoRefreshToken: false,
+  },
+});

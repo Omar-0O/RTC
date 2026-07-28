@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { kioskSupabase as supabase, AUTH_STORAGE_KEY } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
@@ -159,6 +159,17 @@ export default function FieldLogging() {
   const [kioskLoggingIn, setKioskLoggingIn] = useState(false);
 
   useEffect(() => {
+    // Clean up any legacy kiosk auth token stored in global localStorage
+    // to prevent auto-logging into /dashboard as Admin on navigation
+    try {
+      const stored = localStorage.getItem(AUTH_STORAGE_KEY);
+      if (stored && stored.includes(KIOSK_EMAIL)) {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+      }
+    } catch {
+      // Storage cleanup best effort
+    }
+
     if (authLoading || user || kioskAuthAttempted) return;
 
     setKioskAuthAttempted(true);
@@ -353,9 +364,9 @@ export default function FieldLogging() {
         }));
 
       const gradeMap: Record<VolunteerGrade, string[]> = {
-        responsible: ['responsible', 'gold'],
-        project_responsible: ['project_responsible', 'silver'],
-        under_follow_up: ['under_follow_up', 'newbie', 'active', 'bronze'],
+        responsible: ['responsible', 'platinum', 'diamond'],
+        project_responsible: ['project_responsible', 'gold'],
+        under_follow_up: ['under_follow_up', 'silver', 'bronze', 'newbie', 'active'],
       };
 
       const grades: TopByLevel[] = [
