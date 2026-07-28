@@ -1737,6 +1737,12 @@ export default function CourseManagement() {
     };
 
     const toggleBeneficiaryAttendance = async (lectureId: string, beneficiary: CourseBeneficiary) => {
+        const targetLecture = lectures.find(l => l.id === lectureId);
+        if (targetLecture && targetLecture.status !== 'completed' && !isLectureOpen(targetLecture.date)) {
+            toast.error(isRTL ? 'لا يمكن تسجيل الحضور لمحاضرة تاريخها في المستقبل' : 'Cannot mark attendance for a future lecture');
+            return;
+        }
+
         const existingAttendance = attendanceData[lectureId]?.find(a => a.student_phone === beneficiary.phone);
 
         try {

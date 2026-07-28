@@ -107,8 +107,9 @@ export default function Auth() {
               ? `تم التوجيه إلى صفحة تسجيل مشاركات الميداني لفرع ${matchedBranch.name_ar || matchedBranch.name}`
               : `Welcome to ${matchedBranch.name} Branch Field Logging`,
           });
-          navigate('/field-logging');
           setIsLoading(false);
+          // Small delay so React finishes flushing toast state before navigating
+          setTimeout(() => navigate('/field-logging'), 50);
           return;
         }
       }
@@ -152,13 +153,19 @@ export default function Auth() {
           description: t('loginSuccess'),
         });
 
-        const destination = userRoles.includes('admin')
-          ? '/admin'
-          : userRoles.includes('supervisor')
-            ? '/supervisor'
-            : userRoles.includes('committee_leader')
-              ? '/leader'
-              : '/dashboard';
+        const isKioskUser =
+          cleanInput.toLowerCase() === 'medaniparticipations@rtc.org' ||
+          data.user?.email?.toLowerCase() === 'medaniparticipations@rtc.org';
+
+        const destination = isKioskUser
+          ? '/field-logging'
+          : userRoles.includes('admin')
+            ? '/admin'
+            : userRoles.includes('supervisor')
+              ? '/supervisor'
+              : userRoles.includes('committee_leader')
+                ? '/leader'
+                : '/dashboard';
 
         navigate(destination);
       }

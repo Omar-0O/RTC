@@ -333,35 +333,18 @@ export default function FieldLogging() {
     setLoadingTopVolunteers(true);
     try {
       const { data, error } = await supabase
-        .from('activity_submissions')
-        .select('volunteer_id, profiles!volunteer_id(id, full_name, full_name_ar, avatar_url, level)')
-        .eq('branch_id', selectedBranchId)
-        .eq('status', 'approved')
-        .not('volunteer_id', 'is', null);
+        .rpc('get_branch_top_volunteers', { p_branch_id: selectedBranchId, p_month_only: true });
 
       if (error) throw error;
 
-      const counts: Record<string, { profile: TopVolunteerProfile; count: number }> = {};
-      (data || []).forEach(sub => {
-        if (!sub.volunteer_id || !sub.profiles) return;
-        const prof = (Array.isArray(sub.profiles) ? sub.profiles[0] : sub.profiles) as unknown as TopVolunteerProfile | null;
-        if (!prof || !prof.id) return;
-        if (!counts[sub.volunteer_id]) {
-          counts[sub.volunteer_id] = { profile: prof, count: 0 };
-        }
-        counts[sub.volunteer_id].count += 1;
-      });
-
-      const allSorted = Object.values(counts)
-        .sort((a, b) => b.count - a.count)
-        .map(item => ({
-          id: item.profile.id,
-          full_name: item.profile.full_name || '',
-          full_name_ar: item.profile.full_name_ar || '',
-          avatar_url: item.profile.avatar_url,
-          level: item.profile.level || 'under_follow_up',
-          count: item.count
-        }));
+      const allSorted = (data || []).map((item: { id: string; full_name: string | null; full_name_ar: string | null; avatar_url: string | null; level: string | null; count: number }) => ({
+        id: item.id,
+        full_name: item.full_name || '',
+        full_name_ar: item.full_name_ar || '',
+        avatar_url: item.avatar_url,
+        level: item.level || 'under_follow_up',
+        count: Number(item.count) || 0
+      }));
 
       const gradeMap: Record<VolunteerGrade, string[]> = {
         responsible: ['responsible', 'platinum', 'diamond'],
@@ -451,7 +434,13 @@ export default function FieldLogging() {
         console.error('Error uploading proof:', uploadError);
         return null;
       }
-      return fileName;
+
+      // Generate a long-lived signed URL (1 year) so it doesn't expire quickly
+      const { data: signedData } = await supabase.storage
+        .from('activity-proofs')
+        .createSignedUrl(fileName, 365 * 24 * 60 * 60);
+
+      return signedData?.signedUrl ?? fileName;
     } catch (error) {
       console.error('Error uploading file:', error);
       return null;
@@ -1876,7 +1865,7 @@ export default function FieldLogging() {
                       <Sparkles className="h-4 w-4 text-amber-500" />
                     </CardTitle>
                     <CardDescription className="text-sm">
-                      {isRTL ? 'أكثر المتطوعين مشاركةً في كل درجة من درجات التطوع' : 'Most active volunteers per grade with approved participations'}
+                      {isRTL ? 'أكثر المتطوعين مشاركةً في كل درجة خلال الشهر الحالي' : 'Most active volunteers per grade during the current month'}
                     </CardDescription>
                   </div>
                 </div>

@@ -230,6 +230,7 @@ export function AppSidebar() {
 
   const adminNavItems = [
     { title: t('nav.dashboard'), url: '/admin', icon: Home },
+    { title: isRTL ? 'كشك المشاركات' : 'Field Kiosk', url: '/field-logging', icon: ClipboardCheck },
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
     { title: t('nav.committees'), url: '/admin/committees', icon: Settings },
     { title: isRTL ? 'إدارة القاعات' : 'Manage Rooms', url: '/admin/rooms', icon: Building2 },

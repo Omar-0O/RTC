@@ -1,4 +1,4 @@
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet, Link, Navigate } from 'react-router-dom';
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
 import { Separator } from '@/components/ui/separator';
@@ -6,7 +6,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import logo from '@/assets/logo.webp';
 
 export function AppLayout() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+
+  const isKioskUser =
+    user?.email?.toLowerCase() === 'medaniparticipations@rtc.org' ||
+    profile?.full_name?.toLowerCase().includes('kiosk') ||
+    profile?.full_name_ar?.toLowerCase().includes('كشك');
+
+  if (isKioskUser) {
+    return <Navigate to="/field-logging" replace />;
+  }
 
   return (
     <SidebarProvider>

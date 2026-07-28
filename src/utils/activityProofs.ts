@@ -1,7 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
 export const ACTIVITY_PROOFS_BUCKET = 'activity-proofs';
-export const ACTIVITY_PROOF_SIGNED_URL_TTL_SECONDS = 10 * 60;
+export const ACTIVITY_PROOF_SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
 
 export const getActivityProofPath = (value: string): string | null => {
   if (!value || value.startsWith('data:') || value.startsWith('blob:')) return null;

@@ -77,7 +77,7 @@ interface Course {
     total_lectures: number;
     start_date: string;
     end_date: string | null;
-    committee_id?: string | null;
+    committee_id: string | null;
     course_lectures?: { status: string }[];
     course_trainers?: { trainer_id: string; trainers?: { name_ar: string; name_en: string } }[];
     trainers?: { name_ar: string; name_en: string } | null;
@@ -322,7 +322,7 @@ export default function MyCourses() {
 
         try {
             const details = await getCourseDetails(course.id);
-            setCourseAds(details.ads as CourseAd[]);
+            setCourseAds(details.ads as unknown as CourseAd[]);
             setLectures(details.lectures as CourseLecture[]);
             setBeneficiaries(details.beneficiaries as CourseBeneficiary[]);
             setAttendanceData(details.attendanceByLecture as Record<string, Attendance[]>);
@@ -411,6 +411,12 @@ export default function MyCourses() {
         studentStatsByPhone.get(studentPhone) || { attended: 0, missed: 0, rate: 0 };
 
     const toggleBeneficiaryAttendance = async (lectureId: string, beneficiary: CourseBeneficiary) => {
+        const targetLecture = lectures.find(l => l.id === lectureId);
+        if (targetLecture && targetLecture.status !== 'completed' && !isLectureOpen(targetLecture.date)) {
+            toast.error(isRTL ? 'لا يمكن تسجيل الحضور لمحاضرة تاريخها في المستقبل' : 'Cannot mark attendance for a future lecture');
+            return;
+        }
+
         const existingAttendance = attendanceData[lectureId]?.find(a => a.student_phone === beneficiary.phone);
 
         try {

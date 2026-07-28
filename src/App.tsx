@@ -143,12 +143,21 @@ function FieldLoggingRoute() {
 
 function AppRoutes() {
   // Hook order fixed: Unconditional useAuth call
-  const { isAuthenticated, isLoading, primaryRole, roles } = useAuth();
+  const { isAuthenticated, isLoading, primaryRole, roles, user, profile } = useAuth();
 
   // Subscribe to realtime changes on critical tables when authenticated
   useRealtimeSync({ enabled: isAuthenticated && !isLoading });
 
   const getDefaultRoute = () => {
+    const isKioskUser =
+      user?.email?.toLowerCase() === 'medaniparticipations@rtc.org' ||
+      profile?.full_name?.toLowerCase().includes('kiosk') ||
+      profile?.full_name_ar?.toLowerCase().includes('كشك');
+
+    if (isKioskUser) {
+      return '/field-logging';
+    }
+
     switch (primaryRole) {
       case 'admin':
         return '/admin';

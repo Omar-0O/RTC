@@ -124,6 +124,11 @@ window.addEventListener('error', (event) => {
     }
   }
 
+  // Silently ignore image load failures (e.g. expired signed URLs, missing avatars)
+  if (target && (target as HTMLElement).tagName === 'IMG') {
+    return;
+  }
+
   // Catch general runtime JS errors
   const error = event.error || event.message;
   console.error('Global error handler:', error);
