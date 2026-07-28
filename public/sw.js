@@ -12,7 +12,7 @@
  * Cache versioning: bump CACHE_VERSION to invalidate all caches.
  */
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v5';
 const STATIC_CACHE = `rtc-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `rtc-dynamic-${CACHE_VERSION}`;
 
@@ -122,11 +122,26 @@ self.addEventListener('fetch', (event) => {
 /** Cache First: serve from cache, only fetch if not cached */
 async function cacheFirst(request, cacheName) {
   const cached = await caches.match(request);
-  if (cached) return cached;
+  if (cached) {
+    const contentType = cached.headers.get('content-type') || '';
+    // If a cached JS/CSS asset accidentally stored an HTML fallback (SPA 404), purge it
+    if (isStaticAsset(new URL(request.url).pathname) && contentType.includes('text/html')) {
+      const cache = await caches.open(cacheName);
+      await cache.delete(request);
+    } else {
+      return cached;
+    }
+  }
 
   try {
     const response = await fetch(request);
     if (response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      // NEVER cache HTML fallback responses for missing JS/CSS static assets
+      if (isStaticAsset(new URL(request.url).pathname) && contentType.includes('text/html')) {
+        console.warn('[SW] SPA fallback HTML returned for static asset. Skipping cache for:', request.url);
+        return response;
+      }
       const cache = await caches.open(cacheName);
       cache.put(request, response.clone());
       if (cacheName === DYNAMIC_CACHE) {
@@ -135,7 +150,6 @@ async function cacheFirst(request, cacheName) {
     }
     return response;
   } catch (err) {
-    // Offline: return offline fallback for navigation
     if (request.mode === 'navigate') {
       const fallback = await caches.match('/index.html');
       if (fallback) return fallback;

@@ -4,7 +4,7 @@ import App from "./App.tsx";
 import "./index.css";
 
 // ─── Self-Healing: Force-clear old SW & caches on major update ──────
-const CURRENT_VERSION_FLAG = 'rtc-v4-clean';
+const CURRENT_VERSION_FLAG = 'rtc-v5-clean';
 try {
   const localVersion = localStorage.getItem('app-cache-version-flag');
   if (localVersion !== CURRENT_VERSION_FLAG) {
