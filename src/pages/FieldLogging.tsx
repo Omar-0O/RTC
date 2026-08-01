@@ -177,6 +177,11 @@ export default function FieldLogging() {
 
     (async () => {
       try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session) {
+          return;
+        }
+
         const { error } = await supabase.auth.signInWithPassword({
           email: KIOSK_EMAIL,
           password: KIOSK_PASSWORD,

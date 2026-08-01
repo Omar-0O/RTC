@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Languages, Eye, EyeOff, Sun, Moon, Laptop } from 'lucide-react';
-import { AUTH_RELOGIN_NOTICE_KEY, supabase } from '@/integrations/supabase/client';
+import { AUTH_RELOGIN_NOTICE_KEY, purgeExpiredAuthToken, supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -125,15 +125,25 @@ export default function Auth() {
         return;
       }
 
+      // Purge any expired token silently (no auth events fired).
+      // This prevents the SDK from attempting a refresh_token call before
+      // signInWithPassword, which would trigger 429 rate-limit errors.
+      purgeExpiredAuthToken();
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanInput,
         password: password,
       });
 
       if (error) {
+        const isRateLimited = error.status === 429 || error.message?.includes('429') || error.message?.toLowerCase().includes('too many requests');
         toast({
           title: t('error'),
-          description: error.message,
+          description: isRateLimited
+            ? (isRTL
+                ? 'تم تجاوز الحد المسموح به من محاولات الدخول. يرجى الانتظار دقيقة واحدة ثم المحاولة مجدداً.'
+                : 'Too many login attempts. Please wait 1 minute before trying again.')
+            : error.message,
           variant: 'destructive',
         });
       } else {

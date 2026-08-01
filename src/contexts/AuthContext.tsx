@@ -25,9 +25,15 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const isTerminalRefreshError = (error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
+  if (!error) return false;
+  const message = error instanceof Error ? error.message : String((error as { message?: string })?.message || error);
+  const status = (error as { status?: number })?.status;
 
-  return /invalid refresh token|refresh token not found|refresh token revoked|refresh token reuse/i.test(message);
+  return (
+    status === 429 ||
+    status === 400 ||
+    /invalid refresh token|refresh token not found|refresh token revoked|refresh token reuse|too many requests|429/i.test(message)
+  );
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -109,22 +115,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
 
-        if (error && isTerminalRefreshError(error)) {
+        if (error) {
+          console.error('Unable to restore auth session:', error.message);
+          // Directly remove the bad token from storage WITHOUT firing signOut events.
+          // Calling signOut triggers _notifyAllSubscribers which can cause the SDK
+          // to attempt another refresh_token call, worsening 429 rate-limit issues.
           markReauthenticationRequired();
-          await supabase.auth.signOut({ scope: 'local' });
+          clearLegacyAuthStorage();
           if (mounted) clearAuthState();
           return;
         }
 
         if (mounted) {
-          if (error) {
-            console.error('Unable to restore auth session:', error.message);
-          }
-
           applySession(initialSession);
         }
       } catch (error) {
         console.error('Error during auth initialization:', error);
+        clearLegacyAuthStorage();
+        if (mounted) clearAuthState();
       } finally {
         if (mounted) {
           setIsLoading(false);

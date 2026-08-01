@@ -128,7 +128,9 @@ window.addEventListener('error', (event) => {
   if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
     const element = target as HTMLScriptElement | HTMLLinkElement;
     const src = element instanceof HTMLScriptElement ? element.src : element.href;
-    if (src && (src.includes('/assets/') || src.includes('.js') || src.includes('.css'))) {
+    // Catch script/stylesheet resource loading failures (only for same-origin app assets)
+    const isSameOriginAsset = src && (src.startsWith('/') || src.includes(window.location.host));
+    if (isSameOriginAsset && (src.includes('/assets/') || src.includes('.js') || src.includes('.css'))) {
       console.warn('Asset failed to load:', src);
       triggerChunkErrorReload();
       event.preventDefault();

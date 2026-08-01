@@ -54,6 +54,34 @@ const migrateLegacyAuthStorage = () => {
 // Supabase refresh tokens synchronized across browser tabs.
 migrateLegacyAuthStorage();
 
+// ── Early stale token guard ──────────────────────────────────────────────────
+// If the stored access_token is expired, purge it immediately before the
+// Supabase client is created so the SDK does NOT attempt to auto-refresh
+// (which causes 429 rate-limit loops when refresh_token is also invalid).
+export const purgeExpiredAuthToken = () => {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return false;
+
+    const parsed = JSON.parse(raw);
+    // Supabase stores expires_at as a Unix timestamp (seconds since epoch)
+    const expiresAt: number | undefined =
+      parsed?.expires_at ?? parsed?.session?.expires_at;
+
+    if (expiresAt && Date.now() / 1000 > expiresAt) {
+      // Access token is expired. Remove it so the client starts fresh.
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      console.info('[Auth] Purged expired auth token from storage to prevent 429 refresh loop.');
+      return true;
+    }
+  } catch {
+    // Best-effort: if we can't read/parse the token, leave it alone.
+  }
+  return false;
+};
+
+purgeExpiredAuthToken();
+
 export const markReauthenticationRequired = () => {
   try {
     sessionStorage.setItem(AUTH_RELOGIN_NOTICE_KEY, '1');
