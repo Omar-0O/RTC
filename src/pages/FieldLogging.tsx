@@ -229,7 +229,7 @@ export default function FieldLogging() {
   const [guests, setGuests] = useState<{ name: string; phone?: string }[]>([]);
   const [guestNameInput, setGuestNameInput] = useState<string>('');
   const [guestPhoneInput, setGuestPhoneInput] = useState<string>('');
-  const [openCombobox, setOpenCombobox] = useState<boolean>(false);
+  const [volunteerSearch, setVolunteerSearch] = useState<string>('');
 
   const fetchVolunteersList = useCallback(async () => {
     try {
@@ -1408,88 +1408,124 @@ export default function FieldLogging() {
                               />
                             </div>
 
-                            {/* Volunteer Select Combobox */}
-                            <div className="space-y-2">
+                            {/* Volunteer Inline Search */}
+                            <div className="space-y-3">
                               <Label className="text-sm font-medium flex items-center gap-2">
                                 <Users className="h-4 w-4 text-muted-foreground" />
                                 {isRTL ? 'اختر المتطوعين' : 'Select Volunteers'}
+                                {selectedVolunteers.length > 0 && (
+                                  <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                                    {selectedVolunteers.length}
+                                  </span>
+                                )}
                               </Label>
-                              <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    role="combobox"
-                                    aria-expanded={openCombobox}
-                                    className="w-full justify-between h-12 text-base px-4 border-2 bg-background hover:border-primary/50"
-                                  >
-                                    <span className="truncate">
-                                      {selectedVolunteers.length > 0
-                                        ? (isRTL ? `تم تحديد ${selectedVolunteers.length} متطوع` : `${selectedVolunteers.length} selected`)
-                                        : (isRTL ? 'بحث بالاسم وتحديد المتطوعين...' : 'Search & select volunteers...')}
-                                    </span>
-                                    <ChevronsUpDown className="ltr:ml-2 rtl:mr-2 h-4 w-4 shrink-0 opacity-50" />
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-[350px] p-0" align="start">
-                                  <Command>
-                                    <CommandInput placeholder={isRTL ? 'بحث بالاسم...' : 'Search volunteer...'} />
-                                    <CommandList className="max-h-60 overflow-y-auto">
-                                      <CommandEmpty>{isRTL ? 'لم يتم العثور على متطوعين' : 'No volunteers found'}</CommandEmpty>
-                                      <CommandGroup>
-                                        {volunteersList
-                                          .filter(v => v.id !== volunteer?.id)
-                                          .map(v => {
-                                            const isSelected = selectedVolunteers.includes(v.id);
-                                            const vName = isRTL ? (v.full_name_ar || v.full_name) : (v.full_name || v.full_name_ar);
-                                            return (
-                                              <CommandItem
-                                                key={v.id}
-                                                value={vName || ''}
-                                                onSelect={() => toggleVolunteer(v.id)}
-                                                className="cursor-pointer"
-                                              >
-                                                <div className="flex items-center gap-3 w-full">
-                                                  <Avatar className="h-7 w-7 shrink-0">
-                                                    <AvatarImage src={v.avatar_url || undefined} />
-                                                    <AvatarFallback className="text-xs bg-primary/10 text-primary font-bold">
-                                                      {vName?.charAt(0).toUpperCase()}
-                                                    </AvatarFallback>
-                                                  </Avatar>
-                                                  <span className="flex-1 truncate text-sm">{vName}</span>
-                                                  <Check className={cn("h-4 w-4 shrink-0 text-primary", isSelected ? "opacity-100" : "opacity-0")} />
-                                                </div>
-                                              </CommandItem>
-                                            );
-                                          })}
-                                      </CommandGroup>
-                                    </CommandList>
-                                  </Command>
-                                </PopoverContent>
-                              </Popover>
 
-                              {/* Selected Volunteers Chips */}
+                              {/* Selected Volunteers Chips — always visible above search */}
                               {selectedVolunteers.length > 0 && (
-                                <div className="flex flex-wrap gap-2 pt-2">
-                                  {selectedVolunteers.slice(0, 5).map(id => {
+                                <div className="flex flex-wrap gap-2">
+                                  {selectedVolunteers.map(id => {
                                     const v = volunteersList.find(vol => vol.id === id);
                                     const vName = v ? (isRTL ? (v.full_name_ar || v.full_name) : (v.full_name || v.full_name_ar)) : '';
                                     return v ? (
-                                      <span key={id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-xs font-semibold text-primary border border-primary/20">
-                                        {vName?.split(' ')[0]}
-                                        <button type="button" onClick={() => toggleVolunteer(id)} className="hover:bg-primary/20 rounded-full p-0.5 transition-colors">
-                                          <X className="h-3 w-3" />
+                                      <span key={id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/15 text-sm font-medium text-primary border border-primary/25 hover:bg-primary/25 transition-colors">
+                                        <Avatar className="h-5 w-5 shrink-0">
+                                          <AvatarImage src={v.avatar_url || undefined} />
+                                          <AvatarFallback className="text-[10px] bg-primary/20 text-primary font-bold">{vName?.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                        {vName?.split(' ').slice(0, 2).join(' ')}
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleVolunteer(id)}
+                                          className="hover:bg-primary/30 rounded-full p-0.5 transition-colors"
+                                          aria-label={isRTL ? 'إزالة' : 'Remove'}
+                                        >
+                                          <X className="h-3.5 w-3.5" />
                                         </button>
                                       </span>
                                     ) : null;
                                   })}
-                                  {selectedVolunteers.length > 5 && (
-                                    <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-muted text-xs font-semibold">
-                                      +{selectedVolunteers.length - 5} {isRTL ? 'آخرين' : 'more'}
-                                    </span>
-                                  )}
                                 </div>
                               )}
+
+                              {/* Inline Search Input */}
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  placeholder={isRTL ? '🔍 ابحث بالاسم...' : '🔍 Search by name...'}
+                                  value={volunteerSearch}
+                                  onChange={e => setVolunteerSearch(e.target.value)}
+                                  className="w-full h-11 px-4 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary transition-colors"
+                                  dir={isRTL ? 'rtl' : 'ltr'}
+                                />
+                                {volunteerSearch && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setVolunteerSearch('')}
+                                    className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground transition-colors"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Results List */}
+                              {(() => {
+                                const q = volunteerSearch.trim().toLowerCase();
+                                const filtered = volunteersList
+                                  .filter(v => v.id !== volunteer?.id)
+                                  .filter(v => {
+                                    if (!q) return true;
+                                    const nameAr = (v.full_name_ar || '').toLowerCase();
+                                    const nameEn = (v.full_name || '').toLowerCase();
+                                    return nameAr.includes(q) || nameEn.includes(q);
+                                  });
+
+                                if (!q && filtered.length === 0) return null;
+
+                                return (
+                                  <div className="rounded-xl border-2 border-border overflow-hidden">
+                                    {filtered.length === 0 ? (
+                                      <p className="text-center text-sm text-muted-foreground py-6">
+                                        {isRTL ? 'لم يتم العثور على متطوعين' : 'No volunteers found'}
+                                      </p>
+                                    ) : (
+                                      <div className="max-h-52 overflow-y-auto divide-y divide-border/50">
+                                        {filtered.map(v => {
+                                          const isSelected = selectedVolunteers.includes(v.id);
+                                          const vName = isRTL ? (v.full_name_ar || v.full_name) : (v.full_name || v.full_name_ar);
+                                          return (
+                                            <button
+                                              key={v.id}
+                                              type="button"
+                                              onClick={() => toggleVolunteer(v.id)}
+                                              className={cn(
+                                                'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/60',
+                                                isSelected && 'bg-primary/8'
+                                              )}
+                                            >
+                                              <Avatar className="h-8 w-8 shrink-0">
+                                                <AvatarImage src={v.avatar_url || undefined} />
+                                                <AvatarFallback className="text-xs bg-primary/10 text-primary font-bold">
+                                                  {vName?.charAt(0).toUpperCase()}
+                                                </AvatarFallback>
+                                              </Avatar>
+                                              <span className="flex-1 text-sm font-medium truncate">{vName}</span>
+                                              <div className={cn(
+                                                'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                                                isSelected
+                                                  ? 'bg-primary border-primary'
+                                                  : 'border-border'
+                                              )}>
+                                                {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                                              </div>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
 
                             {/* Guests Section */}
