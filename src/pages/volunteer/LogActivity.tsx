@@ -115,7 +115,7 @@ export default function LogActivity() {
   const [isGroupSubmission, setIsGroupSubmission] = useState(false);
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [selectedVolunteers, setSelectedVolunteers] = useState<string[]>([]);
-  const [openCombobox, setOpenCombobox] = useState(false);
+  const [volunteerSearch, setVolunteerSearch] = useState('');
   const [includeMe, setIncludeMe] = useState(false);
   const [guests, setGuests] = useState<{ name: string; phone?: string; notes?: string }[]>([]);
   const [guestName, setGuestName] = useState('');
@@ -843,87 +843,112 @@ export default function LogActivity() {
                     <Switch id="include-me" checked={includeMe} onCheckedChange={setIncludeMe} />
                   </div>
 
-                  {/* Select Volunteers */}
-                  <div className="space-y-2">
+                  {/* Select Volunteers - Inline Search */}
+                  <div className="space-y-3">
                     <Label className="text-sm font-medium flex items-center gap-2">
                       <Users className="h-4 w-4 text-muted-foreground" />
                       {isRTL ? 'اختر المتطوعين' : 'Select Volunteers'}
+                      {selectedVolunteers.length > 0 && (
+                        <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                          {selectedVolunteers.length}
+                        </span>
+                      )}
                     </Label>
-                    <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openCombobox}
-                          className="w-full justify-between h-12 text-base px-4 border-2 hover:border-primary/50 transition-colors"
-                        >
-                          {selectedVolunteers.length > 0
-                            ? isRTL
-                              ? `تم اختيار ${selectedVolunteers.length} متطوع`
-                              : `${selectedVolunteers.length} volunteers selected`
-                            : isRTL ? 'اختر المتطوعين...' : 'Select volunteers...'}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0" align="start">
-                        <Command>
-                          <CommandInput placeholder={isRTL ? 'بحث عن متطوع...' : 'Search volunteer...'} />
-                          <CommandList>
-                            <CommandEmpty>{isRTL ? 'لا يوجد نتائج' : 'No volunteer found.'}</CommandEmpty>
-                            <CommandGroup>
-                              {volunteers.map((volunteer) => (
-                                <CommandItem
-                                  key={volunteer.id}
-                                  value={`${volunteer.full_name}-${volunteer.id}`}
-                                  onSelect={() => toggleVolunteer(volunteer.id)}
-                                  className="cursor-pointer"
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      selectedVolunteers.includes(volunteer.id) ? "opacity-100 text-success" : "opacity-0"
-                                    )}
-                                  />
-                                  <div className="flex items-center gap-2">
-                                    <Avatar className="h-7 w-7 border">
-                                      <AvatarImage src={volunteer.avatar_url || undefined} />
-                                      <AvatarFallback className="text-xs bg-primary/10">
-                                        {(volunteer.full_name && volunteer.full_name.length > 0)
-                                          ? volunteer.full_name.charAt(0).toUpperCase()
-                                          : '?'}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <span className="truncate">{volunteer.full_name}</span>
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
 
                     {/* Selected volunteers chips */}
                     {selectedVolunteers.length > 0 && (
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        {selectedVolunteers.slice(0, 5).map(id => {
+                      <div className="flex flex-wrap gap-2">
+                        {selectedVolunteers.map(id => {
                           const v = volunteers.find(v => v.id === id);
                           return v ? (
-                            <span key={id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-xs font-medium text-primary">
-                              {v.full_name?.split(' ')[0]}
-                              <button type="button" onClick={() => toggleVolunteer(id)} className="hover:bg-primary/20 rounded-full p-0.5 transition-colors">
-                                <X className="h-3 w-3" />
+                            <span key={id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/15 text-sm font-medium text-primary border border-primary/25 hover:bg-primary/25 transition-colors">
+                              <Avatar className="h-5 w-5 shrink-0">
+                                <AvatarImage src={v.avatar_url || undefined} />
+                                <AvatarFallback className="text-[10px] bg-primary/20 text-primary font-bold">{v.full_name?.charAt(0)}</AvatarFallback>
+                              </Avatar>
+                              {v.full_name?.split(' ').slice(0, 2).join(' ')}
+                              <button type="button" onClick={() => toggleVolunteer(id)} className="hover:bg-primary/30 rounded-full p-0.5 transition-colors" aria-label={isRTL ? 'إزالة' : 'Remove'}>
+                                <X className="h-3.5 w-3.5" />
                               </button>
                             </span>
                           ) : null;
                         })}
-                        {selectedVolunteers.length > 5 && (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-muted text-xs font-medium">
-                            +{selectedVolunteers.length - 5} {isRTL ? 'آخرين' : 'more'}
-                          </span>
-                        )}
                       </div>
                     )}
+
+                    {/* Inline Search Input */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder={isRTL ? '🔍 ابحث بالاسم...' : '🔍 Search by name...'}
+                        value={volunteerSearch}
+                        onChange={e => setVolunteerSearch(e.target.value)}
+                        className="w-full h-11 px-4 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary transition-colors"
+                        dir={isRTL ? 'rtl' : 'ltr'}
+                      />
+                      {volunteerSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setVolunteerSearch('')}
+                          className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Results List */}
+                    {(() => {
+                      const q = volunteerSearch.trim().toLowerCase();
+                      const filtered = volunteers.filter(v => {
+                        if (!q) return true;
+                        return (v.full_name || '').toLowerCase().includes(q);
+                      });
+
+                      if (!q && filtered.length === 0) return null;
+
+                      return (
+                        <div className="rounded-xl border-2 border-border overflow-hidden bg-background">
+                          {filtered.length === 0 ? (
+                            <p className="text-center text-sm text-muted-foreground py-6">
+                              {isRTL ? 'لم يتم العثور على متطوعين' : 'No volunteers found'}
+                            </p>
+                          ) : (
+                            <div className="max-h-52 overflow-y-auto divide-y divide-border/50">
+                              {filtered.map(v => {
+                                const isSelected = selectedVolunteers.includes(v.id);
+                                return (
+                                  <button
+                                    key={v.id}
+                                    type="button"
+                                    onClick={() => toggleVolunteer(v.id)}
+                                    className={cn(
+                                      'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/60',
+                                      isSelected && 'bg-primary/8'
+                                    )}
+                                  >
+                                    <Avatar className="h-8 w-8 shrink-0">
+                                      <AvatarImage src={v.avatar_url || undefined} />
+                                      <AvatarFallback className="text-xs bg-primary/10 text-primary font-bold">
+                                        {v.full_name?.charAt(0).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="flex-1 text-sm font-medium truncate">{v.full_name}</span>
+                                    <div className={cn(
+                                      'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                                      isSelected ? 'bg-primary border-primary' : 'border-border'
+                                    )}>
+                                      {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
 
                     {/* Location Selection - Shared for Group */}
                     <div className="space-y-2.5 pt-4 border-t">

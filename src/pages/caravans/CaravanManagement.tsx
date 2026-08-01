@@ -1209,12 +1209,49 @@ export default function CaravanManagement() {
 
                                         {/* Full-screen Volunteer Selector Dialog */}
                                         <Dialog open={isVolunteerSelectorOpen} onOpenChange={setIsVolunteerSelectorOpen}>
-                                            <DialogContent className="w-full max-w-[95vw] sm:max-w-md max-h-[92vh] flex flex-col p-0 gap-0" aria-describedby={undefined}>
-                                                <div className="flex items-center justify-between px-4 py-4 border-b bg-background shrink-0">
-                                                    <DialogTitle className="text-base sm:text-lg font-bold">
-                                                        {isRTL ? 'اختر المتطوعين' : 'Select Volunteers'}
-                                                    </DialogTitle>
+                                            <DialogContent className="w-full max-w-[95vw] sm:max-w-md max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl" aria-describedby={undefined}>
+                                                <div className="flex items-center justify-between px-4 py-3.5 border-b bg-background shrink-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <DialogTitle className="text-base sm:text-lg font-bold">
+                                                            {isRTL ? 'اختر المتطوعين' : 'Select Volunteers'}
+                                                        </DialogTitle>
+                                                        {participants.filter(p => p.is_volunteer).length > 0 && (
+                                                            <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                                                                {participants.filter(p => p.is_volunteer).length}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        onClick={() => setIsVolunteerSelectorOpen(false)}
+                                                        className="h-8 px-3 text-xs font-semibold rounded-lg"
+                                                    >
+                                                        {isRTL ? 'تم' : 'Done'}
+                                                    </Button>
                                                 </div>
+
+                                                {/* Selected Volunteers Chips inside Dialog */}
+                                                {participants.filter(p => p.is_volunteer).length > 0 && (
+                                                    <div className="p-3 border-b bg-muted/20 flex flex-wrap gap-1.5 max-h-28 overflow-y-auto shrink-0">
+                                                        {participants.filter(p => p.is_volunteer).map((p, idx) => (
+                                                            <span key={p.volunteer_id || idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/15 text-xs font-medium text-primary border border-primary/25">
+                                                                {p.name.split(' ').slice(0, 2).join(' ')}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const realIdx = participants.findIndex(item => item === p);
+                                                                        if (realIdx !== -1) removeParticipant(realIdx);
+                                                                    }}
+                                                                    className="hover:bg-primary/30 rounded-full p-0.5 transition-colors"
+                                                                >
+                                                                    <X className="h-3 w-3" />
+                                                                </button>
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )}
+
                                                 <div className="px-4 py-3 border-b bg-muted/10 shrink-0">
                                                     <div className="relative">
                                                         <Search className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1224,9 +1261,18 @@ export default function CaravanManagement() {
                                                             value={volunteerSearch}
                                                             onChange={e => setVolunteerSearch(e.target.value)}
                                                         />
+                                                        {volunteerSearch && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setVolunteerSearch('')}
+                                                                className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
+                                                            >
+                                                                <X className="h-4 w-4" />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div className="flex-1 overflow-y-auto p-2">
+                                                <div className="flex-1 overflow-y-auto p-2 divide-y divide-border/40">
                                                     {volunteers
                                                         .filter(v => v.full_name.toLowerCase().includes(volunteerSearch.toLowerCase()))
                                                         .map(volunteer => {
@@ -1235,7 +1281,10 @@ export default function CaravanManagement() {
                                                                 <button
                                                                     key={volunteer.id}
                                                                     type="button"
-                                                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-start transition-colors mb-1 ${isAdded ? 'bg-primary/10 text-primary hover:bg-primary/15' : 'hover:bg-muted'}`}
+                                                                    className={cn(
+                                                                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-start transition-colors',
+                                                                        isAdded ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted/70'
+                                                                    )}
                                                                     onClick={() => {
                                                                         if (!isAdded) handleAddVolunteer(volunteer.id);
                                                                         else {
@@ -1246,20 +1295,21 @@ export default function CaravanManagement() {
                                                                 >
                                                                     <Avatar className="h-9 w-9 shrink-0 border border-background shadow-sm">
                                                                         <AvatarImage src={volunteer.avatar_url || undefined} />
-                                                                        <AvatarFallback className="text-xs font-semibold bg-background">{volunteer.full_name?.charAt(0)}</AvatarFallback>
+                                                                        <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
+                                                                            {volunteer.full_name?.charAt(0)}
+                                                                        </AvatarFallback>
                                                                     </Avatar>
-                                                                    <span className={`flex-1 text-sm truncate ${isAdded ? 'font-semibold' : 'font-medium'}`}>{volunteer.full_name}</span>
-                                                                    {isAdded ? (
-                                                                        <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0">
-                                                                            <Check className="h-3 w-3" />
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="h-5 w-5 rounded-full border border-muted-foreground/30 flex items-center justify-center shrink-0" />
-                                                                    )}
+                                                                    <span className="flex-1 text-sm truncate">{volunteer.full_name}</span>
+                                                                    <div className={cn(
+                                                                        'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                                                                        isAdded ? 'bg-primary border-primary' : 'border-border'
+                                                                    )}>
+                                                                        {isAdded && <Check className="h-3 w-3 text-primary-foreground" />}
+                                                                    </div>
                                                                 </button>
                                                             );
                                                         })}
-                                                    {volunteers.filter(v => v.full_name.toLowerCase().includes(volunteerSearch.toLowerCase())).length === 0 && (
+                                                     {volunteers.filter(v => v.full_name.toLowerCase().includes(volunteerSearch.toLowerCase())).length === 0 && (
                                                         <div className="text-center text-muted-foreground text-sm py-12 flex flex-col items-center">
                                                             <Search className="h-8 w-8 opacity-20 mb-3" />
                                                             {isRTL ? 'لا يوجد نتائج تطابق بحثك' : 'No results found'}
