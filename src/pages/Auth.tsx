@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Languages, Eye, EyeOff, Sun, Moon, Laptop } from 'lucide-react';
-import { AUTH_RELOGIN_NOTICE_KEY, purgeExpiredAuthToken, supabase } from '@/integrations/supabase/client';
+import { AUTH_RELOGIN_NOTICE_KEY, AUTH_STORAGE_KEY, purgeExpiredAuthToken, supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -68,6 +68,17 @@ export default function Auth() {
   const { toast } = useToast();
   const { t, isRTL, language, setLanguage } = useLanguage();
   const { setTheme } = useTheme();
+
+  // Clear any stale auth token when the login page is shown.
+  // This prevents the SDK from trying to refresh an old/invalid token
+  // which causes 429 rate-limit errors on the Supabase auth endpoint.
+  useEffect(() => {
+    try {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch {
+      // Best-effort cleanup
+    }
+  }, []);
 
   useEffect(() => {
     try {
