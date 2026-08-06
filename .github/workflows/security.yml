@@ -2,9 +2,13 @@ name: Security Audit & Analysis
 
 on:
   push:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
   pull_request:
-    branches: [ main, master ]
+    branches:
+      - main
+      - master
   schedule:
     - cron: '0 0 * * 0' # Weekly scan
   workflow_dispatch:
