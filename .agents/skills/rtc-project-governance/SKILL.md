@@ -1,135 +1,261 @@
 ---
 name: rtc-project-governance
-description: "Mandatory project governance and engineering standard skill for all AI agents working on the RTC repository. Enforces startup discovery, skill composition, 12-phase execution workflow, code review criteria, and strict quality gates."
+description: "Single engineering governance entry point for all AI agents working on the RTC repository. Enforces startup discovery, context management, tool selection, skill selection strategy, architecture protection, verification matrix, rollback policy, self-review, and quality gates."
 category: governance
 risk: safe
 source: local
-tags: "[governance, engineering-standards, workflow, quality-gates, rtc]"
+tags: "[governance, engineering-standards, quality-gates, verification-matrix, rollback-policy, context-management, rtc]"
 date_added: "2026-08-06"
 ---
 
 # RTC Project Governance & Engineering Standard
 
-## Purpose
+## Purpose & Core Identity
 
-This skill establishes the mandatory project governance framework and engineering standard for all AI agents working on the **RTC (Rowad Al-Tamayuz Center)** repository. It ensures consistent architecture, security hardening, high-performance rendering, robust error handling, clean code, and zero regressions.
+This skill establishes the **single engineering governance entry point** and quality assurance standard for all AI agents working on the **RTC (Rowad Al-Tamayuz Center)** repository. It provides strict guidelines for repository adaptation, context management, tool selection, skill selection, architecture protection, verification, rollback safety, and self-review.
 
 Every AI agent operating in this repository **MUST** execute this skill as their mandatory entry point before making any code modifications or structural changes.
 
 ---
 
-## Mandatory Startup Workflow
+## Instruction Hierarchy (Priority Rules)
 
-Before modifying any code or files in this repository, every AI agent must execute these 7 steps in sequence:
+When resolving conflicting instructions or guidelines, agents must enforce the following strict priority hierarchy (higher priority rules **ALWAYS** override lower priority rules):
 
 ```
-[ Step 1: Read Skill ] ➔ [ Step 2: Repo Discovery ] ➔ [ Step 3: Skill Detection ]
-           │
-           ▼
-[ Step 4: Skill Selection ] ➔ [ Step 5: Produce Plan ] ➔ [ Step 6: Execution ]
+1. Repository Rules (AGENTS.md)
+       │
+       ▼
+2. Governance Skill (rtc-project-governance)
+       │
+       ▼
+3. Task-Specific Skills (e.g. Bug Fix, Security, Refactor)
+       │
+       ▼
+4. Framework Skills (e.g. React, Vite, Supabase)
+       │
+       ▼
+5. Language Skills (e.g. TypeScript, SQL)
+       │
+       ▼
+6. Utility Skills (e.g. Formatters, Helpers)
 ```
-
-1. **Read Governance Skill**: Read `rtc-project-governance` completely to align on quality standards and rules.
-2. **Inspect Repository**:
-   - **Framework**: Vite + React 18 + TypeScript.
-   - **Architecture**: Component-based frontend, Supabase backend (Auth, Database, Edge Functions, Storage), TanStack Query data caching, Tailwind CSS styling, Shadcn UI component primitives.
-   - **Tech Stack**: TypeScript, React Router, Radix UI, Recharts, Vitest, Lucide icons, `@e965/xlsx`.
-   - **Coding Conventions**: Clean functional components, explicit TypeScript types, safe input sanitization (`spreadsheetSecurity.ts`, `safeUrls.ts`, `safeImages.ts`), RTL support (`isRTL`), centralized error boundaries.
-3. **Detect Available Agent Skills**: Scan workspace (`.agents/skills/`) and global configuration (`~/.gemini/config/plugins` or system prompt) to list all active skills.
-4. **Select Relevant Skills (Progressive Disclosure)**:
-   - Apply progressive disclosure: **Load ONLY the specialized skills relevant to the current task.**
-   - Do NOT load unrelated skills to prevent context bloat and hallucinated rules.
-5. **Produce an Implementation Plan**: Outline findings, proposed file changes, potential risks, and verification plan.
-6. **Obtain Approval / Finalize Plan**: Ensure technical approach adheres to project architecture and user preferences.
-7. **Begin Execution**: Implement changes following the 12-Phase Engineering Workflow.
 
 ---
 
-## Skill Selection & Composition Guide
+## Mandatory Startup Workflow
 
-Agents must dynamically compose skills according to the nature of their assigned task. Reference [.agents/skills/rtc-project-governance/references/skill-mapping-matrix.md](file:///.agents/skills/rtc-project-governance/references/skill-mapping-matrix.md) for full breakdown.
+Before writing or modifying any code in this repository, every AI agent **MUST** perform the following 8 steps in sequence:
 
-| Work Category | Primary Skills to Combine |
+```
+[ 1. Read AGENTS.md ] ➔ [ 2. Read Governance ] ➔ [ 3. Repo Adaptation ] ➔ [ 4. Stack Detection ]
+                                                                                   │
+                                                                                   ▼
+[ 8. Implementation ] ◄─ [ 7. Produce Plan ] ◄─ [ 6. Skill Selection ] ◄─ [ 5. Skill Discovery ]
+```
+
+1. **Read `AGENTS.md` Completely**: Inspect repository directives and priority rules.
+2. **Read `rtc-project-governance` Completely**: Align on governance standards, decision matrix, tool selection, and quality gates.
+3. **Inspect & Adapt to Repository**: Detect repository conventions, folder structure, coding patterns, testing strategy, and release workflows. Adapt to established patterns.
+4. **Detect Technical Stack**: Identify architecture (Vite + React + Supabase), frameworks, languages (TypeScript), package manager (`npm`), testing framework (Vitest), CI/CD (GitHub Actions), deployment target (Cloudflare Pages/Vercel), and security tooling.
+5. **Discover Available Skills**: Dynamically search available skills directories (`.agents/skills/`, global plugins, system prompt) for capabilities matching task topics.
+6. **Select Relevant Skills**: Apply the Skill Selection Strategy to pick only necessary skills; avoid context bloat.
+7. **Produce a Concise Implementation Plan**: Outline findings, target files, proposed changes, verification matrix, and rollback plan.
+8. **Begin Implementation**: Execute changes following the 12-phase engineering workflow and iterative validation loop.
+
+---
+
+## Repository Adaptation Protocol
+
+Agents must adapt to the target repository rather than forcing a generic workflow:
+- **Project Conventions**: Follow existing naming rules, component directory structure (`src/components/`, `src/pages/`, `src/hooks/`), and state management patterns (TanStack Query + React Context).
+- **Architecture Style**: Respect SPA component design and Supabase Edge Function / RLS data authorization boundaries.
+- **Testing Strategy**: Align with existing Vitest unit/integration tests (`src/utils/*.test.ts`).
+- **Dependency Management**: Use existing `npm` packages before introducing new dependencies.
+
+---
+
+## Context Management Protocol
+
+To ensure maximum correctness with minimum token usage:
+1. **Estimate Need First**: Before reading documentation or large files, verify whether they are strictly required for the immediate step.
+2. **Targeted Reading**: Use bounded file views (`StartLine`/`EndLine`) or `grep_search` instead of reading entire large directories or files.
+3. **Incremental References**: Read reference guides (`references/skill-mapping-matrix.md`) only when specific clarification is needed.
+4. **Avoid Duplicate Context**: Do not re-read or re-dump files already present in context.
+5. **Context Budgeting**: Keep prompt and tool inputs concise and focused on the target change.
+
+---
+
+## Tool Selection Workflow
+
+Before executing actions, determine the **minimum set of tools** required for the step:
+
+```
+[ Step Goal ] ──► [ Evaluate Needed Capabilities ] ──► [ Select Minimum Tool Set ]
+```
+
+- **File Inspection**: Use `view_file` with precise line bounds or `grep_search` for pattern matching.
+- **Directory Operations**: Use `list_dir` to inspect folder contents.
+- **Code Editing**: Use `replace_file_content` (for single contiguous edits) or `multi_replace_file_content` (for multiple non-contiguous edits in one file).
+- **Command Execution**: Use `run_command` for linting, typechecking, running tests, or building. Avoid unnecessary shell invocations.
+- **Rule**: Never run redundant tool calls. Always justify tool selection.
+
+---
+
+## Skill Selection Strategy & Specificity Precedence
+
+When selecting skills for a task, enforce the following **Specificity Precedence**:
+
+```
+1. Repository-Specific Skills (.agents/skills/rtc-project-governance)
+       │
+       ▼
+2. Project-Specific Skills (e.g. RTC domain skills)
+       │
+       ▼
+3. Framework-Specific Skills (e.g. React, Vite, Supabase)
+       │
+       ▼
+4. Language-Specific Skills (e.g. TypeScript)
+       │
+       ▼
+5. Generic Utility Skills (e.g. Clean Code, SOLID)
+```
+
+### Overlap Resolution Rules
+- **Prefer More Specialized Skill**: If a generic skill and a framework-specific skill overlap, select the framework-specific skill.
+- **Avoid Redundant Loading**: Do not load multiple skills that cover the exact same guidance.
+- **Explain Selection**: Briefly justify why each selected skill is necessary for the task in the implementation plan.
+
+---
+
+## Architecture Protection Rules
+
+- **Preserve Existing Architecture**: Align with established Vite + React + Supabase patterns.
+- **Avoid Unnecessary Large Refactors**: Keep changes localized to the requested scope.
+- **Avoid Breaking Public APIs**: Maintain existing component props, function signatures, and exported contracts.
+- **Extend Before Creating**: Extend existing helper abstractions (`src/utils/`) or hooks (`src/hooks/`) before introducing new ones.
+- **Justify Architectural Changes**: If an architectural change is strictly required, justify it explicitly in the plan.
+- **Preserve Backward Compatibility**: Ensure existing database schemas and client states remain fully compatible.
+
+---
+
+## Verification Matrix
+
+Select verification steps based on the type of modification:
+
+| Change Category | Required Verification Steps |
 | :--- | :--- |
-| **Feature Development** | Clean Architecture, React Performance, TypeScript Best Practices, Supabase, Tailwind, Testing |
-| **Bug Investigation & Fixes** | Bug Investigation, Code Review, Vitest Testing, Static Analysis |
-| **Performance Optimization** | Performance Optimization, React Performance, Vite Chunking, Code Review |
-| **Security Hardening** | Security Review, OWASP Guidelines, Input Sanitization, Static Analysis |
-| **Refactoring & Tech Debt** | Clean Code, SOLID Principles, Refactoring, Vitest Testing |
-| **Infrastructure & CI/CD** | CI/CD, GitHub Actions, Security Scanning, Dependency Audit |
-| **Documentation** | Technical Documentation, Architecture Mapping |
+| **UI Components** | `npm run build` ➔ UI render & state verification |
+| **API / Data Services** | Integration tests (`npx vitest run`) ➔ Security review (AuthZ/RLS) |
+| **Database / Migrations** | Schema validation ➔ Migration test ➔ RLS query verification |
+| **Configuration** | `npm run build` ➔ `npm run lint` ➔ `npm run typecheck` |
+| **Refactor** | Full unit test suite (`npx vitest run`) ➔ Code quality & performance review |
+| **Security Fix** | Static analysis ➔ Input sanitization test ➔ Security vulnerability scan |
+| **Performance Fix** | Render/Bundle benchmark check ➔ `npm run build` ➔ Regression review |
+| **Documentation** | Link validation ➔ Technical consistency review |
+
+---
+
+## Explicit Rollback Policy
+
+If repeated validation failures occur during implementation:
+1. **Stop Implementation Immediately**: Do not push forward or layer fix upon fix on a broken build.
+2. **Identify Root Cause**: Analyze compiler logs, linter messages, or failing test traces.
+3. **Rollback Last Logical Change**: Revert the failing edit back to the last known good state using clean file content replacement or git revert.
+4. **Update Implementation Plan**: Re-evaluate the approach based on root cause analysis.
+5. **Resume Execution**: Re-implement cleanly from the known good state.
+
+> **Rule**: NEVER continue building on top of a broken project state.
 
 ---
 
 ## Required 12-Phase Engineering Workflow
 
-All complex engineering tasks must systematically navigate through these 12 phases:
-
-1. **Phase 1: Repository Discovery** — Scan affected code paths, imports, types, and existing tests.
-2. **Phase 2: Architecture Analysis** — Determine component hierarchy, state flow, database queries, and Edge Function boundaries.
-3. **Phase 4: Skill Selection** — Activate relevant skills for the task domain using progressive disclosure.
-4. **Phase 3: Risk Assessment** — Identify breaking API changes, security risks, database migration impacts, or performance regressions.
-5. **Phase 5: Planning** — Document step-by-step changes, required unit test additions, and verification plan.
-6. **Phase 6: Implementation** — Execute code changes using established clean code conventions.
-7. **Phase 7: Verification** — Run typechecks (`npm run typecheck`) and linters (`npm run lint`).
-8. **Phase 8: Performance Validation** — Verify component render efficiency, network fetch counts, and bundle size footprint.
-9. **Phase 9: Security Validation** — Verify input sanitization, formula injection escaping, URL/image whitelist safety, and auth scoping.
-10. **Phase 10: Testing** — Execute test suites (`npx vitest run`) and add unit/integration coverage for modified logic.
-11. **Phase 11: Documentation** — Update `README.md`, inline JSDoc comments, or architecture notes if contracts changed.
-12. **Phase 12: Final Report** — Present clean summary of fixes, test results, build outputs, and updated quality metrics.
+1. **Phase 1: Repository Discovery** — Inspect affected paths, types, and existing tests.
+2. **Phase 2: Architecture Analysis** — Evaluate component hierarchy, data flow, and backend boundaries.
+3. **Phase 3: Risk Assessment** — Identify breaking changes, security vulnerabilities, or performance risks.
+4. **Phase 4: Skill Selection** — Activate relevant skills following Specificity Precedence.
+5. **Phase 5: Planning** — Document step-by-step changes, verification matrix, and rollback plan.
+6. **Phase 6: Implementation** — Execute changes following clean code guidelines.
+7. **Phase 7: Verification** — Run typecheck (`npm run typecheck`) and linting (`npm run lint`).
+8. **Phase 8: Performance Validation** — Verify component efficiency and bundle size.
+9. **Phase 9: Security Validation** — Verify input sanitization, formula injection safety, and URL protocol safety.
+10. **Phase 10: Testing** — Run Vitest suite (`npx vitest run`) and add tests for modified logic.
+11. **Phase 11: Documentation** — Update `README.md` or code comments if interfaces changed.
+12. **Phase 12: Final Report** — Summarize changes, quality gate results, and recommendations.
 
 ---
 
-## Mandatory Engineering & Code Review Criteria
+## Iterative Validation Loop
 
-Every pull request or code change must satisfy all 11 evaluation criteria:
-
-- [ ] **Security Review**: Input escaping (CSV/formula injection), sanitized URLs/images, no hardcoded secrets, scoped Supabase queries.
-- [ ] **Performance Review**: No unnecessary re-renders, memoized expensive computations (`useMemo`/`useCallback`), lazy loading for heavy routes/libraries.
-- [ ] **Clean Code Review**: Expressive variable naming, no duplicated code blocks, single-responsibility functions.
-- [ ] **Error Handling Review**: Graceful fallback UI (`ErrorBoundary.tsx`), typed catch blocks, offline connectivity alerts (`NetworkStatus.tsx`).
-- [ ] **Accessibility Review**: Semantic HTML tags, ARIA attributes where needed, keyboard navigation, high contrast text support.
-- [ ] **Maintainability Review**: Decoupled component design, clean folder structure, clear module boundaries.
-- [ ] **Test Impact Review**: Updated or added unit/integration tests covering happy paths and edge cases.
-- [ ] **Build Verification**: `npm run build` completes with zero errors.
-- [ ] **Type Checking**: `npm run typecheck` produces 0 errors.
-- [ ] **Linting**: `npm run lint` produces 0 errors and 0 warnings.
-- [ ] **Production Build Verification**: Generated assets in `dist/` verified.
+```
+┌─────────────────────────────────────────────────────────┐
+│                     [ Implement ]                       │
+└────────────────────────────┬────────────────────────────┘
+                             │
+                             ▼
+                     [ Typecheck (tsc) ]
+                             │
+                             ▼
+                     [ Lint (eslint) ]
+                             │
+                             ▼
+                     [ Tests (vitest) ]
+                             │
+                             ▼
+                    [ Build (vite build) ]
+                             │
+                             ▼
+                    [ Security Scan ]
+                             │
+              ┌──────────────┴──────────────┐
+              ▼                             ▼
+       [ Any Failures? ]             [ All Pass ]
+              │                             │
+              ├─► Yes ➔ [ Rollback/Fix ] ───┤
+              │                             ▼
+              └─────────────────────► [ Complete ]
+```
 
 ---
 
-## Core Coding Principles
+## Mandatory Engineering Self-Review
 
-- **Zero Duplication**: Never copy-paste logic across components; extract shared utilities or custom hooks (`src/hooks/`, `src/utils/`).
-- **Preserve Existing Architecture**: Align with Vite + Supabase + TanStack Query patterns already in place.
-- **Prefer Reusable Abstractions**: Build reusable Shadcn/Tailwind UI primitives rather than custom ad-hoc inline styles.
-- **Readability over Cleverness**: Write clear, self-documenting code with descriptive names in English.
-- **No Unnecessary Dependencies**: Leverage native Web APIs and existing packages (`date-fns`, `lucide-react`) before adding external libraries.
-- **Avoid Premature Optimization**: Optimize based on verified bottlenecks or expensive data rendering paths.
-- **Keep Functions Cohesive**: Small, focused functions that perform one operation cleanly.
-- **Follow SOLID Principles**: Single responsibility, open-closed UI extension, interface segregation.
-- **Write Production-Grade Code**: Include error handling, fallback defaults, types, and logging.
+Before completing any task, agents **MUST** review their work against this checklist:
+
+- [ ] **Duplicated Logic**: Are there any repeated code blocks or redundant utility functions?
+- [ ] **Unnecessary Complexity**: Is the code simple, self-documenting, and readable?
+- [ ] **Edge Cases**: Are null, undefined, offline, and empty states handled properly?
+- [ ] **Security Regressions**: Are inputs sanitized and URLs protocol-checked?
+- [ ] **Performance Regressions**: Are heavy calculations memoized and re-renders minimized?
+- [ ] **Maintainability**: Are functions small, cohesive, and easy to test?
+- [ ] **Missing Tests**: Are new or modified code paths covered by unit/integration tests?
+- [ ] **Missing Documentation**: Are setup steps or modified contracts documented?
 
 ---
 
-## Mandatory Quality Gates
+## Strict Quality Gates & Exit Criteria
 
-A task is **NOT COMPLETE** unless all required checks pass without exception:
+A task is **NOT COMPLETE** unless all criteria are satisfied:
 
-| Quality Gate | Verification Command | Required Outcome |
+| Quality Gate | Verification Command / Metric | Required Outcome |
 | :--- | :--- | :--- |
-| **Typecheck** | `npm run typecheck` | `0 errors` |
-| **Linter** | `npm run lint` | `0 errors, 0 warnings` |
-| **Unit Tests** | `npx vitest run` | `All tests passing` |
-| **Production Build** | `npm run build` | `Clean build output in dist/` |
-| **Security Scan** | Dependency & Code Audit | `No critical/high vulnerabilities` |
-| **Documentation** | Documentation review | `Updated README or inline JSDoc` |
+| **✓ Work Finished** | Task requirements | `100% completed` |
+| **✓ Typecheck** | `npm run typecheck` | `0 errors` |
+| **✓ Lint** | `npm run lint` | `0 errors, 0 warnings` |
+| **✓ Tests** | `npx vitest run` | `All test suites passing` |
+| **✓ Build** | `npm run build` | `Clean build output in dist/` |
+| **✓ Security Scan** | Audit scan | `0 critical/high vulnerabilities` |
+| **✓ Clean Workspace** | Workspace check | `No temporary files or unused code remaining` |
+| **✓ Zero TODOs** | Code search | `No temporary TODOs or placeholder comments added` |
+| **✓ Documentation** | README / Comments | `Updated when behavior or setup changes` |
 
 ---
 
-## Extending This Skill
+## Continuous Improvement Protocol
 
-Future AI agents or maintainers can extend this skill by:
-1. Adding new specialized domain mappings in [references/skill-mapping-matrix.md](file:///.agents/skills/rtc-project-governance/references/skill-mapping-matrix.md).
-2. Adding custom automated verification scripts to `scripts/`.
-3. Updating quality gates as new testing frameworks (e.g., Playwright E2E) are integrated.
+After task completion:
+1. **Mandatory vs. Optional**: Distinguish between mandatory task completion fixes and optional future enhancements.
+2. **Avoid Scope Creep**: Do not implement non-essential refactors outside the task scope.
+3. **Document Recommendations**: Record technical debt observations and suggested future improvements in the final engineering report.
