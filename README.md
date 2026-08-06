@@ -29,60 +29,53 @@ Follow these steps to set up the project locally.
 ### Prerequisites
 - Node.js `^20.19.0 || >=22.12.0`
 - npm or yarn
-- A Supabase account
+- A Supabase project
 
 ### Installation
 
-1.  **Clone the repository**
-    ```bash
-    git clone https://github.com/your-username/rtc-pulse.git
-    cd rtc-pulse
-    ```
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/Omar-0O/RTC.git
+   cd RTC
+   ```
 
-2.  **Install dependencies**
-    ```bash
-    npm install
-    ```
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-3.  **Environment Setup**
-    Create a `.env` file in the root directory and add your Supabase credentials:
-    ```env
-    VITE_SUPABASE_URL=your_supabase_url
-    VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
-    ```
+3. **Environment Setup**
+   Create a `.env` file in the root directory:
+   ```env
+   VITE_SUPABASE_URL=your_supabase_url
+   VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+   ```
 
-4.  **Database Setup**
-    Run the SQL scripts located in `supabase/seeds/` in your Supabase SQL Editor to set up the schema, functions, and initial data:
-    - `create_admin.sql`: Sets up the initial admin user.
-    - `create_storage.sql`: Configures storage buckets and policies.
-    - `create_get_leaderboard.sql`: Adds the leaderboard calculation function.
-    - `update_level_logic.sql`: Updates the level threshold logic.
+4. **Development & Verification Commands**
+   - **Dev Server**: `npm run dev`
+   - **Type Checking**: `npm run typecheck`
+   - **Linting**: `npm run lint`
+   - **Unit & Integration Tests**: `npx vitest run`
+   - **Production Build**: `npm run build`
 
-5.  **Run the App**
-    ```bash
-    npm run dev
-    ```
-    Open [http://localhost:8080](http://localhost:8080) to view it in the browser.
+## 🏗️ Architecture & Core Components
 
-    To run against the RTC test Supabase environment, use:
-    ```bash
-    npm run dev:test
-    ```
+- **Frontend Core**: React 18 + TypeScript + Vite + Tailwind CSS + Shadcn UI.
+- **Backend Infrastructure**: Supabase (Database, Auth, Row Level Security, Edge Functions).
+- **Security & Sanitization**: Formula injection escaping in spreadsheet export helpers, validated URL/image schemas, sanitized inputs.
+- **State & Data Handling**: TanStack Query (React Query) for efficient caching, invalidation, and data synchronization.
 
-## 📂 Project Structure
+## ⚙️ CI/CD & Quality Control
 
-- `src/pages`: Main application pages (Volunteer, Admin, Leader).
-- `src/components`: Reusable UI components.
-- `src/contexts`: Global state (Auth, Language).
-- `src/integrations/supabase`: Supabase client and types.
-- `supabase/seeds`: SQL scripts for database setup.
+GitHub Actions workflows are configured in `.github/workflows/`:
+- **`ci.yml`**: Runs full TypeScript typechecks, ESLint analysis, Vitest test execution, and production bundling on all pushes and pull requests.
+- **`security.yml`**: Runs GitHub CodeQL security analysis and npm dependency security audits.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please ensure all code passes type checking (`npm run typecheck`), linting (`npm run lint`), and tests (`npx vitest run`) before submitting a PR.
 
 ## 📄 License
 
 This project is open source and available under the [GPL v3 License](LICENSE).
 
-✨

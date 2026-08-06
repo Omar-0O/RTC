@@ -1042,7 +1042,6 @@ export default function LogActivity() {
                         </div>
                       </div>
                     )}
-                  </div>
 
                   {/* Guests Section */}
                   <div className="space-y-3 pt-4 border-t border-dashed border-primary/20">
