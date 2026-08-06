@@ -68,7 +68,7 @@ Follow these steps to set up the project locally.
 - **CI/CD & Security**: GitHub Actions automated pipeline with full typecheck, ESLint, Vitest, and CodeQL security scanning.
 
 GitHub Actions workflows are configured in `.github/workflows/`:
-- **`ci.yml`**: Runs TypeScript typechecks, ESLint analysis, Vitest test execution, and production bundling on pushes/PRs.
+- **`ci.yml`**: Runs full TypeScript typechecks, ESLint analysis, Vitest test execution, and production bundling on all pushes and pull requests.
 - **`security.yml`**: Runs GitHub CodeQL security analysis and npm dependency security audits.
 
 ## 🤝 Contributing
