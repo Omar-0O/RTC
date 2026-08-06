@@ -65,7 +65,7 @@ Follow these steps to set up the project locally.
 - **Security & Sanitization**: Formula injection escaping in spreadsheet export helpers, validated URL/image schemas, sanitized inputs.
 - **State & Data Handling**: TanStack Query (React Query) for efficient caching, invalidation, and data synchronization.
 
-## ⚙️ CI/CD & Quality Control
+- **CI/CD & Security**: GitHub Actions automated pipeline with full typecheck, ESLint, Vitest, and CodeQL security scanning.
 
 GitHub Actions workflows are configured in `.github/workflows/`:
 - **`ci.yml`**: Runs full TypeScript typechecks, ESLint analysis, Vitest test execution, and production bundling on all pushes and pull requests.
