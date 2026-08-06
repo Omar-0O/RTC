@@ -76,6 +76,6 @@ GitHub Actions workflows are configured in `.github/workflows/`:
 Contributions are welcome! Please ensure all code passes type checking (`npm run typecheck`), linting (`npm run lint`), and tests (`npx vitest run`) before submitting a PR.
 
 ## 📄 License
+This project is open source and available under the GPL v3 License (https://github.com/Omar-0O/RTC/blob/main/LICENSE).
 
-This project is open source and available under the [GPL v3 License](LICENSE).
-
+<!-- CI Automatic Push Trigger Verification -->
