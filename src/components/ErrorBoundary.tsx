@@ -161,7 +161,16 @@ class ErrorBoundary extends Component<Props, State> {
                     </p>
                     {!showAutoReloadingState && (
                         <div className="flex gap-2 mt-2">
-                            <Button onClick={isOffline ? this.handleRetry : () => window.location.reload()}>
+                            <Button onClick={isOffline ? this.handleRetry : () => {
+                                try {
+                                    sessionStorage.removeItem('chunk_reload_count');
+                                } catch (_err) {
+                                    // Ignore storage errors in restricted contexts
+                                }
+                                if ('caches' in window) { caches.keys().then(names => Promise.all(names.map(name => caches.delete(name)))); }
+                                if ('serviceWorker' in navigator) { navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())); }
+                                window.location.reload();
+                            }}>
                                 <RefreshCw className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                 {isOffline ? 'إعادة المحاولة' : 'إعادة التحميل'}
                             </Button>

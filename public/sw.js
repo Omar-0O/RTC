@@ -139,8 +139,12 @@ async function cacheFirst(request, cacheName) {
       const contentType = response.headers.get('content-type') || '';
       // NEVER cache HTML fallback responses for missing JS/CSS static assets
       if (isStaticAsset(new URL(request.url).pathname) && contentType.includes('text/html')) {
-        console.warn('[SW] SPA fallback HTML returned for static asset. Skipping cache for:', request.url);
-        return response;
+        console.warn('[SW] SPA fallback HTML returned for static asset. Returning 404 for:', request.url);
+        return new Response('Static asset not found after deployment.', {
+          status: 404,
+          statusText: 'Not Found',
+          headers: { 'Content-Type': 'text/plain' }
+        });
       }
       const cache = await caches.open(cacheName);
       cache.put(request, response.clone());
