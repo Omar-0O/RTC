@@ -10,22 +10,21 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
       activity_submissions: {
         Row: {
-          activity_type_id: string
+          activity_type_id: string | null
           branch_id: string | null
-          committee_id: string
+          committee_id: string | null
           created_at: string
-          date: string | null
           description: string | null
           fine_type_id: string | null
+          group_submission_id: string | null
           guest_name: string | null
           guest_phone: string | null
-          group_submission_id: string | null
           id: string
           is_paid: boolean | null
           location: string | null
@@ -36,23 +35,25 @@ export type Database = {
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
+          source_id: string | null
+          source_type: string | null
           status: Database["public"]["Enums"]["submission_status"]
           submitted_at: string
           trainer_id: string | null
+          version: number
           volunteer_id: string | null
           wore_vest: boolean | null
         }
         Insert: {
-          activity_type_id: string
+          activity_type_id?: string | null
           branch_id?: string | null
-          committee_id: string
+          committee_id?: string | null
           created_at?: string
-          date?: string | null
           description?: string | null
           fine_type_id?: string | null
+          group_submission_id?: string | null
           guest_name?: string | null
           guest_phone?: string | null
-          group_submission_id?: string | null
           id?: string
           is_paid?: boolean | null
           location?: string | null
@@ -63,23 +64,25 @@ export type Database = {
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          source_id?: string | null
+          source_type?: string | null
           status?: Database["public"]["Enums"]["submission_status"]
           submitted_at?: string
           trainer_id?: string | null
+          version?: number
           volunteer_id?: string | null
           wore_vest?: boolean | null
         }
         Update: {
-          activity_type_id?: string
+          activity_type_id?: string | null
           branch_id?: string | null
-          committee_id?: string
+          committee_id?: string | null
           created_at?: string
-          date?: string | null
           description?: string | null
           fine_type_id?: string | null
+          group_submission_id?: string | null
           guest_name?: string | null
           guest_phone?: string | null
-          group_submission_id?: string | null
           id?: string
           is_paid?: boolean | null
           location?: string | null
@@ -90,9 +93,12 @@ export type Database = {
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
+          source_id?: string | null
+          source_type?: string | null
           status?: Database["public"]["Enums"]["submission_status"]
           submitted_at?: string
           trainer_id?: string | null
+          version?: number
           volunteer_id?: string | null
           wore_vest?: boolean | null
         }
@@ -105,10 +111,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "activity_submissions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "activity_submissions_committee_id_fkey"
             columns: ["committee_id"]
             isOneToOne: false
             referencedRelation: "committees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_submissions_fine_type_id_fkey"
+            columns: ["fine_type_id"]
+            isOneToOne: false
+            referencedRelation: "fine_types"
             referencedColumns: ["id"]
           },
           {
@@ -126,15 +146,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "activity_submissions_trainer_id_fkey"
+            columns: ["trainer_id"]
+            isOneToOne: false
+            referencedRelation: "trainers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "activity_submissions_volunteer_id_fkey"
             columns: ["volunteer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-
         ]
-      },
+      }
       activity_type_committees: {
         Row: {
           activity_type_id: string
@@ -167,9 +193,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      },
+      }
       activity_types: {
         Row: {
+          branch_id: string | null
           committee_id: string | null
           created_at: string
           description: string | null
@@ -184,6 +211,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          branch_id?: string | null
           committee_id?: string | null
           created_at?: string
           description?: string | null
@@ -198,6 +226,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          branch_id?: string | null
           committee_id?: string | null
           created_at?: string
           description?: string | null
@@ -213,6 +242,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "activity_types_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "activity_types_committee_id_fkey"
             columns: ["committee_id"]
             isOneToOne: false
@@ -225,6 +261,7 @@ export type Database = {
         Row: {
           activities_required: number | null
           auto_award: boolean | null
+          branch_id: string | null
           caravans_required: number | null
           color: string
           created_at: string
@@ -240,6 +277,7 @@ export type Database = {
         Insert: {
           activities_required?: number | null
           auto_award?: boolean | null
+          branch_id?: string | null
           caravans_required?: number | null
           color?: string
           created_at?: string
@@ -255,6 +293,7 @@ export type Database = {
         Update: {
           activities_required?: number | null
           auto_award?: boolean | null
+          branch_id?: string | null
           caravans_required?: number | null
           color?: string
           created_at?: string
@@ -267,35 +306,87 @@ export type Database = {
           name_ar?: string
           points_required?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "badges_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      beneficiary_surah_progress: {
+        Row: {
+          beneficiary_id: string
+          created_at: string
+          from_ayah: number | null
+          id: string
+          last_updated: string | null
+          notes: string | null
+          status: string
+          surah_number: number
+          to_ayah: number | null
+        }
+        Insert: {
+          beneficiary_id: string
+          created_at?: string
+          from_ayah?: number | null
+          id?: string
+          last_updated?: string | null
+          notes?: string | null
+          status?: string
+          surah_number: number
+          to_ayah?: number | null
+        }
+        Update: {
+          beneficiary_id?: string
+          created_at?: string
+          from_ayah?: number | null
+          id?: string
+          last_updated?: string | null
+          notes?: string | null
+          status?: string
+          surah_number?: number
+          to_ayah?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beneficiary_surah_progress_beneficiary_id_fkey"
+            columns: ["beneficiary_id"]
+            isOneToOne: false
+            referencedRelation: "quran_beneficiaries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       branches: {
         Row: {
           code: string | null
           created_at: string
           id: string
-          is_default: boolean
+          is_default: boolean | null
           name: string
           name_ar: string
-          updated_at: string | null
+          updated_at: string
         }
         Insert: {
           code?: string | null
           created_at?: string
           id?: string
-          is_default?: boolean
+          is_default?: boolean | null
           name: string
           name_ar: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Update: {
           code?: string | null
           created_at?: string
           id?: string
-          is_default?: boolean
+          is_default?: boolean | null
           name?: string
           name_ar?: string
-          updated_at?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -352,8 +443,8 @@ export type Database = {
       }
       caravans: {
         Row: {
-          actual_move_time: string | null
           actual_meals: number | null
+          actual_move_time: string | null
           bag_contents: string[] | null
           branch_id: string | null
           bus_arrival_time: string | null
@@ -371,8 +462,8 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
-          actual_move_time?: string | null
           actual_meals?: number | null
+          actual_move_time?: string | null
           bag_contents?: string[] | null
           branch_id?: string | null
           bus_arrival_time?: string | null
@@ -390,8 +481,8 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
-          actual_move_time?: string | null
           actual_meals?: number | null
+          actual_move_time?: string | null
           bag_contents?: string[] | null
           branch_id?: string | null
           bus_arrival_time?: string | null
@@ -410,6 +501,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "caravans_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "caravans_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -420,6 +518,7 @@ export type Database = {
       }
       committees: {
         Row: {
+          branch_id: string | null
           color: string | null
           committee_type: string | null
           created_at: string
@@ -431,6 +530,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          branch_id?: string | null
           color?: string | null
           committee_type?: string | null
           created_at?: string
@@ -442,6 +542,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          branch_id?: string | null
           color?: string | null
           committee_type?: string | null
           created_at?: string
@@ -452,7 +553,15 @@ export type Database = {
           name_ar?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "committees_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       competition_entries: {
         Row: {
@@ -524,12 +633,12 @@ export type Database = {
           ad_date: string
           ad_number: number
           content: string | null
-          content_done: boolean
+          content_done: boolean | null
           course_id: string
           created_at: string | null
           created_by: string | null
           id: string
-          poster_done: boolean
+          poster_done: boolean | null
           poster_url: string | null
           updated_at: string | null
           updated_by: string | null
@@ -538,12 +647,12 @@ export type Database = {
           ad_date: string
           ad_number: number
           content?: string | null
-          content_done?: boolean
+          content_done?: boolean | null
           course_id: string
           created_at?: string | null
           created_by?: string | null
           id?: string
-          poster_done?: boolean
+          poster_done?: boolean | null
           poster_url?: string | null
           updated_at?: string | null
           updated_by?: string | null
@@ -552,12 +661,12 @@ export type Database = {
           ad_date?: string
           ad_number?: number
           content?: string | null
-          content_done?: boolean
+          content_done?: boolean | null
           course_id?: string
           created_at?: string | null
           created_by?: string | null
           id?: string
-          poster_done?: boolean
+          poster_done?: boolean | null
           poster_url?: string | null
           updated_at?: string | null
           updated_by?: string | null
@@ -583,7 +692,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       course_attendance: {
@@ -720,27 +829,21 @@ export type Database = {
       course_marketers: {
         Row: {
           course_id: string
-          created_at: string
+          created_at: string | null
           id: string
-          name: string
-          phone: string | null
-          volunteer_id: string | null
+          volunteer_id: string
         }
         Insert: {
           course_id: string
-          created_at?: string
+          created_at?: string | null
           id?: string
-          name: string
-          phone?: string | null
-          volunteer_id?: string | null
+          volunteer_id: string
         }
         Update: {
           course_id?: string
-          created_at?: string
+          created_at?: string | null
           id?: string
-          name?: string
-          phone?: string | null
-          volunteer_id?: string | null
+          volunteer_id?: string
         }
         Relationships: [
           {
@@ -909,6 +1012,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "courses_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "courses_committee_id_fkey"
             columns: ["committee_id"]
             isOneToOne: false
@@ -933,6 +1043,7 @@ export type Database = {
       }
       ethics_calls: {
         Row: {
+          accepted_count: number | null
           calls_count: number | null
           created_at: string | null
           created_by: string | null
@@ -943,6 +1054,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          accepted_count?: number | null
           calls_count?: number | null
           created_at?: string | null
           created_by?: string | null
@@ -953,6 +1065,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          accepted_count?: number | null
           calls_count?: number | null
           created_at?: string | null
           created_by?: string | null
@@ -1005,30 +1118,56 @@ export type Database = {
           },
         ]
       }
-      event_organizers: {
+      event_beneficiaries: {
         Row: {
           created_at: string | null
-          event_id: string | null
+          event_id: string
           id: string
           name: string
           phone: string | null
-          volunteer_id: string | null
         }
         Insert: {
           created_at?: string | null
-          event_id?: string | null
+          event_id: string
           id?: string
           name: string
           phone?: string | null
-          volunteer_id?: string | null
         }
         Update: {
           created_at?: string | null
-          event_id?: string | null
+          event_id?: string
           id?: string
           name?: string
           phone?: string | null
-          volunteer_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_beneficiaries_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_organizers: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          volunteer_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          volunteer_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          volunteer_id?: string
         }
         Relationships: [
           {
@@ -1095,6 +1234,41 @@ export type Database = {
           },
         ]
       }
+      event_speakers: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          name: string
+          phone: string | null
+          social_media_link: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          name: string
+          phone?: string | null
+          social_media_link?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          social_media_link?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_speakers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           branch_id: string | null
@@ -1140,6 +1314,20 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "events_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_committee_id_fkey"
+            columns: ["committee_id"]
+            isOneToOne: false
+            referencedRelation: "committees"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "events_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -1148,69 +1336,43 @@ export type Database = {
           },
         ]
       }
-      event_beneficiaries: {
+      fine_types: {
         Row: {
-          created_at: string | null
-          event_id: string
+          amount: number
+          branch_id: string | null
+          created_at: string
+          created_by: string | null
+          default_points: number | null
           id: string
           name: string
-          phone: string | null
+          name_ar: string
         }
         Insert: {
-          created_at?: string | null
-          event_id: string
+          amount?: number
+          branch_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          default_points?: number | null
           id?: string
           name: string
-          phone?: string | null
+          name_ar: string
         }
         Update: {
-          created_at?: string | null
-          event_id?: string
+          amount?: number
+          branch_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          default_points?: number | null
           id?: string
           name?: string
-          phone?: string | null
+          name_ar?: string
         }
         Relationships: [
           {
-            foreignKeyName: "event_beneficiaries_event_id_fkey"
-            columns: ["event_id"]
+            foreignKeyName: "fine_types_branch_id_fkey"
+            columns: ["branch_id"]
             isOneToOne: false
-            referencedRelation: "events"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      event_speakers: {
-        Row: {
-          created_at: string | null
-          event_id: string
-          id: string
-          name: string
-          phone: string | null
-          social_media_link: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          event_id: string
-          id?: string
-          name: string
-          phone?: string | null
-          social_media_link?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          event_id?: string
-          id?: string
-          name?: string
-          phone?: string | null
-          social_media_link?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_speakers_event_id_fkey"
-            columns: ["event_id"]
-            isOneToOne: false
-            referencedRelation: "events"
+            referencedRelation: "branches"
             referencedColumns: ["id"]
           },
         ]
@@ -1218,7 +1380,8 @@ export type Database = {
       group_submissions: {
         Row: {
           activity_type_id: string
-          committee_id: string
+          branch_id: string | null
+          committee_id: string | null
           created_at: string
           excel_sheet_url: string | null
           guest_participants: Json | null
@@ -1228,7 +1391,8 @@ export type Database = {
         }
         Insert: {
           activity_type_id: string
-          committee_id: string
+          branch_id?: string | null
+          committee_id?: string | null
           created_at?: string
           excel_sheet_url?: string | null
           guest_participants?: Json | null
@@ -1238,7 +1402,8 @@ export type Database = {
         }
         Update: {
           activity_type_id?: string
-          committee_id?: string
+          branch_id?: string | null
+          committee_id?: string | null
           created_at?: string
           excel_sheet_url?: string | null
           guest_participants?: Json | null
@@ -1255,6 +1420,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "group_submissions_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "group_submissions_committee_id_fkey"
             columns: ["committee_id"]
             isOneToOne: false
@@ -1266,6 +1438,87 @@ export type Database = {
             columns: ["leader_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interested_beneficiaries: {
+        Row: {
+          branch_id: string | null
+          committee_category: string
+          created_at: string | null
+          created_by: string | null
+          gender_age_group: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string
+          production_committee_id: string | null
+          source_circle_id: string | null
+          source_course_id: string | null
+        }
+        Insert: {
+          branch_id?: string | null
+          committee_category: string
+          created_at?: string | null
+          created_by?: string | null
+          gender_age_group?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone: string
+          production_committee_id?: string | null
+          source_circle_id?: string | null
+          source_course_id?: string | null
+        }
+        Update: {
+          branch_id?: string | null
+          committee_category?: string
+          created_at?: string | null
+          created_by?: string | null
+          gender_age_group?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string
+          production_committee_id?: string | null
+          source_circle_id?: string | null
+          source_course_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interested_beneficiaries_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interested_beneficiaries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interested_beneficiaries_production_committee_id_fkey"
+            columns: ["production_committee_id"]
+            isOneToOne: false
+            referencedRelation: "committees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interested_beneficiaries_source_circle_id_fkey"
+            columns: ["source_circle_id"]
+            isOneToOne: false
+            referencedRelation: "quran_circles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interested_beneficiaries_source_course_id_fkey"
+            columns: ["source_course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
             referencedColumns: ["id"]
           },
         ]
@@ -1286,7 +1539,7 @@ export type Database = {
           full_name: string | null
           full_name_ar: string | null
           id: string
-          is_active: boolean | null
+          is_active: boolean
           is_ashbal: boolean | null
           join_date: string
           last_seen_at: string | null
@@ -1294,6 +1547,7 @@ export type Database = {
           phone: string | null
           total_points: number
           updated_at: string
+          version: number
         }
         Insert: {
           activities_count?: number
@@ -1310,7 +1564,7 @@ export type Database = {
           full_name?: string | null
           full_name_ar?: string | null
           id: string
-          is_active?: boolean | null
+          is_active?: boolean
           is_ashbal?: boolean | null
           join_date?: string
           last_seen_at?: string | null
@@ -1318,6 +1572,7 @@ export type Database = {
           phone?: string | null
           total_points?: number
           updated_at?: string
+          version?: number
         }
         Update: {
           activities_count?: number
@@ -1334,7 +1589,7 @@ export type Database = {
           full_name?: string | null
           full_name_ar?: string | null
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
           is_ashbal?: boolean | null
           join_date?: string
           last_seen_at?: string | null
@@ -1342,8 +1597,16 @@ export type Database = {
           phone?: string | null
           total_points?: number
           updated_at?: string
+          version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_committee_id_fkey"
             columns: ["committee_id"]
@@ -1355,45 +1618,59 @@ export type Database = {
       }
       quran_beneficiaries: {
         Row: {
-          birth_date: string | null
+          beneficiary_type: string | null
           branch_id: string | null
-          beneficiary_type: string
           created_at: string
-          gender: string
+          created_by: string | null
+          current_parts: number
+          gender: string | null
           id: string
           image_url: string | null
           name_ar: string
           name_en: string | null
           phone: string
-          updated_at: string | null
+          previous_parts: number
+          updated_at: string
         }
         Insert: {
-          birth_date?: string | null
+          beneficiary_type?: string | null
           branch_id?: string | null
-          beneficiary_type: string
           created_at?: string
-          gender: string
+          created_by?: string | null
+          current_parts?: number
+          gender?: string | null
           id?: string
           image_url?: string | null
           name_ar: string
           name_en?: string | null
           phone: string
-          updated_at?: string | null
+          previous_parts?: number
+          updated_at?: string
         }
         Update: {
-          birth_date?: string | null
+          beneficiary_type?: string | null
           branch_id?: string | null
-          beneficiary_type?: string
           created_at?: string
-          gender?: string
+          created_by?: string | null
+          current_parts?: number
+          gender?: string | null
           id?: string
           image_url?: string | null
           name_ar?: string
           name_en?: string | null
           phone?: string
-          updated_at?: string | null
+          previous_parts?: number
+          updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "quran_beneficiaries_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quran_circle_ads: {
         Row: {
@@ -1401,11 +1678,11 @@ export type Database = {
           ad_number: number
           circle_id: string
           content: string | null
-          content_done: boolean
+          content_done: boolean | null
           created_at: string | null
           created_by: string | null
           id: string
-          poster_done: boolean
+          poster_done: boolean | null
           poster_url: string | null
           updated_at: string | null
           updated_by: string | null
@@ -1415,11 +1692,11 @@ export type Database = {
           ad_number: number
           circle_id: string
           content?: string | null
-          content_done?: boolean
+          content_done?: boolean | null
           created_at?: string | null
           created_by?: string | null
           id?: string
-          poster_done?: boolean
+          poster_done?: boolean | null
           poster_url?: string | null
           updated_at?: string | null
           updated_by?: string | null
@@ -1429,11 +1706,11 @@ export type Database = {
           ad_number?: number
           circle_id?: string
           content?: string | null
-          content_done?: boolean
+          content_done?: boolean | null
           created_at?: string | null
           created_by?: string | null
           id?: string
-          poster_done?: boolean
+          poster_done?: boolean | null
           poster_url?: string | null
           updated_at?: string | null
           updated_by?: string | null
@@ -1466,25 +1743,31 @@ export type Database = {
         Row: {
           attendance_type: string | null
           beneficiary_id: string
-          circle_id: string | null
+          circle_id: string
           created_at: string
-          id: string
+          memorization_log: Json | null
+          notes: string | null
+          revision_log: Json | null
           session_id: string
         }
         Insert: {
           attendance_type?: string | null
           beneficiary_id: string
-          circle_id?: string | null
+          circle_id: string
           created_at?: string
-          id?: string
+          memorization_log?: Json | null
+          notes?: string | null
+          revision_log?: Json | null
           session_id: string
         }
         Update: {
           attendance_type?: string | null
           beneficiary_id?: string
-          circle_id?: string | null
+          circle_id?: string
           created_at?: string
-          id?: string
+          memorization_log?: Json | null
+          notes?: string | null
+          revision_log?: Json | null
           session_id?: string
         }
         Relationships: [
@@ -1514,19 +1797,19 @@ export type Database = {
       quran_circle_marketers: {
         Row: {
           circle_id: string
-          created_at: string
+          created_at: string | null
           id: string
           volunteer_id: string
         }
         Insert: {
           circle_id: string
-          created_at?: string
+          created_at?: string | null
           id?: string
           volunteer_id: string
         }
         Update: {
           circle_id?: string
-          created_at?: string
+          created_at?: string | null
           id?: string
           volunteer_id?: string
         }
@@ -1550,7 +1833,7 @@ export type Database = {
       quran_circle_organizers: {
         Row: {
           circle_id: string
-          created_at: string
+          created_at: string | null
           id: string
           name: string
           phone: string | null
@@ -1558,7 +1841,7 @@ export type Database = {
         }
         Insert: {
           circle_id: string
-          created_at?: string
+          created_at?: string | null
           id?: string
           name: string
           phone?: string | null
@@ -1566,7 +1849,7 @@ export type Database = {
         }
         Update: {
           circle_id?: string
-          created_at?: string
+          created_at?: string | null
           id?: string
           name?: string
           phone?: string | null
@@ -1592,7 +1875,7 @@ export type Database = {
       quran_circle_sessions: {
         Row: {
           circle_id: string
-          created_at: string
+          created_at: string | null
           id: string
           notes: string | null
           organizer_id: string | null
@@ -1600,7 +1883,7 @@ export type Database = {
         }
         Insert: {
           circle_id: string
-          created_at?: string
+          created_at?: string | null
           id?: string
           notes?: string | null
           organizer_id?: string | null
@@ -1608,7 +1891,7 @@ export type Database = {
         }
         Update: {
           circle_id?: string
-          created_at?: string
+          created_at?: string | null
           id?: string
           notes?: string | null
           organizer_id?: string | null
@@ -1616,10 +1899,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_session_circle"
+            columns: ["circle_id"]
+            isOneToOne: false
+            referencedRelation: "quran_circles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "quran_circle_sessions_circle_id_fkey"
             columns: ["circle_id"]
             isOneToOne: false
             referencedRelation: "quran_circles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quran_circle_sessions_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "quran_circle_organizers"
             referencedColumns: ["id"]
           },
         ]
@@ -1639,6 +1936,8 @@ export type Database = {
           schedule: Json | null
           target_group: string | null
           teacher_id: string | null
+          updated_by: string | null
+          version: number
         }
         Insert: {
           beneficiary_gender?: string | null
@@ -1654,6 +1953,8 @@ export type Database = {
           schedule?: Json | null
           target_group?: string | null
           teacher_id?: string | null
+          updated_by?: string | null
+          version?: number
         }
         Update: {
           beneficiary_gender?: string | null
@@ -1669,8 +1970,17 @@ export type Database = {
           schedule?: Json | null
           target_group?: string | null
           teacher_id?: string | null
+          updated_by?: string | null
+          version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "quran_circles_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "quran_circles_organizer_id_fkey"
             columns: ["organizer_id"]
@@ -1691,23 +2001,32 @@ export type Database = {
         Row: {
           beneficiary_id: string
           circle_id: string
-          created_at: string
+          created_at: string | null
+          enrollment_date: string | null
           id: string
+          notes: string | null
           status: string | null
+          updated_at: string | null
         }
         Insert: {
           beneficiary_id: string
           circle_id: string
-          created_at?: string
+          created_at?: string | null
+          enrollment_date?: string | null
           id?: string
+          notes?: string | null
           status?: string | null
+          updated_at?: string | null
         }
         Update: {
           beneficiary_id?: string
           circle_id?: string
-          created_at?: string
+          created_at?: string | null
+          enrollment_date?: string | null
           id?: string
+          notes?: string | null
           status?: string | null
+          updated_at?: string | null
         }
         Relationships: [
           {
@@ -1722,6 +2041,74 @@ export type Database = {
             columns: ["circle_id"]
             isOneToOne: false
             referencedRelation: "quran_circles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quran_progress_history: {
+        Row: {
+          beneficiary_id: string | null
+          change_amount: number | null
+          created_at: string
+          id: string
+          new_parts: number
+        }
+        Insert: {
+          beneficiary_id?: string | null
+          change_amount?: number | null
+          created_at?: string
+          id?: string
+          new_parts: number
+        }
+        Update: {
+          beneficiary_id?: string | null
+          change_amount?: number | null
+          created_at?: string
+          id?: string
+          new_parts?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quran_progress_history_beneficiary_id_fkey"
+            columns: ["beneficiary_id"]
+            isOneToOne: false
+            referencedRelation: "quran_beneficiaries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quran_session_supervisors: {
+        Row: {
+          created_at: string | null
+          id: string
+          organizer_id: string
+          session_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          organizer_id: string
+          session_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          organizer_id?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quran_session_supervisors_organizer_id_fkey"
+            columns: ["organizer_id"]
+            isOneToOne: false
+            referencedRelation: "quran_circle_organizers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quran_session_supervisors_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "quran_circle_sessions"
             referencedColumns: ["id"]
           },
         ]
@@ -1767,6 +2154,13 @@ export type Database = {
           volunteer_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "quran_teachers_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "quran_teachers_user_id_fkey"
             columns: ["user_id"]
@@ -1817,28 +2211,28 @@ export type Database = {
       }
       trainer_lecture_records: {
         Row: {
-          course_id: string
+          course_id: string | null
           created_at: string | null
           id: string
-          lecture_id: string
+          lecture_id: string | null
           trainer_name: string
           trainer_phone: string | null
           volunteer_id: string | null
         }
         Insert: {
-          course_id: string
+          course_id?: string | null
           created_at?: string | null
           id?: string
-          lecture_id: string
+          lecture_id?: string | null
           trainer_name: string
           trainer_phone?: string | null
           volunteer_id?: string | null
         }
         Update: {
-          course_id?: string
+          course_id?: string | null
           created_at?: string | null
           id?: string
-          lecture_id?: string
+          lecture_id?: string | null
           trainer_name?: string
           trainer_phone?: string | null
           volunteer_id?: string | null
@@ -1912,10 +2306,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "trainers_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "trainers_committee_id_fkey"
             columns: ["committee_id"]
             isOneToOne: false
             referencedRelation: "committees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trainers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1923,18 +2331,21 @@ export type Database = {
       user_badges: {
         Row: {
           badge_id: string
+          branch_id: string | null
           earned_at: string
           id: string
           user_id: string
         }
         Insert: {
           badge_id: string
+          branch_id?: string | null
           earned_at?: string
           id?: string
           user_id: string
         }
         Update: {
           badge_id?: string
+          branch_id?: string | null
           earned_at?: string
           id?: string
           user_id?: string
@@ -1948,6 +2359,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "user_badges_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "user_badges_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
@@ -1955,24 +2373,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      user_roles: {
-        Row: {
-          id: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
-        Update: {
-          id?: string
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
-        }
-        Relationships: []
       }
       user_features: {
         Row: {
@@ -2013,6 +2413,24 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       users_followup: {
         Row: {
           branch: string | null
@@ -2024,6 +2442,9 @@ export type Database = {
           phone_1: string
           phone_2: string | null
           status: string
+          updated_at: string
+          updated_by: string | null
+          version: number
         }
         Insert: {
           branch?: string | null
@@ -2035,6 +2456,9 @@ export type Database = {
           phone_1: string
           phone_2?: string | null
           status?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
         }
         Update: {
           branch?: string | null
@@ -2046,65 +2470,252 @@ export type Database = {
           phone_1?: string
           phone_2?: string | null
           status?: string
+          updated_at?: string
+          updated_by?: string | null
+          version?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_linked_to"
+            columns: ["linked_to"]
+            isOneToOne: false
+            referencedRelation: "users_followup"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "users_followup_branch_id_fkey"
             columns: ["branch_id"]
             isOneToOne: false
             referencedRelation: "branches"
             referencedColumns: ["id"]
-          }
+          },
+          {
+            foreignKeyName: "users_followup_linked_to_fkey"
+            columns: ["linked_to"]
+            isOneToOne: false
+            referencedRelation: "users_followup"
+            referencedColumns: ["id"]
+          },
         ]
       }
       volunteer_feedbacks: {
-        Row: Record<string, Json | undefined>
-        Insert: Record<string, Json | undefined>
-        Update: Record<string, Json | undefined>
-        Relationships: []
+        Row: {
+          author_id: string
+          branch_id: string | null
+          content: string
+          created_at: string
+          id: string
+          volunteer_id: string
+        }
+        Insert: {
+          author_id: string
+          branch_id?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          volunteer_id: string
+        }
+        Update: {
+          author_id?: string
+          branch_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          volunteer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "volunteer_feedbacks_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "volunteer_feedbacks_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "volunteer_feedbacks_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       volunteer_fines: {
-        Row: Record<string, Json | undefined>
-        Insert: Record<string, Json | undefined>
-        Update: Record<string, Json | undefined>
-        Relationships: []
-      }
-      fine_types: {
-        Row: Record<string, Json | undefined>
-        Insert: Record<string, Json | undefined>
-        Update: Record<string, Json | undefined>
-        Relationships: []
+        Row: {
+          amount: number
+          branch_id: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          fine_type_id: string
+          id: string
+          is_paid: boolean | null
+          paid_at: string | null
+          volunteer_id: string
+        }
+        Insert: {
+          amount: number
+          branch_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          fine_type_id: string
+          id?: string
+          is_paid?: boolean | null
+          paid_at?: string | null
+          volunteer_id: string
+        }
+        Update: {
+          amount?: number
+          branch_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          fine_type_id?: string
+          id?: string
+          is_paid?: boolean | null
+          paid_at?: string | null
+          volunteer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "volunteer_fines_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "volunteer_fines_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "volunteer_fines_fine_type_id_fkey"
+            columns: ["fine_type_id"]
+            isOneToOne: false
+            referencedRelation: "fine_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "volunteer_fines_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
       volunteer_fines_view: {
-        Row: Record<string, Json | undefined>
-        Relationships: []
+        Row: {
+          amount: number | null
+          branch_id: string | null
+          created_at: string | null
+          is_paid: boolean | null
+          reviewed_by_name: string | null
+          reviewed_by_name_ar: string | null
+          source_id: string | null
+          source_name: string | null
+          source_name_ar: string | null
+          source_type: string | null
+          volunteer_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "volunteer_fines_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "volunteer_fines_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Functions: {
-      award_ethics_call_points: { Args: { participants: Json }; Returns: undefined }
+      award_ethics_call_points: {
+        Args: { participants: Json }
+        Returns: undefined
+      }
       calculate_level: {
         Args: { points: number }
         Returns: Database["public"]["Enums"]["volunteer_level"]
       }
+      can_view_all_branches: { Args: { _user_id: string }; Returns: boolean }
       check_room_conflict: {
         Args: {
+          p_end_date: string
+          p_exclude_course_id?: string
           p_room: string
           p_schedule_days: string[]
+          p_schedule_end_time: string
           p_schedule_time: string
-          p_schedule_end_time: string | null
           p_start_date: string
-          p_end_date: string | null
-          p_exclude_course_id?: string | null
         }
         Returns: {
-          conflicting_course_name: string
           conflicting_committee_name: string
           conflicting_committee_name_ar: string
+          conflicting_course_name: string
         }[]
       }
+      check_version: {
+        Args: {
+          expected_version: number
+          record_id: string
+          table_name: string
+        }
+        Returns: boolean
+      }
       delete_user_account: { Args: { target_user_id: string }; Returns: Json }
+      get_branch_top_volunteers: {
+        Args: { p_branch_id: string; p_month_only?: boolean }
+        Returns: {
+          avatar_url: string
+          count: number
+          full_name: string
+          full_name_ar: string
+          id: string
+          level: Database["public"]["Enums"]["volunteer_level"]
+        }[]
+      }
+      get_committee_name_for_role: {
+        Args: { role_name: string }
+        Returns: string
+      }
+      get_committees_with_stats: {
+        Args: { p_end_date?: string; p_start_date?: string }
+        Returns: {
+          color: string
+          committee_type: string
+          description: string
+          description_ar: string
+          id: string
+          name: string
+          name_ar: string
+          participation_count: number
+          total_points: number
+          trainer_count: number
+          volunteer_count: number
+        }[]
+      }
+      get_default_branch_id: { Args: never; Returns: string }
       get_leaderboard: {
         Args: {
           committee_filter?: string
@@ -2124,6 +2735,7 @@ export type Database = {
           volunteer_id: string
         }[]
       }
+      get_my_branch_id: { Args: never; Returns: string }
       get_trainer_stats: {
         Args: { p_trainer_id: string }
         Returns: {
@@ -2131,46 +2743,10 @@ export type Database = {
           courses_count: number
         }[]
       }
-      list_trainers_with_stats: {
-        Args: {
-          p_branch_id?: string | null
-          p_committee_id?: string | null
-          p_today?: string
-        }
-        Returns: {
-          branch_id: string | null
-          certificates_delivered_count: number
-          committee_id: string | null
-          committee_name: string | null
-          committee_name_ar: string | null
-          completed_courses_count: number
-          courses_count: number
-          created_at: string
-          id: string
-          image_url: string | null
-          is_active: boolean
-          join_date: string
-          linked_user_email: string | null
-          linked_user_full_name: string | null
-          name_ar: string
-          name_en: string
-          phone: string | null
-          specialization: string | null
-          user_id: string | null
-        }[]
-      }
-      save_course_with_relations: {
-        Args: {
-          p_ad_dates?: string[]
-          p_course: Json
-          p_course_id: string | null
-          p_lecture_dates: string[]
-          p_marketers?: Json
-          p_organizers?: Json
-          p_trainer_ids?: string[]
-        }
-        Returns: string
-      }
+      get_user_branch_id:
+        | { Args: never; Returns: string }
+        | { Args: { _user_id: string }; Returns: string }
+      get_user_branch_id_safe: { Args: { _user_id: string }; Returns: string }
       get_user_committee_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -2179,36 +2755,102 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin_or_exec: { Args: never; Returns: boolean }
+      is_admin_or_executive: { Args: never; Returns: boolean }
+      is_branch_admin: { Args: never; Returns: boolean }
+      is_branch_manager: { Args: never; Returns: boolean }
+      is_branch_role_manager: { Args: never; Returns: boolean }
+      is_delegated_role: {
+        Args: { target_role: Database["public"]["Enums"]["app_role"] }
+        Returns: boolean
+      }
+      is_global_admin: { Args: never; Returns: boolean }
+      is_same_branch_target: {
+        Args: { target_user_id: string }
+        Returns: boolean
+      }
+      list_trainers_with_stats: {
+        Args: {
+          p_branch_id?: string
+          p_committee_id?: string
+          p_today?: string
+        }
+        Returns: {
+          branch_id: string
+          certificates_delivered_count: number
+          committee_id: string
+          committee_name: string
+          committee_name_ar: string
+          completed_courses_count: number
+          courses_count: number
+          created_at: string
+          id: string
+          image_url: string
+          is_active: boolean
+          join_date: string
+          linked_user_email: string
+          linked_user_full_name: string
+          name_ar: string
+          name_en: string
+          phone: string
+          specialization: string
+          user_id: string
+        }[]
+      }
+      normalize_phone_eg: { Args: { raw: string }; Returns: string }
+      renew_ashbal_target: { Args: never; Returns: Json }
+      save_course_with_relations: {
+        Args: {
+          p_ad_dates?: string[]
+          p_course: Json
+          p_course_id: string
+          p_lecture_dates?: string[]
+          p_marketers?: Json
+          p_organizers?: Json
+          p_trainer_ids?: string[]
+        }
+        Returns: string
+      }
+      update_user_password: {
+        Args: { new_password: string; target_user_id: string }
+        Returns: Json
+      }
+      user_can_manage_event: {
+        Args: { event_committee_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       activity_mode: "individual" | "group"
       app_role:
-      | "admin"
-      | "supervisor"
-      | "committee_leader"
-      | "volunteer"
-      | "hr"
-      | "head_hr"
-      | "head_caravans"
-      | "head_production"
-      | "head_fourth_year"
-      | "head_events"
-      | "head_ethics"
-      | "head_quran"
-      | "head_marketing"
-      | "head_ashbal"
-      | "marketing_member"
+        | "admin"
+        | "supervisor"
+        | "committee_leader"
+        | "volunteer"
+        | "hr"
+        | "head_hr"
+        | "head_caravans"
+        | "head_production"
+        | "head_fourth_year"
+        | "head_events"
+        | "head_ethics"
+        | "head_quran"
+        | "head_ashbal"
+        | "marketing_member"
+        | "head_marketing"
+        | "branch_admin"
+        | "executive"
       participant_type: "volunteer" | "trainer" | "guest"
       submission_status: "pending" | "approved" | "rejected"
       volunteer_level:
-      | "bronze"
-      | "silver"
-      | "gold"
-      | "platinum"
-      | "diamond"
-      | "under_follow_up"
-      | "project_responsible"
-      | "responsible"
+        | "bronze"
+        | "silver"
+        | "gold"
+        | "platinum"
+        | "diamond"
+        | "under_follow_up"
+        | "project_responsible"
+        | "responsible"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2222,116 +2864,116 @@ type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-  | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-  : never = never,
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-    DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
-  ? R
-  : never
+    ? R
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])
-  ? (DefaultSchema["Tables"] &
-    DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-      Row: infer R
-    }
-  ? R
-  : never
-  : never
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
+      Insert: infer I
+    }
+    ? I
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Insert: infer I
-  }
-  ? I
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-  | keyof DefaultSchema["Tables"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
   TableName extends DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-    Update: infer U
-  }
-  ? U
-  : never
+      Update: infer U
+    }
+    ? U
+    : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-  ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-    Update: infer U
-  }
-  ? U
-  : never
-  : never
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-  | keyof DefaultSchema["Enums"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
   EnumName extends DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-  ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-  : never
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-  | keyof DefaultSchema["CompositeTypes"]
-  | { schema: keyof DatabaseWithoutInternals },
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-  ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-  : never = never,
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-  ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-  : never
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
 
 export const Constants = {
   public: {
@@ -2350,10 +2992,13 @@ export const Constants = {
         "head_events",
         "head_ethics",
         "head_quran",
-        "head_marketing",
         "head_ashbal",
         "marketing_member",
+        "head_marketing",
+        "branch_admin",
+        "executive",
       ],
+      participant_type: ["volunteer", "trainer", "guest"],
       submission_status: ["pending", "approved", "rejected"],
       volunteer_level: [
         "bronze",
