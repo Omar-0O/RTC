@@ -92,7 +92,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const currentProfile = profileRef.current;
     if (!currentProfile || currentProfile.id !== nextSession.user.id) {
-      void fetchProfile(nextSession.user.id);
+      // Defer profile fetch by one tick so the SDK fully settles the new
+      // session/token before we fire DB queries that call _getAccessToken
+      // internally. Firing them synchronously inside onAuthStateChange can
+      // trigger a refresh attempt on a token that was just written, causing
+      // 429 rate-limit errors on the Supabase auth endpoint.
+      setTimeout(() => { void fetchProfile(nextSession.user.id); }, 0);
     }
   }, [clearAuthState, fetchProfile]);
 

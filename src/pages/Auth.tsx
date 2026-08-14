@@ -134,9 +134,16 @@ export default function Auth() {
         return;
       }
 
-      // Purge any expired token silently (no auth events fired).
-      // This prevents the SDK from attempting a refresh_token call before
-      // signInWithPassword, which would trigger 429 rate-limit errors.
+      // Clear any existing local session BEFORE signing in.
+      // signOut({ scope: 'local' }) only wipes localStorage — no HTTP request is made.
+      // This prevents the SDK from trying to refresh a stale/invalid refresh_token
+      // that it finds in storage during the signInWithPassword flow, which causes 429.
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // Ignore errors — we're clearing local state only
+      }
+      // Also purge any expired token from storage (belt-and-suspenders)
       purgeExpiredAuthToken();
 
       const { data, error } = await supabase.auth.signInWithPassword({
