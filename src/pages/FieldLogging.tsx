@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { normalizePhoneE164 } from '@/utils/phoneUtils';
+import { isFutureDate } from '@/utils/dateUtils';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
@@ -337,12 +338,12 @@ export default function FieldLogging() {
     if (!selectedBranchId) return;
     setLoadingTopVolunteers(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .rpc('get_branch_top_volunteers', { p_branch_id: selectedBranchId, p_month_only: true });
 
       if (error) throw error;
 
-      const allSorted = (data || []).map((item: { id: string; full_name: string | null; full_name_ar: string | null; avatar_url: string | null; level: string | null; count: number }) => ({
+      const allSorted = ((data as any[]) || []).map((item: { id: string; full_name: string | null; full_name_ar: string | null; avatar_url: string | null; level: string | null; count: number }) => ({
         id: item.id,
         full_name: item.full_name || '',
         full_name_ar: item.full_name_ar || '',
@@ -973,7 +974,7 @@ export default function FieldLogging() {
           proof_url: proofUrl,
           points_awarded: pointsAwarded,
           participant_type: 'volunteer' as const,
-          status: 'pending' as const,
+          status: 'approved' as const,
           submitted_at: submissionTimestamp,
           branch_id: selectedBranchId || null,
           participants_count: 1
@@ -994,7 +995,7 @@ export default function FieldLogging() {
           proof_url: proofUrl,
           points_awarded: pointsAwarded,
           participant_type: 'guest' as const,
-          status: 'pending' as const,
+          status: 'approved' as const,
           submitted_at: submissionTimestamp,
           branch_id: selectedBranchId || null,
           participants_count: 1
@@ -1129,8 +1130,8 @@ export default function FieldLogging() {
               {isRTL ? 'تسجيل مشاركات الميداني' : 'Field Participation Logging'}
             </h1>
             <p className="text-muted-foreground text-sm">
-              {isRTL 
-                ? 'يرجى تحديد فرع هذا الجهاز للبدء:' 
+              {isRTL
+                ? 'يرجى تحديد فرع هذا الجهاز للبدء:'
                 : 'Please select this device\'s branch to start:'}
             </p>
           </div>
@@ -1945,8 +1946,8 @@ export default function FieldLogging() {
                                   <div className={cn(
                                     "h-7 w-7 rounded-full flex items-center justify-center font-bold text-xs shrink-0",
                                     idx === 0 ? "bg-amber-500 text-white shadow-md" :
-                                    idx === 1 ? "bg-slate-400 text-white shadow-sm" :
-                                    "bg-amber-700 text-white shadow-sm"
+                                      idx === 1 ? "bg-slate-400 text-white shadow-sm" :
+                                        "bg-amber-700 text-white shadow-sm"
                                   )}>
                                     {idx + 1}
                                   </div>
@@ -1984,89 +1985,85 @@ export default function FieldLogging() {
 
             {/* History panel — only show when phone typed */}
             {phone.trim() && (
-            <Card className="border-0 shadow-xl bg-gradient-to-b from-card to-card/95 overflow-hidden">
-            <CardHeader className="pb-4 border-b border-border/50 bg-muted/30">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <History className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <CardTitle className="text-xl">{isRTL ? 'سجل المشاركات الأخيرة للميداني' : 'Recent Field Participations'}</CardTitle>
-                  <CardDescription className="text-sm">
-                    {isRTL ? 'آخر المشاركات التي قمت بتسجيلها مؤخراً' : 'Your past registered check-ins on this mobile number'}
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-6">
-              {!hasSearched ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-                  <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center shadow-inner animate-pulse">
-                    <Phone className="h-10 w-10 text-muted-foreground/30" />
+              <Card className="border-0 shadow-xl bg-gradient-to-b from-card to-card/95 overflow-hidden">
+                <CardHeader className="pb-4 border-b border-border/50 bg-muted/30">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <History className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">{isRTL ? 'سجل المشاركات الأخيرة للميداني' : 'Recent Field Participations'}</CardTitle>
+                      <CardDescription className="text-sm">
+                        {isRTL ? 'آخر المشاركات التي قمت بتسجيلها مؤخراً' : 'Your past registered check-ins on this mobile number'}
+                      </CardDescription>
+                    </div>
                   </div>
-                </div>
-              ) : loadingSubmissions ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
-                  <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                  <p className="text-sm text-muted-foreground">{isRTL ? 'جاري تحميل السجل...' : 'Loading history...'}</p>
-                </div>
-              ) : submissions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
-                  <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
-                    <History className="h-8 w-8 text-muted-foreground/50" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="font-semibold text-muted-foreground">{isRTL ? 'لا توجد مشاركات مسجلة' : 'No logged participations'}</p>
-                    <p className="text-xs text-muted-foreground/70 max-w-[200px] mx-auto">
-                      {isRTL ? 'سجل مشاركتك الأولى بالميداني اليوم!' : 'Be the first to log your field visit today!'}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid gap-4 grid-cols-1">
-                  {submissions.map((sub) => (
-                    <div
-                      key={sub.id}
-                      className="relative overflow-hidden rounded-xl border border-border bg-card hover:bg-muted/10 p-4 transition-all duration-300 hover:shadow-md hover:border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
-                    >
-                      {/* Status accent bar */}
-                      <div className={cn(
-                        "absolute top-0 bottom-0 start-0 w-1.5",
-                        sub.status === 'approved' ? 'bg-success' :
-                        sub.status === 'rejected' ? 'bg-destructive' : 'bg-warning'
-                      )} />
+                </CardHeader>
 
-                      <div className="flex items-start gap-3 flex-1 min-w-0 ps-3">
-                        <div className="h-11 w-11 shrink-0 rounded-lg bg-primary/5 flex items-center justify-center border border-primary/10 shadow-sm">
-                          <Activity className="h-5.5 w-5.5 text-primary/60" />
-                        </div>
-                        <div className="space-y-1.5 flex-1 min-w-0">
-                          <p className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors leading-snug break-words">
-                            {sub.activity_name}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1 shrink-0 bg-muted/80 text-muted-foreground px-2 py-0.5 rounded-md font-medium">
-                              <Building2 className="h-3.5 w-3.5 shrink-0" />
-                              <span>{sub.committee_name}</span>
-                            </span>
-                            <span className="text-muted-foreground/30">•</span>
-                            <span className="shrink-0">{formatDate(sub.submitted_at)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-row sm:flex-col sm:items-end justify-between sm:justify-center items-center gap-2 pt-2.5 sm:pt-0 border-t sm:border-0 border-border/40 min-w-[90px] ps-3 sm:ps-0">
-                        <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary shadow-sm border border-primary/5" dir="ltr">
-                          +{sub.points}
-                        </span>
+                <CardContent className="p-6">
+                  {!hasSearched ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+                      <div className="h-20 w-20 rounded-full bg-muted flex items-center justify-center shadow-inner animate-pulse">
+                        <Phone className="h-10 w-10 text-muted-foreground/30" />
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-            </Card>
+                  ) : loadingSubmissions ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
+                      <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                      <p className="text-sm text-muted-foreground">{isRTL ? 'جاري تحميل السجل...' : 'Loading history...'}</p>
+                    </div>
+                  ) : submissions.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
+                      <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+                        <History className="h-8 w-8 text-muted-foreground/50" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-semibold text-muted-foreground">{isRTL ? 'لا توجد مشاركات مسجلة' : 'No logged participations'}</p>
+                        <p className="text-xs text-muted-foreground/70 max-w-[200px] mx-auto">
+                          {isRTL ? 'سجل مشاركتك الأولى بالميداني اليوم!' : 'Be the first to log your field visit today!'}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 grid-cols-1">
+                      {submissions.map((sub) => (
+                        <div
+                          key={sub.id}
+                          className="relative overflow-hidden rounded-xl border border-border bg-card hover:bg-muted/10 p-4 transition-all duration-300 hover:shadow-md hover:border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
+                        >
+                          {/* Approved accent bar - all kiosk submissions are auto-approved */}
+                          <div className="absolute top-0 bottom-0 start-0 w-1.5 bg-success" />
+
+                          <div className="flex items-start gap-3 flex-1 min-w-0 ps-3">
+                            <div className="h-11 w-11 shrink-0 rounded-lg bg-primary/5 flex items-center justify-center border border-primary/10 shadow-sm">
+                              <Activity className="h-5.5 w-5.5 text-primary/60" />
+                            </div>
+                            <div className="space-y-1.5 flex-1 min-w-0">
+                              <p className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors leading-snug break-words">
+                                {sub.activity_name}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1 shrink-0 bg-muted/80 text-muted-foreground px-2 py-0.5 rounded-md font-medium">
+                                  <Building2 className="h-3.5 w-3.5 shrink-0" />
+                                  <span>{sub.committee_name}</span>
+                                </span>
+                                <span className="text-muted-foreground/30">•</span>
+                                <span className="shrink-0">{formatDate(sub.submitted_at)}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-row sm:flex-col sm:items-end justify-between sm:justify-center items-center gap-2 pt-2.5 sm:pt-0 border-t sm:border-0 border-border/40 min-w-[90px] ps-3 sm:ps-0">
+                            <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary shadow-sm border border-primary/5" dir="ltr">
+                              +{sub.points}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             )}
           </div>
 

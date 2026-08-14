@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { clearLegacyAuthStorage, markReauthenticationRequired, supabase } from '@/integrations/supabase/client';
+import { AUTH_STORAGE_KEY, clearLegacyAuthStorage, markReauthenticationRequired, supabase } from '@/integrations/supabase/client';
 import { useProfileHeartbeat } from '@/hooks/useProfileHeartbeat';
 import { getAuthData, type AuthProfile } from '@/services/auth.service';
 import { getPrimaryRole } from '@/utils/roles';
@@ -116,12 +116,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
 
         if (error) {
-          console.error('Unable to restore auth session:', error.message);
+          const is429 = isTerminalRefreshError(error);
+          console.error(
+            is429
+              ? '[Auth] Rate-limited (429) during session restore. Clearing storage to stop refresh loop.'
+              : 'Unable to restore auth session:',
+            error.message
+          );
           // Directly remove the bad token from storage WITHOUT firing signOut events.
           // Calling signOut triggers _notifyAllSubscribers which can cause the SDK
           // to attempt another refresh_token call, worsening 429 rate-limit issues.
           markReauthenticationRequired();
           clearLegacyAuthStorage();
+          // Also clear the main auth token to fully stop any pending refresh.
+          try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch { /* ignore */ }
           if (mounted) clearAuthState();
           return;
         }

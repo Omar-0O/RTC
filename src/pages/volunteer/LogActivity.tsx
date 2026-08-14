@@ -950,98 +950,98 @@ export default function LogActivity() {
                     })()}
                   </div>
 
-                    {/* Location Selection - Shared for Group */}
-                    <div className="space-y-2.5 pt-4 border-t">
-                      <Label className="text-sm font-medium flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground" />
-                        {t('activityLog.location')}
-                      </Label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => { setLocation('branch'); }}
-                          className={cn(
-                            "relative p-4 rounded-xl border-2 text-center transition-all",
-                            location === 'branch'
-                              ? "border-primary bg-primary/5 shadow-sm"
-                              : "border-border hover:border-primary/30 hover:bg-muted/50"
-                          )}
-                        >
-                          <Building2 className={cn(
-                            "h-6 w-6 mx-auto mb-2",
-                            location === 'branch' ? "text-primary" : "text-muted-foreground"
-                          )} />
-                          <span className={cn(
-                            "text-sm font-medium",
-                            location === 'branch' ? "text-primary" : "text-foreground"
-                          )}>
-                            {t('activityLog.branch')}
-                          </span>
-                          {location === 'branch' && (
-                            <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                              <Check className="h-3 w-3 text-white" />
-                            </div>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setLocation('home'); setWoreVest(false); }}
-                          className={cn(
-                            "relative p-4 rounded-xl border-2 text-center transition-all",
-                            location === 'home'
-                              ? "border-primary bg-primary/5 shadow-sm"
-                              : "border-border hover:border-primary/30 hover:bg-muted/50"
-                          )}
-                        >
-                          <svg className={cn(
-                            "h-6 w-6 mx-auto mb-2",
-                            location === 'home' ? "text-primary" : "text-muted-foreground"
-                          )} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                          </svg>
-                          <span className={cn(
-                            "text-sm font-medium",
-                            location === 'home' ? "text-primary" : "text-foreground"
-                          )}>
-                            {t('activityLog.home')}
-                          </span>
-                          {location === 'home' && (
-                            <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
-                              <Check className="h-3 w-3 text-white" />
-                            </div>
-                          )}
-                        </button>
+                  {/* Location Selection - Shared for Group */}
+                  <div className="space-y-2.5 pt-4 border-t">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      {t('activityLog.location')}
+                    </Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => { setLocation('branch'); }}
+                        className={cn(
+                          "relative p-4 rounded-xl border-2 text-center transition-all",
+                          location === 'branch'
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border hover:border-primary/30 hover:bg-muted/50"
+                        )}
+                      >
+                        <Building2 className={cn(
+                          "h-6 w-6 mx-auto mb-2",
+                          location === 'branch' ? "text-primary" : "text-muted-foreground"
+                        )} />
+                        <span className={cn(
+                          "text-sm font-medium",
+                          location === 'branch' ? "text-primary" : "text-foreground"
+                        )}>
+                          {t('activityLog.branch')}
+                        </span>
+                        {location === 'branch' && (
+                          <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setLocation('home'); setWoreVest(false); }}
+                        className={cn(
+                          "relative p-4 rounded-xl border-2 text-center transition-all",
+                          location === 'home'
+                            ? "border-primary bg-primary/5 shadow-sm"
+                            : "border-border hover:border-primary/30 hover:bg-muted/50"
+                        )}
+                      >
+                        <svg className={cn(
+                          "h-6 w-6 mx-auto mb-2",
+                          location === 'home' ? "text-primary" : "text-muted-foreground"
+                        )} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        <span className={cn(
+                          "text-sm font-medium",
+                          location === 'home' ? "text-primary" : "text-foreground"
+                        )}>
+                          {t('activityLog.home')}
+                        </span>
+                        {location === 'home' && (
+                          <div className="absolute top-2 right-2 h-5 w-5 rounded-full bg-primary flex items-center justify-center">
+                            <Check className="h-3 w-3 text-white" />
+                          </div>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Vest Checkbox - Shared for Group */}
+                  {location === 'branch' && (
+                    <div className="space-y-3 p-4 rounded-xl border-2 border-warning/30 bg-gradient-to-br from-warning/5 to-orange-500/5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-lg bg-warning/20 flex items-center justify-center">
+                            <Shirt className="h-5 w-5 text-warning" />
+                          </div>
+                          <Label htmlFor="wore-vest-group" className="text-sm font-semibold cursor-pointer">
+                            {isRTL ? 'ارتداء الـ Vest (للجميع)' : 'Vest Worn (Everyone)'}
+                          </Label>
+                        </div>
+                        <Switch
+                          id="wore-vest-group"
+                          checked={woreVest}
+                          onCheckedChange={setWoreVest}
+                        />
+                      </div>
+                      <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
+                        <span className="text-lg">⚠️</span>
+                        <p className="text-xs text-foreground">
+                          {isRTL
+                            ? 'يجب أن يكون جميع المشاركين مرتدين للـ Vest (أو الزي الرسمي) في الصورة.'
+                            : 'All participants must be wearing the Vest (or official uniform) in the photo.'}
+                        </p>
                       </div>
                     </div>
-
-                    {/* Vest Checkbox - Shared for Group */}
-                    {location === 'branch' && (
-                      <div className="space-y-3 p-4 rounded-xl border-2 border-warning/30 bg-gradient-to-br from-warning/5 to-orange-500/5">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-lg bg-warning/20 flex items-center justify-center">
-                              <Shirt className="h-5 w-5 text-warning" />
-                            </div>
-                            <Label htmlFor="wore-vest-group" className="text-sm font-semibold cursor-pointer">
-                              {isRTL ? 'ارتداء الـ Vest (للجميع)' : 'Vest Worn (Everyone)'}
-                            </Label>
-                          </div>
-                          <Switch
-                            id="wore-vest-group"
-                            checked={woreVest}
-                            onCheckedChange={setWoreVest}
-                          />
-                        </div>
-                        <div className="flex items-start gap-2 p-3 bg-warning/10 border border-warning/20 rounded-lg">
-                          <span className="text-lg">⚠️</span>
-                          <p className="text-xs text-foreground">
-                            {isRTL
-                              ? 'يجب أن يكون جميع المشاركين مرتدين للـ Vest (أو الزي الرسمي) في الصورة.'
-                              : 'All participants must be wearing the Vest (or official uniform) in the photo.'}
-                          </p>
-                        </div>
-                      </div>
-                    )}
+                  )}
 
                   {/* Guests Section */}
                   <div className="space-y-3 pt-4 border-t border-dashed border-primary/20">
@@ -1382,12 +1382,8 @@ export default function LogActivity() {
                     key={submission.id}
                     className="relative overflow-hidden rounded-xl border border-border bg-card hover:bg-muted/10 p-4 transition-all duration-300 hover:shadow-md hover:border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
                   >
-                    {/* Status accent bar on the leading edge (uses start-0 which adapts to LTR/RTL) */}
-                    <div className={cn(
-                      "absolute top-0 bottom-0 start-0 w-1.5",
-                      submission.status === 'approved' ? 'bg-success' :
-                      submission.status === 'rejected' ? 'bg-destructive' : 'bg-warning'
-                    )} />
+                    {/* Approved accent bar - all submissions are auto-approved */}
+                    <div className="absolute top-0 bottom-0 start-0 w-1.5 bg-success" />
 
                     <div className="flex items-start gap-3 flex-1 min-w-0 ps-3">
                       {submission.proof_url ? (
@@ -1416,17 +1412,9 @@ export default function LogActivity() {
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-row sm:flex-col sm:items-end justify-between sm:justify-center items-center gap-2 pt-2.5 sm:pt-0 border-t sm:border-0 border-border/40 min-w-[90px] ps-3 sm:ps-0">
+                    <div className="flex items-center justify-end pt-2.5 sm:pt-0 border-t sm:border-0 border-border/40 ps-3 sm:ps-0">
                       <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary shadow-sm border border-primary/5" dir="ltr">
                         +{submission.points}
-                      </span>
-                      <span className={cn(
-                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] sm:text-xs font-semibold shadow-sm border",
-                        submission.status === 'approved' ? 'bg-success/10 text-success border-success/20' :
-                        submission.status === 'rejected' ? 'bg-destructive/10 text-destructive border-destructive/20' :
-                        'bg-warning/10 text-warning border-warning/20'
-                      )}>
-                        {getStatusText(submission.status)}
                       </span>
                     </div>
                   </div>
@@ -1459,8 +1447,8 @@ export default function LogActivity() {
             </Card>
           )
         }
-      </div >
-    </div >
+      </div>
+    </div>
   );
 }
 
@@ -1540,20 +1528,20 @@ function GroupSubmissionsList({ leaderId }: { leaderId?: string }) {
   return (
     <div className="grid gap-4 p-4 sm:p-6 grid-cols-1">
       {submissions.map((sub) => (
-        <div 
-          key={sub.id} 
+        <div
+          key={sub.id}
           className="relative overflow-hidden rounded-xl border border-border bg-card hover:bg-muted/10 p-4 transition-all duration-300 hover:shadow-md hover:border-primary/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4 group"
         >
           <div className="flex items-start gap-3 flex-1 min-w-0">
             <div className="h-11 w-11 rounded-lg bg-accent/10 flex shrink-0 items-center justify-center border border-accent/20 shadow-sm">
               <ClipboardList className="h-5.5 w-5.5 text-accent" />
             </div>
-            
+
             <div className="space-y-1.5 flex-1 min-w-0">
               <p className="font-semibold text-sm text-foreground break-words leading-snug">
                 {isRTL ? sub.activity?.name_ar : sub.activity?.name}
               </p>
-              
+
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                 <span className="shrink-0">{new Date(sub.submitted_at).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US')}</span>
                 <span className="text-muted-foreground/30">•</span>

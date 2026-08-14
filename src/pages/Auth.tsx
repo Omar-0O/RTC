@@ -69,15 +69,13 @@ export default function Auth() {
   const { t, isRTL, language, setLanguage } = useLanguage();
   const { setTheme } = useTheme();
 
-  // Clear any stale auth token when the login page is shown.
-  // This prevents the SDK from trying to refresh an old/invalid token
-  // which causes 429 rate-limit errors on the Supabase auth endpoint.
+  // On mount: purge any expired token so the SDK doesn't attempt a
+  // refresh_token call before sign-in (which causes 429 rate-limit loops).
+  // We use purgeExpiredAuthToken (checks expires_at) instead of a blanket
+  // removeItem so that a still-valid session is preserved (e.g. accidental
+  // navigation to /auth while already logged in).
   useEffect(() => {
-    try {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-    } catch {
-      // Best-effort cleanup
-    }
+    purgeExpiredAuthToken();
   }, []);
 
   useEffect(() => {

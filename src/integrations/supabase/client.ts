@@ -68,10 +68,17 @@ export const purgeExpiredAuthToken = () => {
     const expiresAt: number | undefined =
       parsed?.expires_at ?? parsed?.session?.expires_at;
 
-    if (expiresAt && Date.now() / 1000 > expiresAt) {
-      // Access token is expired. Remove it so the client starts fresh.
+    // Also check that a refresh_token exists - without it the SDK will 429.
+    const refreshToken: string | undefined =
+      parsed?.refresh_token ?? parsed?.session?.refresh_token;
+
+    const isExpired = expiresAt && Date.now() / 1000 > expiresAt;
+    const isMissingRefresh = !refreshToken;
+
+    if (isExpired || isMissingRefresh) {
       localStorage.removeItem(AUTH_STORAGE_KEY);
-      console.info('[Auth] Purged expired auth token from storage to prevent 429 refresh loop.');
+      console.info('[Auth] Purged stale auth token from storage to prevent 429 refresh loop.',
+        { isExpired, isMissingRefresh });
       return true;
     }
   } catch {
@@ -96,6 +103,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     storageKey: AUTH_STORAGE_KEY,
     persistSession: true,
     autoRefreshToken: true,
+    // Prevent the SDK from reading a session from URL hash/params on every
+    // page load, which can trigger extra getSession → refresh_token calls.
+    detectSessionInUrl: false,
   },
 });
 
