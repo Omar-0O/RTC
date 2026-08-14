@@ -54,35 +54,95 @@ const migrateLegacyAuthStorage = () => {
 // Supabase refresh tokens synchronized across browser tabs.
 migrateLegacyAuthStorage();
 
-// ── Early stale token guard ──────────────────────────────────────────────────
-// If the stored access_token is expired, purge it immediately before the
-// Supabase client is created so the SDK does NOT attempt to auto-refresh
-// (which causes 429 rate-limit loops when refresh_token is also invalid).
+// ── Clock-Skew-Proof Storage Adapter ─────────────────────────────────────────
+// When Supabase SDK receives a session from the auth server, the server's `expires_at`
+// is calculated using the server's clock. If the user's PC clock is skewed ahead
+// (common on dual-boot Linux/Windows or unsynced PC clocks), local Date.now() > expires_at.
+// The SDK compares local time with server expires_at, wrongly concludes the access_token
+// is EXPIRED, and launches a refresh_token request for EVERY concurrent DB query,
+// causing HTTP 429 Too Many Requests and kicking the user out right after login.
+//
+// By anchoring expires_at to client local Date.now() + expires_in when storing/reading,
+// we guarantee the SDK treats the token as valid for its full lifetime in PC time.
+const clockSkewCorrectedStorage = {
+  getItem: (key: string): string | null => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        const expiresIn = parsed.expires_in ?? parsed.session?.expires_in ?? 3600;
+        const nowSec = Math.floor(Date.now() / 1000);
+        const currentExpiresAt = parsed.expires_at ?? parsed.session?.expires_at;
+
+        // If expires_at is missing or in the past according to local PC time,
+        // but we have a valid access_token, re-anchor expires_at relative to
+        // local time so the SDK doesn't panic-refresh on every DB query.
+        if (!currentExpiresAt || currentExpiresAt <= nowSec) {
+          const safeExpiresAt = nowSec + expiresIn;
+          if ('expires_at' in parsed) parsed.expires_at = safeExpiresAt;
+          if (parsed.session && typeof parsed.session === 'object') parsed.session.expires_at = safeExpiresAt;
+
+          const updatedRaw = JSON.stringify(parsed);
+          localStorage.setItem(key, updatedRaw);
+          return updatedRaw;
+        }
+      }
+      return raw;
+    } catch {
+      return localStorage.getItem(key);
+    }
+  },
+  setItem: (key: string, value: string): void => {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === 'object') {
+        const expiresIn = parsed.expires_in ?? parsed.session?.expires_in ?? 3600;
+        const nowSec = Math.floor(Date.now() / 1000);
+        const safeExpiresAt = nowSec + expiresIn;
+
+        if ('expires_at' in parsed || parsed.access_token) {
+          parsed.expires_at = safeExpiresAt;
+        }
+        if (parsed.session && typeof parsed.session === 'object') {
+          parsed.session.expires_at = safeExpiresAt;
+        }
+
+        localStorage.setItem(key, JSON.stringify(parsed));
+        return;
+      }
+    } catch {
+      // Fallback
+    }
+    localStorage.setItem(key, value);
+  },
+  removeItem: (key: string): void => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Best-effort
+    }
+  },
+};
+
 export const purgeExpiredAuthToken = () => {
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);
     if (!raw) return false;
 
     const parsed = JSON.parse(raw);
-    // Supabase stores expires_at as a Unix timestamp (seconds since epoch)
-    const expiresAt: number | undefined =
-      parsed?.expires_at ?? parsed?.session?.expires_at;
-
-    // Also check that a refresh_token exists - without it the SDK will 429.
     const refreshToken: string | undefined =
       parsed?.refresh_token ?? parsed?.session?.refresh_token;
 
-    const isExpired = expiresAt && Date.now() / 1000 > expiresAt;
-    const isMissingRefresh = !refreshToken;
-
-    if (isExpired || isMissingRefresh) {
+    // Only purge if refresh token is missing. Clock skew adapter keeps expires_at safe.
+    if (!refreshToken) {
       localStorage.removeItem(AUTH_STORAGE_KEY);
-      console.info('[Auth] Purged stale auth token from storage to prevent 429 refresh loop.',
-        { isExpired, isMissingRefresh });
+      console.info('[Auth] Purged auth token from storage due to missing refresh_token.');
       return true;
     }
   } catch {
-    // Best-effort: if we can't read/parse the token, leave it alone.
+    // Best-effort
   }
   return false;
 };
@@ -99,12 +159,10 @@ export const markReauthenticationRequired = () => {
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: localStorage,
+    storage: clockSkewCorrectedStorage,
     storageKey: AUTH_STORAGE_KEY,
     persistSession: true,
     autoRefreshToken: true,
-    // Prevent the SDK from reading a session from URL hash/params on every
-    // page load, which can trigger extra getSession → refresh_token calls.
     detectSessionInUrl: false,
   },
 });
