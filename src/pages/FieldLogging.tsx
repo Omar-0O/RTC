@@ -338,12 +338,16 @@ export default function FieldLogging() {
     if (!selectedBranchId) return;
     setLoadingTopVolunteers(true);
     try {
-      const { data, error } = await (supabase as any)
+      // Cast to unknown first so we avoid the @typescript-eslint/no-explicit-any
+      // error on a generated RPC that isn't in the typed schema yet.
+      type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> };
+      const { data, error } = await (supabase as unknown as RpcClient)
         .rpc('get_branch_top_volunteers', { p_branch_id: selectedBranchId, p_month_only: true });
 
       if (error) throw error;
 
-      const allSorted = ((data as any[]) || []).map((item: { id: string; full_name: string | null; full_name_ar: string | null; avatar_url: string | null; level: string | null; count: number }) => ({
+      type RpcVolunteer = { id: string; full_name: string | null; full_name_ar: string | null; avatar_url: string | null; level: string | null; count: number };
+      const allSorted = (Array.isArray(data) ? (data as RpcVolunteer[]) : []).map((item) => ({
         id: item.id,
         full_name: item.full_name || '',
         full_name_ar: item.full_name_ar || '',
