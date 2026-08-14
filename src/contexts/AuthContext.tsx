@@ -24,6 +24,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// ── 429 Circuit Breaker ──────────────────────────────────────────────────────
+// When Supabase returns 429 (Too Many Requests) on a refresh-token call, we
+// record the timestamp and block all further auth initialization attempts for
+// CIRCUIT_OPEN_MS milliseconds. This prevents a retry storm that compounds the
+// rate-limit problem across re-renders and concurrent calls.
+const CIRCUIT_OPEN_MS = 60_000; // 1 minute
+let circuitOpenUntil = 0;
+const isCircuitOpen = () => Date.now() < circuitOpenUntil;
+const openCircuit = () => { circuitOpenUntil = Date.now() + CIRCUIT_OPEN_MS; };
+
 const isTerminalRefreshError = (error: unknown) => {
   if (!error) return false;
   const message = error instanceof Error ? error.message : String((error as { message?: string })?.message || error);
@@ -117,11 +127,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     async function initializeAuth() {
+      if (isCircuitOpen()) {
+        console.warn('[Auth] Circuit open due to recent 429 rate-limit. Skipping session initialization.');
+        markReauthenticationRequired();
+        clearLegacyAuthStorage();
+        try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch { /* ignore */ }
+        if (mounted) {
+          clearAuthState();
+          setIsLoading(false);
+        }
+        return;
+      }
+
       try {
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
 
         if (error) {
           const is429 = isTerminalRefreshError(error);
+          if (is429) {
+            openCircuit();
+          }
           console.error(
             is429
               ? '[Auth] Rate-limited (429) during session restore. Clearing storage to stop refresh loop.'

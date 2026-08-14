@@ -134,17 +134,15 @@ export default function Auth() {
         return;
       }
 
-      // Clear any existing local session BEFORE signing in.
-      // signOut({ scope: 'local' }) only wipes localStorage — no HTTP request is made.
-      // This prevents the SDK from trying to refresh a stale/invalid refresh_token
-      // that it finds in storage during the signInWithPassword flow, which causes 429.
+      // Wipe the stored session DIRECTLY from localStorage — no SDK events fired.
+      // signOut({ scope: 'local' }) triggers _notifyAllSubscribers(SIGNED_OUT)
+      // which causes React re-renders that may kick off DB queries → _getAccessToken
+      // → _callRefreshToken → 429. Direct removal is synchronous and silent.
       try {
-        await supabase.auth.signOut({ scope: 'local' });
+        localStorage.removeItem(AUTH_STORAGE_KEY);
       } catch {
-        // Ignore errors — we're clearing local state only
+        // Best-effort
       }
-      // Also purge any expired token from storage (belt-and-suspenders)
-      purgeExpiredAuthToken();
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanInput,
