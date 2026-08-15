@@ -81,6 +81,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Calendar } from '@/components/ui/calendar';
 import logo from '@/assets/logo.webp';
 import CourseSchedule from '@/components/courses/CourseSchedule';
+import { processTopVolunteersByGrade, TopByLevel, RawVolunteerItem } from '@/utils/volunteerRanking';
 
 interface VolunteerProfile {
   id: string;
@@ -306,75 +307,90 @@ export default function FieldLogging() {
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState<boolean>(false);
 
-  // Top volunteers by level
-  type VolunteerGrade = 'under_follow_up' | 'project_responsible' | 'responsible';
-  interface TopVolunteer {
-    id: string;
-    full_name: string;
-    full_name_ar?: string;
-    avatar_url?: string;
-    level?: string;
-    count: number;
-  }
-  interface TopByLevel {
-    grade: VolunteerGrade;
-    label_ar: string;
-    label_en: string;
-    color: string;
-    volunteers: TopVolunteer[];
-  }
   const [topByLevel, setTopByLevel] = useState<TopByLevel[]>([]);
   const [loadingTopVolunteers, setLoadingTopVolunteers] = useState<boolean>(false);
-
-  interface TopVolunteerProfile {
-    id: string;
-    full_name?: string;
-    full_name_ar?: string;
-    avatar_url?: string;
-    level?: string;
-  }
 
   const loadTopVolunteers = useCallback(async () => {
     if (!selectedBranchId) return;
     setLoadingTopVolunteers(true);
     try {
-      // Cast to unknown first so we avoid the @typescript-eslint/no-explicit-any
-      // error on a generated RPC that isn't in the typed schema yet.
       type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> };
       const { data, error } = await (supabase as unknown as RpcClient)
         .rpc('get_branch_top_volunteers', { p_branch_id: selectedBranchId, p_month_only: true });
 
-      if (error) throw error;
+      let rawList: RawVolunteerItem[] = [];
 
-      type RpcVolunteer = { id: string; full_name: string | null; full_name_ar: string | null; avatar_url: string | null; level: string | null; count: number };
-      const allSorted = (Array.isArray(data) ? (data as RpcVolunteer[]) : []).map((item) => ({
-        id: item.id,
-        full_name: item.full_name || '',
-        full_name_ar: item.full_name_ar || '',
-        avatar_url: item.avatar_url,
-        level: item.level || 'under_follow_up',
-        count: Number(item.count) || 0
-      }));
+      type RpcVolunteerRow = { id: string; full_name: string | null; full_name_ar: string | null; avatar_url: string | null; level: string | null; count: number };
+      if (!error && Array.isArray(data) && data.length > 0) {
+        rawList = (data as RpcVolunteerRow[]).map((item) => ({
+          id: item.id,
+          full_name: item.full_name || '',
+          full_name_ar: item.full_name_ar || '',
+          avatar_url: item.avatar_url || null,
+          level: item.level || 'under_follow_up',
+          count: Number(item.count) || 0
+        }));
+      } else {
+        // Fallback: Query activity_submissions for current month directly
+        const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+        const { data: subData } = await supabase
+          .from('activity_submissions')
+          .select(`
+            volunteer_id,
+            branch_id,
+            volunteer:profiles!activity_submissions_volunteer_id_fkey(
+              id,
+              full_name,
+              full_name_ar,
+              avatar_url,
+              level,
+              branch_id
+            )
+          `)
+          .eq('status', 'approved')
+          .not('volunteer_id', 'is', null)
+          .gte('submitted_at', startOfMonth);
 
-      const gradeMap: Record<VolunteerGrade, string[]> = {
-        responsible: ['responsible', 'platinum', 'diamond'],
-        project_responsible: ['project_responsible', 'gold'],
-        under_follow_up: ['under_follow_up', 'silver', 'bronze', 'newbie', 'active'],
-      };
+        if (subData) {
+          const countMap = new Map<string, RawVolunteerItem>();
+          type DirectSubRow = {
+            volunteer_id: string;
+            branch_id: string | null;
+            volunteer: {
+              id: string;
+              full_name: string | null;
+              full_name_ar: string | null;
+              avatar_url: string | null;
+              level: string | null;
+              branch_id: string | null;
+            } | null;
+          };
+          (subData as unknown as DirectSubRow[]).forEach((row) => {
+            const v = row.volunteer;
+            if (!v) return;
+            const branchMatches = row.branch_id === selectedBranchId || v.branch_id === selectedBranchId;
+            if (!branchMatches) return;
 
-      const grades: TopByLevel[] = [
-        { grade: 'responsible', label_ar: 'مسئول', label_en: 'Responsible', color: 'text-amber-500 bg-amber-500/10 border-amber-500/20', volunteers: [] },
-        { grade: 'project_responsible', label_ar: 'مشروع مسئول', label_en: 'Project Responsible', color: 'text-blue-500 bg-blue-500/10 border-blue-500/20', volunteers: [] },
-        { grade: 'under_follow_up', label_ar: 'تحت المتابعة', label_en: 'Under Follow-up', color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20', volunteers: [] },
-      ];
+            const existing = countMap.get(v.id);
+            if (existing) {
+              existing.count += 1;
+            } else {
+              countMap.set(v.id, {
+                id: v.id,
+                full_name: v.full_name,
+                full_name_ar: v.full_name_ar,
+                avatar_url: v.avatar_url,
+                level: v.level,
+                count: 1,
+              });
+            }
+          });
+          rawList = Array.from(countMap.values());
+        }
+      }
 
-      grades.forEach(g => {
-        g.volunteers = allSorted
-          .filter(v => gradeMap[g.grade].includes(v.level || 'under_follow_up'))
-          .slice(0, 3);
-      });
-
-      setTopByLevel(grades.filter(g => g.volunteers.length > 0));
+      const processedGrades = processTopVolunteersByGrade(rawList);
+      setTopByLevel(processedGrades);
     } catch (err) {
       console.error('Error fetching top volunteers for branch:', err);
     } finally {
