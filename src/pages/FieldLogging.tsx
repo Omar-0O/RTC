@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { normalizePhoneE164 } from '@/utils/phoneUtils';
-import { isFutureDate } from '@/utils/dateUtils';
+import { isFutureDate, getTodayLocalDateString } from '@/utils/dateUtils';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
@@ -214,7 +214,7 @@ export default function FieldLogging() {
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
   const [selectedCommitteeId, setSelectedCommitteeId] = useState<string>('general');
   const [selectedActivityId, setSelectedActivityId] = useState<string>('');
-  const [activityDate, setActivityDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [activityDate, setActivityDate] = useState<string>(getTodayLocalDateString());
   const [description, setDescription] = useState<string>('');
   const [woreVest, setWoreVest] = useState<boolean>(false);
 
@@ -562,7 +562,7 @@ export default function FieldLogging() {
     }
     setSuccess(false);
     setSubmissions([]);
-    setActivityDate(new Date().toISOString().split('T')[0]);
+    setActivityDate(getTodayLocalDateString());
     if (phoneInputRef.current) {
       phoneInputRef.current.focus();
     }
@@ -1069,7 +1069,16 @@ export default function FieldLogging() {
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
     try {
-      return new Date(dateString).toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
+      // Parse YYYY-MM-DD safely as a local date (not UTC midnight) to avoid
+      // timezone offset shifting the displayed day by one.
+      let dateObj: Date;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        const [y, m, d] = dateString.split('-').map(Number);
+        dateObj = new Date(y, m - 1, d);
+      } else {
+        dateObj = new Date(dateString);
+      }
+      return dateObj.toLocaleDateString(isRTL ? 'ar-EG' : 'en-US', {
         year: 'numeric',
         month: 'short',
         day: 'numeric',
@@ -1654,7 +1663,12 @@ export default function FieldLogging() {
                         <PopoverContent className="w-auto p-0" align="start">
                           <Calendar
                             mode="single"
-                            selected={activityDate ? new Date(activityDate) : undefined}
+                            selected={activityDate ? (() => {
+                              // Parse YYYY-MM-DD as a local date (not UTC midnight) so the
+                              // calendar highlights the correct day regardless of timezone.
+                              const [y, m, d] = activityDate.split('-').map(Number);
+                              return new Date(y, m - 1, d);
+                            })() : undefined}
                             onSelect={(date) => {
                               if (date) {
                                 const year = date.getFullYear();
@@ -1664,7 +1678,7 @@ export default function FieldLogging() {
                                 setIsCalendarOpen(false);
                               }
                             }}
-                            disabled={(date) => isFutureDate(date) || date < new Date("1900-01-01")}
+                            disabled={(date) => isFutureDate(date) || date < new Date(1900, 0, 1)}
                             initialFocus
                           />
                         </PopoverContent>

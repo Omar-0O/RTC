@@ -54,6 +54,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [features, setFeatures] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const profileRef = useRef<AuthProfile | null>(null);
+  // Tracks whether an async profile fetch (triggered inside applySession) is still in-flight.
+  // We use a ref instead of state to avoid triggering an extra re-render.
+  const pendingProfileFetch = useRef<Promise<void> | null>(null);
 
   const clearAuthState = useCallback(() => {
     profileRef.current = null;
@@ -77,7 +80,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error('Error fetching roles:', rolesError);
       }
 
-      if (profileData) setProfile(profileData);
+      if (profileData) {
+        profileRef.current = profileData;
+        setProfile(profileData);
+      }
       setRoles(userRoles);
       setFeatures(userFeatures);
     } catch (error) {
@@ -107,7 +113,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // internally. Firing them synchronously inside onAuthStateChange can
       // trigger a refresh attempt on a token that was just written, causing
       // 429 rate-limit errors on the Supabase auth endpoint.
-      setTimeout(() => { void fetchProfile(nextSession.user.id); }, 0);
+      //
+      // We store the pending promise so that the caller (onAuthStateChange /
+      // initializeAuth) can await it before clearing the global isLoading flag.
+      // This prevents the app from rendering with profile = null on first open.
+      pendingProfileFetch.current = new Promise<void>((resolve) => {
+        setTimeout(() => {
+          void fetchProfile(nextSession.user.id).finally(resolve);
+        }, 0);
+      });
     }
   }, [clearAuthState, fetchProfile]);
 
@@ -119,11 +133,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (event === 'SIGNED_OUT') {
         clearAuthState();
+        setIsLoading(false);
       } else if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
         applySession(nextSession);
+        // Wait for the profile fetch (started inside applySession) to finish
+        // before clearing isLoading. This prevents the brief flash where the
+        // app renders with profile = null immediately after a session restore.
+        const pending = pendingProfileFetch.current;
+        if (pending) {
+          void pending.finally(() => {
+            pendingProfileFetch.current = null;
+            if (mounted) setIsLoading(false);
+          });
+        } else {
+          setIsLoading(false);
+        }
+      } else {
+        setIsLoading(false);
       }
-
-      setIsLoading(false);
     });
 
     async function initializeAuth() {
@@ -160,19 +187,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           clearLegacyAuthStorage();
           // Also clear the main auth token to fully stop any pending refresh.
           try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch { /* ignore */ }
-          if (mounted) clearAuthState();
+          if (mounted) {
+            clearAuthState();
+            setIsLoading(false);
+          }
           return;
         }
 
         if (mounted) {
           applySession(initialSession);
+          // isLoading will be cleared by onAuthStateChange once the profile fetch completes.
+          // No need to setIsLoading(false) here.
         }
       } catch (error) {
         console.error('Error during auth initialization:', error);
         clearLegacyAuthStorage();
-        if (mounted) clearAuthState();
-      } finally {
         if (mounted) {
+          clearAuthState();
           setIsLoading(false);
         }
       }
