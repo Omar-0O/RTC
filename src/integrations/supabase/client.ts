@@ -121,23 +121,19 @@ const clockSkewCorrectedStorage = {
       if (parsed && typeof parsed === 'object') {
         const expiresIn: number = parsed.expires_in ?? parsed.session?.expires_in ?? 3600;
         const nowSec = Math.floor(Date.now() / 1000);
-        // Only set safeExpiresAt when the token is new (expires_at missing or in the past).
-        // Preserve a future expires_at from the server — it's already correct.
-        const currentExpiresAt: number | undefined =
-          parsed.expires_at ?? parsed.session?.expires_at;
+        // ALWAYS re-anchor expires_at to local_now + expires_in.
+        // The server's expires_at is relative to the server clock; if the local
+        // PC clock is skewed (ahead or behind), reading it back via getItem would
+        // see the token as already-expired, triggering unnecessary refreshes and
+        // 401 errors on the very next page load. expires_in (token lifetime in
+        // seconds) is clock-independent and safe to use as the anchor.
         const safeExpiresAt = nowSec + expiresIn;
 
         if (parsed.access_token || 'expires_at' in parsed) {
-          // Re-anchor only when server value is in the past or absent (clock skew guard).
-          if (!currentExpiresAt || currentExpiresAt <= nowSec) {
-            parsed.expires_at = safeExpiresAt;
-          }
+          parsed.expires_at = safeExpiresAt;
         }
         if (parsed.session && typeof parsed.session === 'object') {
-          const sessionExpiresAt: number | undefined = parsed.session.expires_at;
-          if (!sessionExpiresAt || sessionExpiresAt <= nowSec) {
-            parsed.session.expires_at = safeExpiresAt;
-          }
+          parsed.session.expires_at = safeExpiresAt;
         }
 
         localStorage.setItem(key, JSON.stringify(parsed));

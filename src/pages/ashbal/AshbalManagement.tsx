@@ -463,11 +463,30 @@ export default function AshbalManagement() {
                 </div>
             </div>
 
-            <Tabs defaultValue="current" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="current">{isRTL ? "التارجت الحالي" : "Current Target"}</TabsTrigger>
-                    <TabsTrigger value="previous">{isRTL ? "الأشبال السابقين" : "Previous Ashbals"}</TabsTrigger>
+            <Tabs defaultValue="all" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="all">
+                        {isRTL ? "الكل" : "All"}
+                        <span className="ltr:ml-1.5 rtl:mr-1.5 inline-flex items-center justify-center rounded-full bg-primary/15 px-1.5 py-0.5 text-xs font-semibold text-primary">
+                            {filteredUsers.length}
+                        </span>
+                    </TabsTrigger>
+                    <TabsTrigger value="current">
+                        {isRTL ? "التارجت الحالي" : "Current Target"}
+                        <span className="ltr:ml-1.5 rtl:mr-1.5 inline-flex items-center justify-center rounded-full bg-primary/15 px-1.5 py-0.5 text-xs font-semibold text-primary">
+                            {currentTrimesterUsers.length}
+                        </span>
+                    </TabsTrigger>
+                    <TabsTrigger value="previous">
+                        {isRTL ? "السابقين" : "Previous"}
+                        <span className="ltr:ml-1.5 rtl:mr-1.5 inline-flex items-center justify-center rounded-full bg-muted-foreground/20 px-1.5 py-0.5 text-xs font-semibold text-muted-foreground">
+                            {previousUsers.length}
+                        </span>
+                    </TabsTrigger>
                 </TabsList>
+                <TabsContent value="all">
+                    <UserList users={filteredUsers} />
+                </TabsContent>
                 <TabsContent value="current">
                     <UserList users={currentTrimesterUsers} />
                 </TabsContent>
