@@ -62,8 +62,15 @@ migrateLegacyAuthStorage();
 // is EXPIRED, and launches a refresh_token request for EVERY concurrent DB query,
 // causing HTTP 429 Too Many Requests and kicking the user out right after login.
 //
-// By anchoring expires_at to client local Date.now() + expires_in when storing/reading,
-// we guarantee the SDK treats the token as valid for its full lifetime in PC time.
+// Fix: We only re-anchor expires_at when:
+//   1. A refresh_token is present (so the SDK CAN renew the session if needed), AND
+//   2. The token appears expired by <= CLOCK_SKEW_THRESHOLD_SEC (15 min), indicating
+//      a local clock skew rather than a genuinely stale token.
+//
+// If the token is genuinely expired beyond the threshold, we return it untouched so
+// the SDK uses the refresh_token to obtain a fresh session from the server.
+const CLOCK_SKEW_THRESHOLD_SEC = 15 * 60; // 15 minutes
+
 const clockSkewCorrectedStorage = {
   getItem: (key: string): string | null => {
     try {
@@ -72,17 +79,31 @@ const clockSkewCorrectedStorage = {
 
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
-        const expiresIn = parsed.expires_in ?? parsed.session?.expires_in ?? 3600;
+        const refreshToken: string | undefined =
+          parsed.refresh_token ?? parsed.session?.refresh_token;
+        const expiresIn: number = parsed.expires_in ?? parsed.session?.expires_in ?? 3600;
         const nowSec = Math.floor(Date.now() / 1000);
-        const currentExpiresAt = parsed.expires_at ?? parsed.session?.expires_at;
+        const currentExpiresAt: number | undefined =
+          parsed.expires_at ?? parsed.session?.expires_at;
 
-        // If expires_at is missing or in the past according to local PC time,
-        // but we have a valid access_token, re-anchor expires_at relative to
-        // local time so the SDK doesn't panic-refresh on every DB query.
-        if (!currentExpiresAt || currentExpiresAt <= nowSec) {
+        // Only re-anchor when we have a refresh_token AND the apparent expiry is
+        // within the clock-skew window (token looks expired but likely isn't).
+        // If expired beyond the threshold, the SDK will use refresh_token normally.
+        const isApparentlyExpired = !currentExpiresAt || currentExpiresAt <= nowSec;
+        const isWithinSkewWindow =
+          currentExpiresAt !== undefined &&
+          nowSec - currentExpiresAt <= CLOCK_SKEW_THRESHOLD_SEC;
+        const canReanchor = !!refreshToken && isApparentlyExpired && isWithinSkewWindow;
+
+        // Also re-anchor when expires_at is completely missing (no server timestamp at all)
+        const isMissingExpiry = !currentExpiresAt && !!refreshToken;
+
+        if (canReanchor || isMissingExpiry) {
           const safeExpiresAt = nowSec + expiresIn;
           if ('expires_at' in parsed) parsed.expires_at = safeExpiresAt;
-          if (parsed.session && typeof parsed.session === 'object') parsed.session.expires_at = safeExpiresAt;
+          if (parsed.session && typeof parsed.session === 'object') {
+            parsed.session.expires_at = safeExpiresAt;
+          }
 
           const updatedRaw = JSON.stringify(parsed);
           localStorage.setItem(key, updatedRaw);
@@ -98,15 +119,25 @@ const clockSkewCorrectedStorage = {
     try {
       const parsed = JSON.parse(value);
       if (parsed && typeof parsed === 'object') {
-        const expiresIn = parsed.expires_in ?? parsed.session?.expires_in ?? 3600;
+        const expiresIn: number = parsed.expires_in ?? parsed.session?.expires_in ?? 3600;
         const nowSec = Math.floor(Date.now() / 1000);
+        // Only set safeExpiresAt when the token is new (expires_at missing or in the past).
+        // Preserve a future expires_at from the server — it's already correct.
+        const currentExpiresAt: number | undefined =
+          parsed.expires_at ?? parsed.session?.expires_at;
         const safeExpiresAt = nowSec + expiresIn;
 
-        if ('expires_at' in parsed || parsed.access_token) {
-          parsed.expires_at = safeExpiresAt;
+        if (parsed.access_token || 'expires_at' in parsed) {
+          // Re-anchor only when server value is in the past or absent (clock skew guard).
+          if (!currentExpiresAt || currentExpiresAt <= nowSec) {
+            parsed.expires_at = safeExpiresAt;
+          }
         }
         if (parsed.session && typeof parsed.session === 'object') {
-          parsed.session.expires_at = safeExpiresAt;
+          const sessionExpiresAt: number | undefined = parsed.session.expires_at;
+          if (!sessionExpiresAt || sessionExpiresAt <= nowSec) {
+            parsed.session.expires_at = safeExpiresAt;
+          }
         }
 
         localStorage.setItem(key, JSON.stringify(parsed));
