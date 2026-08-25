@@ -238,15 +238,12 @@ export default function FieldLogging() {
 
   const fetchVolunteersList = useCallback(async () => {
     try {
-      let query = supabase
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, full_name, full_name_ar, phone, avatar_url');
+        .select('id, full_name, full_name_ar, phone, avatar_url, branch_id')
+        .range(0, 4999)
+        .order('full_name');
 
-      if (selectedBranchId) {
-        query = query.eq('branch_id', selectedBranchId);
-      }
-
-      const { data: profilesData, error: profilesError } = await query.order('full_name');
       if (profilesError) throw profilesError;
 
       const sanitized = (profilesData || []).map(v => ({
@@ -258,7 +255,7 @@ export default function FieldLogging() {
     } catch (error) {
       console.error('Error fetching volunteers list:', error);
     }
-  }, [selectedBranchId]);
+  }, []);
 
   useEffect(() => {
     if (isGroupSubmission) {
@@ -1503,17 +1500,34 @@ export default function FieldLogging() {
 
                               {/* Results List */}
                               {(() => {
-                                const q = volunteerSearch.trim().toLowerCase();
+                                const normalizeStr = (str: string) =>
+                                  (str || '')
+                                    .toLowerCase()
+                                    .replace(/[أإآ]/g, 'ا')
+                                    .replace(/ة/g, 'ه')
+                                    .replace(/ى/g, 'ي')
+                                    .replace(/[\u064B-\u0652]/g, '')
+                                    .trim();
+
+                                const qRaw = volunteerSearch.trim().toLowerCase();
+                                const qNorm = normalizeStr(qRaw);
+                                const qDigits = qRaw.replace(/[^0-9]/g, '');
+
                                 const filtered = volunteersList
                                   .filter(v => v.id !== volunteer?.id)
                                   .filter(v => {
-                                    if (!q) return true;
-                                    const nameAr = (v.full_name_ar || '').toLowerCase();
-                                    const nameEn = (v.full_name || '').toLowerCase();
-                                    return nameAr.includes(q) || nameEn.includes(q);
+                                    if (!qRaw) return true;
+                                    const nameArNorm = normalizeStr(v.full_name_ar || '');
+                                    const nameEnNorm = normalizeStr(v.full_name || '');
+                                    const phoneDigits = (v.phone || '').replace(/[^0-9]/g, '');
+
+                                    const nameMatch = qNorm && (nameArNorm.includes(qNorm) || nameEnNorm.includes(qNorm));
+                                    const phoneMatch = qDigits.length > 0 && phoneDigits.includes(qDigits);
+
+                                    return nameMatch || phoneMatch;
                                   });
 
-                                if (!q && filtered.length === 0) return null;
+                                if (!qRaw && filtered.length === 0) return null;
 
                                 return (
                                   <div className="rounded-xl border-2 border-border overflow-hidden">
@@ -1542,7 +1556,12 @@ export default function FieldLogging() {
                                                   {vName?.charAt(0).toUpperCase()}
                                                 </AvatarFallback>
                                               </Avatar>
-                                              <span className="flex-1 text-sm font-medium truncate">{vName}</span>
+                                              <div className="flex-1 min-w-0 text-right">
+                                                <p className="text-sm font-medium truncate">{vName}</p>
+                                                {v.phone && (
+                                                  <p className="text-xs text-muted-foreground dir-ltr text-right">{v.phone}</p>
+                                                )}
+                                              </div>
                                               <div className={cn(
                                                 'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
                                                 isSelected
