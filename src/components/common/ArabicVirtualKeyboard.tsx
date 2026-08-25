@@ -16,15 +16,7 @@ const ROW_2 = ['ش', 'س', 'ي', 'ب', 'ل', 'ا', 'ت', 'ن', 'م', 'ك', 'ط']
 const ROW_3 = ['ئ', 'ء', 'ؤ', 'ر', 'لا', 'ى', 'ة', 'و', 'ز', 'ظ'];
 const NUMBERS = ['١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '٠'];
 
-export const QUICK_PHRASES = [
-  'تنظيم كورس',
-  'حملة ميدانية',
-  'تعبئة وتجميع',
-  'اتصالات ومتابعة',
-  'انترفيو متطوعين',
-  'عمل مكتبي',
-  'توزيع مساعدات',
-];
+
 
 export const ArabicVirtualKeyboard: React.FC<ArabicVirtualKeyboardProps> = ({
   value,
@@ -45,18 +37,6 @@ export const ArabicVirtualKeyboard: React.FC<ArabicVirtualKeyboardProps> = ({
 
   const handleClear = () => {
     onChange('');
-  };
-
-  const handleSpace = () => {
-    onChange(value + ' ');
-  };
-
-  const handleQuickPhrase = (phrase: string) => {
-    if (value.trim() === '') {
-      onChange(phrase);
-    } else {
-      onChange(value.trim() + ' - ' + phrase);
-    }
   };
 
   return (
@@ -82,25 +62,6 @@ export const ArabicVirtualKeyboard: React.FC<ArabicVirtualKeyboardProps> = ({
           <X className="h-4 w-4" />
         </Button>
       </div>
-
-      {/* Quick Phrases Chips */}
-      <div className="space-y-1">
-        <span className="text-[11px] text-muted-foreground font-medium">اختصارات سريعة:</span>
-        <div className="flex flex-wrap gap-1.5">
-          {QUICK_PHRASES.map((phrase) => (
-            <button
-              key={phrase}
-              type="button"
-              onClick={() => handleQuickPhrase(phrase)}
-              className="text-xs px-2.5 py-1 rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all active:scale-95"
-            >
-              + {phrase}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Keyboard Grid */}
       <div className="space-y-1.5 pt-1">
         {/* Numbers */}
         <div className="flex justify-center gap-1">
