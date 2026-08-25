@@ -39,6 +39,10 @@ export const ArabicVirtualKeyboard: React.FC<ArabicVirtualKeyboardProps> = ({
     onChange('');
   };
 
+  const handleSpace = () => {
+    onChange(value + ' ');
+  };
+
   return (
     <div
       className={cn(
