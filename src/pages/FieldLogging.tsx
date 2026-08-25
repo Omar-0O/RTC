@@ -41,8 +41,10 @@ import {
   Shirt,
   Image as ImageIcon,
   Users,
+  Keyboard,
   ChevronsUpDown
 } from 'lucide-react';
+import { ArabicVirtualKeyboard } from '@/components/common/ArabicVirtualKeyboard';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
 import { generateGroupSubmissionCSV } from '@/utils/excel';
 import { Button } from '@/components/ui/button';
@@ -216,6 +218,7 @@ export default function FieldLogging() {
   const [selectedActivityId, setSelectedActivityId] = useState<string>('');
   const [activityDate, setActivityDate] = useState<string>(getTodayLocalDateString());
   const [description, setDescription] = useState<string>('');
+  const [showArabicKeyboard, setShowArabicKeyboard] = useState<boolean>(false);
   const [woreVest, setWoreVest] = useState<boolean>(false);
 
   const [location, setLocation] = useState<'branch' | 'home'>('branch');
@@ -1814,10 +1817,25 @@ export default function FieldLogging() {
 
                     {/* Description / Notes */}
                     <div className="space-y-2.5">
-                      <Label htmlFor="desc-input" className="text-sm font-medium flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        {isRTL ? 'عملت ايه النهاردة؟ (اختياري)' : 'Description (Optional)'}
-                      </Label>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="desc-input" className="text-sm font-medium flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          {isRTL ? 'عملت ايه النهاردة؟ (اختياري)' : 'Description (Optional)'}
+                        </Label>
+                        <Button
+                          type="button"
+                          variant={showArabicKeyboard ? "secondary" : "outline"}
+                          size="sm"
+                          onClick={() => setShowArabicKeyboard(!showArabicKeyboard)}
+                          className="h-7 text-xs gap-1.5 px-2.5 rounded-lg border-primary/30 text-primary hover:bg-primary/10"
+                        >
+                          <Keyboard className="h-3.5 w-3.5" />
+                          {showArabicKeyboard
+                            ? (isRTL ? 'إخفاء الكيبورد' : 'Hide Keyboard')
+                            : (isRTL ? 'كيبورد عربي' : 'Arabic Keyboard')}
+                        </Button>
+                      </div>
+
                       <Textarea
                         id="desc-input"
                         placeholder={isRTL ? 'مثال: نظمت كورس الانجليزي، نظمت انترفيو...' : 'e.g. sorted clothes, calls outreach, food packing...'}
@@ -1828,6 +1846,14 @@ export default function FieldLogging() {
                         className="bg-background border-2 hover:border-primary/50 focus:border-primary/50 transition-colors rounded-xl min-h-[90px] resize-none text-sm p-4"
                         disabled={submitting}
                       />
+
+                      <ArabicVirtualKeyboard
+                        value={description}
+                        onChange={setDescription}
+                        isOpen={showArabicKeyboard}
+                        onClose={() => setShowArabicKeyboard(false)}
+                      />
+
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>{isRTL ? 'أضف أي ملاحظات إضافية عن مشاركتك' : 'Add any additional notes about your participation'}</span>
                         <span>{description.length}/1000</span>

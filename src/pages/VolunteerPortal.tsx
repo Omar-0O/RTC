@@ -234,7 +234,7 @@ export default function VolunteerPortal() {
         wore_vest: location === 'branch' ? woreVest : false,
         points_awarded: computePoints(),
         participant_type: 'volunteer',
-        status: 'pending',
+        status: 'approved',
         proof_url: null,
         submitted_at: submissionTimestamp,
         participants_count: 1,
