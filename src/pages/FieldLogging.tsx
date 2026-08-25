@@ -44,7 +44,7 @@ import {
   Keyboard,
   ChevronsUpDown
 } from 'lucide-react';
-import { ArabicVirtualKeyboard } from '@/components/common/ArabicVirtualKeyboard';
+import { ArabicVirtualKeyboard, QUICK_PHRASES } from '@/components/common/ArabicVirtualKeyboard';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
 import { generateGroupSubmissionCSV } from '@/utils/excel';
 import { Button } from '@/components/ui/button';
@@ -1816,7 +1816,7 @@ export default function FieldLogging() {
                     )}
 
                     {/* Description / Notes */}
-                    <div className="space-y-2.5">
+                    <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="desc-input" className="text-sm font-medium flex items-center gap-2">
                           <FileText className="h-4 w-4 text-muted-foreground" />
@@ -1824,16 +1824,39 @@ export default function FieldLogging() {
                         </Label>
                         <Button
                           type="button"
-                          variant={showArabicKeyboard ? "secondary" : "outline"}
+                          variant={showArabicKeyboard ? "secondary" : "default"}
                           size="sm"
                           onClick={() => setShowArabicKeyboard(!showArabicKeyboard)}
-                          className="h-7 text-xs gap-1.5 px-2.5 rounded-lg border-primary/30 text-primary hover:bg-primary/10"
+                          className="h-8 text-xs font-semibold gap-1.5 px-3 rounded-lg shadow-sm"
                         >
-                          <Keyboard className="h-3.5 w-3.5" />
+                          <Keyboard className="h-4 w-4" />
                           {showArabicKeyboard
                             ? (isRTL ? 'إخفاء الكيبورد' : 'Hide Keyboard')
-                            : (isRTL ? 'كيبورد عربي' : 'Arabic Keyboard')}
+                            : (isRTL ? '⌨️ كيبورد عربي' : 'Arabic Keyboard')}
                         </Button>
+                      </div>
+
+                      {/* Always Visible Quick Phrases */}
+                      <div className="flex flex-wrap gap-1.5 p-2 bg-muted/40 rounded-xl border">
+                        <span className="text-xs text-muted-foreground font-semibold w-full mb-0.5">
+                          {isRTL ? '💡 اختصارات سريعة (اضغط للإضافة):' : 'Quick Shortcuts (click to add):'}
+                        </span>
+                        {QUICK_PHRASES.map((phrase) => (
+                          <button
+                            key={phrase}
+                            type="button"
+                            onClick={() => {
+                              if (description.trim() === '') {
+                                setDescription(phrase);
+                              } else {
+                                setDescription(description.trim() + ' - ' + phrase);
+                              }
+                            }}
+                            className="text-xs px-2.5 py-1 rounded-full bg-background hover:bg-primary hover:text-primary-foreground text-foreground border border-border/80 transition-all active:scale-95 shadow-sm"
+                          >
+                            + {phrase}
+                          </button>
+                        ))}
                       </div>
 
                       <Textarea
