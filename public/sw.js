@@ -113,11 +113,37 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // HTML pages → Stale-While-Revalidate (app shell)
+  // HTML pages / Navigation → Network First (fallback to cache if offline)
+  if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(networkFirst(request, STATIC_CACHE));
+    return;
+  }
+
+  // Other GET requests → Stale-While-Revalidate
   event.respondWith(staleWhileRevalidate(request, STATIC_CACHE));
 });
 
 // ─── Caching Strategies ─────────────────────────────────────────────
+
+/** Network First: fetch fresh from network, update cache, fallback to cache when offline */
+async function networkFirst(request, cacheName) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(cacheName);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (err) {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    if (request.mode === 'navigate') {
+      const fallback = await caches.match('/index.html');
+      if (fallback) return fallback;
+    }
+    throw err;
+  }
+}
 
 /** Cache First: serve from cache, only fetch if not cached */
 async function cacheFirst(request, cacheName) {

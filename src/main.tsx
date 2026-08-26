@@ -4,7 +4,17 @@ import App from "./App.tsx";
 import "./index.css";
 
 // ─── Self-Healing: Force-clear old SW & caches on major update ──────
-const CURRENT_VERSION_FLAG = 'rtc-v5-clean';
+const CURRENT_VERSION_FLAG = 'rtc-v6-fresh';
+
+// Reset chunk reload count after 5 seconds of healthy app lifecycle
+setTimeout(() => {
+  try {
+    sessionStorage.removeItem('chunk_reload_count');
+  } catch (e) {
+    // Ignore storage errors
+  }
+}, 5000);
+
 try {
   const localVersion = localStorage.getItem('app-cache-version-flag');
   if (localVersion !== CURRENT_VERSION_FLAG) {
@@ -15,7 +25,7 @@ try {
     const versionReloadCount = parseInt(sessionStorage.getItem('version_reload_count') || '0', 10);
     if (versionReloadCount < 1) {
       sessionStorage.setItem('version_reload_count', '1');
-      console.warn('[Self-Healing] Version mismatch or first-time v4 loading. Clearing old caches and reloading...');
+      console.warn('[Self-Healing] Version mismatch detected. Clearing old caches and performing hard reload...');
       
       const cleanupTasks: Promise<unknown>[] = [];
       
@@ -39,7 +49,7 @@ try {
       
       Promise.race([
         Promise.allSettled(cleanupTasks),
-        new Promise(resolve => setTimeout(resolve, 3000)),
+        new Promise(resolve => setTimeout(resolve, 2000)),
       ]).then(() => {
         window.location.reload();
       });
