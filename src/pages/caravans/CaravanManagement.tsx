@@ -27,7 +27,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X, Search, Pencil, MoreVertical, BarChart3 } from 'lucide-react';
+import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X, Search, Pencil, MoreVertical, BarChart3, Keyboard } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -41,7 +41,8 @@ import {
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
 import { buildCsv, downloadCsv as saveCsv, downloadCsvContent, escapeCsvCell } from '@/utils/csv';
-import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
+import type { SpreadsheetRow, SpreadsheetValue } from '@/utils/spreadsheetSecurity';
+import { ArabicVirtualKeyboard } from '@/components/common/ArabicVirtualKeyboard';
 
 type CaravanRow = Database['public']['Tables']['caravans']['Row'];
 type CaravanInsert = Database['public']['Tables']['caravans']['Insert'];
@@ -49,7 +50,7 @@ type CaravanUpdate = Database['public']['Tables']['caravans']['Update'];
 type CaravanParticipantRow = Database['public']['Tables']['caravan_participants']['Row'];
 type CaravanParticipantInsert = Database['public']['Tables']['caravan_participants']['Insert'];
 type CaravanParticipantUpdate = Database['public']['Tables']['caravan_participants']['Update'];
-type ProfileVolunteerRow = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'phone' | 'committee_id' | 'avatar_url'>;
+type ProfileVolunteerRow = Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'full_name_ar' | 'phone' | 'committee_id' | 'avatar_url'>;
 type CsvRow = SpreadsheetRow;
 type CaravanWithCount = CaravanRow & { participants_count?: { count: number }[] };
 type CaravanWithParticipants = CaravanRow & { caravan_participants?: CaravanParticipantRow[] };
@@ -97,10 +98,20 @@ interface Participant {
 interface Volunteer {
     id: string;
     full_name: string;
+    full_name_ar?: string | null;
     phone: string | null;
     committee_id?: string | null;
     avatar_url?: string | null;
 }
+
+const normalizeArabic = (str: string) =>
+    (str || '')
+        .toLowerCase()
+        .replace(/[أإآ]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/[\u064B-\u0652]/g, '')
+        .trim();
 
 const CARAVANS_COMMITTEE_NAME = 'Caravans'; // Must match DB migration name
 
@@ -141,6 +152,7 @@ export default function CaravanManagement() {
     const [openCombobox, setOpenCombobox] = useState(false);
     const [isVolunteerSelectorOpen, setIsVolunteerSelectorOpen] = useState(false);
     const [volunteerSearch, setVolunteerSearch] = useState('');
+    const [showVolunteerKeyboard, setShowVolunteerKeyboard] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [caravanToDelete, setCaravanToDelete] = useState<Caravan | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -351,8 +363,13 @@ export default function CaravanManagement() {
 
     const filteredCaravans = caravans.filter(caravan => {
         // 1. Search Query
-        if (searchQuery && !caravan.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-            return false;
+        if (searchQuery) {
+            const qNorm = normalizeArabic(searchQuery);
+            const nameNorm = normalizeArabic(caravan.name || '');
+            const locNorm = normalizeArabic(caravan.location || '');
+            if (!nameNorm.includes(qNorm) && !locNorm.includes(qNorm)) {
+                return false;
+            }
         }
 
         // 2. Specific Date Filter
@@ -473,7 +490,8 @@ export default function CaravanManagement() {
     const fetchVolunteers = async () => {
         let query = supabase
             .from('profiles')
-            .select('id, full_name, phone, committee_id, avatar_url')
+            .select('id, full_name, full_name_ar, phone, committee_id, avatar_url')
+            .range(0, 4999)
             .neq('full_name', 'RTC Admin');
 
         if (activeBranch?.id) {
@@ -511,9 +529,11 @@ export default function CaravanManagement() {
             return;
         }
 
+        const displayName = (isRTL && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || volunteer.full_name_ar || '');
+
         setParticipants([...participants, {
             volunteer_id: volunteer.id,
-            name: volunteer.full_name || '',
+            name: displayName,
             phone: volunteer.phone || '',
             is_volunteer: true,
             committee_id: volunteer.committee_id,
@@ -755,20 +775,215 @@ export default function CaravanManagement() {
         }
     };
 
-    const downloadCSV = (data: CsvRow[], filename: string) => {
+    const downloadCSV = (data: SpreadsheetRow[], filename: string) => {
         if (data.length === 0) {
             toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
             return;
         }
 
-        saveCsv(data, `${filename}_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+        const safeName = filename.endsWith('.csv') ? filename : `${filename}.csv`;
+        saveCsv(data, safeName);
 
         toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
     };
 
+    const fetchCaravansWithParticipants = async (): Promise<CaravanWithParticipants[] | null> => {
+        const shownCaravanIds = filteredCaravans.map(c => c.id);
+
+        if (shownCaravanIds.length === 0) {
+            toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
+            return null;
+        }
+
+        const { data: allCaravans, error } = await supabase
+            .from('caravans')
+            .select('*, caravan_participants(*)')
+            .in('id', shownCaravanIds)
+            .order('date', { ascending: false });
+
+        if (error) {
+            console.error('Export error:', error);
+            toast.error(isRTL ? 'فشل جلب بيانات القوافل للتصدير' : 'Failed to fetch caravans for export');
+            return null;
+        }
+
+        return (allCaravans || []) as CaravanWithParticipants[];
+    };
+
+    const exportCaravansColumnsSheet = async () => {
+        try {
+            const allCaravans = await fetchCaravansWithParticipants();
+            if (!allCaravans || allCaravans.length === 0) return;
+
+            const fieldHeader = isRTL ? 'البيان / الحقل' : 'Field / Attribute';
+
+            const createRow = (
+                fieldLabel: string,
+                getValue: (c: CaravanWithParticipants, idx: number) => SpreadsheetValue
+            ): SpreadsheetRow => {
+                const rowObj: SpreadsheetRow = { [fieldHeader]: fieldLabel };
+                allCaravans.forEach((c, idx) => {
+                    const colName = `${idx + 1}. ${c.name} (${c.date})`;
+                    rowObj[colName] = getValue(c, idx);
+                });
+                return rowObj;
+            };
+
+            const exportData: SpreadsheetRow[] = [
+                createRow(isRTL ? 'اسم القافلة' : 'Caravan Name', c => c.name),
+                createRow(isRTL ? 'نوع القافلة' : 'Caravan Type', c => getCaravanTypeLabel(c.type)),
+                createRow(isRTL ? 'تاريخ القافلة' : 'Date', c => c.date),
+                createRow(isRTL ? 'المكان / الموقع' : 'Location', c => c.location),
+                createRow(isRTL ? 'وقت التحرك المحدد' : 'Scheduled Move Time', c => c.move_time || '-'),
+                createRow(isRTL ? 'وقت التحرك الفعلي' : 'Actual Move Time', c => c.actual_move_time || '-'),
+                createRow(isRTL ? 'وقت وصول الأتوبيس' : 'Bus Arrival Time', c => c.bus_arrival_time || '-'),
+                createRow(isRTL ? 'وقت العودة' : 'Return Time', c => c.return_time || '-'),
+                createRow(isRTL ? 'إجمالي المشاركين' : 'Total Participants', c => (c.caravan_participants || []).length),
+                createRow(isRTL ? 'عدد المتطوعين' : 'Volunteers Count', c => (c.caravan_participants || []).filter(p => p.is_volunteer).length),
+                createRow(isRTL ? 'عدد الضيوف' : 'Guests Count', c => (c.caravan_participants || []).filter(p => !p.is_volunteer).length),
+                createRow(isRTL ? 'ملتزمي الـ Vest' : 'Wore Vest Count', c => (c.caravan_participants || []).filter(p => p.is_volunteer && p.wore_vest).length),
+                createRow(isRTL ? 'نسبة الالتزام بالـ Vest' : 'Vest Compliance %', c => {
+                    const vols = (c.caravan_participants || []).filter(p => p.is_volunteer);
+                    if (vols.length === 0) return '-';
+                    const wore = vols.filter(p => p.wore_vest).length;
+                    return `${Math.round((wore / vols.length) * 100)}%`;
+                }),
+                createRow(isRTL ? 'وجبات التارجت (المستهدف)' : 'Target Meals', c => c.target_meals ?? '-'),
+                createRow(isRTL ? 'العدد الفعلي للوجبات' : 'Actual Meals', c => c.actual_meals ?? '-'),
+                createRow(isRTL ? 'إجمالي عدد الشنط' : 'Total Bags', c => c.total_bags ?? '-'),
+                createRow(isRTL ? 'محتويات الشنطة' : 'Bag Contents', c => Array.isArray(c.bag_contents) ? c.bag_contents.join('، ') : (c.bag_contents || '-')),
+                createRow(isRTL ? 'قائمة المتطوعين (الاسم والهاتف)' : 'Volunteers List (Name & Phone)', c => {
+                    const vols = (c.caravan_participants || []).filter(p => p.is_volunteer);
+                    return vols.map(p => p.phone ? `${p.name} (${p.phone})` : p.name).join(' | ') || '-';
+                }),
+                createRow(isRTL ? 'قائمة الضيوف (الاسم والهاتف)' : 'Guests List (Name & Phone)', c => {
+                    const guests = (c.caravan_participants || []).filter(p => !p.is_volunteer);
+                    return guests.map(p => p.phone ? `${p.name} (${p.phone})` : p.name).join(' | ') || '-';
+                })
+            ];
+
+            const filename = `Caravans_Columns_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+            downloadCSV(exportData, filename);
+        } catch (e) {
+            console.error('Export columns error:', e);
+            toast.error(isRTL ? 'فشل تصدير شيت القوافل' : 'Failed to export caravans columns sheet');
+        }
+    };
+
+    const exportCaravansFullTable = async () => {
+        try {
+            const allCaravans = await fetchCaravansWithParticipants();
+            if (!allCaravans || allCaravans.length === 0) return;
+
+            const exportData: SpreadsheetRow[] = allCaravans.map(c => {
+                const parts = c.caravan_participants || [];
+                const vols = parts.filter(p => p.is_volunteer);
+                const guests = parts.filter(p => !p.is_volunteer);
+                const woreVestCount = vols.filter(p => p.wore_vest).length;
+                const vestPercent = vols.length > 0 ? `${Math.round((woreVestCount / vols.length) * 100)}%` : '-';
+
+                return {
+                    [t('caravans.name')]: c.name,
+                    [t('caravans.type')]: getCaravanTypeLabel(c.type),
+                    [t('caravans.date')]: c.date,
+                    [t('caravans.location')]: c.location,
+                    [t('caravans.moveTime')]: c.move_time || '-',
+                    [t('caravans.actualMoveTime')]: c.actual_move_time || '-',
+                    [t('caravans.busArrivalTime')]: c.bus_arrival_time || '-',
+                    [t('caravans.returnTime')]: c.return_time || '-',
+                    [isRTL ? 'إجمالي المشاركين' : 'Total Participants']: parts.length,
+                    [t('caravans.volunteersCount')]: vols.length,
+                    [t('caravans.guestsCount')]: guests.length,
+                    [isRTL ? 'ملتزمي الـ Vest' : 'Wore Vest']: woreVestCount,
+                    [isRTL ? 'نسبة الالتزام بالـ Vest' : 'Vest %']: vestPercent,
+                    [isRTL ? 'الوجبات المستهدفة' : 'Target Meals']: c.target_meals ?? '-',
+                    [isRTL ? 'الوجبات الفعلية' : 'Actual Meals']: c.actual_meals ?? '-',
+                    [isRTL ? 'إجمالي الشنط' : 'Total Bags']: c.total_bags ?? '-',
+                    [isRTL ? 'محتويات الشنطة' : 'Bag Contents']: Array.isArray(c.bag_contents) ? c.bag_contents.join('، ') : (c.bag_contents || '-'),
+                    [isRTL ? 'قائمة المتطوعين' : 'Volunteers List']: vols.map(p => p.phone ? `${p.name} (${p.phone})` : p.name).join(' | ') || '-',
+                    [isRTL ? 'قائمة الضيوف' : 'Guests List']: guests.map(p => p.phone ? `${p.name} (${p.phone})` : p.name).join(' | ') || '-'
+                };
+            });
+
+            const filename = `Caravans_Full_Table_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+            downloadCSV(exportData, filename);
+        } catch (e) {
+            console.error('Export full table error:', e);
+            toast.error(isRTL ? 'فشل تصدير شيت القوافل الشامل' : 'Failed to export caravans summary sheet');
+        }
+    };
+
+    const exportParticipantsLog = async () => {
+        try {
+            const allCaravans = await fetchCaravansWithParticipants();
+            if (!allCaravans || allCaravans.length === 0) return;
+
+            const flattenedData: SpreadsheetRow[] = [];
+            allCaravans.forEach(c => {
+                const parts = c.caravan_participants || [];
+                const vols = parts.filter(p => p.is_volunteer);
+                const guests = parts.filter(p => !p.is_volunteer);
+                const woreVestCount = vols.filter(p => p.wore_vest).length;
+
+                if (parts.length > 0) {
+                    parts.forEach(p => {
+                        flattenedData.push({
+                            [t('caravans.name')]: c.name,
+                            [t('caravans.type')]: getCaravanTypeLabel(c.type),
+                            [t('caravans.date')]: c.date,
+                            [t('caravans.location')]: c.location,
+                            [t('caravans.moveTime')]: c.move_time || '-',
+                            [t('caravans.actualMoveTime')]: c.actual_move_time || '-',
+                            [t('caravans.busArrivalTime')]: c.bus_arrival_time || '-',
+                            [t('caravans.returnTime')]: c.return_time || '-',
+                            [t('caravans.volunteersCount')]: vols.length,
+                            [t('caravans.guestsCount')]: guests.length,
+                            [isRTL ? 'ملتزمي الـ Vest' : 'Wore Vest Count']: woreVestCount,
+                            [isRTL ? 'وجبات التارجت' : 'Target Meals']: c.target_meals ?? '-',
+                            [isRTL ? 'العدد الفعلي للوجبات' : 'Actual Meals']: c.actual_meals ?? '-',
+                            [isRTL ? 'إجمالي الشنط' : 'Total Bags']: c.total_bags ?? '-',
+                            [t('leaderboard.name')]: p.name,
+                            [t('users.phoneNumber')]: p.phone || '-',
+                            [isRTL ? 'الصفة (متطوع/ضيف)' : 'Volunteer/Guest']: p.is_volunteer ? (isRTL ? 'متطوع' : 'Volunteer') : (isRTL ? 'ضيف' : 'Guest'),
+                            [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: p.is_volunteer ? (p.wore_vest ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No')) : '-'
+                        });
+                    });
+                } else {
+                    flattenedData.push({
+                        [t('caravans.name')]: c.name,
+                        [t('caravans.type')]: getCaravanTypeLabel(c.type),
+                        [t('caravans.date')]: c.date,
+                        [t('caravans.location')]: c.location,
+                        [t('caravans.moveTime')]: c.move_time || '-',
+                        [t('caravans.actualMoveTime')]: c.actual_move_time || '-',
+                        [t('caravans.busArrivalTime')]: c.bus_arrival_time || '-',
+                        [t('caravans.returnTime')]: c.return_time || '-',
+                        [t('caravans.volunteersCount')]: vols.length,
+                        [t('caravans.guestsCount')]: guests.length,
+                        [isRTL ? 'ملتزمي الـ Vest' : 'Wore Vest Count']: woreVestCount,
+                        [isRTL ? 'وجبات التارجت' : 'Target Meals']: c.target_meals ?? '-',
+                        [isRTL ? 'العدد الفعلي للوجبات' : 'Actual Meals']: c.actual_meals ?? '-',
+                        [isRTL ? 'إجمالي الشنط' : 'Total Bags']: c.total_bags ?? '-',
+                        [t('leaderboard.name')]: '-',
+                        [t('users.phoneNumber')]: '-',
+                        [isRTL ? 'الصفة (متطوع/ضيف)' : 'Volunteer/Guest']: '-',
+                        [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: '-'
+                    });
+                }
+            });
+
+            const filename = `Caravans_Participants_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+            downloadCSV(flattenedData, filename);
+        } catch (e) {
+            console.error('Export participants log error:', e);
+            toast.error(isRTL ? 'فشل تصدير سجل المشاركين' : 'Failed to export participants log');
+        }
+    };
+
+    const exportAllCaravans = exportCaravansColumnsSheet;
+
     const exportCaravanDetails = async (caravan: Caravan) => {
         try {
-            // Fetch participants
             const { data: parts, error } = await supabase
                 .from('caravan_participants')
                 .select('name, phone, is_volunteer, wore_vest')
@@ -776,113 +991,48 @@ export default function CaravanManagement() {
 
             if (error) throw error;
 
-            const exportData: CsvRow[] = ((parts || []) as CaravanParticipantRow[]).map(p => ({
-                [t('leaderboard.name')]: p.name,
-                [t('users.phoneNumber')]: p.phone,
-                [isRTL ? 'متطوع/ضيف' : 'Volunteer/Guest']: p.is_volunteer ? t('common.volunteer') : (isRTL ? 'ضيف' : 'Guest'),
-                [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: p.is_volunteer ? (p.wore_vest ? 'Yes' : 'No') : 'N/A', // Added vest status
-                [t('caravans.name')]: caravan.name,
-                [t('caravans.date')]: caravan.date,
-                [t('caravans.location')]: caravan.location
-            }));
+            const participantsList = (parts || []) as CaravanParticipantRow[];
+
+            const exportData: SpreadsheetRow[] = participantsList.length > 0
+                ? participantsList.map(p => ({
+                    [t('caravans.name')]: caravan.name,
+                    [t('caravans.type')]: getCaravanTypeLabel(caravan.type),
+                    [t('caravans.date')]: caravan.date,
+                    [t('caravans.location')]: caravan.location,
+                    [t('caravans.moveTime')]: caravan.move_time || '-',
+                    [t('caravans.actualMoveTime')]: caravan.actual_move_time || '-',
+                    [t('caravans.busArrivalTime')]: caravan.bus_arrival_time || '-',
+                    [t('caravans.returnTime')]: caravan.return_time || '-',
+                    [isRTL ? 'وجبات التارجت' : 'Target Meals']: caravan.target_meals ?? '-',
+                    [isRTL ? 'العدد الفعلي للوجبات' : 'Actual Meals']: caravan.actual_meals ?? '-',
+                    [isRTL ? 'إجمالي الشنط' : 'Total Bags']: caravan.total_bags ?? '-',
+                    [t('leaderboard.name')]: p.name,
+                    [t('users.phoneNumber')]: p.phone || '-',
+                    [isRTL ? 'الصفة (متطوع/ضيف)' : 'Volunteer/Guest']: p.is_volunteer ? (isRTL ? 'متطوع' : 'Volunteer') : (isRTL ? 'ضيف' : 'Guest'),
+                    [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: p.is_volunteer ? (p.wore_vest ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No')) : '-'
+                }))
+                : [{
+                    [t('caravans.name')]: caravan.name,
+                    [t('caravans.type')]: getCaravanTypeLabel(caravan.type),
+                    [t('caravans.date')]: caravan.date,
+                    [t('caravans.location')]: caravan.location,
+                    [t('caravans.moveTime')]: caravan.move_time || '-',
+                    [t('caravans.actualMoveTime')]: caravan.actual_move_time || '-',
+                    [t('caravans.busArrivalTime')]: caravan.bus_arrival_time || '-',
+                    [t('caravans.returnTime')]: caravan.return_time || '-',
+                    [isRTL ? 'وجبات التارجت' : 'Target Meals']: caravan.target_meals ?? '-',
+                    [isRTL ? 'العدد الفعلي للوجبات' : 'Actual Meals']: caravan.actual_meals ?? '-',
+                    [isRTL ? 'إجمالي الشنط' : 'Total Bags']: caravan.total_bags ?? '-',
+                    [t('leaderboard.name')]: '-',
+                    [t('users.phoneNumber')]: '-',
+                    [isRTL ? 'الصفة (متطوع/ضيف)' : 'Volunteer/Guest']: '-',
+                    [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: '-'
+                }];
 
             downloadCSV(exportData, `${caravan.name}_Report`);
         } catch (error) {
             console.error('Export error:', error);
-             toast.error(isRTL ? 'فشل التصدير' : 'Export failed');
-        }
-    };
-
-    const getCaravanTypeLabel = (type: string) => {
-        switch (type) {
-            case 'food_distribution': return isRTL ? 'إطعام' : 'Food Distribution';
-            case 'charity_market': return isRTL ? 'سوق خيري' : 'Charity Market';
-            case 'eid_carnival': return isRTL ? 'كرنفال العيد' : 'Eid Carnival';
-            case 'other': return isRTL ? 'أخرى' : 'Other';
-            default: return type;
-        }
-    };
-
-    const exportAllCaravans = async () => {
-        try {
-            // Fetch all caravans with participants
-            // Filter by the IDs currently shown in the list
-            const shownCaravanIds = filteredCaravans.map(c => c.id);
-
-            if (shownCaravanIds.length === 0) {
-                toast.error(language === 'ar' ? 'لا توجد بيانات للتصدير' : 'No data to export');
-                return;
-            }
-
-            const { data: allCaravans } = await supabase
-                .from('caravans')
-                .select('*, caravan_participants(*)')
-                .in('id', shownCaravanIds);
-
-            if (!allCaravans) return;
-
-            const flattenedData: CsvRow[] = [];
-            (allCaravans as CaravanWithParticipants[]).forEach(c => {
-                const participantsList = c.caravan_participants || [];
-                const volunteersCount = participantsList.filter(p => p.is_volunteer).length;
-                const guestsCount = participantsList.filter(p => !p.is_volunteer).length;
-
-                if (participantsList.length > 0) {
-                    participantsList.forEach(p => {
-                        flattenedData.push({
-                            [t('caravans.name')]: c.name,
-                            [t('caravans.type')]: c.type,
-                            [t('caravans.date')]: c.date,
-                            [t('caravans.location')]: c.location,
-                            [t('caravans.volunteersCount')]: volunteersCount,
-                            [t('caravans.guestsCount')]: guestsCount,
-                            [t('caravans.moveTime')]: c.move_time,
-                            [t('caravans.actualMoveTime')]: c.actual_move_time,
-                            [t('caravans.busArrivalTime')]: c.bus_arrival_time,
-                            [t('caravans.returnTime')]: c.return_time,
-                            [t('leaderboard.name')]: p.name,
-                            [t('users.phoneNumber')]: p.phone,
-                            [isRTL ? 'متطوع/ضيف' : 'Volunteer/Guest']: p.is_volunteer ? 'Volunteer' : 'Guest',
-                            [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: p.is_volunteer ? (p.wore_vest ? 'Yes' : 'No') : 'N/A' // Added vest status
-                        });
-                    });
-                } else {
-                    // Entry for caravan even if no participants?
-                    flattenedData.push({
-                        [t('caravans.name')]: c.name,
-                        [t('caravans.type')]: c.type,
-                        [t('caravans.date')]: c.date,
-                        [t('caravans.location')]: c.location,
-                        [t('caravans.volunteersCount')]: volunteersCount,
-                        [t('caravans.guestsCount')]: guestsCount,
-                        [t('caravans.moveTime')]: c.move_time,
-                        [t('caravans.actualMoveTime')]: c.actual_move_time,
-                        [t('caravans.busArrivalTime')]: c.bus_arrival_time,
-                        [t('caravans.returnTime')]: c.return_time,
-                        [t('leaderboard.name')]: '-',
-                        [t('users.phoneNumber')]: '-',
-                        [isRTL ? 'متطوع/ضيف' : 'Volunteer/Guest']: '-',
-                        [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: 'N/A' // Added vest status
-                    });
-                }
-            });
-
-            const metadata = `${isRTL ? 'الفترة' : 'Period'}: ${getFilterDisplayLabel(timeFilter)}`;
-            const csvContent = [
-                '\ufeff' + escapeCsvCell(metadata),
-                buildCsv(flattenedData).replace(/^\ufeff/, ''),
-            ].join('\n');
-
-            downloadCsvContent(
-                csvContent,
-                `Caravans_Report_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`,
-            );
-
-            toast.success(language === 'ar' ? 'تم تصدير الملف بنجاح' : 'File exported successfully');
-
-        } catch (e) {
-            console.error(e);
-             toast.error(isRTL ? 'فشل تصدير الكل' : 'Failed to export all');
+            toast.error(isRTL ? 'فشل التصدير' : 'Export failed');
         }
     };
 
@@ -895,12 +1045,52 @@ export default function CaravanManagement() {
                 <h1 className="text-2xl sm:text-3xl font-bold">{t('caravans.title')}</h1>
                 
                 <div className="flex w-full sm:w-auto gap-2">
-                    <Button variant="outline" onClick={exportAllCaravans} className="flex-1 sm:flex-none">
-                        <FileSpreadsheet className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                        <span className="text-xs sm:text-sm">
-                            {t('caravans.exportAll')} <span className="hidden sm:inline">({getFilterDisplayLabel(timeFilter)})</span>
-                        </span>
-                    </Button>
+                    <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="flex-1 sm:flex-none gap-1.5 h-10 sm:h-11">
+                                <FileSpreadsheet className="w-4 h-4 text-primary shrink-0" />
+                                <span className="text-xs sm:text-sm font-medium">
+                                    {t('caravans.exportAll')} <span className="hidden md:inline">({getFilterDisplayLabel(timeFilter)})</span>
+                                </span>
+                                <ChevronsUpDown className="w-3.5 h-3.5 opacity-60 shrink-0" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align={isRTL ? "start" : "end"} className="w-72 p-1.5 shadow-xl border-border/60">
+                            <DropdownMenuItem onClick={exportCaravansColumnsSheet} className="cursor-pointer py-2.5 px-3 rounded-lg focus:bg-primary/10">
+                                <BarChart3 className="ltr:mr-2.5 rtl:ml-2.5 h-4 w-4 text-primary shrink-0" />
+                                <div className="flex flex-col text-start">
+                                    <span className="font-semibold text-xs sm:text-sm text-foreground">
+                                        {isRTL ? 'شيت القوافل (الأعمدة تمثل القوافل)' : 'Columns as Convoys Sheet'}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground">
+                                        {isRTL ? 'كل عمود عبارة عن قافلة بكامل بياناتها' : 'Each column is a caravan with all data'}
+                                    </span>
+                                </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={exportCaravansFullTable} className="cursor-pointer py-2.5 px-3 rounded-lg focus:bg-primary/10">
+                                <FileSpreadsheet className="ltr:mr-2.5 rtl:ml-2.5 h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <div className="flex flex-col text-start">
+                                    <span className="font-semibold text-xs sm:text-sm text-foreground">
+                                        {isRTL ? 'شيت القوافل الشامل (جدول بكل الأعمدة)' : 'Comprehensive Caravans Table'}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground">
+                                        {isRTL ? 'جدول كامل بكافة الأعمدة والبيانات' : 'Full table with all caravan columns'}
+                                    </span>
+                                </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={exportParticipantsLog} className="cursor-pointer py-2.5 px-3 rounded-lg focus:bg-primary/10">
+                                <Users className="ltr:mr-2.5 rtl:ml-2.5 h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                                <div className="flex flex-col text-start">
+                                    <span className="font-semibold text-xs sm:text-sm text-foreground">
+                                        {isRTL ? 'سجل المشاركين المفصل' : 'Detailed Participants Log'}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground">
+                                        {isRTL ? 'تفاصيل كل متطوع وضيف في القوافل' : 'Individual volunteer and guest entries'}
+                                    </span>
+                                </div>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
                             <Button className="flex-1 sm:flex-none" onClick={() => { resetForm(); setIsCreateOpen(true); }}>
@@ -1195,7 +1385,7 @@ export default function CaravanManagement() {
                                                                         )}
                                                                     </TableCell>
                                                                     <TableCell className="text-end align-middle">
-                                                                        <Button variant="ghost" size="icon" onClick={() => removeParticipant(idx)} className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <Button variant="ghost" size="icon" onClick={() => removeParticipant(idx)} className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                                                             <Trash2 className="w-4 h-4" />
                                                                         </Button>
                                                                     </TableCell>
@@ -1208,8 +1398,11 @@ export default function CaravanManagement() {
                                         </div>
 
                                         {/* Full-screen Volunteer Selector Dialog */}
-                                        <Dialog open={isVolunteerSelectorOpen} onOpenChange={setIsVolunteerSelectorOpen}>
-                                            <DialogContent className="w-full max-w-[95vw] sm:max-w-md max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl" aria-describedby={undefined}>
+                                        <Dialog open={isVolunteerSelectorOpen} onOpenChange={(open) => {
+                                            setIsVolunteerSelectorOpen(open);
+                                            if (!open) setShowVolunteerKeyboard(false);
+                                        }}>
+                                            <DialogContent className="w-full max-w-[95vw] sm:max-w-lg md:max-w-xl max-h-[92vh] flex flex-col p-0 gap-0 overflow-hidden rounded-2xl shadow-2xl" aria-describedby={undefined}>
                                                 <div className="flex items-center justify-between px-4 py-3.5 border-b bg-background shrink-0">
                                                     <div className="flex items-center gap-2">
                                                         <DialogTitle className="text-base sm:text-lg font-bold">
@@ -1224,8 +1417,11 @@ export default function CaravanManagement() {
                                                     <Button
                                                         type="button"
                                                         size="sm"
-                                                        onClick={() => setIsVolunteerSelectorOpen(false)}
-                                                        className="h-8 px-3 text-xs font-semibold rounded-lg"
+                                                        onClick={() => {
+                                                            setIsVolunteerSelectorOpen(false);
+                                                            setShowVolunteerKeyboard(false);
+                                                        }}
+                                                        className="h-8 px-3 text-xs font-semibold rounded-lg shadow-sm"
                                                     >
                                                         {isRTL ? 'تم' : 'Done'}
                                                     </Button>
@@ -1252,31 +1448,124 @@ export default function CaravanManagement() {
                                                     </div>
                                                 )}
 
-                                                <div className="px-4 py-3 border-b bg-muted/10 shrink-0">
-                                                    <div className="relative">
-                                                        <Search className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                                                        <Input
-                                                            className="ltr:pl-9 rtl:pr-9 h-10 shadow-sm"
-                                                            placeholder={isRTL ? 'بحث باسم المتطوع...' : 'Search volunteers...'}
-                                                            value={volunteerSearch}
-                                                            onChange={e => setVolunteerSearch(e.target.value)}
-                                                        />
-                                                        {volunteerSearch && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => setVolunteerSearch('')}
-                                                                className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground"
-                                                            >
-                                                                <X className="h-4 w-4" />
-                                                            </button>
-                                                        )}
+                                                {/* Search & Virtual Keyboard Controls */}
+                                                <div className="px-4 py-3 border-b bg-muted/10 shrink-0 space-y-2.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="relative flex-1">
+                                                            <Search className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                                            <Input
+                                                                className="ltr:pl-9 rtl:pr-9 ltr:pr-8 rtl:pl-8 h-10 shadow-sm bg-background text-sm"
+                                                                placeholder={isRTL ? 'بحث بالاسم أو رقم الهاتف...' : 'Search by name or phone...'}
+                                                                value={volunteerSearch}
+                                                                onChange={e => setVolunteerSearch(e.target.value)}
+                                                                autoFocus
+                                                            />
+                                                            {volunteerSearch && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setVolunteerSearch('')}
+                                                                    className="absolute top-1/2 -translate-y-1/2 ltr:right-2.5 rtl:left-2.5 text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted"
+                                                                >
+                                                                    <X className="h-3.5 w-3.5" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            variant={showVolunteerKeyboard ? "secondary" : "outline"}
+                                                            size="sm"
+                                                            onClick={() => setShowVolunteerKeyboard(!showVolunteerKeyboard)}
+                                                            className="h-10 px-3 gap-1.5 shrink-0 text-xs font-medium border-primary/30"
+                                                        >
+                                                            <Keyboard className="h-4 w-4 text-primary" />
+                                                            <span className="hidden xs:inline sm:inline">
+                                                                {showVolunteerKeyboard ? (isRTL ? 'إخفاء' : 'Hide') : (isRTL ? 'كيبورد عربي' : 'Keyboard')}
+                                                            </span>
+                                                        </Button>
                                                     </div>
+
+                                                    {/* Arabic Virtual Keyboard */}
+                                                    {showVolunteerKeyboard && (
+                                                        <div className="max-h-[220px] overflow-y-auto">
+                                                            <ArabicVirtualKeyboard
+                                                                value={volunteerSearch}
+                                                                onChange={setVolunteerSearch}
+                                                                isOpen={showVolunteerKeyboard}
+                                                                onClose={() => setShowVolunteerKeyboard(false)}
+                                                            />
+                                                        </div>
+                                                    )}
+
+                                                    {/* Filter Info */}
+                                                    {(() => {
+                                                        const qRaw = volunteerSearch.trim();
+                                                        const qNorm = normalizeArabic(qRaw);
+                                                        const qDigits = qRaw.replace(/[^0-9]/g, '');
+
+                                                        const filteredVolunteers = volunteers.filter(v => {
+                                                            if (!qRaw) return true;
+                                                            const nameNorm = normalizeArabic(v.full_name || '');
+                                                            const nameArNorm = normalizeArabic(v.full_name_ar || '');
+                                                            const phoneDigits = (v.phone || '').replace(/[^0-9]/g, '');
+
+                                                            const nameMatch = qNorm && (nameNorm.includes(qNorm) || nameArNorm.includes(qNorm));
+                                                            const phoneMatch = qDigits.length > 0 && phoneDigits.includes(qDigits);
+
+                                                            return Boolean(nameMatch || phoneMatch);
+                                                        });
+
+                                                        return (
+                                                            <div className="flex items-center justify-between text-[11px] text-muted-foreground px-0.5">
+                                                                <span>
+                                                                    {isRTL
+                                                                        ? `عرض ${filteredVolunteers.length} من أصل ${volunteers.length} متطوع`
+                                                                        : `Showing ${filteredVolunteers.length} of ${volunteers.length} volunteers`}
+                                                                </span>
+                                                                {volunteerSearch && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setVolunteerSearch('')}
+                                                                        className="text-primary hover:underline text-[11px]"
+                                                                    >
+                                                                        {isRTL ? 'مسح البحث' : 'Clear search'}
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </div>
+
                                                 <div className="flex-1 overflow-y-auto p-2 divide-y divide-border/40">
-                                                    {volunteers
-                                                        .filter(v => v.full_name.toLowerCase().includes(volunteerSearch.toLowerCase()))
-                                                        .map(volunteer => {
+                                                    {(() => {
+                                                        const qRaw = volunteerSearch.trim();
+                                                        const qNorm = normalizeArabic(qRaw);
+                                                        const qDigits = qRaw.replace(/[^0-9]/g, '');
+
+                                                        const filteredVolunteers = volunteers.filter(v => {
+                                                            if (!qRaw) return true;
+                                                            const nameNorm = normalizeArabic(v.full_name || '');
+                                                            const nameArNorm = normalizeArabic(v.full_name_ar || '');
+                                                            const phoneDigits = (v.phone || '').replace(/[^0-9]/g, '');
+
+                                                            const nameMatch = qNorm && (nameNorm.includes(qNorm) || nameArNorm.includes(qNorm));
+                                                            const phoneMatch = qDigits.length > 0 && phoneDigits.includes(qDigits);
+
+                                                            return Boolean(nameMatch || phoneMatch);
+                                                        });
+
+                                                        if (filteredVolunteers.length === 0) {
+                                                            return (
+                                                                <div className="text-center text-muted-foreground text-sm py-12 flex flex-col items-center">
+                                                                    <Search className="h-8 w-8 opacity-20 mb-3" />
+                                                                    {isRTL ? 'لا توجد نتائج تطابق بحثك' : 'No results found'}
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        return filteredVolunteers.map(volunteer => {
                                                             const isAdded = participants.some(p => p.volunteer_id === volunteer.id);
+                                                            const displayName = (isRTL && volunteer.full_name_ar) ? volunteer.full_name_ar : (volunteer.full_name || volunteer.full_name_ar);
+
                                                             return (
                                                                 <button
                                                                     key={volunteer.id}
@@ -1296,10 +1585,17 @@ export default function CaravanManagement() {
                                                                     <Avatar className="h-9 w-9 shrink-0 border border-background shadow-sm">
                                                                         <AvatarImage src={volunteer.avatar_url || undefined} />
                                                                         <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
-                                                                            {volunteer.full_name?.charAt(0)}
+                                                                            {displayName?.charAt(0)}
                                                                         </AvatarFallback>
                                                                     </Avatar>
-                                                                    <span className="flex-1 text-sm truncate">{volunteer.full_name}</span>
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <p className="text-sm font-medium truncate">{displayName}</p>
+                                                                        {volunteer.phone && (
+                                                                            <p className="text-xs text-muted-foreground font-mono dir-ltr text-start">
+                                                                                {volunteer.phone}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
                                                                     <div className={cn(
                                                                         'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
                                                                         isAdded ? 'bg-primary border-primary' : 'border-border'
@@ -1308,18 +1604,16 @@ export default function CaravanManagement() {
                                                                     </div>
                                                                 </button>
                                                             );
-                                                        })}
-                                                     {volunteers.filter(v => v.full_name.toLowerCase().includes(volunteerSearch.toLowerCase())).length === 0 && (
-                                                        <div className="text-center text-muted-foreground text-sm py-12 flex flex-col items-center">
-                                                            <Search className="h-8 w-8 opacity-20 mb-3" />
-                                                            {isRTL ? 'لا يوجد نتائج تطابق بحثك' : 'No results found'}
-                                                        </div>
-                                                    )}
+                                                        });
+                                                    })()}
                                                 </div>
                                                 <div className="px-4 py-3 border-t bg-background shrink-0 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)]">
                                                     <Button
                                                         className="w-full h-11 font-semibold"
-                                                        onClick={() => setIsVolunteerSelectorOpen(false)}
+                                                        onClick={() => {
+                                                            setIsVolunteerSelectorOpen(false);
+                                                            setShowVolunteerKeyboard(false);
+                                                        }}
                                                     >
                                                         <Check className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                         {isRTL
@@ -1352,11 +1646,20 @@ export default function CaravanManagement() {
                     <Search className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         type="search"
-                        placeholder={isRTL ? 'بحث باسم القافلة...' : 'Search by caravan name...'}
-                        className="ltr:pl-9 rtl:pr-9 w-full bg-background"
+                        placeholder={isRTL ? 'بحث باسم القافلة أو المكان...' : 'Search by caravan name or location...'}
+                        className="ltr:pl-9 rtl:pr-9 ltr:pr-8 rtl:pl-8 w-full bg-background h-10 sm:h-11"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                     />
+                    {searchQuery && (
+                        <button
+                            type="button"
+                            onClick={() => setSearchQuery('')}
+                            className="absolute top-1/2 -translate-y-1/2 ltr:right-2.5 rtl:left-2.5 text-muted-foreground hover:text-foreground p-1 rounded-full hover:bg-muted"
+                        >
+                            <X className="h-3.5 w-3.5" />
+                        </button>
+                    )}
                 </div>
                 <div className="relative w-full">
                     <Popover>
@@ -1364,7 +1667,7 @@ export default function CaravanManagement() {
                             <Button
                                 variant="outline"
                                 className={cn(
-                                    "w-full justify-start text-start font-normal bg-background h-10 border border-input",
+                                    "w-full justify-start text-start font-normal bg-background h-10 sm:h-11 border border-input",
                                     filterDate ? (isRTL ? "pl-8" : "pr-8") : "",
                                     !filterDate && "text-muted-foreground"
                                 )}
@@ -1404,7 +1707,7 @@ export default function CaravanManagement() {
                     )}
                 </div>
                 <Select value={timeFilter} onValueChange={setTimeFilter} dir={isRTL ? 'rtl' : 'ltr'}>
-                    <SelectTrigger className="w-full bg-background h-10">
+                    <SelectTrigger className="w-full bg-background h-10 sm:h-11">
                         <SelectValue placeholder={isRTL ? 'اختر الفترة' : 'Select Period'} />
                     </SelectTrigger>
                     <SelectContent>
