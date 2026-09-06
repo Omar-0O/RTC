@@ -335,7 +335,7 @@ export default function CaravanManagement() {
             }
 
             if (toUpdate.length > 0) {
-                const updatedParticipants: CaravanParticipantUpdate[] = toUpdate.map(p => ({
+                const updatedParticipants: CaravanParticipantInsert[] = toUpdate.map(p => ({
                     id: p.id,
                     caravan_id: selectedCaravanId,
                     volunteer_id: p.is_volunteer ? (p.volunteer_id || null) : null, // Force null for guests
@@ -772,6 +772,16 @@ export default function CaravanManagement() {
             toast.error(getErrorMessage(error, isRTL ? 'فشل حذف القافلة' : 'Failed to delete caravan'));
         } finally {
             setIsDeleting(false);
+        }
+    };
+
+    const getCaravanTypeLabel = (type: string) => {
+        switch (type) {
+            case 'food_distribution': return isRTL ? 'إطعام' : 'Food Distribution';
+            case 'charity_market': return isRTL ? 'سوق خيري' : 'Charity Market';
+            case 'eid_carnival': return isRTL ? 'كرنفال العيد' : 'Eid Carnival';
+            case 'other': return isRTL ? 'أخرى' : 'Other';
+            default: return type;
         }
     };
 
