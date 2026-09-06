@@ -827,8 +827,6 @@ export default function CaravanManagement() {
 
             const exportData: SpreadsheetRow[] = allCaravans.map(c => {
                 const parts = c.caravan_participants || [];
-                const vols = parts.filter(p => p.is_volunteer);
-                const guests = parts.filter(p => !p.is_volunteer);
 
                 return {
                     [t('caravans.name')]: c.name,
@@ -843,9 +841,7 @@ export default function CaravanManagement() {
                     [isRTL ? 'الوجبات المستهدفة' : 'Target Meals']: c.target_meals ?? '-',
                     [isRTL ? 'الوجبات الفعلية' : 'Actual Meals']: c.actual_meals ?? '-',
                     [isRTL ? 'إجمالي الشنط' : 'Total Bags']: c.total_bags ?? '-',
-                    [isRTL ? 'محتويات الشنطة' : 'Bag Contents']: Array.isArray(c.bag_contents) ? c.bag_contents.join('، ') : (c.bag_contents || '-'),
-                    [isRTL ? 'قائمة المتطوعين' : 'Volunteers List']: vols.map(p => p.phone ? `${p.name} (${p.phone})` : p.name).join(' | ') || '-',
-                    [isRTL ? 'قائمة الضيوف' : 'Guests List']: guests.map(p => p.phone ? `${p.name} (${p.phone})` : p.name).join(' | ') || '-'
+                    [isRTL ? 'محتويات الشنطة' : 'Bag Contents']: Array.isArray(c.bag_contents) ? c.bag_contents.join('، ') : (c.bag_contents || '-')
                 };
             });
 
