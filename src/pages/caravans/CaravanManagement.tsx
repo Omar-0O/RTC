@@ -27,7 +27,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
-import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, ChevronsUpDown, Trash2, FileSpreadsheet, X, Search, Pencil, MoreVertical, BarChart3, Keyboard } from 'lucide-react';
+import { Plus, Download, Bus, Calendar, Clock, MapPin, Users, Check, Trash2, FileSpreadsheet, X, Search, Pencil, MoreVertical, BarChart3, Keyboard } from 'lucide-react';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfQuarter, endOfQuarter, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -820,66 +820,6 @@ export default function CaravanManagement() {
         return (allCaravans || []) as CaravanWithParticipants[];
     };
 
-    const exportCaravansColumnsSheet = async () => {
-        try {
-            const allCaravans = await fetchCaravansWithParticipants();
-            if (!allCaravans || allCaravans.length === 0) return;
-
-            const fieldHeader = isRTL ? 'البيان / الحقل' : 'Field / Attribute';
-
-            const createRow = (
-                fieldLabel: string,
-                getValue: (c: CaravanWithParticipants, idx: number) => SpreadsheetValue
-            ): SpreadsheetRow => {
-                const rowObj: SpreadsheetRow = { [fieldHeader]: fieldLabel };
-                allCaravans.forEach((c, idx) => {
-                    const colName = `${idx + 1}. ${c.name} (${c.date})`;
-                    rowObj[colName] = getValue(c, idx);
-                });
-                return rowObj;
-            };
-
-            const exportData: SpreadsheetRow[] = [
-                createRow(isRTL ? 'اسم القافلة' : 'Caravan Name', c => c.name),
-                createRow(isRTL ? 'نوع القافلة' : 'Caravan Type', c => getCaravanTypeLabel(c.type)),
-                createRow(isRTL ? 'تاريخ القافلة' : 'Date', c => c.date),
-                createRow(isRTL ? 'المكان / الموقع' : 'Location', c => c.location),
-                createRow(isRTL ? 'وقت التحرك المحدد' : 'Scheduled Move Time', c => c.move_time || '-'),
-                createRow(isRTL ? 'وقت التحرك الفعلي' : 'Actual Move Time', c => c.actual_move_time || '-'),
-                createRow(isRTL ? 'وقت وصول الأتوبيس' : 'Bus Arrival Time', c => c.bus_arrival_time || '-'),
-                createRow(isRTL ? 'وقت العودة' : 'Return Time', c => c.return_time || '-'),
-                createRow(isRTL ? 'إجمالي المشاركين' : 'Total Participants', c => (c.caravan_participants || []).length),
-                createRow(isRTL ? 'عدد المتطوعين' : 'Volunteers Count', c => (c.caravan_participants || []).filter(p => p.is_volunteer).length),
-                createRow(isRTL ? 'عدد الضيوف' : 'Guests Count', c => (c.caravan_participants || []).filter(p => !p.is_volunteer).length),
-                createRow(isRTL ? 'ملتزمي الـ Vest' : 'Wore Vest Count', c => (c.caravan_participants || []).filter(p => p.is_volunteer && p.wore_vest).length),
-                createRow(isRTL ? 'نسبة الالتزام بالـ Vest' : 'Vest Compliance %', c => {
-                    const vols = (c.caravan_participants || []).filter(p => p.is_volunteer);
-                    if (vols.length === 0) return '-';
-                    const wore = vols.filter(p => p.wore_vest).length;
-                    return `${Math.round((wore / vols.length) * 100)}%`;
-                }),
-                createRow(isRTL ? 'وجبات التارجت (المستهدف)' : 'Target Meals', c => c.target_meals ?? '-'),
-                createRow(isRTL ? 'العدد الفعلي للوجبات' : 'Actual Meals', c => c.actual_meals ?? '-'),
-                createRow(isRTL ? 'إجمالي عدد الشنط' : 'Total Bags', c => c.total_bags ?? '-'),
-                createRow(isRTL ? 'محتويات الشنطة' : 'Bag Contents', c => Array.isArray(c.bag_contents) ? c.bag_contents.join('، ') : (c.bag_contents || '-')),
-                createRow(isRTL ? 'قائمة المتطوعين (الاسم والهاتف)' : 'Volunteers List (Name & Phone)', c => {
-                    const vols = (c.caravan_participants || []).filter(p => p.is_volunteer);
-                    return vols.map(p => p.phone ? `${p.name} (${p.phone})` : p.name).join(' | ') || '-';
-                }),
-                createRow(isRTL ? 'قائمة الضيوف (الاسم والهاتف)' : 'Guests List (Name & Phone)', c => {
-                    const guests = (c.caravan_participants || []).filter(p => !p.is_volunteer);
-                    return guests.map(p => p.phone ? `${p.name} (${p.phone})` : p.name).join(' | ') || '-';
-                })
-            ];
-
-            const filename = `Caravans_Columns_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-            downloadCSV(exportData, filename);
-        } catch (e) {
-            console.error('Export columns error:', e);
-            toast.error(isRTL ? 'فشل تصدير شيت القوافل' : 'Failed to export caravans columns sheet');
-        }
-    };
-
     const exportCaravansFullTable = async () => {
         try {
             const allCaravans = await fetchCaravansWithParticipants();
@@ -889,8 +829,6 @@ export default function CaravanManagement() {
                 const parts = c.caravan_participants || [];
                 const vols = parts.filter(p => p.is_volunteer);
                 const guests = parts.filter(p => !p.is_volunteer);
-                const woreVestCount = vols.filter(p => p.wore_vest).length;
-                const vestPercent = vols.length > 0 ? `${Math.round((woreVestCount / vols.length) * 100)}%` : '-';
 
                 return {
                     [t('caravans.name')]: c.name,
@@ -901,11 +839,6 @@ export default function CaravanManagement() {
                     [t('caravans.actualMoveTime')]: c.actual_move_time || '-',
                     [t('caravans.busArrivalTime')]: c.bus_arrival_time || '-',
                     [t('caravans.returnTime')]: c.return_time || '-',
-                    [isRTL ? 'إجمالي المشاركين' : 'Total Participants']: parts.length,
-                    [t('caravans.volunteersCount')]: vols.length,
-                    [t('caravans.guestsCount')]: guests.length,
-                    [isRTL ? 'ملتزمي الـ Vest' : 'Wore Vest']: woreVestCount,
-                    [isRTL ? 'نسبة الالتزام بالـ Vest' : 'Vest %']: vestPercent,
                     [isRTL ? 'الوجبات المستهدفة' : 'Target Meals']: c.target_meals ?? '-',
                     [isRTL ? 'الوجبات الفعلية' : 'Actual Meals']: c.actual_meals ?? '-',
                     [isRTL ? 'إجمالي الشنط' : 'Total Bags']: c.total_bags ?? '-',
@@ -923,74 +856,7 @@ export default function CaravanManagement() {
         }
     };
 
-    const exportParticipantsLog = async () => {
-        try {
-            const allCaravans = await fetchCaravansWithParticipants();
-            if (!allCaravans || allCaravans.length === 0) return;
-
-            const flattenedData: SpreadsheetRow[] = [];
-            allCaravans.forEach(c => {
-                const parts = c.caravan_participants || [];
-                const vols = parts.filter(p => p.is_volunteer);
-                const guests = parts.filter(p => !p.is_volunteer);
-                const woreVestCount = vols.filter(p => p.wore_vest).length;
-
-                if (parts.length > 0) {
-                    parts.forEach(p => {
-                        flattenedData.push({
-                            [t('caravans.name')]: c.name,
-                            [t('caravans.type')]: getCaravanTypeLabel(c.type),
-                            [t('caravans.date')]: c.date,
-                            [t('caravans.location')]: c.location,
-                            [t('caravans.moveTime')]: c.move_time || '-',
-                            [t('caravans.actualMoveTime')]: c.actual_move_time || '-',
-                            [t('caravans.busArrivalTime')]: c.bus_arrival_time || '-',
-                            [t('caravans.returnTime')]: c.return_time || '-',
-                            [t('caravans.volunteersCount')]: vols.length,
-                            [t('caravans.guestsCount')]: guests.length,
-                            [isRTL ? 'ملتزمي الـ Vest' : 'Wore Vest Count']: woreVestCount,
-                            [isRTL ? 'وجبات التارجت' : 'Target Meals']: c.target_meals ?? '-',
-                            [isRTL ? 'العدد الفعلي للوجبات' : 'Actual Meals']: c.actual_meals ?? '-',
-                            [isRTL ? 'إجمالي الشنط' : 'Total Bags']: c.total_bags ?? '-',
-                            [t('leaderboard.name')]: p.name,
-                            [t('users.phoneNumber')]: p.phone || '-',
-                            [isRTL ? 'الصفة (متطوع/ضيف)' : 'Volunteer/Guest']: p.is_volunteer ? (isRTL ? 'متطوع' : 'Volunteer') : (isRTL ? 'ضيف' : 'Guest'),
-                            [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: p.is_volunteer ? (p.wore_vest ? (isRTL ? 'نعم' : 'Yes') : (isRTL ? 'لا' : 'No')) : '-'
-                        });
-                    });
-                } else {
-                    flattenedData.push({
-                        [t('caravans.name')]: c.name,
-                        [t('caravans.type')]: getCaravanTypeLabel(c.type),
-                        [t('caravans.date')]: c.date,
-                        [t('caravans.location')]: c.location,
-                        [t('caravans.moveTime')]: c.move_time || '-',
-                        [t('caravans.actualMoveTime')]: c.actual_move_time || '-',
-                        [t('caravans.busArrivalTime')]: c.bus_arrival_time || '-',
-                        [t('caravans.returnTime')]: c.return_time || '-',
-                        [t('caravans.volunteersCount')]: vols.length,
-                        [t('caravans.guestsCount')]: guests.length,
-                        [isRTL ? 'ملتزمي الـ Vest' : 'Wore Vest Count']: woreVestCount,
-                        [isRTL ? 'وجبات التارجت' : 'Target Meals']: c.target_meals ?? '-',
-                        [isRTL ? 'العدد الفعلي للوجبات' : 'Actual Meals']: c.actual_meals ?? '-',
-                        [isRTL ? 'إجمالي الشنط' : 'Total Bags']: c.total_bags ?? '-',
-                        [t('leaderboard.name')]: '-',
-                        [t('users.phoneNumber')]: '-',
-                        [isRTL ? 'الصفة (متطوع/ضيف)' : 'Volunteer/Guest']: '-',
-                        [isRTL ? 'ارتدى الـ Vest' : 'Wore Vest']: '-'
-                    });
-                }
-            });
-
-            const filename = `Caravans_Participants_${getFilterDisplayLabel(timeFilter)}_${format(new Date(), 'yyyy-MM-dd')}.csv`;
-            downloadCSV(flattenedData, filename);
-        } catch (e) {
-            console.error('Export participants log error:', e);
-            toast.error(isRTL ? 'فشل تصدير سجل المشاركين' : 'Failed to export participants log');
-        }
-    };
-
-    const exportAllCaravans = exportCaravansColumnsSheet;
+    const exportAllCaravans = exportCaravansFullTable;
 
     const exportCaravanDetails = async (caravan: Caravan) => {
         try {
@@ -1055,52 +921,16 @@ export default function CaravanManagement() {
                 <h1 className="text-2xl sm:text-3xl font-bold">{t('caravans.title')}</h1>
                 
                 <div className="flex w-full sm:w-auto gap-2">
-                    <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="flex-1 sm:flex-none gap-1.5 h-10 sm:h-11">
-                                <FileSpreadsheet className="w-4 h-4 text-primary shrink-0" />
-                                <span className="text-xs sm:text-sm font-medium">
-                                    {t('caravans.exportAll')} <span className="hidden md:inline">({getFilterDisplayLabel(timeFilter)})</span>
-                                </span>
-                                <ChevronsUpDown className="w-3.5 h-3.5 opacity-60 shrink-0" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align={isRTL ? "start" : "end"} className="w-72 p-1.5 shadow-xl border-border/60">
-                            <DropdownMenuItem onClick={exportCaravansColumnsSheet} className="cursor-pointer py-2.5 px-3 rounded-lg focus:bg-primary/10">
-                                <BarChart3 className="ltr:mr-2.5 rtl:ml-2.5 h-4 w-4 text-primary shrink-0" />
-                                <div className="flex flex-col text-start">
-                                    <span className="font-semibold text-xs sm:text-sm text-foreground">
-                                        {isRTL ? 'شيت القوافل (الأعمدة تمثل القوافل)' : 'Columns as Convoys Sheet'}
-                                    </span>
-                                    <span className="text-[11px] text-muted-foreground">
-                                        {isRTL ? 'كل عمود عبارة عن قافلة بكامل بياناتها' : 'Each column is a caravan with all data'}
-                                    </span>
-                                </div>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={exportCaravansFullTable} className="cursor-pointer py-2.5 px-3 rounded-lg focus:bg-primary/10">
-                                <FileSpreadsheet className="ltr:mr-2.5 rtl:ml-2.5 h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                <div className="flex flex-col text-start">
-                                    <span className="font-semibold text-xs sm:text-sm text-foreground">
-                                        {isRTL ? 'شيت القوافل الشامل (جدول بكل الأعمدة)' : 'Comprehensive Caravans Table'}
-                                    </span>
-                                    <span className="text-[11px] text-muted-foreground">
-                                        {isRTL ? 'جدول كامل بكافة الأعمدة والبيانات' : 'Full table with all caravan columns'}
-                                    </span>
-                                </div>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={exportParticipantsLog} className="cursor-pointer py-2.5 px-3 rounded-lg focus:bg-primary/10">
-                                <Users className="ltr:mr-2.5 rtl:ml-2.5 h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                                <div className="flex flex-col text-start">
-                                    <span className="font-semibold text-xs sm:text-sm text-foreground">
-                                        {isRTL ? 'سجل المشاركين المفصل' : 'Detailed Participants Log'}
-                                    </span>
-                                    <span className="text-[11px] text-muted-foreground">
-                                        {isRTL ? 'تفاصيل كل متطوع وضيف في القوافل' : 'Individual volunteer and guest entries'}
-                                    </span>
-                                </div>
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Button
+                        variant="outline"
+                        onClick={exportCaravansFullTable}
+                        className="flex-1 sm:flex-none gap-1.5 h-10 sm:h-11 shadow-sm"
+                    >
+                        <FileSpreadsheet className="w-4 h-4 text-primary shrink-0" />
+                        <span className="text-xs sm:text-sm font-medium">
+                            {isRTL ? 'شيت القوافل الشامل' : t('caravans.exportAll')} <span className="hidden md:inline">({getFilterDisplayLabel(timeFilter)})</span>
+                        </span>
+                    </Button>
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>
                             <Button className="flex-1 sm:flex-none" onClick={() => { resetForm(); setIsCreateOpen(true); }}>
