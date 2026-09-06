@@ -839,6 +839,7 @@ export default function CaravanManagement() {
                     [t('caravans.actualMoveTime')]: c.actual_move_time || '-',
                     [t('caravans.busArrivalTime')]: c.bus_arrival_time || '-',
                     [t('caravans.returnTime')]: c.return_time || '-',
+                    [isRTL ? 'عدد المشاركين' : 'Total Participants']: parts.length,
                     [isRTL ? 'الوجبات المستهدفة' : 'Target Meals']: c.target_meals ?? '-',
                     [isRTL ? 'الوجبات الفعلية' : 'Actual Meals']: c.actual_meals ?? '-',
                     [isRTL ? 'إجمالي الشنط' : 'Total Bags']: c.total_bags ?? '-',
