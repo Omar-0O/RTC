@@ -93,6 +93,7 @@ import { UserCardsGrid } from '@/components/admin/UserCardsGrid';
 import { UserFilters } from '@/components/admin/UserFilters';
 import { AvatarCropPanel } from '@/components/admin/AvatarCropPanel';
 import { UserAccountDialogContent, type UserAccountForm } from '@/components/admin/UserAccountDialogContent';
+import { ALL_FEATURES, getRoleDefaultFeatures } from '@/utils/userFeatures';
 
 type CsvRow = SpreadsheetRow;
 
@@ -107,67 +108,6 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
     if (typeof message === 'string' && message.trim()) return message;
   }
   return fallback;
-};
-
-const ALL_FEATURES = [
-  { id: 'user_management', label: 'إدارة الأعضاء', labelEn: 'User Management' },
-  { id: 'courses_management', label: 'إدارة الكورسات والمدربين', labelEn: 'Courses & Trainers Management' },
-  { id: 'quran_circles_management', label: 'إدارة حلقات القرآن والمحفظين', labelEn: 'Quran Circles & Teachers Management' },
-  { id: 'caravans_management', label: 'إدارة القوافل', labelEn: 'Caravans Management' },
-  { id: 'events_management', label: 'إدارة الايفنتات', labelEn: 'Events Management' },
-  { id: 'ashbal_management', label: 'إدارة الأشبال', labelEn: 'Ashbal Management' },
-  { id: 'ethics_management', label: 'إدارة الأخلاقيات والمكالمات', labelEn: 'Ethics & Calls Management' },
-  { id: 'fines_management', label: 'إدارة الغرامات', labelEn: 'Fines Management' },
-  { id: 'hr_management', label: 'إدارة المشاركات (HR)', labelEn: 'Submission Management (HR)' },
-  { id: 'reports_view', label: 'عرض التقارير', labelEn: 'Reports View' },
-  { id: 'followup_management', label: 'شيت المتابعة', labelEn: 'Follow-Up Sheet' },
-  { id: 'rooms_management', label: 'إدارة القاعات', labelEn: 'Rooms Management' },
-];
-
-const getRoleDefaultFeatures = (role: UserRole): string[] => {
-  switch (role) {
-    case 'admin':
-    case 'branch_admin':
-      return [
-        'courses_management',
-        'quran_circles_management',
-        'caravans_management',
-        'events_management',
-        'ashbal_management',
-        'ethics_management',
-        'fines_management',
-        'hr_management',
-        'user_management',
-        'reports_view',
-        'followup_management',
-        'rooms_management',
-      ];
-    case 'supervisor':
-      return ['user_management', 'reports_view', 'courses_management', 'followup_management'];
-    case 'committee_leader':
-      return ['courses_management', 'events_management'];
-    case 'hr':
-      return ['hr_management', 'user_management', 'reports_view'];
-    case 'head_hr':
-      return ['hr_management', 'user_management', 'reports_view', 'followup_management'];
-    case 'head_caravans':
-      return ['caravans_management', 'events_management'];
-    case 'head_events':
-      return ['events_management', 'reports_view'];
-    case 'head_production':
-    case 'head_fourth_year':
-      return ['events_management', 'reports_view'];
-    case 'head_ethics':
-      return ['ethics_management', 'events_management'];
-    case 'head_quran':
-      return ['quran_circles_management', 'events_management'];
-    case 'head_ashbal':
-      return ['ashbal_management', 'events_management'];
-    case 'head_marketing':
-      return ['courses_management', 'events_management', 'quran_circles_management'];
-    default:
-      return [];
-  }
 };
 
 export default function UserManagement() {

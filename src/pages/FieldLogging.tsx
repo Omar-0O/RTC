@@ -8,6 +8,7 @@ import { isFutureDate, getTodayLocalDateString } from '@/utils/dateUtils';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
+import { canSubmitGroupActivity } from '@/utils/userFeatures';
 
 // Kiosk service account credentials.
 // This user has basic volunteer-level access (branch-scoped via RLS).
@@ -692,20 +693,22 @@ export default function FieldLogging() {
           setSelectedCommitteeId('general');
         }
 
-        // Check user_roles for leader permissions
-        const LEADER_ROLES = [
-          'committee_leader', 'head_hr', 'admin', 'supervisor', 'head_caravans',
-          'head_events', 'head_ethics', 'head_quran', 'head_ashbal', 'head_marketing',
-          'head_production', 'head_fourth_year', 'hr', 'head_media'
-        ];
-        const { data: rolesData } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', data.id);
+        // Check user_roles and user_features for leader or custom group permissions
+        const [{ data: rolesData }, { data: featuresData }] = await Promise.all([
+          supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', data.id),
+          supabase
+            .from('user_features')
+            .select('feature')
+            .eq('user_id', data.id),
+        ]);
 
         const userRoles = rolesData?.map((r: { role: string }) => r.role) || [];
-        const hasLeaderRole = userRoles.some((r: string) => LEADER_ROLES.includes(r));
-        setIsLeader(hasLeaderRole);
+        const userFeatures = featuresData?.map((f: { feature: string }) => f.feature) || [];
+        const hasGroupPermission = canSubmitGroupActivity(userRoles, userFeatures);
+        setIsLeader(hasGroupPermission);
 
         const volunteerName = isRTL
           ? (data.full_name_ar || data.full_name)

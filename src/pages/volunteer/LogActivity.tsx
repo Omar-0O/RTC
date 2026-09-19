@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { isFutureDate } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { canSubmitGroupActivity } from '@/utils/userFeatures';
 import { supabase } from '@/integrations/supabase/client';
 import { ProofImagePreview } from '@/components/ProofImagePreview';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -87,7 +88,7 @@ interface Volunteer {
 }
 
 export default function LogActivity() {
-  const { user, profile, refreshProfile, primaryRole } = useAuth();
+  const { user, profile, refreshProfile, primaryRole, features = [] } = useAuth();
   const { t, isRTL, language } = useLanguage();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -123,6 +124,7 @@ export default function LogActivity() {
 
 
   const isLeader = ['committee_leader', 'head_hr', 'admin', 'supervisor', 'head_caravans', 'head_events', 'head_ethics', 'head_quran', 'head_ashbal', 'head_marketing', 'head_production', 'head_fourth_year', 'hr', 'head_media'].includes(primaryRole);
+  const canGroupSubmit = canSubmitGroupActivity(primaryRole, features);
 
   const fetchVolunteers = useCallback(async () => {
     try {
@@ -396,8 +398,8 @@ export default function LogActivity() {
         participant_type: 'volunteer' as const, // Default to volunteer
         volunteer_id: user.id, // Explicitly set volunteer_id again
         status: 'approved' as "pending" | "approved" | "rejected",
-        reviewed_at: (isLeader ? new Date().toISOString() : null),
-        reviewed_by: (isLeader ? user.id : null),
+        reviewed_at: (canGroupSubmit ? new Date().toISOString() : null),
+        reviewed_by: (canGroupSubmit ? user.id : null),
         proof_url: proofUrl,
         submitted_at: submissionTimestamp,
         branch_id: profile?.branch_id || null
@@ -699,8 +701,8 @@ export default function LogActivity() {
           <CardContent className="p-6 space-y-6">
             <form onSubmit={handleSubmit} className="space-y-6">
 
-              {/* Leader Group Toggle */}
-              {isLeader && (
+              {/* Leader or Authorized Volunteer Group Toggle */}
+              {canGroupSubmit && (
                 <div className="relative flex items-center justify-between gap-6 p-5 border-2 rounded-xl bg-gradient-to-r from-accent/5 to-primary/5 hover:border-primary/30 transition-all group">
                   <div className="flex items-center gap-4 flex-1">
                     <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
@@ -1424,9 +1426,9 @@ export default function LogActivity() {
           </CardContent>
         </Card>
 
-        {/* Group Submissions History for Leaders */}
+        {/* Group Submissions History for Leaders and Authorized Volunteers */}
         {
-          isLeader && (
+          canGroupSubmit && (
             <Card className="lg:col-span-2 border-0 shadow-xl bg-gradient-to-b from-card to-card/95 overflow-hidden">
               <CardHeader className="pb-4 border-b border-border/50 bg-muted/30">
                 <div className="flex items-center gap-3">
