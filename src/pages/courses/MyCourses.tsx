@@ -23,16 +23,13 @@ import { toast } from 'sonner';
 import { BookOpen, Calendar, Clock, MapPin, Users, Check, X, Loader2, GraduationCap, Search, UserPlus, Table as TableIcon } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
-import { Plus, Trash2, Pencil, MoreHorizontal, Download, Megaphone, Image, FileText, MessageSquare } from 'lucide-react';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
+import { Plus, Trash2, Pencil, MoreHorizontal, Download } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { exportCourseReportToXlsx } from '@/utils/courseExport';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { CACHE_TTL, getLocalCache, setLocalCache } from '@/utils/localCache';
@@ -43,13 +40,12 @@ import {
     createCourseAd,
     deleteCourseAd,
     deleteCourseBeneficiary,
-    leaveCourseRole,
     toggleCourseAttendance,
     updateCourseAd,
     updateCourseBeneficiary,
     updateCourseLectureStatus,
     getCourseRooms,
-    getMyCourseOverview,
+    getBranchCourses,
 } from '@/services/myCourses.service';
 
 type SupabaseErrorWithCode = { code?: string };
@@ -140,8 +136,6 @@ interface CourseAd {
 
 type MyCoursesCache = {
     courses?: Course[];
-    organizerCourseIds?: string[];
-    marketerCourseIds?: string[];
 };
 
 const isMyCoursesCache = (value: unknown): value is MyCoursesCache =>
@@ -160,7 +154,7 @@ const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
 const MY_COURSE_COLUMNS = 'id, name, trainer_id, trainer_name, trainer_phone, room, schedule_days, schedule_time, schedule_end_time, has_interview, interview_date, total_lectures, start_date, end_date, committee_id, course_lectures(status)';
 
 export default function MyCourses() {
-    const { user } = useAuth();
+    const { user, profile } = useAuth();
     const { language, isRTL } = useLanguage();
     const locale = language === 'ar' ? ar : enUS;
 
@@ -177,10 +171,9 @@ export default function MyCourses() {
     const [newBeneficiary, setNewBeneficiary] = useState({ name: '', phone: '', national_id: '' });
     const [editingBeneficiary, setEditingBeneficiary] = useState<CourseBeneficiary | null>(null);
     const [courseAds, setCourseAds] = useState<CourseAd[]>([]);
-    const [isMarketer, setIsMarketer] = useState(false);
-    const [isOrganizer, setIsOrganizer] = useState(false);
-    const [marketerCourseIds, setMarketerCourseIds] = useState<Set<string>>(new Set());
-    const [organizerCourseIds, setOrganizerCourseIds] = useState<Set<string>>(new Set());
+    // All branch volunteers are treated as full organizers — no marketer-only mode
+    const [isOrganizer] = useState(true);
+    const [isMarketer] = useState(false);
     const [activeTab, setActiveTab] = useState('beneficiaries');
     const [beneficiaryTabSearch, setBeneficiaryTabSearch] = useState('');
     const [showAddForm, setShowAddForm] = useState(false);
@@ -189,25 +182,19 @@ export default function MyCourses() {
     const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
     const [beneficiaryToDelete, setBeneficiaryToDelete] = useState<CourseBeneficiary | null>(null);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-    const [leaveCourseId, setLeaveCourseId] = useState<string | null>(null);
-    const [leaveType, setLeaveType] = useState<'organizer' | 'marketer' | null>(null);
-    const [isLeaveConfirmOpen, setIsLeaveConfirmOpen] = useState(false);
-
 
     useEffect(() => {
         if (user) {
-            const cacheKey = `rtc_my_courses_data_${user.id}`;
+            const cacheKey = `rtc_branch_courses_data_${user.id}`;
             const cached = getLocalCache<MyCoursesCache>(cacheKey, isMyCoursesCache);
             let hasCache = false;
             if (cached) {
                 setCourses(cached.courses || []);
-                setOrganizerCourseIds(new Set(cached.organizerCourseIds || []));
-                setMarketerCourseIds(new Set(cached.marketerCourseIds || []));
                 setLoading(false);
                 hasCache = true;
             }
 
-            fetchMyCourses(hasCache);
+            fetchBranchCourses(hasCache);
             fetchRooms();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -222,22 +209,21 @@ export default function MyCourses() {
         }
     };
 
-    const fetchMyCourses = async (hasCache = false) => {
+    const fetchBranchCourses = async (hasCache = false) => {
         if (!user) return;
+        const branchId = profile?.branch_id;
+        if (!branchId) {
+            // No branch assigned — nothing to show
+            setLoading(false);
+            return;
+        }
         if (!hasCache) setLoading(true);
         try {
-            const overview = await getMyCourseOverview(user.id);
-            const coursesData = overview.courses as Course[];
+            const coursesData = (await getBranchCourses(branchId)) as Course[];
             setCourses(coursesData);
-            setOrganizerCourseIds(new Set(overview.organizerCourseIds));
-            setMarketerCourseIds(new Set(overview.marketerCourseIds));
-            setLocalCache("rtc_my_courses_data_" + user.id, {
-                courses: coursesData,
-                organizerCourseIds: overview.organizerCourseIds,
-                marketerCourseIds: overview.marketerCourseIds,
-            }, CACHE_TTL.short);
+            setLocalCache(`rtc_branch_courses_data_${user.id}`, { courses: coursesData }, CACHE_TTL.short);
         } catch (error) {
-            console.error("Error fetching courses:", error);
+            console.error("Error fetching branch courses:", error);
             toast.error(isRTL ? "فشل في تحميل الكورسات" : "Failed to fetch courses");
         } finally {
             setLoading(false);
@@ -280,45 +266,12 @@ export default function MyCourses() {
         }
     };
 
-    const handleLeaveCourse = (courseId: string, type: 'organizer' | 'marketer') => {
-        setLeaveCourseId(courseId);
-        setLeaveType(type);
-        setIsLeaveConfirmOpen(true);
-    };
-
-    const confirmLeaveCourse = async () => {
-        if (!user || !leaveCourseId || !leaveType) return;
-        try {
-            await leaveCourseRole(leaveCourseId, user.id, leaveType);
-            toast.success(isRTL ? 'تمت الإزالة بنجاح' : 'Removed successfully');
-            setIsLeaveConfirmOpen(false);
-            setLeaveCourseId(null);
-            setLeaveType(null);
-            fetchMyCourses();
-        } catch (error: unknown) {
-            console.error('Error leaving course:', error);
-            toast.error(isRTL ? 'حدث خطأ أثناء الإزالة' : 'Error removing role');
-        }
-    };
-
     const openCourseDetails = async (course: Course, tab: string = 'beneficiaries') => {
         setSelectedCourse(course);
         setIsDetailsOpen(true);
         setCourseAds([]);
+        // All branch volunteers have full organizer access
         setActiveTab(tab);
-
-        // Check if user is marketer using pre-fetched data
-        const isUserMarketer = marketerCourseIds.has(course.id);
-        const isUserOrganizer = organizerCourseIds.has(course.id);
-        setIsMarketer(isUserMarketer);
-        setIsOrganizer(isUserOrganizer);
-
-        // If only marketer (not organizer), force marketing tab
-        if (isUserMarketer && !isUserOrganizer) {
-            setActiveTab('marketing');
-        } else {
-            setActiveTab(tab);
-        }
 
         try {
             const details = await getCourseDetails(course.id);
@@ -562,7 +515,7 @@ export default function MyCourses() {
                     {isRTL ? 'كورساتي' : 'My Courses'}
                 </h1>
                 <p className="text-muted-foreground">
-                    {isRTL ? 'الكورسات اللي بتنظمها' : 'Courses you are organizing'}
+                    {isRTL ? 'كورسات الفرع — كل المتطوعين يقدروا يتابعوا وينظموا' : 'Branch courses — all volunteers can organise and follow up'}
                 </p>
             </div>
 
@@ -588,32 +541,10 @@ export default function MyCourses() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            {organizerCourseIds.has(course.id) && (
-                                                <>
-                                                    <DropdownMenuItem onClick={() => openCourseDetails(course)}>
-                                                        <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                        {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem onClick={() => handleLeaveCourse(course.id, 'organizer')} className="text-destructive focus:bg-destructive/10">
-                                                        <Trash2 className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                        {isRTL ? 'إزالة نفسي كمنظم' : 'Leave as Organizer'}
-                                                    </DropdownMenuItem>
-                                                </>
-                                            )}
-                                            {marketerCourseIds.has(course.id) && (
-                                                <>
-                                                    <DropdownMenuItem onClick={() => openCourseDetails(course, 'marketing')}>
-                                                        <Megaphone className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                        {isRTL ? 'إدارة التسويق' : 'Marketing Management'}
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuItem onClick={() => handleLeaveCourse(course.id, 'marketer')} className="text-destructive focus:bg-destructive/10">
-                                                        <Trash2 className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                        {isRTL ? 'إزالة نفسي كمسوق' : 'Leave as Marketer'}
-                                                    </DropdownMenuItem>
-                                                </>
-                                            )}
+                                            <DropdownMenuItem onClick={() => openCourseDetails(course)}>
+                                                <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
+                                            </DropdownMenuItem>
                                             <DropdownMenuItem onClick={() => exportCourseToExcel(course)}>
                                                 <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
                                                 {isRTL ? 'تصدير Excel' : 'Export Excel'}
@@ -655,7 +586,7 @@ export default function MyCourses() {
                 {courses.length === 0 && !loading && (
                     <div className="col-span-full flex flex-col items-center justify-center p-8 border rounded-lg border-dashed text-muted-foreground">
                         <BookOpen className="w-12 h-12 mb-2 opacity-20" />
-                        <p>{isRTL ? 'لا توجد كورسات تنظمها حالياً' : 'You are not organizing any courses'}</p>
+                        <p>{isRTL ? 'لا توجد كورسات في فرعك حالياً' : 'No courses found in your branch'}</p>
                     </div>
                 )}
             </div>

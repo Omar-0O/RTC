@@ -75,39 +75,11 @@ export function AppSidebar() {
       setOpenMobile(false);
     }
   };
-  const [isCourseAccess, setIsCourseAccess] = useState(false);
   const [isCircleOrganizer, setIsCircleOrganizer] = useState(false);
   const [isEventOrganizer, setIsEventOrganizer] = useState(false);
   const [hasActiveFines, setHasActiveFines] = useState(false);
 
-  // Check if user is a course organizer
   useEffect(() => {
-    const checkCourseAccess = async () => {
-      if (!user?.id) return;
-
-      // Check if organizer
-      const { data: organizerData } = await supabase
-        .from('course_organizers')
-        .select('id')
-        .eq('volunteer_id', user.id)
-        .limit(1);
-
-      if (organizerData && organizerData.length > 0) {
-        setIsCourseAccess(true);
-        return;
-      }
-
-      // Check if marketer
-      const { data: marketerData } = await supabase
-        .from('course_marketers')
-        .select('id')
-        .eq('volunteer_id', user.id)
-        .limit(1);
-
-      setIsCourseAccess(marketerData && marketerData.length > 0);
-    };
-    checkCourseAccess();
-
     // Check if user is a circle organizer OR a circle marketer
     const checkCircleOrganizer = async () => {
       if (!user?.id) return;
@@ -166,17 +138,16 @@ export function AppSidebar() {
     checkFines();
   }, [user?.id]);
 
-  // Base volunteer nav items
+  // Base volunteer nav items — 'كورساتي' is visible for every branch volunteer
   const baseVolunteerNavItems = [
     { title: t('nav.dashboard'), url: '/dashboard', icon: Home },
     { title: t('nav.logActivity'), url: '/activity', icon: Activity },
     { title: t('nav.profile'), url: '/profile', icon: User },
+    { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap },
   ];
 
-  // Add My Courses if user is an organizer or marketer
-  let volunteerNavItems = isCourseAccess
-    ? [...baseVolunteerNavItems, { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap }]
-    : baseVolunteerNavItems;
+  // volunteerNavItems starts from base (course item already included)
+  let volunteerNavItems = [...baseVolunteerNavItems];
 
   // Add My Quran Circles if user is a circle organizer
   if (isCircleOrganizer) {
@@ -204,7 +175,7 @@ export function AppSidebar() {
     { title: t('nav.leaderboard'), url: '/leaderboard', icon: Trophy },
   ];
 
-  // Base leader nav items
+  // Base leader nav items — 'كورساتي' is always included
   const baseLeaderNavItems = [
     { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
     { title: t('leader.dashboard'), url: '/leader/committee', icon: Building2 },
@@ -216,12 +187,11 @@ export function AppSidebar() {
     { title: t('nav.events'), url: '/events', icon: Calendar },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
     { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
+    { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap },
   ];
 
-  // Add My Courses only if user is an organizer
-  let leaderNavItems = isCourseAccess
-    ? [...baseLeaderNavItems, { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap }]
-    : baseLeaderNavItems;
+  // leaderNavItems starts from base (course item already included)
+  let leaderNavItems = [...baseLeaderNavItems];
 
   // Add My Quran Circles if user is a circle organizer
   if (isCircleOrganizer) {
@@ -467,7 +437,7 @@ export function AppSidebar() {
   }
 
   // Ensure organizers always see their management pages regardless of role
-  if (isCourseAccess && !navItems.some(i => i.url === '/my-courses')) {
+  if (!navItems.some(i => i.url === '/my-courses')) {
     navItems = [...navItems, { title: isRTL ? 'كورساتي' : 'My Courses', url: '/my-courses', icon: GraduationCap }];
   }
 
