@@ -19,8 +19,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { BookOpen, Calendar, Clock, MapPin, Users, Check, X, Loader2, GraduationCap, Search, UserPlus, Table as TableIcon } from 'lucide-react';
+import { BookOpen, Calendar, Clock, MapPin, Users, Check, X, Loader2, GraduationCap, Search, UserPlus, Table as TableIcon, Megaphone, Image, FileText, MessageSquare } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { Plus, Trash2, Pencil, MoreHorizontal, Download } from 'lucide-react';
@@ -173,7 +175,7 @@ export default function MyCourses() {
     const [courseAds, setCourseAds] = useState<CourseAd[]>([]);
     // All branch volunteers are treated as full organizers — no marketer-only mode
     const [isOrganizer] = useState(true);
-    const [isMarketer] = useState(false);
+    const [isMarketer] = useState(true);
     const [activeTab, setActiveTab] = useState('beneficiaries');
     const [beneficiaryTabSearch, setBeneficiaryTabSearch] = useState('');
     const [showAddForm, setShowAddForm] = useState(false);
@@ -1421,35 +1423,6 @@ export default function MyCourses() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-
-            {/* Leave Course Confirmation */}
-            <AlertDialog open={isLeaveConfirmOpen} onOpenChange={setIsLeaveConfirmOpen}>
-                <AlertDialogContent className="max-w-sm w-[calc(100%-2rem)] rounded-xl">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-                            <X className="w-5 h-5" />
-                            {isRTL ? 'تأكيد الإزالة' : 'Confirm Removal'}
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-sm">
-                            {isRTL
-                                ? `هل أنت متأكد من إزالة نفسك ك${leaveType === 'organizer' ? 'منظم' : 'مسوق'} من هذا الكورس؟`
-                                : `Are you sure you want to remove yourself as a ${leaveType === 'organizer' ? 'organizer' : 'marketer'} from this course?`
-                            }
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="gap-2">
-                        <AlertDialogCancel className="flex-1 sm:flex-none">
-                            {isRTL ? 'إلغاء' : 'Cancel'}
-                        </AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={confirmLeaveCourse}
-                            className="flex-1 sm:flex-none bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                        >
-                            {isRTL ? 'تأكيد' : 'Confirm'}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-        </div >
+        </div>
     );
 }
