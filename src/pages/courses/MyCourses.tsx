@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { validateCourseBeneficiary } from '@/utils/courseBeneficiaryValidation';
@@ -21,13 +21,21 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
-import { BookOpen, Calendar, Clock, MapPin, Users, Check, X, Loader2, GraduationCap, Search, UserPlus, Table as TableIcon, Megaphone, Image, FileText, MessageSquare } from 'lucide-react';
+import { BookOpen, Calendar, Clock, MapPin, Users, Check, X, Loader2, GraduationCap, Search, UserPlus, Table as TableIcon, Megaphone, Image, FileText, MessageSquare, Pin, RotateCcw } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { Plus, Trash2, Pencil, MoreHorizontal, Download } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { exportCourseReportToXlsx } from '@/utils/courseExport';
+import { cn } from '@/lib/utils';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -184,6 +192,33 @@ export default function MyCourses() {
     const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
     const [beneficiaryToDelete, setBeneficiaryToDelete] = useState<CourseBeneficiary | null>(null);
     const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+
+    // Search, Filter & Pin State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'upcoming' | 'completed'>('all');
+    const [roomFilter, setRoomFilter] = useState<string>('all');
+    const [onlyPinned, setOnlyPinned] = useState(false);
+    const [pinnedCourseIds, setPinnedCourseIds] = useState<string[]>(() => {
+        if (typeof window === 'undefined') return [];
+        try {
+            const currentUserId = user?.id || 'anonymous';
+            const saved = localStorage.getItem(`rtc_pinned_courses_${currentUserId}`);
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    });
+
+    useEffect(() => {
+        if (user) {
+            try {
+                const saved = localStorage.getItem(`rtc_pinned_courses_${user.id}`);
+                setPinnedCourseIds(saved ? JSON.parse(saved) : []);
+            } catch {
+                setPinnedCourseIds([]);
+            }
+        }
+    }, [user]);
 
     useEffect(() => {
         if (user) {
@@ -411,11 +446,116 @@ export default function MyCourses() {
         }
     };
 
-    const getRoomLabel = (room: string) => rooms[room]?.[language as 'en' | 'ar'] || room;
+    const getRoomLabel = useCallback((room: string) => rooms[room]?.[language as 'en' | 'ar'] || room, [rooms, language]);
 
     const getProgress = (course: Course) => {
         const completed = course.course_lectures?.filter(l => l.status === 'completed').length || 0;
         return { completed, total: course.total_lectures };
+    };
+
+    const togglePinCourse = (courseId: string, e?: React.MouseEvent) => {
+        if (e) {
+            e.stopPropagation();
+            e.preventDefault();
+        }
+        setPinnedCourseIds(prev => {
+            const isPinned = prev.includes(courseId);
+            const next = isPinned ? prev.filter(id => id !== courseId) : [courseId, ...prev];
+            if (user) {
+                try {
+                    localStorage.setItem(`rtc_pinned_courses_${user.id}`, JSON.stringify(next));
+                } catch {
+                    // Ignore storage errors
+                }
+            }
+            toast.success(
+                isRTL
+                    ? (isPinned ? 'تم إلغاء تثبيت الكورس' : 'تم تثبيت الكورس في المقدمة 📌')
+                    : (isPinned ? 'Course unpinned' : 'Course pinned to top 📌')
+            );
+            return next;
+        });
+    };
+
+    const getCourseStatus = (course: Course): 'completed' | 'upcoming' | 'active' => {
+        const totalLecs = Number(course.total_lectures) || 0;
+        const finishedLectures = course.course_lectures?.filter((lecture) =>
+            lecture.status === 'completed' || lecture.status === 'cancelled'
+        ).length || 0;
+
+        if (totalLecs > 0 && finishedLectures >= totalLecs) {
+            return 'completed';
+        }
+
+        if (course.start_date) {
+            const startDate = new Date(course.start_date);
+            startDate.setHours(0, 0, 0, 0);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            if (startDate > today && finishedLectures === 0) {
+                return 'upcoming';
+            }
+        }
+
+        return 'active';
+    };
+
+    const availableRooms = useMemo(() => {
+        const roomIds = Array.from(new Set(courses.map(c => c.room).filter(Boolean)));
+        return roomIds.map(roomId => ({
+            id: roomId,
+            label: getRoomLabel(roomId)
+        }));
+    }, [courses, getRoomLabel]);
+
+    const filteredCourses = useMemo(() => {
+        return courses
+            .filter(course => {
+                // 1. Text Search Filter
+                if (searchQuery.trim()) {
+                    const q = searchQuery.toLowerCase().trim();
+                    const nameMatch = course.name?.toLowerCase().includes(q);
+                    const trainerName = getTrainerDisplayName(course, isRTL).toLowerCase();
+                    const trainerMatch = trainerName.includes(q) || (course.trainer_name && course.trainer_name.toLowerCase().includes(q));
+                    const roomLabel = getRoomLabel(course.room).toLowerCase();
+                    const roomMatch = roomLabel.includes(q) || (course.room && course.room.toLowerCase().includes(q));
+                    if (!nameMatch && !trainerMatch && !roomMatch) return false;
+                }
+
+                // 2. Status Filter
+                if (statusFilter !== 'all') {
+                    const status = getCourseStatus(course);
+                    if (status !== statusFilter) return false;
+                }
+
+                // 3. Room Filter
+                if (roomFilter !== 'all') {
+                    if (course.room !== roomFilter) return false;
+                }
+
+                // 4. Only Pinned Filter
+                if (onlyPinned) {
+                    if (!pinnedCourseIds.includes(course.id)) return false;
+                }
+
+                return true;
+            })
+            .sort((a, b) => {
+                const aPinned = pinnedCourseIds.includes(a.id);
+                const bPinned = pinnedCourseIds.includes(b.id);
+                if (aPinned && !bPinned) return -1;
+                if (!aPinned && bPinned) return 1;
+                return 0;
+            });
+    }, [courses, searchQuery, statusFilter, roomFilter, onlyPinned, pinnedCourseIds, isRTL, getRoomLabel]);
+
+    const hasActiveFilters = Boolean(searchQuery.trim() || statusFilter !== 'all' || roomFilter !== 'all' || onlyPinned);
+
+    const resetFilters = () => {
+        setSearchQuery('');
+        setStatusFilter('all');
+        setRoomFilter('all');
+        setOnlyPinned(false);
     };
 
     // Beneficiary CRUD
@@ -521,60 +661,223 @@ export default function MyCourses() {
                 </p>
             </div>
 
-            {/* Courses Grid */}
+            {/* Search, Filter & Pin Bar */}
+            <div className="flex flex-col gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-sm">
+                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
+                    {/* Search Input */}
+                    <div className="relative flex-1">
+                        <Search className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                        <Input
+                            placeholder={isRTL ? 'بحث باسم الكورس أو المدرب أو القاعة...' : 'Search by course, trainer, or room...'}
+                            value={searchQuery}
+                            onChange={e => setSearchQuery(e.target.value)}
+                            className="ltr:pl-9 ltr:pr-9 rtl:pr-9 rtl:pl-9 h-10 bg-background"
+                        />
+                        {searchQuery && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute ltr:right-1 rtl:left-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground"
+                                onClick={() => setSearchQuery('')}
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </Button>
+                        )}
+                    </div>
+
+                    {/* Status Filter */}
+                    <div className="w-full md:w-44">
+                        <Select value={statusFilter} onValueChange={(val: 'all' | 'active' | 'upcoming' | 'completed') => setStatusFilter(val)}>
+                            <SelectTrigger className="h-10 bg-background">
+                                <SelectValue placeholder={isRTL ? 'حالة الكورس' : 'Status'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">{isRTL ? 'كل الحالات' : 'All Statuses'}</SelectItem>
+                                <SelectItem value="active">{isRTL ? 'قيد التنفيذ' : 'Active'}</SelectItem>
+                                <SelectItem value="upcoming">{isRTL ? 'قادم' : 'Upcoming'}</SelectItem>
+                                <SelectItem value="completed">{isRTL ? 'مكتمل' : 'Completed'}</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Room Filter */}
+                    {availableRooms.length > 0 && (
+                        <div className="w-full md:w-44">
+                            <Select value={roomFilter} onValueChange={setRoomFilter}>
+                                <SelectTrigger className="h-10 bg-background">
+                                    <SelectValue placeholder={isRTL ? 'القاعة' : 'Room'} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">{isRTL ? 'كل القاعات' : 'All Rooms'}</SelectItem>
+                                    {availableRooms.map(r => (
+                                        <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    {/* Only Pinned Toggle Button */}
+                    <Button
+                        type="button"
+                        variant={onlyPinned ? "default" : "outline"}
+                        onClick={() => setOnlyPinned(prev => !prev)}
+                        className={cn(
+                            "h-10 gap-1.5 whitespace-nowrap transition-all",
+                            onlyPinned ? "bg-primary text-primary-foreground font-medium shadow-sm" : "bg-background"
+                        )}
+                    >
+                        <Pin className={cn("w-4 h-4", onlyPinned && "fill-current")} />
+                        <span>{isRTL ? 'المثبتة فقط' : 'Pinned only'}</span>
+                        {pinnedCourseIds.length > 0 && (
+                            <Badge
+                                variant={onlyPinned ? "secondary" : "default"}
+                                className={cn(
+                                    "h-5 px-1.5 text-[10px] ltr:ml-1 rtl:mr-1",
+                                    onlyPinned && "bg-background/20 text-primary-foreground"
+                                )}
+                            >
+                                {pinnedCourseIds.length}
+                            </Badge>
+                        )}
+                    </Button>
+
+                    {/* Reset Filters */}
+                    {hasActiveFilters && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={resetFilters}
+                            className="h-10 px-3 text-muted-foreground hover:text-foreground gap-1 text-xs"
+                        >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>{isRTL ? 'إعادة ضبط' : 'Reset'}</span>
+                        </Button>
+                    )}
+                </div>
+
+                {/* Sub-bar: stats and active info */}
+                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 px-1 flex-wrap gap-2">
+                    <div>
+                        {isRTL ? (
+                            <span>عرض <strong className="text-foreground font-semibold">{filteredCourses.length}</strong> من أصل <strong className="text-foreground font-semibold">{courses.length}</strong> كورس</span>
+                        ) : (
+                            <span>Showing <strong className="text-foreground font-semibold">{filteredCourses.length}</strong> of <strong className="text-foreground font-semibold">{courses.length}</strong> courses</span>
+                        )}
+                    </div>
+                    {pinnedCourseIds.length > 0 && (
+                        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                            <Pin className="w-3 h-3 text-primary fill-primary" />
+                            {isRTL ? `${pinnedCourseIds.length} كورس مثبت في المقدمة` : `${pinnedCourseIds.length} pinned to top`}
+                        </span>
+                    )}
+                </div>
+            </div>
+
             {/* Courses Grid */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {courses.map(course => {
+                {filteredCourses.map(course => {
                     const progress = getProgress(course);
                     const remaining = Math.max(0, course.total_lectures - progress.completed);
+                    const isPinned = pinnedCourseIds.includes(course.id);
+                    const status = getCourseStatus(course);
 
                     return (
-                        <Card key={course.id}>
+                        <Card
+                            key={course.id}
+                            className={cn(
+                                "transition-all duration-200 hover:shadow-md",
+                                isPinned && "border-primary/50 shadow-sm bg-primary/[0.015] dark:bg-primary/[0.03]"
+                            )}
+                        >
                             <CardHeader className="pb-3">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <CardTitle className="text-lg">{course.name}</CardTitle>
-                                        <CardDescription>{getTrainerDisplayName(course, isRTL)}</CardDescription>
+                                <div className="flex justify-between items-start gap-2">
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                                            {isPinned && (
+                                                <Badge variant="secondary" className="gap-1 text-[10px] h-5 px-1.5 bg-primary/10 text-primary border border-primary/20">
+                                                    <Pin className="w-2.5 h-2.5 fill-primary" />
+                                                    <span>{isRTL ? 'مثبت' : 'Pinned'}</span>
+                                                </Badge>
+                                            )}
+                                            {status === 'active' && (
+                                                <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
+                                                    {isRTL ? 'قيد التنفيذ' : 'Active'}
+                                                </Badge>
+                                            )}
+                                            {status === 'upcoming' && (
+                                                <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20">
+                                                    {isRTL ? 'قادم' : 'Upcoming'}
+                                                </Badge>
+                                            )}
+                                            {status === 'completed' && (
+                                                <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-muted-foreground/30 text-muted-foreground bg-muted/40">
+                                                    {isRTL ? 'مكتمل' : 'Completed'}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <CardTitle className="text-lg truncate" title={course.name}>{course.name}</CardTitle>
+                                        <CardDescription className="truncate">{getTrainerDisplayName(course, isRTL)}</CardDescription>
                                     </div>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon">
-                                                <MoreHorizontal className="w-4 h-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onClick={() => openCourseDetails(course)}>
-                                                <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => exportCourseToExcel(course)}>
-                                                <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
-                                                {isRTL ? 'تصدير Excel' : 'Export Excel'}
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={(e) => togglePinCourse(course.id, e)}
+                                            title={isPinned ? (isRTL ? 'إلغاء التثبيت' : 'Unpin course') : (isRTL ? 'تثبيت في الأعلى' : 'Pin to top')}
+                                            className={cn(
+                                                "h-8 w-8 rounded-lg transition-colors",
+                                                isPinned ? "text-primary bg-primary/10 hover:bg-primary/20" : "text-muted-foreground hover:text-foreground"
+                                            )}
+                                        >
+                                            <Pin className={cn("w-4 h-4", isPinned && "fill-primary")} />
+                                        </Button>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
+                                                    <MoreHorizontal className="w-4 h-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onClick={() => togglePinCourse(course.id)}>
+                                                    <Pin className={cn("w-4 h-4 ltr:mr-2 rtl:ml-2", isPinned && "fill-current text-primary")} />
+                                                    {isPinned ? (isRTL ? 'إلغاء التثبيت' : 'Unpin Course') : (isRTL ? 'تثبيت في الأعلى' : 'Pin to Top')}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => openCourseDetails(course)}>
+                                                    <BookOpen className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                    {isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onClick={() => exportCourseToExcel(course)}>
+                                                    <Download className="w-4 h-4 ltr:mr-2 rtl:ml-2" />
+                                                    {isRTL ? 'تصدير Excel' : 'Export Excel'}
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
                                 </div>
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-2 text-sm">
                                     <div className="flex items-center gap-2 text-muted-foreground">
-                                        <MapPin className="w-4 h-4" />
-                                        <span>{getRoomLabel(course.room)}</span>
+                                        <MapPin className="w-4 h-4 shrink-0" />
+                                        <span className="truncate">{getRoomLabel(course.room)}</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Calendar className="w-4 h-4" />
-                                        <span>{course.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', ')}</span>
+                                        <Calendar className="w-4 h-4 shrink-0" />
+                                        <span className="truncate">{course.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', ')}</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Clock className="w-4 h-4" />
+                                        <Clock className="w-4 h-4 shrink-0" />
                                         <span>{formatTime(course.schedule_time)}</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-muted-foreground">
-                                        <BookOpen className="w-4 h-4" />
+                                        <BookOpen className="w-4 h-4 shrink-0" />
                                         <span>{course.total_lectures} {isRTL ? 'محاضرة' : 'lectures'}</span>
                                     </div>
                                     <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Clock className="w-4 h-4" />
+                                        <Clock className="w-4 h-4 shrink-0" />
                                         <span>
                                             {isRTL ? 'متبقي: ' : 'Remaining: '}
                                             {remaining}
@@ -589,6 +892,17 @@ export default function MyCourses() {
                     <div className="col-span-full flex flex-col items-center justify-center p-8 border rounded-lg border-dashed text-muted-foreground">
                         <BookOpen className="w-12 h-12 mb-2 opacity-20" />
                         <p>{isRTL ? 'لا توجد كورسات في فرعك حالياً' : 'No courses found in your branch'}</p>
+                    </div>
+                )}
+                {courses.length > 0 && filteredCourses.length === 0 && (
+                    <div className="col-span-full flex flex-col items-center justify-center p-8 border rounded-xl border-dashed bg-muted/20 text-muted-foreground">
+                        <Search className="w-10 h-10 mb-3 opacity-30 text-muted-foreground" />
+                        <p className="font-medium text-foreground text-sm mb-1">{isRTL ? 'لم يتم العثور على أي كورسات تطابق معايير البحث والفلترة' : 'No courses match your search and filter criteria'}</p>
+                        <p className="text-xs text-muted-foreground mb-4">{isRTL ? 'جرّب تغيير كلمات البحث أو إعادة ضبط الفلاتر' : 'Try adjusting your search terms or resetting filters'}</p>
+                        <Button variant="outline" size="sm" onClick={resetFilters} className="gap-1.5 text-xs">
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>{isRTL ? 'إعادة ضبط الفلاتر' : 'Reset Filters'}</span>
+                        </Button>
                     </div>
                 )}
             </div>
