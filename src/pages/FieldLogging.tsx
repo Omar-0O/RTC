@@ -99,6 +99,10 @@ interface VolunteerProfile {
 
 type TopVolunteerProfile = Pick<VolunteerProfile, 'id' | 'full_name' | 'full_name_ar' | 'avatar_url' | 'level'>;
 
+type VolunteerListItem = Pick<VolunteerProfile, 'id' | 'full_name' | 'full_name_ar' | 'phone' | 'avatar_url'> & {
+  branch_id?: string | null;
+};
+
 interface Committee {
   id: string;
   name: string;
@@ -229,7 +233,7 @@ export default function FieldLogging() {
   // Leader & Group Submission states
   const [isLeader, setIsLeader] = useState<boolean>(false);
   const [isGroupSubmission, setIsGroupSubmission] = useState<boolean>(false);
-  const [volunteersList, setVolunteersList] = useState<VolunteerProfile[]>([]);
+  const [volunteersList, setVolunteersList] = useState<VolunteerListItem[]>([]);
   const [selectedVolunteers, setSelectedVolunteers] = useState<string[]>([]);
   const [includeMe, setIncludeMe] = useState<boolean>(true);
   const [guests, setGuests] = useState<{ name: string; phone?: string }[]>([]);
@@ -252,7 +256,7 @@ export default function FieldLogging() {
         full_name: v.full_name_ar || v.full_name || 'Unknown Volunteer'
       }));
 
-      setVolunteersList(sanitized as VolunteerProfile[]);
+      setVolunteersList(sanitized as VolunteerListItem[]);
     } catch (error) {
       console.error('Error fetching volunteers list:', error);
     }

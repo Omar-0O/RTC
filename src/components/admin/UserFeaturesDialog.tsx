@@ -21,8 +21,8 @@ interface UserFeaturesDialogProps {
   open: boolean;
   isRTL: boolean;
   userName: string;
-  features: UserFeatureOption[];
-  defaultFeatures: string[];
+  features: readonly UserFeatureOption[];
+  defaultFeatures: readonly string[];
   selectedFeatures: string[];
   saving: boolean;
   onOpenChange: (open: boolean) => void;

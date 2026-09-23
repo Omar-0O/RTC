@@ -100,9 +100,13 @@ export function canSubmitGroupActivity(
     return false;
   }
 
+  if (typeof roleOrRoles === 'string') {
+    return GROUP_SUBMISSION_LEADER_ROLES.includes(roleOrRoles);
+  }
+
   if (Array.isArray(roleOrRoles)) {
     return roleOrRoles.some((r) => GROUP_SUBMISSION_LEADER_ROLES.includes(r));
   }
 
-  return GROUP_SUBMISSION_LEADER_ROLES.includes(roleOrRoles);
+  return false;
 }
