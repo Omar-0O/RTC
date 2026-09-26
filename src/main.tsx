@@ -134,27 +134,33 @@ const triggerChunkErrorReload = () => {
 window.addEventListener('error', (event) => {
   const target = event.target as HTMLElement | null;
   
-  // Catch script/stylesheet resource loading failures (which do not bubble)
-  if (target && (target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
-    const element = target as HTMLScriptElement | HTMLLinkElement;
-    const src = element instanceof HTMLScriptElement ? element.src : element.href;
-    // Catch script/stylesheet resource loading failures (only for same-origin app assets)
-    const isSameOriginAsset = src && (src.startsWith('/') || src.includes(window.location.host));
-    if (isSameOriginAsset && (src.includes('/assets/') || src.includes('.js') || src.includes('.css'))) {
-      console.warn('Asset failed to load:', src);
-      triggerChunkErrorReload();
-      event.preventDefault();
-      return;
-    }
-  }
+  // If the error was triggered on a DOM element (not the window object itself)
+  if (target && target !== (window as unknown as HTMLElement) && 'tagName' in target) {
+    const tagName = target.tagName;
 
-  // Silently ignore image load failures (e.g. expired signed URLs, missing avatars)
-  if (target && (target as HTMLElement).tagName === 'IMG') {
+    // Catch script/stylesheet resource loading failures (which do not bubble)
+    if (tagName === 'SCRIPT' || tagName === 'LINK') {
+      const element = target as HTMLScriptElement | HTMLLinkElement;
+      const src = element instanceof HTMLScriptElement ? element.src : element.href;
+      // Catch script/stylesheet resource loading failures (only for same-origin app assets)
+      const isSameOriginAsset = src && (src.startsWith('/') || src.includes(window.location.host));
+      if (isSameOriginAsset && (src.includes('/assets/') || src.includes('.js') || src.includes('.css'))) {
+        console.warn('Asset failed to load:', src);
+        triggerChunkErrorReload();
+        event.preventDefault();
+        return;
+      }
+    }
+
+    // Ignore element resource load errors from third-party scripts, blocked beacons, fonts, images, etc.
+    // These are network/adblocker/DOM resource events, NOT unhandled JS runtime exceptions.
     return;
   }
 
   // Catch general runtime JS errors
   const error = event.error || event.message;
+  if (!error) return;
+
   console.error('Global error handler:', error);
 
   if (isChunkOrModuleError(error)) {
@@ -165,12 +171,30 @@ window.addEventListener('error', (event) => {
 
 window.addEventListener('unhandledrejection', (event) => {
   const error = event.reason;
-  console.error('Unhandled promise rejection:', error);
 
   if (isChunkOrModuleError(error)) {
     triggerChunkErrorReload();
     event.preventDefault();
+    return;
   }
+
+  // Check for terminal auth refresh token failure to purge stale storage
+  const errMsg = typeof error === 'string' ? error : (error?.message || '');
+  if (/invalid refresh token|refresh token not found|refresh token revoked|invalid_grant/i.test(errMsg)) {
+    console.warn('[Auth] Terminal refresh token error in unhandled rejection. Purging local auth token.');
+    try {
+      const projectRef = window.location.hostname.split('.')[0] || 'bsicvziazvgppcvsgbsi';
+      localStorage.removeItem(`sb-${projectRef}-auth-token`);
+      localStorage.removeItem('sb-bsicvziazvgppcvsgbsi-auth-token');
+      sessionStorage.setItem('rtc-auth-relogin-required', '1');
+    } catch {
+      // ignore
+    }
+    event.preventDefault();
+    return;
+  }
+
+  console.error('Unhandled promise rejection:', error);
 });
 
 createRoot(document.getElementById("root")!).render(
@@ -185,6 +209,15 @@ import { initSyncManager } from '@/lib/syncManager';
 // Register SW with update detection only in production to prevent dev-server cache conflicts
 if (import.meta.env.PROD) {
   registerServiceWorker();
+} else {
+  // In development, unregister any lingering service workers from previous production/preview visits
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const registration of registrations) {
+        registration.unregister();
+      }
+    });
+  }
 }
 
 // Start offline sync engine (flushes queue on connectivity change)

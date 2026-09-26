@@ -58,14 +58,19 @@ import {
     getBranchCourses,
 } from '@/services/myCourses.service';
 
-type SupabaseErrorWithCode = { code?: string };
+type SupabaseErrorWithDetails = { code?: string; status?: number; message?: string };
 
-const getErrorCode = (error: unknown): string | undefined => {
-    if (typeof error === 'object' && error !== null && 'code' in error) {
-        const code = (error as SupabaseErrorWithCode).code;
-        return typeof code === 'string' ? code : undefined;
+const getErrorMessage = (error: unknown, isRTL: boolean, fallback: string): string => {
+    if (typeof error === 'object' && error !== null) {
+        const err = error as SupabaseErrorWithDetails;
+        if (err.code === '23505') {
+            return isRTL ? 'هذا الرقم مسجل بالفعل في هذا الكورس' : 'This phone is already registered in this course';
+        }
+        if (err.status === 403 || err.status === 401 || err.code === '42501' || /invalid refresh token|not authorized|permission denied|jwt/i.test(err.message || '')) {
+            return isRTL ? 'انتهت صلاحية الجلسة أو ليس لديك صلاحية، يرجى تحديث الصفحة أو إعادة تسجيل الدخول' : 'Session expired or permission denied. Please refresh or re-login.';
+        }
     }
-    return undefined;
+    return fallback;
 };
 
 interface Course {
@@ -578,7 +583,7 @@ export default function MyCourses() {
             toast.success(isRTL ? "تم إضافة المستفيد" : "Beneficiary added");
         } catch (error: unknown) {
             console.error("Error adding beneficiary:", error);
-            toast.error(getErrorCode(error) === "23505" ? (isRTL ? "هذا الرقم مسجل بالفعل" : "This phone is already registered") : (isRTL ? "فشل إضافة المستفيد" : "Failed to add beneficiary"));
+            toast.error(getErrorMessage(error, isRTL, isRTL ? "فشل إضافة المستفيد" : "Failed to add beneficiary"));
         }
     };
 
@@ -602,7 +607,7 @@ export default function MyCourses() {
             toast.success(isRTL ? "تم تحديث البيانات" : "Beneficiary updated");
         } catch (error) {
             console.error("Error updating beneficiary:", error);
-            toast.error(isRTL ? "فشل التحديث" : "Failed to update");
+            toast.error(getErrorMessage(error, isRTL, isRTL ? "فشل التحديث" : "Failed to update"));
         }
     };
 
@@ -1563,11 +1568,11 @@ export default function MyCourses() {
             {/* Edit Student Dialog */}
             <Dialog open={isEditStudentDialogOpen} onOpenChange={setIsEditStudentDialogOpen}>
                 <DialogContent className="max-w-md w-[calc(100%-2rem)] rounded-xl p-6">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-bold">
+                    <DialogHeader className="text-center sm:text-center flex flex-col items-center justify-center">
+                        <DialogTitle className="text-lg font-bold text-center w-full px-8">
                             {isRTL ? 'تعديل بيانات المستفيد' : 'Edit Beneficiary Details'}
                         </DialogTitle>
-                        <DialogDescription className="text-xs text-muted-foreground">
+                        <DialogDescription className="text-xs text-muted-foreground text-center w-full px-8">
                             {isRTL ? 'تعديل الاسم ورقم الهاتف والرقم القومي للمستفيد' : 'Edit name, phone, and national ID for the beneficiary'}
                         </DialogDescription>
                     </DialogHeader>

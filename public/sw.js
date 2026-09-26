@@ -12,7 +12,7 @@
  * Cache versioning: bump CACHE_VERSION to invalidate all caches.
  */
 
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const STATIC_CACHE = `rtc-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `rtc-dynamic-${CACHE_VERSION}`;
 
@@ -76,6 +76,11 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
+  // In local development, bypass SW completely so Vite HMR and dev changes apply instantly
+  if (self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1') {
+    return;
+  }
+
   // Skip non-GET requests (mutations go through normally or get queued by offlineQueue.ts)
   if (request.method !== 'GET') return;
 
@@ -132,14 +137,28 @@ async function networkFirst(request, cacheName) {
     if (response.ok) {
       const cache = await caches.open(cacheName);
       cache.put(request, response.clone());
+      return response;
+    }
+    // If the network response was a 5xx server error on a page navigation,
+    // fallback to the cached SPA app shell so the user still gets the application.
+    if (response.status >= 500 && (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html'))) {
+      const fallback = (await caches.match('/index.html', { ignoreSearch: true })) || (await caches.match('/', { ignoreSearch: true }));
+      if (fallback) return fallback;
     }
     return response;
   } catch (err) {
     const cached = await caches.match(request);
     if (cached) return cached;
-    if (request.mode === 'navigate') {
-      const fallback = await caches.match('/index.html');
+    if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
+      const fallback = (await caches.match('/index.html', { ignoreSearch: true })) || (await caches.match('/', { ignoreSearch: true }));
       if (fallback) return fallback;
+      return new Response(
+        '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>RTC</title><meta name="viewport" content="width=device-width,initial-scale=1.0"><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f172a;color:#f8fafc;text-align:center;padding:1rem;}h1{margin-bottom:0.5rem;}p{color:#94a3b8;margin-bottom:1.5rem;}button{background:#3b82f6;color:#fff;border:none;padding:0.75rem 1.5rem;border-radius:0.5rem;cursor:pointer;font-size:1rem;}</style></head><body><div><h1>تعذر الاتصال بالخادم</h1><p>يرجى التحقق من اتصال الإنترنت وإعادة المحاولة.</p><button onclick="window.location.reload()">إعادة المحاولة</button></div></body></html>',
+        {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        }
+      );
     }
     throw err;
   }

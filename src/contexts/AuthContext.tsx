@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { AUTH_STORAGE_KEY, clearLegacyAuthStorage, markReauthenticationRequired, supabase } from '@/integrations/supabase/client';
+import { AUTH_STORAGE_KEY, clearLegacyAuthStorage, markReauthenticationRequired, purgeSessionAndMarkReauth, supabase } from '@/integrations/supabase/client';
 import { useProfileHeartbeat } from '@/hooks/useProfileHeartbeat';
 import { getAuthData, type AuthProfile } from '@/services/auth.service';
 import { getPrimaryRole } from '@/utils/roles';
@@ -42,7 +42,7 @@ const isTerminalRefreshError = (error: unknown) => {
   return (
     status === 429 ||
     status === 400 ||
-    /invalid refresh token|refresh token not found|refresh token revoked|refresh token reuse|too many requests|429/i.test(message)
+    /invalid refresh token|refresh token not found|refresh token revoked|refresh token reuse|token is expired|invalid_grant|too many requests|429/i.test(message)
   );
 };
 
@@ -183,10 +183,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Directly remove the bad token from storage WITHOUT firing signOut events.
           // Calling signOut triggers _notifyAllSubscribers which can cause the SDK
           // to attempt another refresh_token call, worsening 429 rate-limit issues.
-          markReauthenticationRequired();
-          clearLegacyAuthStorage();
-          // Also clear the main auth token to fully stop any pending refresh.
-          try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch { /* ignore */ }
+          purgeSessionAndMarkReauth();
           if (mounted) {
             clearAuthState();
             setIsLoading(false);
@@ -196,12 +193,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (mounted) {
           applySession(initialSession);
-          // isLoading will be cleared by onAuthStateChange once the profile fetch completes.
-          // No need to setIsLoading(false) here.
+          if (!initialSession) {
+            setIsLoading(false);
+          }
         }
       } catch (error) {
         console.error('Error during auth initialization:', error);
-        clearLegacyAuthStorage();
+        purgeSessionAndMarkReauth();
         if (mounted) {
           clearAuthState();
           setIsLoading(false);

@@ -3852,11 +3852,11 @@ export default function CourseManagement() {
             {/* Edit Student Dialog for Courses */}
             <Dialog open={isEditStudentDialogOpen} onOpenChange={setIsEditStudentDialogOpen}>
                 <DialogContent className="max-w-md w-[calc(100%-2rem)] rounded-xl p-6">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg font-bold">
+                    <DialogHeader className="text-center sm:text-center flex flex-col items-center justify-center">
+                        <DialogTitle className="text-lg font-bold text-center w-full px-8">
                             {isRTL ? 'تعديل بيانات المستفيد' : 'Edit Beneficiary Details'}
                         </DialogTitle>
-                        <DialogDescription className="text-xs text-muted-foreground">
+                        <DialogDescription className="text-xs text-muted-foreground text-center w-full px-8">
                             {isRTL ? 'تعديل الاسم ورقم الهاتف والرقم القومي للمستفيد' : 'Edit name, phone, and national ID for the beneficiary'}
                         </DialogDescription>
                     </DialogHeader>

@@ -86,19 +86,10 @@ const clockSkewCorrectedStorage = {
         const currentExpiresAt: number | undefined =
           parsed.expires_at ?? parsed.session?.expires_at;
 
-        // Only re-anchor when we have a refresh_token AND the apparent expiry is
-        // within the clock-skew window (token looks expired but likely isn't).
-        // If expired beyond the threshold, the SDK will use refresh_token normally.
-        const isApparentlyExpired = !currentExpiresAt || currentExpiresAt <= nowSec;
-        const isWithinSkewWindow =
-          currentExpiresAt !== undefined &&
-          nowSec - currentExpiresAt <= CLOCK_SKEW_THRESHOLD_SEC;
-        const canReanchor = !!refreshToken && isApparentlyExpired && isWithinSkewWindow;
-
-        // Also re-anchor when expires_at is completely missing (no server timestamp at all)
+        // Only supply an anchor when expires_at is completely missing from storage
         const isMissingExpiry = !currentExpiresAt && !!refreshToken;
 
-        if (canReanchor || isMissingExpiry) {
+        if (isMissingExpiry) {
           const safeExpiresAt = nowSec + expiresIn;
           if ('expires_at' in parsed) parsed.expires_at = safeExpiresAt;
           if (parsed.session && typeof parsed.session === 'object') {
@@ -151,6 +142,17 @@ const clockSkewCorrectedStorage = {
       // Best-effort
     }
   },
+};
+
+export const purgeSessionAndMarkReauth = () => {
+  try {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    clearLegacyAuthStorage();
+    markReauthenticationRequired();
+  } catch {
+    // Best-effort
+  }
 };
 
 export const purgeExpiredAuthToken = () => {
