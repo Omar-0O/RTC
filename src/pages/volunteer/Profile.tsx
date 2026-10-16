@@ -43,6 +43,7 @@ import {
 } from './hooks/useVolunteerProfile';
 import { COVER_IMAGES } from '@/constants/profileCovers';
 import { SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
+import { AvatarCropDialog } from '@/components/common/AvatarCropDialog';
 
 const BADGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   award: Award,
@@ -175,17 +176,17 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
   const [showUnauthorizedDialog, setShowUnauthorizedDialog] = useState(false);
 
-  // New state for avatar preview
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // Avatar cropping state
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [isCropDialogOpen, setIsCropDialogOpen] = useState<boolean>(false);
 
   useEffect(() => {
     return () => {
-      if (avatarPreview) {
-        URL.revokeObjectURL(avatarPreview);
+      if (cropImageSrc) {
+        URL.revokeObjectURL(cropImageSrc);
       }
     };
-  }, [avatarPreview]);
+  }, [cropImageSrc]);
 
   // If userId is provided and different from current user, we are in view-only mode
   const isViewOnly = userId && userId !== user?.id;
@@ -288,26 +289,31 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       return;
     }
 
-    // Create preview
+    if (file.size > AVATAR_MAX_BYTES) {
+      toast.error(isRTL ? 'حجم الصورة يجب ألا يتعدى 2 ميجابايت' : 'Image size must be less than 2MB');
+      return;
+    }
+
+    // Create preview for cropping dialog
     const objectUrl = URL.createObjectURL(file);
-    setAvatarPreview(objectUrl);
-    setSelectedFile(file);
+    setCropImageSrc(objectUrl);
+    setIsCropDialogOpen(true);
 
     // Reset input value so same file can be selected again if needed
     e.target.value = '';
   };
 
-  const handleSaveAvatar = async () => {
-    if (!selectedFile || !user) return;
+  const handleCroppedAvatar = async (croppedFile: File) => {
+    if (!user) return;
 
     setUploading(true);
 
     try {
-      if (selectedFile.size > AVATAR_MAX_BYTES) {
+      if (croppedFile.size > AVATAR_MAX_BYTES) {
         toast.info(isRTL ? 'جاري ضغط الصورة لتناسب الحجم المسموح...' : 'Compressing image to fit size limit...');
       }
 
-      const avatarFile = await createAvatarJpeg(selectedFile);
+      const avatarFile = await createAvatarJpeg(croppedFile);
 
       if (avatarFile.size > AVATAR_MAX_BYTES) {
         throw new Error('Avatar image is still too large after compression');
@@ -344,10 +350,12 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
         console.warn('Avatar cleanup skipped:', cleanupError.message);
       }
 
-      toast.success(isRTL ? 'تم تحديث الصورة الشخصية' : 'Profile picture updated');
-
-      setAvatarPreview(null);
-      setSelectedFile(null);
+      toast.success(isRTL ? 'تم تحديث الصورة الشخصية بنجاح' : 'Profile picture updated successfully');
+      setIsCropDialogOpen(false);
+      if (cropImageSrc) {
+        URL.revokeObjectURL(cropImageSrc);
+        setCropImageSrc(null);
+      }
     } catch (error: unknown) {
       console.error('Error uploading avatar:', error);
       toast.error(isRTL ? 'فشل في تحميل الصورة' : 'Failed to upload image');
@@ -356,9 +364,12 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     }
   };
 
-  const handleCancelAvatar = () => {
-    setAvatarPreview(null);
-    setSelectedFile(null);
+  const handleCancelCrop = () => {
+    setIsCropDialogOpen(false);
+    if (cropImageSrc) {
+      URL.revokeObjectURL(cropImageSrc);
+      setCropImageSrc(null);
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -641,7 +652,7 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6 mb-6">
             <div className="relative group shrink-0 -mt-16 sm:-mt-20">
               <Avatar className="h-24 w-24 sm:h-32 sm:w-32 border-4 border-background shadow-xl">
-                <AvatarImage src={avatarPreview || displayAvatar || undefined} alt={displayProfile?.full_name || ''} className="object-cover" />
+                <AvatarImage src={displayAvatar || undefined} alt={displayProfile?.full_name || ''} className="object-cover" />
                 <AvatarFallback className="bg-primary/20 text-primary text-3xl sm:text-4xl font-bold">
                   {userInitials}
                 </AvatarFallback>
@@ -656,42 +667,29 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                     onChange={handleFileSelect}
                     className="hidden"
                   />
-                  {avatarPreview ? (
-                    <div className="absolute -bottom-2 ltr:-right-2 rtl:-left-2 flex gap-1 z-10">
-                      <Button
-                        size="icon"
-                        className="h-8 w-8 rounded-full shadow-lg bg-green-500 hover:bg-green-600 text-white"
-                        onClick={handleSaveAvatar}
-                        disabled={uploading}
-                      >
-                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                      </Button>
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        className="h-8 w-8 rounded-full shadow-lg"
-                        onClick={handleCancelAvatar}
-                        disabled={uploading}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      size="icon"
-                      variant="secondary"
-                      className="absolute bottom-1 ltr:right-1 rtl:left-1 h-9 w-9 rounded-full shadow-lg transition-all duration-200 hover:scale-110"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
-                      title={isRTL ? "تغيير الصورة" : "Change Picture"}
-                    >
-                      {uploading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Camera className="h-4 w-4" />
-                      )}
-                    </Button>
-                  )}
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="absolute bottom-1 ltr:right-1 rtl:left-1 h-9 w-9 rounded-full shadow-lg transition-all duration-200 hover:scale-110"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    title={isRTL ? "تغيير الصورة" : "Change Picture"}
+                  >
+                    {uploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Camera className="h-4 w-4" />
+                    )}
+                  </Button>
+
+                  <AvatarCropDialog
+                    open={isCropDialogOpen}
+                    onOpenChange={setIsCropDialogOpen}
+                    imageSrc={cropImageSrc}
+                    onConfirm={handleCroppedAvatar}
+                    onCancel={handleCancelCrop}
+                    isSubmitting={uploading}
+                  />
                 </>
               )}
             </div>

@@ -41,10 +41,10 @@ Before writing or modifying any code, every AI agent MUST execute these 8 steps 
 
 No task is complete until all pass:
 
-✓ **Typecheck**: `npm run typecheck` (0 errors)  
-✓ **Lint**: `npm run lint` (0 errors, 0 warnings)  
-✓ **Tests**: `npx vitest run` (All test suites pass)  
-✓ **Build**: `npm run build` (Clean production bundle in `dist/`)  
+✓ **Typecheck**: `bun run typecheck` (0 errors)  
+✓ **Lint**: `bun run lint` (0 errors, 0 warnings)  
+✓ **Tests**: `bun run test` (All test suites pass)  
+✓ **Build**: `bun run build` (Clean production bundle in `dist/`)  
 ✓ **Security Scan**: 0 critical vulnerabilities  
 ✓ **No New Warnings**: 0 new compiler or lint warnings  
 ✓ **Documentation**: Updated when APIs, setup, or setup steps change  

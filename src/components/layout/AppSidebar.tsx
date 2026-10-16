@@ -32,6 +32,7 @@ import { useTheme } from 'next-themes';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
+import { getRoleLabel } from '@/utils/roles';
 import logo from '@/assets/logo.webp';
 import {
   Sidebar,
@@ -468,8 +469,19 @@ export function AppSidebar() {
     navItems = [...navItems.slice(0, myFinesIdx), ...navItems.slice(myFinesIdx + 1), myFinesItem];
   }
 
-  const displayName = profile?.full_name || user?.email || 'User';
-  const userInitials = displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || 'U';
+  const displayName = (isRTL
+    ? (profile?.full_name_ar || profile?.full_name)
+    : (profile?.full_name || profile?.full_name_ar))
+    || user?.email
+    || (isRTL ? 'مستخدم' : 'User');
+  const userInitials = displayName
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2) || (isRTL ? 'م' : 'U');
 
   const toggleLanguage = () => {
     setLanguage(language === 'en' ? 'ar' : 'en');
@@ -639,9 +651,9 @@ export function AppSidebar() {
                   </AvatarFallback>
                 </Avatar>
                 {!collapsed && (
-                  <div className="flex flex-col items-start text-left rtl:text-right flex-1 min-w-0">
+                  <div className="flex flex-col items-start text-start flex-1 min-w-0">
                     <span className="text-sm font-medium truncate w-full">{displayName}</span>
-                    <span className="text-xs text-muted-foreground capitalize">{primaryRole}</span>
+                    <span className="text-xs text-muted-foreground">{getRoleLabel(primaryRole, isRTL)}</span>
                   </div>
                 )}
               </div>
@@ -650,10 +662,10 @@ export function AppSidebar() {
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align={isRTL ? 'start' : 'end'} side="top" className="w-56">
-            <div className="px-2 py-1.5">
-              <p className="text-sm font-medium">{displayName}</p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
+          <DropdownMenuContent align={isRTL ? 'start' : 'end'} side="top" className="w-56" dir={isRTL ? 'rtl' : 'ltr'}>
+            <div className="px-2 py-1.5 text-start">
+              <p className="text-sm font-medium truncate">{displayName}</p>
+              <p className="text-xs text-muted-foreground truncate" dir="ltr">{user?.email}</p>
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => {

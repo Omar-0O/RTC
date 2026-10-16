@@ -4,7 +4,10 @@ import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-const Select = SelectPrimitive.Root;
+const Select = ({ dir, ...props }: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>) => {
+  const documentDir = typeof document !== "undefined" ? (document.documentElement.dir as "ltr" | "rtl") || "ltr" : "ltr";
+  return <SelectPrimitive.Root dir={dir || documentDir} {...props} />;
+};
 
 const SelectGroup = SelectPrimitive.Group;
 
@@ -13,21 +16,25 @@ const SelectValue = SelectPrimitive.Value;
 const SelectTrigger = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
->(({ className, children, ...props }, ref) => (
-  <SelectPrimitive.Trigger
-    ref={ref}
-    className={cn(
-      "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 transition-all duration-300 ease-in-out",
-      className,
-    )}
-    {...props}
-  >
-    {children}
-    <SelectPrimitive.Icon asChild>
-      <ChevronDown className="h-4 w-4 opacity-50" />
-    </SelectPrimitive.Icon>
-  </SelectPrimitive.Trigger>
-));
+>(({ className, children, dir, ...props }, ref) => {
+  const documentDir = typeof document !== "undefined" ? (document.documentElement.dir as "ltr" | "rtl") || "ltr" : "ltr";
+  return (
+    <SelectPrimitive.Trigger
+      ref={ref}
+      dir={dir || documentDir}
+      className={cn(
+        "flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1 transition-all duration-300 ease-in-out text-start rtl:text-right ltr:text-left",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+      <SelectPrimitive.Icon asChild>
+        <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+      </SelectPrimitive.Icon>
+    </SelectPrimitive.Trigger>
+  );
+});
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
 const SelectScrollUpButton = React.forwardRef<
@@ -109,7 +116,7 @@ const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 ltr:pl-8 ltr:pr-2 rtl:pr-8 rtl:pl-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground",
+      "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 ltr:pl-8 ltr:pr-2 rtl:pr-8 rtl:pl-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 focus:bg-accent focus:text-accent-foreground text-start rtl:text-right ltr:text-left",
       className,
     )}
     {...props}

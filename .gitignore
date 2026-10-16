@@ -82,3 +82,6 @@ Thumbs.db
 .bun/
 *.bun-build
 bun.lockb
+
+# Deprecated npm lockfile
+package-lock.json

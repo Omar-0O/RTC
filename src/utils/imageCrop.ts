@@ -139,14 +139,29 @@ export async function getCroppedImg(
   // paste generated rotate image at the top left corner
   ctx.putImageData(data, 0, 0);
 
+  // Scale down if dimensions exceed 1200px to maintain crisp PFP quality without excessive file size
+  const MAX_DIMENSION = 1200;
+  let outputCanvas = canvas;
+  if (canvas.width > MAX_DIMENSION || canvas.height > MAX_DIMENSION) {
+    const scale = Math.min(MAX_DIMENSION / canvas.width, MAX_DIMENSION / canvas.height);
+    const scaledCanvas = document.createElement('canvas');
+    scaledCanvas.width = Math.round(canvas.width * scale);
+    scaledCanvas.height = Math.round(canvas.height * scale);
+    const scaledCtx = scaledCanvas.getContext('2d');
+    if (scaledCtx) {
+      scaledCtx.drawImage(canvas, 0, 0, scaledCanvas.width, scaledCanvas.height);
+      outputCanvas = scaledCanvas;
+    }
+  }
+
   // As a blob
   return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
+    outputCanvas.toBlob((blob) => {
       if (!blob) {
         resolve(null);
         return;
       }
       resolve(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }));
-    }, 'image/jpeg');
+    }, 'image/jpeg', 0.85);
   });
 }

@@ -27,8 +27,7 @@
 Follow these steps to set up the project locally.
 
 ### Prerequisites
-- Node.js `^20.19.0 || >=22.12.0`
-- npm or yarn
+- Bun (latest version recommended) or Node.js `^20.19.0 || >=22.12.0`
 - A Supabase project
 
 ### Installation
@@ -41,7 +40,7 @@ Follow these steps to set up the project locally.
 
 2. **Install dependencies**
    ```bash
-   npm install
+   bun install
    ```
 
 3. **Environment Setup**
@@ -52,11 +51,11 @@ Follow these steps to set up the project locally.
    ```
 
 4. **Development & Verification Commands**
-   - **Dev Server**: `npm run dev`
-   - **Type Checking**: `npm run typecheck`
-   - **Linting**: `npm run lint`
-   - **Unit & Integration Tests**: `npx vitest run`
-   - **Production Build**: `npm run build`
+   - **Dev Server**: `bun dev`
+   - **Type Checking**: `bun run typecheck`
+   - **Linting**: `bun run lint`
+   - **Unit & Integration Tests**: `bun run test` (or `bun x vitest run`)
+   - **Production Build**: `bun run build`
 
 ## 🏗️ Architecture & Core Components
 
@@ -65,15 +64,15 @@ Follow these steps to set up the project locally.
 - **Security & Sanitization**: Formula injection escaping in spreadsheet export helpers, validated URL/image schemas, sanitized inputs.
 - **State & Data Handling**: TanStack Query (React Query) for efficient caching, invalidation, and data synchronization.
 
-- **CI/CD & Security**: GitHub Actions automated pipeline with full typecheck, ESLint, Vitest, and CodeQL security scanning.
+- **CI/CD & Security**: GitHub Actions automated pipeline powered by Bun with full typecheck, ESLint, Vitest, and CodeQL security scanning.
 
 GitHub Actions workflows are configured in `.github/workflows/`:
-- **`ci.yml`**: Runs full TypeScript typechecks, ESLint analysis, Vitest test execution, and production bundling on all pushes and pull requests.
-- **`security.yml`**: Runs GitHub CodeQL security analysis and npm dependency security audits.
+- **`ci.yml`**: Runs full TypeScript typechecks, ESLint analysis, Vitest test execution, and production bundling with latest Bun on all pushes and pull requests.
+- **`security.yml`**: Runs GitHub CodeQL security analysis and Bun dependency security audits.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please ensure all code passes type checking (`npm run typecheck`), linting (`npm run lint`), and tests (`npx vitest run`) before submitting a PR.
+Contributions are welcome! Please ensure all code passes type checking (`bun run typecheck`), linting (`bun run lint`), and tests (`bun run test`) before submitting a PR.
 
 ## 📄 License
 This project is open source and available under the GPL v3 License (https://github.com/Omar-0O/RTC/blob/main/LICENSE).
