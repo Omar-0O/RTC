@@ -11,6 +11,7 @@ import type { Branch } from '@/contexts/BranchContext';
 import type { Database } from '@/integrations/supabase/types';
 import { getPrimaryRole } from '@/utils/roles';
 import { getSafeImageExtension, isSafeImageFile } from '@/utils/safeImages';
+import { compressImage } from '@/utils/imageCompression';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -140,13 +141,15 @@ function validateAvatarFile(file: File) {
 async function uploadAvatar(userId: string, file: File): Promise<void> {
   validateAvatarFile(file);
 
-  const fileName = `${userId}/avatar.${getSafeImageExtension(file)}`;
+  const compressedFile = await compressImage(file, { preset: 'avatar' });
+  const fileExt = getSafeImageExtension(compressedFile);
+  const fileName = `${userId}/avatar.${fileExt}`;
   const { error: uploadError } = await supabase.storage
     .from(AVATAR_BUCKET)
-    .upload(fileName, file, {
+    .upload(fileName, compressedFile, {
       upsert: true,
       cacheControl: '3600',
-      contentType: file.type,
+      contentType: compressedFile.type || 'image/webp',
     });
 
   if (uploadError) throw uploadError;

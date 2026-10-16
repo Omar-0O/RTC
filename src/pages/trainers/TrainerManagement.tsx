@@ -32,50 +32,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Database } from '@/integrations/supabase/types';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
 import { appendAoaSheet, ensureXlsxFilename, loadXlsx } from '@/utils/xlsx';
+import { compressImage } from '@/utils/imageCompression';
 
-// Image compression utility
-const compressImage = async (file: File): Promise<File> => {
-    const bitmap = await createImageBitmap(file);
-    const MAX_DIMENSION = 800;
-    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
-    const width = Math.round(bitmap.width * scale);
-    const height = Math.round(bitmap.height * scale);
 
-    try {
-        if ('OffscreenCanvas' in window) {
-            const canvas = new OffscreenCanvas(width, height);
-            const ctx = canvas.getContext('2d');
-            if (!ctx) throw new Error('Image compression failed');
-            ctx.drawImage(bitmap, 0, 0, width, height);
-            const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
-            return new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
-                type: 'image/jpeg',
-                lastModified: Date.now(),
-            });
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('Image compression failed');
-        ctx.drawImage(bitmap, 0, 0, width, height);
-
-        const blob = await new Promise<Blob>((resolve, reject) => {
-            canvas.toBlob((result) => {
-                if (result) resolve(result);
-                else reject(new Error('Image compression failed'));
-            }, 'image/jpeg', 0.8);
-        });
-
-        return new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
-            type: 'image/jpeg',
-            lastModified: Date.now(),
-        });
-    } finally {
-        bitmap.close();
-    }
-};
 
 const MAX_TRAINER_IMAGE_SIZE = 4 * 1024 * 1024;
 
@@ -388,14 +347,12 @@ export default function TrainerManagement(): JSX.Element {
 
         setPreviewUrl(URL.createObjectURL(file));
 
-        // Compress if needed
+        // Always compress trainer images using the 'trainer' preset
         let processedFile = file;
-        if (file.size > 1 * 1024 * 1024) {
-            try {
-                processedFile = await compressImage(file);
-            } catch (error) {
-                console.error('Compression error:', error);
-            }
+        try {
+            processedFile = await compressImage(file, { preset: 'trainer' });
+        } catch (error) {
+            console.error('Compression error:', error);
         }
         setImageFile(processedFile);
     };
@@ -430,7 +387,16 @@ export default function TrainerManagement(): JSX.Element {
                         console.warn('Trainer image upload failed:', uploadError);
                     } else {
                         const { data: urlData } = supabase.storage.from('trainers').getPublicUrl(fileName);
+                        const oldImageUrl = formData.image_url;
                         imageUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+                        // Clean up old replaced trainer image to avoid orphaned files
+                        if (oldImageUrl && oldImageUrl.includes('/trainers/')) {
+                            const oldMatch = oldImageUrl.match(/\/trainers\/([^?]+)/);
+                            if (oldMatch && oldMatch[1]) {
+                                supabase.storage.from('trainers').remove([decodeURIComponent(oldMatch[1])]).catch(() => {});
+                            }
+                        }
                     }
                 } catch (uploadErr) {
                     toast.error(isRTL ? 'فشل رفع صورة المدرب' : 'Failed to upload trainer image');

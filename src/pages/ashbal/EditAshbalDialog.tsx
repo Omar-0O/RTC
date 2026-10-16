@@ -37,6 +37,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import type { Enums, Tables, TablesUpdate } from '@/integrations/supabase/types';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
+import { getCroppedImg } from '@/utils/imageCrop';
 
 type VolunteerLevel = Enums<'volunteer_level'>;
 type EditableAshbalUser = Pick<
@@ -64,70 +65,6 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
-// Helper functions for image cropping
-const createImage = (url: string): Promise<HTMLImageElement> =>
-  new Promise((resolve, reject) => {
-    const image = new Image()
-    image.addEventListener('load', () => resolve(image))
-    image.addEventListener('error', (error) => reject(error))
-    image.setAttribute('crossOrigin', 'anonymous')
-    image.src = url
-  })
-
-function getRadianAngle(degreeValue: number) {
-  return (degreeValue * Math.PI) / 180
-}
-
-function rotateSize(width: number, height: number, rotation: number) {
-  const rotRad = getRadianAngle(rotation)
-  return {
-    width: Math.abs(Math.cos(rotRad) * width) + Math.abs(Math.sin(rotRad) * height),
-    height: Math.abs(Math.sin(rotRad) * width) + Math.abs(Math.cos(rotRad) * height),
-  }
-}
-
-async function getCroppedImg(
-  imageSrc: string,
-  pixelCrop: { x: number; y: number; width: number; height: number },
-  rotation = 0,
-  flip = { horizontal: false, vertical: false }
-): Promise<File | null> {
-  const image = await createImage(imageSrc)
-  const canvas = document.createElement('canvas')
-  const ctx = canvas.getContext('2d')
-
-  if (!ctx) return null
-
-  const rotRad = getRadianAngle(rotation)
-  const { width: bBoxWidth, height: bBoxHeight } = rotateSize(image.width, image.height, rotation)
-
-  canvas.width = bBoxWidth
-  canvas.height = bBoxHeight
-
-  ctx.translate(bBoxWidth / 2, bBoxHeight / 2)
-  ctx.rotate(rotRad)
-  ctx.scale(flip.horizontal ? -1 : 1, flip.vertical ? -1 : 1)
-  ctx.translate(-image.width / 2, -image.height / 2)
-
-  ctx.drawImage(image, 0, 0)
-
-  const data = ctx.getImageData(pixelCrop.x, pixelCrop.y, pixelCrop.width, pixelCrop.height)
-
-  canvas.width = pixelCrop.width
-  canvas.height = pixelCrop.height
-
-  ctx.putImageData(data, 0, 0)
-
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        resolve(null);
-        return;
-      }
-      resolve(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }))
-    }, 'image/jpeg')
-  })
-}
 
 interface EditAshbalDialogProps {
   user: EditableAshbalUser | null;
@@ -231,11 +168,17 @@ export function EditAshbalDialog({ user, open, onOpenChange, onSuccess }: EditAs
         .from('avatars')
         .upload(fileName, formAvatarFile, {
           upsert: true,
-          contentType: formAvatarFile.type,
+          contentType: formAvatarFile.type || 'image/webp',
           cacheControl: '3600',
         });
 
       if (uploadError) throw uploadError;
+
+      const allPossiblePaths = ['avatar.jpg', 'avatar.jpeg', 'avatar.png', 'avatar.webp', 'avatar.gif'];
+      const staleAvatarPaths = allPossiblePaths
+        .filter((path) => !path.endsWith(`.${fileExt}`))
+        .map((path) => `${userId}/${path}`);
+      await supabase.storage.from('avatars').remove(staleAvatarPaths);
 
       const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
       return data.publicUrl;

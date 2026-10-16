@@ -34,6 +34,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ar, enUS } from 'date-fns/locale';
 import type { Tables } from '@/integrations/supabase/types';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
+import { compressImage } from '@/utils/imageCompression';
 import { downloadCsv } from '@/utils/csv';
 import type { SpreadsheetRow } from '@/utils/spreadsheetSecurity';
 
@@ -348,15 +349,16 @@ export default function IndividualCompetition() {
 
             // Upload image if selected
             if (imageFile) {
-                const fileExt = getSafeImageExtension(imageFile);
+                const fileToUpload = await compressImage(imageFile, { preset: 'competition' });
+                const fileExt = getSafeImageExtension(fileToUpload);
                 const fileName = `competition_${crypto.randomUUID()}.${fileExt}`;
                 const imagePath = `competition/${fileName}`;
 
                 const { error: uploadError } = await supabase.storage
                     .from('avatars')
-                    .upload(imagePath, imageFile, {
+                    .upload(imagePath, fileToUpload, {
                         upsert: false,
-                        contentType: imageFile.type,
+                        contentType: fileToUpload.type || 'image/webp',
                         cacheControl: '3600',
                     });
 

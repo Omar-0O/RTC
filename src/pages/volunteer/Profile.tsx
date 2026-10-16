@@ -42,7 +42,8 @@ import {
   type VolunteerProfileView,
 } from './hooks/useVolunteerProfile';
 import { COVER_IMAGES } from '@/constants/profileCovers';
-import { SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
+import { SAFE_IMAGE_ACCEPT, getSafeImageExtension } from '@/utils/safeImages';
+import { compressImage } from '@/utils/imageCompression';
 import { AvatarCropDialog } from '@/components/common/AvatarCropDialog';
 
 const BADGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -63,67 +64,12 @@ const getBadgeIcon = (iconName: string) => {
 
 const AVATAR_BUCKET = 'avatars';
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
-const AVATAR_MAX_DIMENSION = 1200;
-const AVATAR_CONTENT_TYPE = 'image/jpeg';
 const ALLOWED_AVATAR_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const LEGACY_AVATAR_PATHS = ['avatar.jpeg', 'avatar.png', 'avatar.webp', 'avatar.gif'];
 
 interface ProfileProps {
   userId?: string;
   onEdit?: () => void;
 }
-
-const createAvatarJpeg = async (file: File): Promise<File> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > AVATAR_MAX_DIMENSION) {
-            height *= AVATAR_MAX_DIMENSION / width;
-            width = AVATAR_MAX_DIMENSION;
-          }
-        } else {
-          if (height > AVATAR_MAX_DIMENSION) {
-            width *= AVATAR_MAX_DIMENSION / height;
-            height = AVATAR_MAX_DIMENSION;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error('Image compression failed'));
-              return;
-            }
-            const compressedFile = new File([blob], 'avatar.jpg', {
-              type: AVATAR_CONTENT_TYPE,
-              lastModified: Date.now(),
-            });
-            resolve(compressedFile);
-          },
-          AVATAR_CONTENT_TYPE,
-          0.82
-        );
-      };
-      img.onerror = (error) => reject(error);
-    };
-    reader.onerror = (error) => reject(error);
-  });
-};
 
 const getDefaultCover = (uid: string) => {
   let hash = 0;
@@ -309,24 +255,21 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     setUploading(true);
 
     try {
-      if (croppedFile.size > AVATAR_MAX_BYTES) {
-        toast.info(isRTL ? 'جاري ضغط الصورة لتناسب الحجم المسموح...' : 'Compressing image to fit size limit...');
-      }
-
-      const avatarFile = await createAvatarJpeg(croppedFile);
+      const avatarFile = await compressImage(croppedFile, { preset: 'avatar' });
 
       if (avatarFile.size > AVATAR_MAX_BYTES) {
         throw new Error('Avatar image is still too large after compression');
       }
 
-      const fileName = `${user.id}/avatar.jpg`;
+      const fileExt = getSafeImageExtension(avatarFile);
+      const fileName = `${user.id}/avatar.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from(AVATAR_BUCKET)
         .upload(fileName, avatarFile, {
           upsert: true,
           cacheControl: '3600',
-          contentType: AVATAR_CONTENT_TYPE,
+          contentType: avatarFile.type || 'image/webp',
         });
 
       if (uploadError) throw uploadError;
@@ -344,7 +287,10 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
       setViewedAvatarUrl(avatarUrl);
       await refreshProfile();
 
-      const staleAvatarPaths = LEGACY_AVATAR_PATHS.map(path => `${user.id}/${path}`);
+      const allPossiblePaths = ['avatar.jpg', 'avatar.jpeg', 'avatar.png', 'avatar.webp', 'avatar.gif'];
+      const staleAvatarPaths = allPossiblePaths
+        .filter(path => !path.endsWith(`.${fileExt}`))
+        .map(path => `${user.id}/${path}`);
       const { error: cleanupError } = await supabase.storage.from(AVATAR_BUCKET).remove(staleAvatarPaths);
       if (cleanupError) {
         console.warn('Avatar cleanup skipped:', cleanupError.message);

@@ -23,6 +23,7 @@ import { generateGroupSubmissionCSV } from '@/utils/excel';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
 import { createActivityProofSignedUrl } from '@/utils/activityProofs';
+import { compressImage } from '@/utils/imageCompression';
 
 interface Committee {
   id: string;
@@ -299,14 +300,15 @@ export default function LogActivity() {
 
     setIsUploading(true);
     try {
-      const fileExt = getSafeImageExtension(proofFile);
+      const fileToUpload = await compressImage(proofFile, { preset: 'proof' });
+      const fileExt = getSafeImageExtension(fileToUpload);
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from(pathPrefix)
-        .upload(fileName, proofFile, {
+        .upload(fileName, fileToUpload, {
           cacheControl: '3600',
-          contentType: proofFile.type,
+          contentType: fileToUpload.type || 'image/webp',
         });
 
       if (uploadError) throw uploadError;

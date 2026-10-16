@@ -2,60 +2,12 @@
  * Image cropping & compression utilities.
  * Extracted from UserManagement.tsx to be reusable.
  */
+import { compressImage as compressImageUnified } from './imageCompression';
 
 export const compressImage = async (file: File): Promise<File> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = (event) => {
-      const img = new Image();
-      img.src = event.target?.result as string;
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        let width = img.width;
-        let height = img.height;
-
-        // Max dimension 1200px (good for avatars)
-        const MAX_DIMENSION = 1200;
-        if (width > height) {
-          if (width > MAX_DIMENSION) {
-            height *= MAX_DIMENSION / width;
-            width = MAX_DIMENSION;
-          }
-        } else {
-          if (height > MAX_DIMENSION) {
-            width *= MAX_DIMENSION / height;
-            height = MAX_DIMENSION;
-          }
-        }
-
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
-        ctx?.drawImage(img, 0, 0, width, height);
-
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error('Image compression failed'));
-              return;
-            }
-            const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
-              type: 'image/jpeg',
-              lastModified: Date.now(),
-            });
-            resolve(compressedFile);
-          },
-          'image/jpeg',
-          0.7
-        );
-      };
-      img.onerror = (error) => reject(error);
-    };
-    reader.onerror = (error) => reject(error);
-  });
+  return compressImageUnified(file, { preset: 'avatar' });
 };
+
 
 export const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -139,8 +91,8 @@ export async function getCroppedImg(
   // paste generated rotate image at the top left corner
   ctx.putImageData(data, 0, 0);
 
-  // Scale down if dimensions exceed 1200px to maintain crisp PFP quality without excessive file size
-  const MAX_DIMENSION = 1200;
+  // Scale down if dimensions exceed 512px to maintain crisp PFP quality without excessive file size
+  const MAX_DIMENSION = 512;
   let outputCanvas = canvas;
   if (canvas.width > MAX_DIMENSION || canvas.height > MAX_DIMENSION) {
     const scale = Math.min(MAX_DIMENSION / canvas.width, MAX_DIMENSION / canvas.height);
@@ -154,14 +106,14 @@ export async function getCroppedImg(
     }
   }
 
-  // As a blob
+  // Export as WebP when supported, or fallback to JPEG
   return new Promise((resolve) => {
     outputCanvas.toBlob((blob) => {
       if (!blob) {
         resolve(null);
         return;
       }
-      resolve(new File([blob], 'avatar.jpg', { type: 'image/jpeg' }));
-    }, 'image/jpeg', 0.85);
+      resolve(new File([blob], 'avatar.webp', { type: 'image/webp' }));
+    }, 'image/webp', 0.82);
   });
 }

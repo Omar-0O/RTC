@@ -47,6 +47,7 @@ import {
 } from 'lucide-react';
 import { ArabicVirtualKeyboard } from '@/components/common/ArabicVirtualKeyboard';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
+import { compressImage } from '@/utils/imageCompression';
 import { generateGroupSubmissionCSV } from '@/utils/excel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -451,14 +452,15 @@ export default function FieldLogging() {
   const uploadProof = async (volunteerId?: string | null): Promise<string | null> => {
     if (!proofFile) return null;
     try {
-      const fileExt = getSafeImageExtension(proofFile);
+      const fileToUpload = await compressImage(proofFile, { preset: 'proof' });
+      const fileExt = getSafeImageExtension(fileToUpload);
       const fileName = `${volunteerId || 'kiosk'}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from('activity-proofs')
-        .upload(fileName, proofFile, {
+        .upload(fileName, fileToUpload, {
           cacheControl: '3600',
-          contentType: proofFile.type,
+          contentType: fileToUpload.type || 'image/webp',
         });
 
       if (uploadError) {
