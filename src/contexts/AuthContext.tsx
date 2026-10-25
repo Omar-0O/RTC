@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { AUTH_STORAGE_KEY, clearLegacyAuthStorage, markReauthenticationRequired, purgeSessionAndMarkReauth, supabase } from '@/integrations/supabase/client';
+import {
+  getStoredSessionSnapshot,
+  isRateLimitOrTransientAuthError,
+  isRevokedTokenError,
+  purgeSessionAndMarkReauth,
+  supabase,
+} from '@/integrations/supabase/client';
 import { useProfileHeartbeat } from '@/hooks/useProfileHeartbeat';
 import { getAuthData, type AuthProfile } from '@/services/auth.service';
 import { getPrimaryRole } from '@/utils/roles';
@@ -26,25 +32,12 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // ── 429 Circuit Breaker ──────────────────────────────────────────────────────
 // When Supabase returns 429 (Too Many Requests) on a refresh-token call, we
-// record the timestamp and block all further auth initialization attempts for
-// CIRCUIT_OPEN_MS milliseconds. This prevents a retry storm that compounds the
-// rate-limit problem across re-renders and concurrent calls.
+// record the timestamp and pause further auth refresh attempts for
+// CIRCUIT_OPEN_MS milliseconds while preserving the stored session in localStorage.
 const CIRCUIT_OPEN_MS = 60_000; // 1 minute
 let circuitOpenUntil = 0;
 const isCircuitOpen = () => Date.now() < circuitOpenUntil;
 const openCircuit = () => { circuitOpenUntil = Date.now() + CIRCUIT_OPEN_MS; };
-
-const isTerminalRefreshError = (error: unknown) => {
-  if (!error) return false;
-  const message = error instanceof Error ? error.message : String((error as { message?: string })?.message || error);
-  const status = (error as { status?: number })?.status;
-
-  return (
-    status === 429 ||
-    status === 400 ||
-    /invalid refresh token|refresh token not found|refresh token revoked|refresh token reuse|token is expired|invalid_grant|too many requests|429/i.test(message)
-  );
-};
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -110,13 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!currentProfile || currentProfile.id !== nextSession.user.id) {
       // Defer profile fetch by one tick so the SDK fully settles the new
       // session/token before we fire DB queries that call _getAccessToken
-      // internally. Firing them synchronously inside onAuthStateChange can
-      // trigger a refresh attempt on a token that was just written, causing
-      // 429 rate-limit errors on the Supabase auth endpoint.
-      //
-      // We store the pending promise so that the caller (onAuthStateChange /
-      // initializeAuth) can await it before clearing the global isLoading flag.
-      // This prevents the app from rendering with profile = null on first open.
+      // internally.
       pendingProfileFetch.current = new Promise<void>((resolve) => {
         setTimeout(() => {
           void fetchProfile(nextSession.user.id).finally(resolve);
@@ -128,40 +115,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     let mounted = true;
 
+    const finishLoadingAfterProfile = () => {
+      const pending = pendingProfileFetch.current;
+      if (pending) {
+        void pending.finally(() => {
+          pendingProfileFetch.current = null;
+          if (mounted) setIsLoading(false);
+        });
+      } else if (mounted) {
+        setIsLoading(false);
+      }
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (!mounted) return;
 
       if (event === 'SIGNED_OUT') {
         clearAuthState();
         setIsLoading(false);
-      } else if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-        applySession(nextSession);
-        // Wait for the profile fetch (started inside applySession) to finish
-        // before clearing isLoading. This prevents the brief flash where the
-        // app renders with profile = null immediately after a session restore.
-        const pending = pendingProfileFetch.current;
-        if (pending) {
-          void pending.finally(() => {
-            pendingProfileFetch.current = null;
-            if (mounted) setIsLoading(false);
-          });
-        } else {
-          setIsLoading(false);
+      } else if (
+        event === 'TOKEN_REFRESHED' ||
+        event === 'SIGNED_IN' ||
+        event === 'INITIAL_SESSION' ||
+        event === 'USER_UPDATED'
+      ) {
+        if (!nextSession && event === 'INITIAL_SESSION') {
+          // If INITIAL_SESSION arrives as null due to a transient offline/rate-limit error,
+          // let initializeAuth inspect storage before clearing state.
+          return;
         }
+        applySession(nextSession);
+        finishLoadingAfterProfile();
       } else {
         setIsLoading(false);
       }
     });
 
     async function initializeAuth() {
+      const storedBefore = getStoredSessionSnapshot();
+
       if (isCircuitOpen()) {
-        console.warn('[Auth] Circuit open due to recent 429 rate-limit. Skipping session initialization.');
-        markReauthenticationRequired();
-        clearLegacyAuthStorage();
-        try { localStorage.removeItem(AUTH_STORAGE_KEY); } catch { /* ignore */ }
+        console.warn('[Auth] Rate-limit cooldown active. Hydrating from stored session without network refresh.');
         if (mounted) {
-          clearAuthState();
-          setIsLoading(false);
+          applySession(storedBefore);
+          finishLoadingAfterProfile();
         }
         return;
       }
@@ -170,20 +167,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
 
         if (error) {
-          const is429 = isTerminalRefreshError(error);
-          if (is429) {
-            openCircuit();
+          const storedAfter = getStoredSessionSnapshot();
+
+          // 1. Check if another tab concurrently rotated the session while getSession() was in flight
+          if (
+            storedAfter &&
+            ((storedBefore && storedAfter.refresh_token !== storedBefore.refresh_token) ||
+              (typeof storedAfter.expires_at === 'number' && storedAfter.expires_at * 1000 > Date.now()))
+          ) {
+            if (mounted) {
+              applySession(storedAfter);
+              finishLoadingAfterProfile();
+            }
+            return;
           }
-          console.error(
-            is429
-              ? '[Auth] Rate-limited (429) during session restore. Clearing storage to stop refresh loop.'
-              : 'Unable to restore auth session:',
-            error.message
-          );
-          // Directly remove the bad token from storage WITHOUT firing signOut events.
-          // Calling signOut triggers _notifyAllSubscribers which can cause the SDK
-          // to attempt another refresh_token call, worsening 429 rate-limit issues.
-          purgeSessionAndMarkReauth();
+
+          // 2. Transient network error, offline state, or HTTP 429 rate-limit:
+          // NEVER destroy the stored refresh_token! Keep the user signed in with the
+          // cached session snapshot so auto-refresh can recover once back online.
+          if (isRateLimitOrTransientAuthError(error) || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+            if (isRateLimitOrTransientAuthError(error)) {
+              openCircuit();
+            }
+            console.warn(
+              '[Auth] Transient network or rate-limit error during session restore; preserving stored session:',
+              error.message
+            );
+            const fallbackSession = storedAfter ?? storedBefore;
+            if (mounted) {
+              applySession(fallbackSession);
+              finishLoadingAfterProfile();
+            }
+            return;
+          }
+
+          // 3. Genuinely revoked / invalid refresh token:
+          if (isRevokedTokenError(error)) {
+            console.warn('[Auth] Refresh token rejected by server:', error.message);
+            const didPurge = purgeSessionAndMarkReauth({
+              failedRefreshToken: storedBefore?.refresh_token,
+            });
+            if (!didPurge) {
+              const latestSession = getStoredSessionSnapshot();
+              if (latestSession && mounted) {
+                applySession(latestSession);
+                finishLoadingAfterProfile();
+                return;
+              }
+            }
+          } else {
+            console.error('Unable to restore auth session:', error.message);
+          }
+
           if (mounted) {
             clearAuthState();
             setIsLoading(false);
@@ -193,13 +228,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         if (mounted) {
           applySession(initialSession);
-          if (!initialSession) {
-            setIsLoading(false);
-          }
+          finishLoadingAfterProfile();
         }
       } catch (error) {
         console.error('Error during auth initialization:', error);
-        purgeSessionAndMarkReauth();
+        const fallbackSession = getStoredSessionSnapshot() ?? storedBefore;
+        if (
+          (isRateLimitOrTransientAuthError(error) || (typeof navigator !== 'undefined' && !navigator.onLine)) &&
+          fallbackSession
+        ) {
+          if (mounted) {
+            applySession(fallbackSession);
+            finishLoadingAfterProfile();
+          }
+          return;
+        }
+
+        if (isRevokedTokenError(error)) {
+          purgeSessionAndMarkReauth({ failedRefreshToken: storedBefore?.refresh_token });
+        }
         if (mounted) {
           clearAuthState();
           setIsLoading(false);
@@ -207,10 +254,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    initializeAuth();
+    void initializeAuth();
+
+    // Recover session seamlessly when returning online after sleep or Wi-Fi switch
+    const handleOnline = () => {
+      if (!mounted || isCircuitOpen()) return;
+      void supabase.auth.getSession().then(({ data: { session: refreshedSession } }) => {
+        if (mounted && refreshedSession) {
+          applySession(refreshedSession);
+        }
+      }).catch(() => {
+        // Ignore transient reconnect errors
+      });
+    };
+
+    window.addEventListener('online', handleOnline);
 
     return () => {
       mounted = false;
+      window.removeEventListener('online', handleOnline);
       subscription.unsubscribe();
     };
   }, [applySession, clearAuthState]);

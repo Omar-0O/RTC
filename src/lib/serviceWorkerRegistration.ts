@@ -1,9 +1,14 @@
+import { supabase } from '@/integrations/supabase/client';
+
 /**
  * Service Worker registration — silent auto-update.
  *
  * When a new SW version is detected, it automatically activates
- * and reloads the page without any user-facing popup.
+ * and reloads the page without any user-facing popup, after waiting
+ * for any in-flight Supabase token refresh to commit to localStorage.
  */
+
+const AUTH_SETTLE_TIMEOUT_MS = 3000;
 
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) {
@@ -34,7 +39,8 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
       });
     });
 
-    // When the new SW takes over, reload the page seamlessly
+    // When the new SW takes over, wait for any in-flight token rotation to settle
+    // before reloading so a one-time refresh_token is never aborted mid-flight.
     let refreshing = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (refreshing) return;
@@ -51,7 +57,12 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
         console.error('[SW] Storage access error:', e);
       }
 
-      window.location.reload();
+      void Promise.race([
+        supabase.auth.getSession().catch(() => null),
+        new Promise((resolve) => setTimeout(resolve, AUTH_SETTLE_TIMEOUT_MS)),
+      ]).finally(() => {
+        window.location.reload();
+      });
     });
 
     return registration;

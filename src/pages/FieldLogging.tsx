@@ -12,8 +12,8 @@ import { canSubmitGroupActivity } from '@/utils/userFeatures';
 
 // Kiosk service account credentials.
 // This user has basic volunteer-level access (branch-scoped via RLS).
-const KIOSK_EMAIL = 'Medaniparticipations@rtc.org';
-const KIOSK_PASSWORD = 'Medani';
+const KIOSK_EMAIL = import.meta.env.VITE_KIOSK_EMAIL || 'Medaniparticipations@rtc.org';
+const KIOSK_PASSWORD = import.meta.env.VITE_KIOSK_PASSWORD || 'Medani';
 import {
   Loader2,
   Phone,

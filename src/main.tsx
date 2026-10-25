@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import { isRevokedTokenError, purgeSessionAndMarkReauth } from "@/integrations/supabase/client";
 
 // ─── Self-Healing: Force-clear old SW & caches on major update ──────
 const CURRENT_VERSION_FLAG = 'rtc-v6-fresh';
@@ -178,18 +179,10 @@ window.addEventListener('unhandledrejection', (event) => {
     return;
   }
 
-  // Check for terminal auth refresh token failure to purge stale storage
-  const errMsg = typeof error === 'string' ? error : (error?.message || '');
-  if (/invalid refresh token|refresh token not found|refresh token revoked|invalid_grant/i.test(errMsg)) {
-    console.warn('[Auth] Terminal refresh token error in unhandled rejection. Purging local auth token.');
-    try {
-      const projectRef = window.location.hostname.split('.')[0] || 'bsicvziazvgppcvsgbsi';
-      localStorage.removeItem(`sb-${projectRef}-auth-token`);
-      localStorage.removeItem('sb-bsicvziazvgppcvsgbsi-auth-token');
-      sessionStorage.setItem('rtc-auth-relogin-required', '1');
-    } catch {
-      // ignore
-    }
+  // Check for terminal auth refresh token failure to purge stale storage safely
+  if (isRevokedTokenError(error)) {
+    console.warn('[Auth] Terminal refresh token error in unhandled rejection. Checking stored session before purge.');
+    purgeSessionAndMarkReauth();
     event.preventDefault();
     return;
   }

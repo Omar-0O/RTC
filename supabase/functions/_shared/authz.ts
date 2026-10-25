@@ -50,9 +50,12 @@ const USER_CREATE_ROLES = new Set<AppRole>([
   'admin',
   'executive',
   'head_hr',
+  'hr',
   'branch_admin',
   'supervisor',
+  'head_quran',
   'head_ashbal',
+  'committee_leader',
 ])
 const DELEGATED_TARGET_ROLES = new Set<AppRole>([
   'volunteer',
@@ -232,11 +235,25 @@ export function normalizeRole(role: string | undefined): AppRole {
   return normalizedRole
 }
 
+const BRANCH_ROLE_MANAGERS = new Set<AppRole>([
+  'branch_admin',
+  'head_hr',
+  'hr',
+  'supervisor',
+])
+
 export function assertCanAssignRole(requester: RequesterContext, targetRole: AppRole): void {
   if (isGlobalAdmin(requester.roles)) return
 
   if (!DELEGATED_TARGET_ROLES.has(targetRole)) {
     throw httpError('Forbidden: only global admins can assign privileged roles', 403)
+  }
+
+  if (
+    targetRole !== 'volunteer' &&
+    !requester.roles.some((role) => BRANCH_ROLE_MANAGERS.has(role))
+  ) {
+    throw httpError('Forbidden: only branch or HR managers can assign leadership roles', 403)
   }
 }
 
@@ -261,6 +278,8 @@ export function assertCanManageTarget(
   target: TargetContext,
   options: { requireAshbalTarget?: boolean } = {},
 ): void {
+  assertCanCreateUsers(requester)
+
   if (requester.id === target.id) {
     throw httpError('Forbidden: you cannot manage your own account through this endpoint', 403)
   }
@@ -275,5 +294,12 @@ export function assertCanManageTarget(
 
   if (hasProtectedRole(target)) {
     throw httpError('Forbidden: only global admins can manage privileged accounts', 403)
+  }
+
+  if (
+    target.roles.includes('committee_leader') &&
+    !requester.roles.some((role) => BRANCH_ROLE_MANAGERS.has(role))
+  ) {
+    throw httpError('Forbidden: only branch or HR managers can manage committee leaders', 403)
   }
 }
