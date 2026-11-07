@@ -877,13 +877,13 @@ export default function MyCourses() {
                             <CardContent className="p-3.5 sm:p-5 pt-0 flex-1 flex flex-col justify-between gap-3 min-w-0">
                                 <div className="space-y-2.5 text-xs sm:text-sm min-w-0">
                                     <div className="flex flex-wrap items-center gap-2 min-w-0">
-                                        <div className="flex-1 min-w-[130px] flex items-center gap-1.5 text-muted-foreground bg-muted/40 dark:bg-muted/20 rounded-lg px-2.5 py-1.5">
+                                        <div className="inline-flex items-center gap-1.5 text-muted-foreground bg-muted/40 dark:bg-muted/20 rounded-lg px-2.5 py-1.5 max-w-full min-w-0">
                                             <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-primary/80" />
                                             <span className="truncate font-medium text-foreground/85" title={roomLabel}>
                                                 {roomLabel}
                                             </span>
                                         </div>
-                                        <div className="shrink-0 flex items-center gap-1.5 text-muted-foreground bg-muted/40 dark:bg-muted/20 rounded-lg px-2.5 py-1.5">
+                                        <div className="inline-flex items-center gap-1.5 text-muted-foreground bg-muted/40 dark:bg-muted/20 rounded-lg px-2.5 py-1.5 shrink-0">
                                             <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-primary/80" />
                                             <span className="font-medium text-foreground/85 whitespace-nowrap" dir="ltr">
                                                 {formatTime(course.schedule_time)}
