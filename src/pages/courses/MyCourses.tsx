@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { validateCourseBeneficiary } from '@/utils/courseBeneficiaryValidation';
@@ -29,7 +29,13 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { BookOpen, Calendar, Clock, MapPin, Users, Check, X, Loader2, GraduationCap, Search, UserPlus, Table as TableIcon, Megaphone, Image, FileText, MessageSquare, Pin, RotateCcw } from 'lucide-react';
+import { BookOpen, Calendar, Clock, MapPin, Users, Check, X, Loader2, GraduationCap, Search, UserPlus, Table as TableIcon, Megaphone, Image, FileText, MessageSquare, Pin, RotateCcw, ArrowUpDown } from 'lucide-react';
+import { MonthPicker } from '@/components/ui/calendar';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import { format, parseISO } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { Plus, Trash2, Pencil, MoreHorizontal, Download } from 'lucide-react';
@@ -168,6 +174,9 @@ const DAYS_LABELS: Record<string, { en: string; ar: string }> = {
 
 const MY_COURSE_COLUMNS = 'id, name, trainer_id, trainer_name, trainer_phone, room, schedule_days, schedule_time, schedule_end_time, has_interview, interview_date, total_lectures, start_date, end_date, committee_id, course_lectures(status)';
 
+export type CourseSortOption = 'date-desc' | 'date-asc' | 'name-asc' | 'name-desc' | 'lectures-desc' | 'lectures-asc';
+export const MY_COURSES_PAGE_SIZE = 9;
+
 export default function MyCourses() {
     const { user, profile } = useAuth();
     const { language, isRTL } = useLanguage();
@@ -202,7 +211,12 @@ export default function MyCourses() {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'upcoming' | 'completed'>('all');
     const [roomFilter, setRoomFilter] = useState<string>('all');
+    const [filterDate, setFilterDate] = useState<string>('');
+    const [isMonthPickerOpen, setIsMonthPickerOpen] = useState(false);
+    const [sortBy, setSortBy] = useState<CourseSortOption>('date-desc');
     const [onlyPinned, setOnlyPinned] = useState(false);
+    const [visibleCount, setVisibleCount] = useState<number>(MY_COURSES_PAGE_SIZE);
+    const sentinelRef = useRef<HTMLDivElement | null>(null);
     const [pinnedCourseIds, setPinnedCourseIds] = useState<string[]>(() => {
         if (typeof window === 'undefined') return [];
         try {
@@ -538,7 +552,30 @@ export default function MyCourses() {
                     if (course.room !== roomFilter) return false;
                 }
 
-                // 4. Only Pinned Filter
+                // 4. Month Filter (overlap between course start/end date and selected month)
+                if (filterDate) {
+                    const selDate = new Date(filterDate);
+                    const selYear = selDate.getFullYear();
+                    const selMonth = selDate.getMonth();
+
+                    const firstDay = new Date(selYear, selMonth, 1);
+                    const lastDay = new Date(selYear, selMonth + 1, 0);
+
+                    const start = course.start_date ? new Date(course.start_date) : null;
+                    const end = course.end_date ? new Date(course.end_date) : null;
+
+                    if (!start) return false;
+
+                    start.setHours(0, 0, 0, 0);
+                    if (end) end.setHours(0, 0, 0, 0);
+                    firstDay.setHours(0, 0, 0, 0);
+                    lastDay.setHours(0, 0, 0, 0);
+
+                    const isOverlap = start <= lastDay && (!end || end >= firstDay);
+                    if (!isOverlap) return false;
+                }
+
+                // 5. Only Pinned Filter
                 if (onlyPinned) {
                     if (!pinnedCourseIds.includes(course.id)) return false;
                 }
@@ -546,21 +583,96 @@ export default function MyCourses() {
                 return true;
             })
             .sort((a, b) => {
+                // 1. Pinned courses always stay on top
                 const aPinned = pinnedCourseIds.includes(a.id);
                 const bPinned = pinnedCourseIds.includes(b.id);
                 if (aPinned && !bPinned) return -1;
                 if (!aPinned && bPinned) return 1;
+
+                // 2. Sort by user selection
+                if (sortBy === 'name-asc') {
+                    return a.name.localeCompare(b.name, isRTL ? 'ar' : 'en');
+                }
+                if (sortBy === 'name-desc') {
+                    return b.name.localeCompare(a.name, isRTL ? 'ar' : 'en');
+                }
+                if (sortBy === 'date-asc') {
+                    const timeA = a.start_date ? new Date(a.start_date).getTime() : 0;
+                    const timeB = b.start_date ? new Date(b.start_date).getTime() : 0;
+                    return timeA - timeB;
+                }
+                if (sortBy === 'date-desc') {
+                    const timeA = a.start_date ? new Date(a.start_date).getTime() : 0;
+                    const timeB = b.start_date ? new Date(b.start_date).getTime() : 0;
+                    return timeB - timeA;
+                }
+                if (sortBy === 'lectures-desc') {
+                    const progA = getProgress(a);
+                    const remA = Math.max(0, (Number(a.total_lectures) || 0) - progA.completed);
+                    const progB = getProgress(b);
+                    const remB = Math.max(0, (Number(b.total_lectures) || 0) - progB.completed);
+                    return remB - remA;
+                }
+                if (sortBy === 'lectures-asc') {
+                    const progA = getProgress(a);
+                    const remA = Math.max(0, (Number(a.total_lectures) || 0) - progA.completed);
+                    const progB = getProgress(b);
+                    const remB = Math.max(0, (Number(b.total_lectures) || 0) - progB.completed);
+                    return remA - remB;
+                }
                 return 0;
             });
-    }, [courses, searchQuery, statusFilter, roomFilter, onlyPinned, pinnedCourseIds, isRTL, getRoomLabel]);
+    }, [courses, searchQuery, statusFilter, roomFilter, filterDate, onlyPinned, pinnedCourseIds, sortBy, isRTL, getRoomLabel]);
 
-    const hasActiveFilters = Boolean(searchQuery.trim() || statusFilter !== 'all' || roomFilter !== 'all' || onlyPinned);
+    // Reset pagination to first batch whenever filters or sorting changes
+    useEffect(() => {
+        setVisibleCount(MY_COURSES_PAGE_SIZE);
+    }, [searchQuery, statusFilter, roomFilter, filterDate, onlyPinned, sortBy]);
+
+    const visibleCourses = useMemo(() => {
+        return filteredCourses.slice(0, visibleCount);
+    }, [filteredCourses, visibleCount]);
+
+    const hasMore = visibleCount < filteredCourses.length;
+
+    // Infinite scroll observer
+    useEffect(() => {
+        if (!hasMore) return;
+        const sentinel = sentinelRef.current;
+        if (!sentinel) return;
+
+        if (typeof IntersectionObserver === 'undefined') return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries[0]?.isIntersecting) {
+                    setVisibleCount((prev) => Math.min(prev + MY_COURSES_PAGE_SIZE, filteredCourses.length));
+                }
+            },
+            { rootMargin: '200px' }
+        );
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [hasMore, filteredCourses.length]);
+
+    const hasActiveFilters = Boolean(
+        searchQuery.trim() ||
+        statusFilter !== 'all' ||
+        roomFilter !== 'all' ||
+        filterDate ||
+        sortBy !== 'date-desc' ||
+        onlyPinned
+    );
 
     const resetFilters = () => {
         setSearchQuery('');
         setStatusFilter('all');
         setRoomFilter('all');
+        setFilterDate('');
+        setSortBy('date-desc');
         setOnlyPinned(false);
+        setVisibleCount(MY_COURSES_PAGE_SIZE);
     };
 
     // Beneficiary CRUD
@@ -691,8 +803,74 @@ export default function MyCourses() {
                         )}
                     </div>
 
-                    {/* Status Filter */}
+                    {/* Month Filter Popover */}
+                    <div className="relative w-full lg:w-44 min-w-0">
+                        <Popover open={isMonthPickerOpen} onOpenChange={setIsMonthPickerOpen}>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className={cn(
+                                        "w-full justify-start text-start font-normal h-10 bg-background border border-input",
+                                        filterDate ? (isRTL ? "pl-9" : "pr-9") : "",
+                                        !filterDate && "text-muted-foreground"
+                                    )}
+                                >
+                                    <Calendar className="ltr:mr-2 rtl:ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                                    <span className="truncate">
+                                        {filterDate ? (
+                                            format(new Date(filterDate), "LLLL yyyy", { locale: isRTL ? ar : undefined })
+                                        ) : (
+                                            isRTL ? 'تصفية بالشهر' : 'Filter by month'
+                                        )}
+                                    </span>
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <MonthPicker
+                                    selected={filterDate ? new Date(filterDate) : undefined}
+                                    onSelect={(date) => {
+                                        setFilterDate(format(date, 'yyyy-MM-dd'));
+                                        setIsMonthPickerOpen(false);
+                                    }}
+                                />
+                            </PopoverContent>
+                        </Popover>
+                        {filterDate && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="absolute ltr:right-1.5 rtl:left-1.5 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-transparent"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setFilterDate('');
+                                }}
+                            >
+                                <X className="w-3.5 h-3.5" />
+                            </Button>
+                        )}
+                    </div>
+
+                    {/* Sort Select */}
                     <div className="w-full lg:w-44 min-w-0">
+                        <Select value={sortBy} onValueChange={(val: CourseSortOption) => setSortBy(val)}>
+                            <SelectTrigger className="h-10 bg-background w-full gap-1.5">
+                                <ArrowUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                <SelectValue placeholder={isRTL ? 'ترتيب حسب' : 'Sort by'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="date-desc">{isRTL ? 'الأحدث تاريخاً' : 'Newest'}</SelectItem>
+                                <SelectItem value="date-asc">{isRTL ? 'الأقدم تاريخاً' : 'Oldest'}</SelectItem>
+                                <SelectItem value="name-asc">{isRTL ? 'الاسم (أ-ي)' : 'Name (A-Z)'}</SelectItem>
+                                <SelectItem value="name-desc">{isRTL ? 'الاسم (ي-أ)' : 'Name (Z-A)'}</SelectItem>
+                                <SelectItem value="lectures-desc">{isRTL ? 'الأكثر محاضرات متبقية' : 'Most lectures remaining'}</SelectItem>
+                                <SelectItem value="lectures-asc">{isRTL ? 'الأقل محاضرات متبقية' : 'Least lectures remaining'}</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Status Filter */}
+                    <div className="w-full lg:w-36 min-w-0">
                         <Select value={statusFilter} onValueChange={(val: 'all' | 'active' | 'upcoming' | 'completed') => setStatusFilter(val)}>
                             <SelectTrigger className="h-10 bg-background w-full">
                                 <SelectValue placeholder={isRTL ? 'حالة الكورس' : 'Status'} />
@@ -708,7 +886,7 @@ export default function MyCourses() {
 
                     {/* Room Filter */}
                     {availableRooms.length > 0 && (
-                        <div className="w-full lg:w-44 min-w-0">
+                        <div className="w-full lg:w-36 min-w-0">
                             <Select value={roomFilter} onValueChange={setRoomFilter}>
                                 <SelectTrigger className="h-10 bg-background w-full">
                                     <SelectValue placeholder={isRTL ? 'القاعة' : 'Room'} />
@@ -767,9 +945,27 @@ export default function MyCourses() {
                 <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 px-1 flex-wrap gap-2">
                     <div>
                         {isRTL ? (
-                            <span>عرض <strong className="text-foreground font-semibold">{filteredCourses.length}</strong> من أصل <strong className="text-foreground font-semibold">{courses.length}</strong> كورس</span>
+                            <span>
+                                عرض <strong className="text-foreground font-semibold">{visibleCourses.length}</strong>
+                                {filteredCourses.length !== visibleCourses.length && (
+                                    <> من أصل <strong className="text-foreground font-semibold">{filteredCourses.length}</strong></>
+                                )}
+                                {courses.length !== filteredCourses.length && (
+                                    <> (إجمالي الكورسات: <strong className="text-foreground font-semibold">{courses.length}</strong>)</>
+                                )}
+                                {' '}كورس
+                            </span>
                         ) : (
-                            <span>Showing <strong className="text-foreground font-semibold">{filteredCourses.length}</strong> of <strong className="text-foreground font-semibold">{courses.length}</strong> courses</span>
+                            <span>
+                                Showing <strong className="text-foreground font-semibold">{visibleCourses.length}</strong>
+                                {filteredCourses.length !== visibleCourses.length && (
+                                    <> of <strong className="text-foreground font-semibold">{filteredCourses.length}</strong></>
+                                )}
+                                {courses.length !== filteredCourses.length && (
+                                    <> ({courses.length} total)</>
+                                )}
+                                {' '}courses
+                            </span>
                         )}
                     </div>
                     {pinnedCourseIds.length > 0 && (
@@ -783,7 +979,7 @@ export default function MyCourses() {
 
             {/* Courses Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 w-full min-w-0">
-                {filteredCourses.map(course => {
+                {visibleCourses.map(course => {
                     const progress = getProgress(course);
                     const totalLectures = Math.max(0, Number(course.total_lectures) || 0);
                     const remaining = Math.max(0, totalLectures - progress.completed);
@@ -962,6 +1158,25 @@ export default function MyCourses() {
                     </div>
                 )}
             </div>
+
+            {/* Lazy Loading Sentinel & Load More Action */}
+            {hasMore && (
+                <div className="flex flex-col items-center justify-center pt-3 pb-2 gap-2 w-full">
+                    <div ref={sentinelRef} className="h-4 w-full pointer-events-none" aria-hidden="true" />
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setVisibleCount(prev => Math.min(prev + MY_COURSES_PAGE_SIZE, filteredCourses.length))}
+                        className="h-9 px-5 gap-2 text-xs font-medium bg-background shadow-xs hover:bg-muted"
+                    >
+                        <span>{isRTL ? 'عرض المزيد من الكورسات' : 'Load more courses'}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                            ({filteredCourses.length - visibleCourses.length} {isRTL ? 'متبقي' : 'remaining'})
+                        </span>
+                    </Button>
+                </div>
+            )}
 
             <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
                 {(() => {
