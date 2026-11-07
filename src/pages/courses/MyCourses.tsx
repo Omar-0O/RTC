@@ -654,29 +654,29 @@ export default function MyCourses() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6 w-full max-w-full min-w-0">
             {/* Header */}
-            <div>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-                    <GraduationCap className="h-7 w-7" />
-                    {isRTL ? 'كورساتي' : 'My Courses'}
+            <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
+                    <GraduationCap className="h-6 w-6 sm:h-7 sm:w-7 shrink-0 text-primary" />
+                    <span className="truncate">{isRTL ? 'كورساتي' : 'My Courses'}</span>
                 </h1>
-                <p className="text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                     {isRTL ? 'كورسات الفرع — كل المتطوعين يقدروا يتابعوا وينظموا' : 'Branch courses — all volunteers can organise and follow up'}
                 </p>
             </div>
 
             {/* Search, Filter & Pin Bar */}
-            <div className="flex flex-col gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-sm">
-                <div className="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
+            <div className="flex flex-col gap-3 bg-card p-3 sm:p-4 rounded-xl border shadow-sm w-full min-w-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:flex-wrap items-stretch lg:items-center gap-2.5 w-full min-w-0">
                     {/* Search Input */}
-                    <div className="relative flex-1">
+                    <div className="relative sm:col-span-2 lg:flex-1 lg:min-w-[220px] min-w-0">
                         <Search className="absolute ltr:left-3 rtl:right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         <Input
                             placeholder={isRTL ? 'بحث باسم الكورس أو المدرب أو القاعة...' : 'Search by course, trainer, or room...'}
                             value={searchQuery}
                             onChange={e => setSearchQuery(e.target.value)}
-                            className="ltr:pl-9 ltr:pr-9 rtl:pr-9 rtl:pl-9 h-10 bg-background"
+                            className="ltr:pl-9 ltr:pr-9 rtl:pr-9 rtl:pl-9 h-10 bg-background w-full"
                         />
                         {searchQuery && (
                             <Button
@@ -692,9 +692,9 @@ export default function MyCourses() {
                     </div>
 
                     {/* Status Filter */}
-                    <div className="w-full md:w-44">
+                    <div className="w-full lg:w-44 min-w-0">
                         <Select value={statusFilter} onValueChange={(val: 'all' | 'active' | 'upcoming' | 'completed') => setStatusFilter(val)}>
-                            <SelectTrigger className="h-10 bg-background">
+                            <SelectTrigger className="h-10 bg-background w-full">
                                 <SelectValue placeholder={isRTL ? 'حالة الكورس' : 'Status'} />
                             </SelectTrigger>
                             <SelectContent>
@@ -708,9 +708,9 @@ export default function MyCourses() {
 
                     {/* Room Filter */}
                     {availableRooms.length > 0 && (
-                        <div className="w-full md:w-44">
+                        <div className="w-full lg:w-44 min-w-0">
                             <Select value={roomFilter} onValueChange={setRoomFilter}>
-                                <SelectTrigger className="h-10 bg-background">
+                                <SelectTrigger className="h-10 bg-background w-full">
                                     <SelectValue placeholder={isRTL ? 'القاعة' : 'Room'} />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -723,43 +723,44 @@ export default function MyCourses() {
                         </div>
                     )}
 
-                    {/* Only Pinned Toggle Button */}
-                    <Button
-                        type="button"
-                        variant={onlyPinned ? "default" : "outline"}
-                        onClick={() => setOnlyPinned(prev => !prev)}
-                        className={cn(
-                            "h-10 gap-1.5 whitespace-nowrap transition-all",
-                            onlyPinned ? "bg-primary text-primary-foreground font-medium shadow-sm" : "bg-background"
-                        )}
-                    >
-                        <Pin className={cn("w-4 h-4", onlyPinned && "fill-current")} />
-                        <span>{isRTL ? 'المثبتة فقط' : 'Pinned only'}</span>
-                        {pinnedCourseIds.length > 0 && (
-                            <Badge
-                                variant={onlyPinned ? "secondary" : "default"}
-                                className={cn(
-                                    "h-5 px-1.5 text-[10px] ltr:ml-1 rtl:mr-1",
-                                    onlyPinned && "bg-background/20 text-primary-foreground"
-                                )}
-                            >
-                                {pinnedCourseIds.length}
-                            </Badge>
-                        )}
-                    </Button>
-
-                    {/* Reset Filters */}
-                    {hasActiveFilters && (
+                    {/* Pinned & Reset Actions */}
+                    <div className="flex items-center gap-2 sm:col-span-2 lg:w-auto min-w-0">
                         <Button
                             type="button"
-                            variant="ghost"
-                            onClick={resetFilters}
-                            className="h-10 px-3 text-muted-foreground hover:text-foreground gap-1 text-xs"
+                            variant={onlyPinned ? "default" : "outline"}
+                            onClick={() => setOnlyPinned(prev => !prev)}
+                            className={cn(
+                                "h-10 flex-1 sm:flex-initial gap-1.5 whitespace-nowrap transition-all",
+                                onlyPinned ? "bg-primary text-primary-foreground font-medium shadow-sm" : "bg-background"
+                            )}
                         >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            <span>{isRTL ? 'إعادة ضبط' : 'Reset'}</span>
+                            <Pin className={cn("w-4 h-4 shrink-0", onlyPinned && "fill-current")} />
+                            <span className="truncate">{isRTL ? 'المثبتة فقط' : 'Pinned only'}</span>
+                            {pinnedCourseIds.length > 0 && (
+                                <Badge
+                                    variant={onlyPinned ? "secondary" : "default"}
+                                    className={cn(
+                                        "h-5 px-1.5 text-[10px] ltr:ml-1 rtl:mr-1 shrink-0",
+                                        onlyPinned && "bg-background/20 text-primary-foreground"
+                                    )}
+                                >
+                                    {pinnedCourseIds.length}
+                                </Badge>
+                            )}
                         </Button>
-                    )}
+
+                        {hasActiveFilters && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={resetFilters}
+                                className="h-10 px-3 text-muted-foreground hover:text-foreground gap-1 text-xs shrink-0"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>{isRTL ? 'إعادة ضبط' : 'Reset'}</span>
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 {/* Sub-bar: stats and active info */}
@@ -773,7 +774,7 @@ export default function MyCourses() {
                     </div>
                     {pinnedCourseIds.length > 0 && (
                         <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                            <Pin className="w-3 h-3 text-primary fill-primary" />
+                            <Pin className="w-3 h-3 text-primary fill-primary shrink-0" />
                             {isRTL ? `${pinnedCourseIds.length} كورس مثبت في المقدمة` : `${pinnedCourseIds.length} pinned to top`}
                         </span>
                     )}
@@ -781,49 +782,49 @@ export default function MyCourses() {
             </div>
 
             {/* Courses Grid */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 w-full min-w-0">
                 {filteredCourses.map(course => {
                     const progress = getProgress(course);
-                    const remaining = Math.max(0, course.total_lectures - progress.completed);
+                    const totalLectures = Math.max(0, Number(course.total_lectures) || 0);
+                    const remaining = Math.max(0, totalLectures - progress.completed);
+                    const progressPercent = totalLectures > 0 ? Math.min(100, Math.round((progress.completed / totalLectures) * 100)) : 0;
                     const isPinned = pinnedCourseIds.includes(course.id);
                     const status = getCourseStatus(course);
+                    const trainerDisplayName = getTrainerDisplayName(course, isRTL);
+                    const roomLabel = getRoomLabel(course.room);
 
                     return (
                         <Card
                             key={course.id}
                             className={cn(
-                                "transition-all duration-200 hover:shadow-md",
+                                "min-w-0 w-full max-w-full overflow-hidden flex flex-col justify-between rounded-xl transition-all duration-200 hover:shadow-md",
                                 isPinned && "border-primary/50 shadow-sm bg-primary/[0.015] dark:bg-primary/[0.03]"
                             )}
                         >
-                            <CardHeader className="pb-3">
-                                <div className="flex justify-between items-start gap-2">
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                                            {isPinned && (
-                                                <Badge variant="secondary" className="gap-1 text-[10px] h-5 px-1.5 bg-primary/10 text-primary border border-primary/20">
-                                                    <Pin className="w-2.5 h-2.5 fill-primary" />
-                                                    <span>{isRTL ? 'مثبت' : 'Pinned'}</span>
-                                                </Badge>
-                                            )}
-                                            {status === 'active' && (
-                                                <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
-                                                    {isRTL ? 'قيد التنفيذ' : 'Active'}
-                                                </Badge>
-                                            )}
-                                            {status === 'upcoming' && (
-                                                <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20">
-                                                    {isRTL ? 'قادم' : 'Upcoming'}
-                                                </Badge>
-                                            )}
-                                            {status === 'completed' && (
-                                                <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-muted-foreground/30 text-muted-foreground bg-muted/40">
-                                                    {isRTL ? 'مكتمل' : 'Completed'}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <CardTitle className="text-lg truncate" title={course.name}>{course.name}</CardTitle>
-                                        <CardDescription className="truncate">{getTrainerDisplayName(course, isRTL)}</CardDescription>
+                            <CardHeader className="p-3.5 sm:p-5 pb-2.5 sm:pb-3 space-y-2">
+                                <div className="flex justify-between items-center gap-2 min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                        {isPinned && (
+                                            <Badge variant="secondary" className="gap-1 text-[10px] h-5 px-1.5 bg-primary/10 text-primary border border-primary/20">
+                                                <Pin className="w-2.5 h-2.5 fill-primary shrink-0" />
+                                                <span>{isRTL ? 'مثبت' : 'Pinned'}</span>
+                                            </Badge>
+                                        )}
+                                        {status === 'active' && (
+                                            <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-950/20">
+                                                {isRTL ? 'قيد التنفيذ' : 'Active'}
+                                            </Badge>
+                                        )}
+                                        {status === 'upcoming' && (
+                                            <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-blue-500/30 text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/20">
+                                                {isRTL ? 'قادم' : 'Upcoming'}
+                                            </Badge>
+                                        )}
+                                        {status === 'completed' && (
+                                            <Badge variant="outline" className="text-[10px] h-5 px-1.5 border-muted-foreground/30 text-muted-foreground bg-muted/40">
+                                                {isRTL ? 'مكتمل' : 'Completed'}
+                                            </Badge>
+                                        )}
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0">
                                         <Button
@@ -862,32 +863,82 @@ export default function MyCourses() {
                                         </DropdownMenu>
                                     </div>
                                 </div>
+                                <div className="min-w-0">
+                                    <CardTitle className="text-base sm:text-lg font-bold leading-snug line-clamp-2 break-words" title={course.name}>
+                                        {course.name}
+                                    </CardTitle>
+                                    {trainerDisplayName && (
+                                        <CardDescription className="text-xs sm:text-sm line-clamp-1 break-words mt-1" title={trainerDisplayName}>
+                                            {trainerDisplayName}
+                                        </CardDescription>
+                                    )}
+                                </div>
                             </CardHeader>
-                            <CardContent>
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <MapPin className="w-4 h-4 shrink-0" />
-                                        <span className="truncate">{getRoomLabel(course.room)}</span>
+                            <CardContent className="p-3.5 sm:p-5 pt-0 flex-1 flex flex-col justify-between gap-3 min-w-0">
+                                <div className="space-y-2.5 text-xs sm:text-sm min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                                        <div className="flex-1 min-w-[130px] flex items-center gap-1.5 text-muted-foreground bg-muted/40 dark:bg-muted/20 rounded-lg px-2.5 py-1.5">
+                                            <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-primary/80" />
+                                            <span className="truncate font-medium text-foreground/85" title={roomLabel}>
+                                                {roomLabel}
+                                            </span>
+                                        </div>
+                                        <div className="shrink-0 flex items-center gap-1.5 text-muted-foreground bg-muted/40 dark:bg-muted/20 rounded-lg px-2.5 py-1.5">
+                                            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-primary/80" />
+                                            <span className="font-medium text-foreground/85 whitespace-nowrap" dir="ltr">
+                                                {formatTime(course.schedule_time)}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Calendar className="w-4 h-4 shrink-0" />
-                                        <span className="truncate">{course.schedule_days.map(d => DAYS_LABELS[d]?.[language as 'en' | 'ar']).join(', ')}</span>
+                                    <div className="flex items-start gap-2 text-muted-foreground min-w-0">
+                                        <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 mt-0.5" />
+                                        <div className="flex flex-wrap gap-1 min-w-0 flex-1">
+                                            {course.schedule_days.map(d => (
+                                                <span
+                                                    key={d}
+                                                    className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] sm:text-xs font-medium bg-secondary/70 text-secondary-foreground"
+                                                >
+                                                    {DAYS_LABELS[d]?.[language as 'en' | 'ar'] || d}
+                                                </span>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Clock className="w-4 h-4 shrink-0" />
-                                        <span>{formatTime(course.schedule_time)}</span>
+                                </div>
+
+                                <div className="space-y-2.5 pt-2.5 border-t border-border/60 min-w-0">
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center justify-between gap-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                                <BookOpen className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                                <span className="font-medium text-foreground/90">
+                                                    {course.total_lectures} {isRTL ? 'محاضرة' : 'lectures'}
+                                                </span>
+                                            </div>
+                                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                                                {isRTL ? 'متبقي: ' : 'Remaining: '}
+                                                <strong className="text-foreground">{remaining}</strong>
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-muted/70 h-1.5 rounded-full overflow-hidden">
+                                            <div
+                                                className={cn(
+                                                    "h-full rounded-full transition-all duration-300",
+                                                    status === 'completed' ? "bg-emerald-500" : "bg-primary"
+                                                )}
+                                                style={{ width: `${progressPercent}%` }}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <BookOpen className="w-4 h-4 shrink-0" />
-                                        <span>{course.total_lectures} {isRTL ? 'محاضرة' : 'lectures'}</span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <Clock className="w-4 h-4 shrink-0" />
-                                        <span>
-                                            {isRTL ? 'متبقي: ' : 'Remaining: '}
-                                            {remaining}
-                                        </span>
-                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={() => openCourseDetails(course)}
+                                        className="w-full h-8 sm:h-9 text-xs sm:text-sm font-medium gap-1.5 bg-primary/10 hover:bg-primary/15 text-primary border border-primary/15"
+                                    >
+                                        <BookOpen className="w-3.5 h-3.5 shrink-0" />
+                                        <span className="truncate">{isRTL ? 'التفاصيل والحضور' : 'Details & Attendance'}</span>
+                                    </Button>
                                 </div>
                             </CardContent>
                         </Card>
