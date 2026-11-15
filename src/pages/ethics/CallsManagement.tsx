@@ -157,6 +157,8 @@ export default function CallsManagement() {
         const { data } = await supabase
             .from('profiles')
             .select('id, full_name, phone, avatar_url')
+            .neq('email', 'Medaniparticipations@rtc.org')
+            .neq('email', 'kiosk@rtc.internal')
             .order('full_name');
         if (data) setVolunteers(data);
     }, []);

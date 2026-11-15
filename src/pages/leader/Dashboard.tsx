@@ -101,7 +101,7 @@ interface CommitteeLeaderDashboardProps {
 }
 
 export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId, committeeIds: propCommitteeIds }: CommitteeLeaderDashboardProps) {
-  const { profile, user } = useAuth();
+  const { profile, user, hasRole } = useAuth();
   const { t, language } = useLanguage();
   const isRTL = language === 'ar';
 
@@ -110,6 +110,7 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
   const [committeeMembers, setCommitteeMembers] = useState<Profile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [trainersMap, setTrainersMap] = useState<TrainersMap>({});
+  const [fallbackCommitteeIds, setFallbackCommitteeIds] = useState<string[]>([]);
 
   // Filters
   const [selectedMonth, setSelectedMonth] = useState('all');
@@ -126,13 +127,40 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
     { value: 'responsible', label: { ar: 'مسؤول', en: 'Responsible' } },
   ];
 
+  useEffect(() => {
+    if ((propCommitteeIds && propCommitteeIds.length > 0) || propCommitteeId || profile?.committee_id || !hasRole('head_marketing')) {
+      return;
+    }
+    let cancelled = false;
+    const resolveMarketingCommittees = async () => {
+      let query = supabase
+        .from('committees')
+        .select('id')
+        .or('name.ilike.%Marketing%,name_ar.ilike.%تسويق%');
+      if (profile?.branch_id) {
+        query = query.eq('branch_id', profile.branch_id);
+      }
+      const { data } = await query;
+      if (!cancelled && data && data.length > 0) {
+        setFallbackCommitteeIds(data.map((c) => c.id));
+      } else if (!cancelled) {
+        setIsLoading(false);
+      }
+    };
+    void resolveMarketingCommittees();
+    return () => {
+      cancelled = true;
+    };
+  }, [propCommitteeIds, propCommitteeId, profile?.committee_id, profile?.branch_id, hasRole]);
+
   // Determine effective committee IDs
   const effectiveCommitteeIds = useMemo(() => {
     if (propCommitteeIds && propCommitteeIds.length > 0) return propCommitteeIds;
     if (propCommitteeId) return [propCommitteeId];
     if (profile?.committee_id) return [profile.committee_id];
+    if (fallbackCommitteeIds.length > 0) return fallbackCommitteeIds;
     return [];
-  }, [propCommitteeIds, propCommitteeId, profile?.committee_id]);
+  }, [propCommitteeIds, propCommitteeId, profile?.committee_id, fallbackCommitteeIds]);
   const effectiveCommitteeIdsKey = useMemo(() => JSON.stringify(effectiveCommitteeIds), [effectiveCommitteeIds]);
   const hasCommitteeScope = effectiveCommitteeIds.length > 0;
 
@@ -216,6 +244,7 @@ export default function CommitteeLeaderDashboard({ committeeId: propCommitteeId,
           .from('profiles')
           .select('id, full_name, full_name_ar, level, avatar_url, committee_id, phone')
           .in('committee_id', effectiveCommitteeIds)
+          .eq('is_active', true)
           .order('full_name'),
         submissionsQuery,
       ]);

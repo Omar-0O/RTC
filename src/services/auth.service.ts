@@ -26,28 +26,24 @@ export interface AuthData {
   rolesError: unknown | null;
 }
 
-const PROFILE_COLUMNS = `
-  activities_count,
-  attended_camp,
-  attended_mini_camp,
-  avatar_url,
-  birth_date,
-  branch_id,
-  committee_id,
-  cover_url,
-  created_at,
-  email,
-  full_name,
-  full_name_ar,
-  id,
-  is_ashbal,
-  join_date,
-  last_seen_at,
-  level,
-  phone,
-  total_points,
-  updated_at
-`;
+const KIOSK_EMAILS = new Set([
+  'medaniparticipations@rtc.org',
+  'kiosk@rtc.internal',
+]);
+
+export function isKioskAccount(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return KIOSK_EMAILS.has(email.trim().toLowerCase());
+}
+
+export function isDeactivatedUser(
+  profile: { is_active?: boolean | null; email?: string | null } | null | undefined,
+  authEmail?: string | null
+): boolean {
+  if (!profile) return false;
+  if (isKioskAccount(authEmail ?? profile.email)) return false;
+  return profile.is_active === false;
+}
 
 const DEFAULT_ROLES: UserRole[] = ['volunteer'];
 
@@ -65,11 +61,32 @@ async function getUserFeatures(userId: string): Promise<string[]> {
   }
 }
 
+export async function ensureMonthlyAutoDismissal(): Promise<void> {
+  try {
+    const currentYm = new Date().toISOString().slice(0, 7);
+    const storageKey = `rtc_auto_dismissal_${currentYm}`;
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(storageKey) === '1') {
+      return;
+    }
+    const rpcClient = supabase as unknown as {
+      rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }>;
+    };
+    const { error } = await rpcClient.rpc('run_monthly_auto_dismissal', { p_force: false });
+    if (!error && typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(storageKey, '1');
+    }
+  } catch {
+    // Best-effort background check; never block auth flow.
+  }
+}
+
 export async function getAuthData(userId: string): Promise<AuthData> {
+  void ensureMonthlyAutoDismissal();
+
   const [profileResult, rolesResult, features] = await Promise.all([
     supabase
       .from('profiles')
-      .select(PROFILE_COLUMNS)
+      .select('*')
       .eq('id', userId)
       .maybeSingle(),
     supabase
@@ -86,7 +103,7 @@ export async function getAuthData(userId: string): Promise<AuthData> {
     : rolesResult.data.map(({ role }) => role as UserRole);
 
   return {
-    profile: profileResult.data,
+    profile: profileResult.data as AuthProfile | null,
     roles,
     features,
     rolesError: rolesResult.error,

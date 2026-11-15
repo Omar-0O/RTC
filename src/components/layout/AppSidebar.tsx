@@ -331,10 +331,9 @@ export function AppSidebar() {
       case 'head_marketing':
         return [
           { title: isRTL ? 'داشبورد' : 'My Dashboard', url: '/leader', icon: Home },
-          { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
-          { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
+          { title: t('leader.dashboard'), url: '/leader/committee', icon: Building2 },
+          { title: t('leader.members'), url: '/leader/members', icon: Users },
           { title: t('nav.events'), url: '/events', icon: Calendar },
-          { title: isRTL ? 'حلقات القرآن' : 'Quran Circles', url: '/marketing/quran-circles', icon: BookOpen },
           { title: t('nav.logActivity'), url: '/leader/activity', icon: ClipboardCheck },
           { title: t('nav.profile'), url: '/leader/profile', icon: User },
         ];
@@ -431,6 +430,12 @@ export function AppSidebar() {
     ];
 
     featureItems.forEach(({ feature, item }) => {
+      if (
+        primaryRole === 'head_marketing' &&
+        (feature === 'courses_management' || feature === 'quran_circles_management')
+      ) {
+        return;
+      }
       if (features.includes(feature) && !navItems.some(i => i.url === item.url)) {
         navItems = [...navItems, item];
       }
@@ -467,6 +472,11 @@ export function AppSidebar() {
   if (myFinesIdx !== -1 && myFinesIdx !== navItems.length - 1) {
     const myFinesItem = navItems[myFinesIdx];
     navItems = [...navItems.slice(0, myFinesIdx), ...navItems.slice(myFinesIdx + 1), myFinesItem];
+  }
+
+  const isDismissed = profile?.is_active === false;
+  if (isDismissed) {
+    navItems = [{ title: t('nav.logActivity'), url: '/activity', icon: Activity }];
   }
 
   const displayName = (isRTL
@@ -636,14 +646,15 @@ export function AppSidebar() {
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <Avatar
-                  className="h-8 w-8 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  className={cn("h-8 w-8 shrink-0 transition-opacity", !isDismissed && "cursor-pointer hover:opacity-80")}
                   onClick={(e) => {
+                    if (isDismissed) return;
                     e.stopPropagation();
                     const profileItem = navItems.find(item => item.url.endsWith('/profile'));
                     navigate(profileItem?.url || '/profile');
                     handleNavClick();
                   }}
-                  title={t('nav.profile')}
+                  title={isDismissed ? undefined : t('nav.profile')}
                 >
                   <AvatarImage src={profile?.avatar_url || undefined} alt={displayName} />
                   <AvatarFallback className="bg-primary text-primary-foreground text-xs">
@@ -653,7 +664,9 @@ export function AppSidebar() {
                 {!collapsed && (
                   <div className="flex flex-col items-start text-start flex-1 min-w-0">
                     <span className="text-sm font-medium truncate w-full">{displayName}</span>
-                    <span className="text-xs text-muted-foreground">{getRoleLabel(primaryRole, isRTL)}</span>
+                    <span className={cn("text-xs", isDismissed ? "text-red-600 dark:text-red-400 font-semibold" : "text-muted-foreground")}>
+                      {isDismissed ? (isRTL ? 'مرفود مؤقتاً' : 'Dismissed') : getRoleLabel(primaryRole, isRTL)}
+                    </span>
                   </div>
                 )}
               </div>
@@ -667,19 +680,23 @@ export function AppSidebar() {
               <p className="text-sm font-medium truncate">{displayName}</p>
               <p className="text-xs text-muted-foreground truncate" dir="ltr">{user?.email}</p>
             </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => {
-              const profileItem = navItems.find(item => item.url.endsWith('/profile'));
-              navigate(profileItem?.url || '/profile');
-              handleNavClick();
-            }}>
-              <User className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-              {t('nav.profile')}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { navigate('/about'); handleNavClick(); }}>
-              <Info className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-              {language === 'ar' ? 'عن المشروع' : 'About Project'}
-            </DropdownMenuItem>
+            {!isDismissed && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => {
+                  const profileItem = navItems.find(item => item.url.endsWith('/profile'));
+                  navigate(profileItem?.url || '/profile');
+                  handleNavClick();
+                }}>
+                  <User className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                  {t('nav.profile')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { navigate('/about'); handleNavClick(); }}>
+                  <Info className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
+                  {language === 'ar' ? 'عن المشروع' : 'About Project'}
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-destructive">
               <LogOut className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />

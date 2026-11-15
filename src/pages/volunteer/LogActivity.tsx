@@ -3,6 +3,7 @@ import { isFutureDate } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { canSubmitGroupActivity } from '@/utils/userFeatures';
+import { DismissalNoticeBanner } from '@/components/volunteer/DismissalNoticeBanner';
 import { supabase } from '@/integrations/supabase/client';
 import { ProofImagePreview } from '@/components/ProofImagePreview';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -129,10 +130,12 @@ export default function LogActivity() {
 
   const fetchVolunteers = useCallback(async () => {
     try {
-      // First, get all volunteers
+      // First, get all volunteers (including dismissed ones so they can be registered in group activities)
       let query = supabase
         .from('profiles')
-        .select('id, full_name, phone, avatar_url');
+        .select('id, full_name, phone, avatar_url')
+        .neq('email', 'Medaniparticipations@rtc.org')
+        .neq('email', 'kiosk@rtc.internal');
 
       if (profile?.branch_id) {
         query = query.eq('branch_id', profile.branch_id);
@@ -671,6 +674,14 @@ export default function LogActivity() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-slide-up">
+      {profile?.is_active === false && (
+        <DismissalNoticeBanner
+          isRTL={isRTL}
+          volunteerName={isRTL ? (profile.full_name_ar || profile.full_name) : (profile.full_name || profile.full_name_ar)}
+          dismissalReason={(profile as { dismissal_reason?: string | null }).dismissal_reason}
+        />
+      )}
+
       {/* Header Section */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/10 via-accent/5 to-success/10 p-6 border border-primary/10">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -translate-y-1/2 translate-x-1/2" />

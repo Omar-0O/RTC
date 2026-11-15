@@ -37,6 +37,7 @@ export async function getLeaderMembers(committeeId: string): Promise<LeaderMembe
     .from('profiles')
     .select(PROFILE_COLUMNS)
     .eq('committee_id', committeeId)
+    .eq('is_active', true)
     .order('full_name');
 
   if (membersResult.error) throw membersResult.error;
@@ -55,6 +56,7 @@ export async function getLeaderMembers(committeeId: string): Promise<LeaderMembe
     supabase
       .from('profiles')
       .select(PROFILE_COLUMNS)
+      .eq('is_active', true)
       .neq('full_name', 'RTC Admin')
       .is('committee_id', null)
       .order('full_name'),

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Languages, Eye, EyeOff, Sun, Moon, Laptop } from 'lucide-react';
 import { AUTH_RELOGIN_NOTICE_KEY, AUTH_STORAGE_KEY, purgeExpiredAuthToken, supabase } from '@/integrations/supabase/client';
+import { isDeactivatedUser, isKioskAccount } from '@/services/auth.service';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -80,6 +81,18 @@ export default function Auth() {
 
   useEffect(() => {
     try {
+      if (sessionStorage.getItem('rtc_deactivated_notice') === '1') {
+        sessionStorage.removeItem('rtc_deactivated_notice');
+        toast({
+          title: isRTL ? 'تم تعطيل الحساب' : 'Account Deactivated',
+          description: isRTL
+            ? 'تم تعطيل هذا الحساب. يرجى التواصل مع إدارة الفرع.'
+            : 'This account has been deactivated. Please contact your branch administration.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       if (sessionStorage.getItem(AUTH_RELOGIN_NOTICE_KEY) !== '1') return;
 
       sessionStorage.removeItem(AUTH_RELOGIN_NOTICE_KEY);
@@ -91,7 +104,7 @@ export default function Auth() {
     } catch {
       // Session notices are optional when browser storage is unavailable.
     }
-  }, [t, toast]);
+  }, [isRTL, t, toast]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,10 +174,29 @@ export default function Auth() {
           variant: 'destructive',
         });
       } else {
-        const { data: roles, error: rolesError } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', data.user.id);
+        const isKioskUser = isKioskAccount(cleanInput) || isKioskAccount(data.user?.email);
+
+        const [{ data: roles, error: rolesError }, { data: profileData }] = await Promise.all([
+          supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', data.user.id),
+          supabase
+            .from('profiles')
+            .select('is_active, email')
+            .eq('id', data.user.id)
+            .maybeSingle(),
+        ]);
+
+        if (!isKioskUser && isDeactivatedUser(profileData, data.user?.email ?? cleanInput)) {
+          try {
+            sessionStorage.setItem('rtc_dismissed_welcome_modal', '1');
+          } catch {
+            // Best-effort
+          }
+          navigate('/activity');
+          return;
+        }
 
         if (rolesError) {
           console.error('Error fetching roles:', rolesError);
@@ -176,10 +208,6 @@ export default function Auth() {
           title: t('welcomeBack'),
           description: t('loginSuccess'),
         });
-
-        const isKioskUser =
-          cleanInput.toLowerCase() === 'medaniparticipations@rtc.org' ||
-          data.user?.email?.toLowerCase() === 'medaniparticipations@rtc.org';
 
         const destination = isKioskUser
           ? '/field-logging'

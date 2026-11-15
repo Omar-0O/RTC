@@ -1,12 +1,14 @@
-import { Outlet, Link, Navigate } from 'react-router-dom';
+import { Outlet, Link, Navigate, useLocation } from 'react-router-dom';
 import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar';
 import { AppSidebar } from './AppSidebar';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/contexts/AuthContext';
+import { isDeactivatedUser } from '@/services/auth.service';
 import logo from '@/assets/logo.webp';
 
 export function AppLayout() {
   const { user, profile } = useAuth();
+  const location = useLocation();
 
   const isKioskUser =
     user?.email?.toLowerCase() === 'medaniparticipations@rtc.org' ||
@@ -15,6 +17,11 @@ export function AppLayout() {
 
   if (isKioskUser) {
     return <Navigate to="/field-logging" replace />;
+  }
+
+  const isDismissed = isDeactivatedUser(profile, user?.email);
+  if (isDismissed && location.pathname !== '/activity') {
+    return <Navigate to="/activity" replace />;
   }
 
   return (

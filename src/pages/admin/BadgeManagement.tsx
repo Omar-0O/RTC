@@ -139,6 +139,7 @@ export default function BadgeManagement() {
       let profilesQuery = supabase
         .from('profiles')
         .select('id, full_name, full_name_ar, email')
+        .eq('is_active', true)
         .order('full_name');
 
       if (activeBranch?.id) {

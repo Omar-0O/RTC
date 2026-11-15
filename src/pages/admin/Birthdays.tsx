@@ -40,6 +40,7 @@ export default function Birthdays() {
           supabase
             .from('profiles')
             .select('id, full_name, full_name_ar, avatar_url, committee_id, level, birth_date')
+            .eq('is_active', true)
             .not('birth_date', 'is', null),
         ]);
 

@@ -113,7 +113,7 @@ export default function SupervisorDashboard() {
                 submissionsRes,
             ] = await Promise.all([
                 (() => {
-                    let q = supabase.from('profiles').select('id, full_name, full_name_ar, total_points, level, committee_id');
+                    let q = supabase.from('profiles').select('id, full_name, full_name_ar, total_points, level, committee_id').eq('is_active', true);
                     if (canViewAllBranches && activeBranch?.id) q = q.eq('branch_id', activeBranch.id);
                     return q;
                 })(),

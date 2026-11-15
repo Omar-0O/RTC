@@ -78,6 +78,8 @@ export async function getEventVolunteers({
   let query = supabase
     .from('profiles')
     .select('id, full_name, phone, avatar_url')
+    .neq('email', 'Medaniparticipations@rtc.org')
+    .neq('email', 'kiosk@rtc.internal')
     .order('full_name');
 
   if (canViewAllBranches && activeBranchId) {

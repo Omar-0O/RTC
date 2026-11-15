@@ -158,6 +158,10 @@ function AppRoutes() {
       return '/field-logging';
     }
 
+    if (profile?.is_active === false) {
+      return '/activity';
+    }
+
     switch (primaryRole) {
       case 'admin':
         return '/admin';

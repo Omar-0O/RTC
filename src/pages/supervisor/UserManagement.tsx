@@ -36,6 +36,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { useCommittees, useUsers } from '@/hooks/useUsers';
 import type { UserWithDetails } from '@/hooks/useUsers';
+import { toggleUserActive } from '@/services/users.service';
 import { toast } from 'sonner';
 import { VolunteerProfilePreview } from '@/components/volunteer/VolunteerProfilePreview';
 import type { Database } from '@/integrations/supabase/types';
@@ -62,6 +63,7 @@ export default function SupervisorUserManagement() {
     const [searchQuery, setSearchQuery] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('all');
     const [committeeFilter, setCommitteeFilter] = useState<string>('all');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
     const [viewProfileUser, setViewProfileUser] = useState<UserWithDetails | null>(null);
 
     // Edit State
@@ -76,6 +78,7 @@ export default function SupervisorUserManagement() {
     const [formLevel, setFormLevel] = useState<string>('under_follow_up');
     const [formAttendedMiniCamp, setFormAttendedMiniCamp] = useState(false);
     const [formAttendedCamp, setFormAttendedCamp] = useState(false);
+    const [formAutoDismissalEnabled, setFormAutoDismissalEnabled] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleEditUser = async (e: React.FormEvent) => {
@@ -90,6 +93,7 @@ export default function SupervisorUserManagement() {
                 phone: formPhone,
                 committee_id: formCommitteeId || null,
                 level: formLevel,
+                auto_dismissal_enabled: formAutoDismissalEnabled,
                 updated_at: new Date().toISOString(),
             };
 
@@ -100,16 +104,20 @@ export default function SupervisorUserManagement() {
                 updates.attended_camp = formAttendedCamp;
             }
 
-            const { error: profileError } = await supabase
+            let { error: profileError } = await supabase
                 .from('profiles')
                 .update(updates)
                 .eq('id', selectedUser.id);
 
-            if (profileError) throw profileError;
+            if (profileError && String(profileError.message || '').includes('auto_dismissal_enabled')) {
+                const { auto_dismissal_enabled: _omit, ...fallbackUpdates } = updates;
+                ({ error: profileError } = await supabase
+                    .from('profiles')
+                    .update(fallbackUpdates)
+                    .eq('id', selectedUser.id));
+            }
 
-            // Note: Supervisors cannot change user ROLES (app_role), only admin/HR generally.
-            // Keeping role update disabled or restricted for now as per usual hierarchy.
-            // Assuming supervisors just edit profile details (committee, level, name, phone).
+            if (profileError) throw profileError;
 
             toast.success(language === 'ar' ? 'تم تحديث البيانات بنجاح' : 'User updated successfully');
             setIsEditDialogOpen(false);
@@ -125,15 +133,11 @@ export default function SupervisorUserManagement() {
     const handleToggleActive = async (user: UserWithDetails) => {
         const newStatus = !user.is_active;
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ is_active: newStatus })
-                .eq('id', user.id);
-            if (error) throw error;
+            await toggleUserActive(user.id, newStatus);
             toast.success(
                 newStatus
-                    ? (language === 'ar' ? `✅ تم تفعيل ${user.full_name}` : `✅ ${user.full_name} activated`)
-                    : (language === 'ar' ? `🚫 تم تعطيل ${user.full_name}` : `🚫 ${user.full_name} deactivated`)
+                    ? (language === 'ar' ? `✅ تم إلغاء رفد ${user.full_name}` : `✅ ${user.full_name} reinstated`)
+                    : (language === 'ar' ? `🚫 تم رفد المتطوع ${user.full_name}` : `🚫 ${user.full_name} dismissed`)
             );
             void refetchUsers();
         } catch (error) {
@@ -152,6 +156,7 @@ export default function SupervisorUserManagement() {
         setFormLevel(user.level || 'under_follow_up');
         setFormAttendedMiniCamp(user.attended_mini_camp || false);
         setFormAttendedCamp(user.attended_camp || false);
+        setFormAutoDismissalEnabled(user.auto_dismissal_enabled !== false);
         setIsEditDialogOpen(true);
     };
 
@@ -161,8 +166,12 @@ export default function SupervisorUserManagement() {
             user.email.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesRole = roleFilter === 'all' || user.role === roleFilter;
         const matchesCommittee = committeeFilter === 'all' || user.committee_id === committeeFilter;
-        return matchesSearch && matchesRole && matchesCommittee;
-    }), [committeeFilter, roleFilter, searchQuery, users]);
+        const matchesStatus =
+            statusFilter === 'all' ||
+            (statusFilter === 'active' && user.is_active) ||
+            (statusFilter === 'inactive' && !user.is_active);
+        return matchesSearch && matchesRole && matchesCommittee && matchesStatus;
+    }), [committeeFilter, roleFilter, searchQuery, statusFilter, users]);
 
     const getRoleBadgeClass = (role: string) => {
         switch (role) {
@@ -298,6 +307,16 @@ export default function SupervisorUserManagement() {
                                 ))}
                             </SelectContent>
                         </Select>
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="w-full sm:w-[160px]">
+                                <SelectValue placeholder={language === 'ar' ? 'حسب الحالة' : 'Filter by status'} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">{language === 'ar' ? 'كل الحالات' : 'All Statuses'}</SelectItem>
+                                <SelectItem value="active">{language === 'ar' ? 'نشط' : 'Active'}</SelectItem>
+                                <SelectItem value="inactive">{language === 'ar' ? 'مرفود' : 'Dismissed'}</SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </CardContent>
             </Card>
@@ -339,11 +358,16 @@ export default function SupervisorUserManagement() {
                                                     </div>
 
                                                     <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center gap-2 mb-1">
+                                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                             <h3 className="font-bold text-base sm:text-lg truncate">{user.full_name || 'No name'}</h3>
                                                             {!user.is_active && (
                                                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 border border-red-200 shrink-0">
-                                                                    {language === 'ar' ? 'معطّل' : 'Inactive'}
+                                                                    {language === 'ar' ? 'مرفود' : 'Dismissed'}
+                                                                </span>
+                                                            )}
+                                                            {user.auto_dismissal_enabled === false && (
+                                                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 shrink-0">
+                                                                    {language === 'ar' ? 'مستثنى من الرفد التلقائي' : 'Auto-Dismiss Exempt'}
                                                                 </span>
                                                             )}
                                                         </div>
@@ -369,7 +393,7 @@ export default function SupervisorUserManagement() {
                                                         variant="ghost"
                                                         size="icon"
                                                         onClick={() => handleToggleActive(user)}
-                                                        title={user.is_active ? (language === 'ar' ? 'تعطيل المتطوع' : 'Deactivate') : (language === 'ar' ? 'تفعيل المتطوع' : 'Activate')}
+                                                        title={user.is_active ? (language === 'ar' ? 'رفد المتطوع' : 'Dismiss') : (language === 'ar' ? 'إلغاء الرفد' : 'Reinstate')}
                                                         className={`h-8 w-8 ${user.is_active ? 'text-orange-600 hover:text-orange-600' : 'text-emerald-600 hover:text-emerald-600'}`}
                                                     >
                                                         {user.is_active
@@ -555,6 +579,24 @@ export default function SupervisorUserManagement() {
                                     </div>
                                 </div>
                             )}
+
+                            <div className="flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+                                <div className="space-y-0.5 pe-3">
+                                    <Label htmlFor="supervisor-auto-dismissal" className="font-semibold">
+                                        {language === 'ar' ? 'الرفد التلقائي أول كل شهر' : 'Monthly Automatic Dismissal'}
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        {language === 'ar'
+                                            ? 'رفد المتطوع تلقائياً أول الشهر إذا لم يحقق تارجت المشاركات أو كان عليه غرامة غير مدفوعة (مفعّل افتراضياً)'
+                                            : 'Automatically dismiss volunteer on the 1st of the month if target is missed or fine is unpaid (enabled by default)'}
+                                    </p>
+                                </div>
+                                <Switch
+                                    id="supervisor-auto-dismissal"
+                                    checked={formAutoDismissalEnabled}
+                                    onCheckedChange={setFormAutoDismissalEnabled}
+                                />
+                            </div>
                         </div>
                         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 px-4 sm:px-6 py-4 border-t-2 border-border/50 dark:border-border/80 bg-muted/10 shrink-0">
                             <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)} className="w-full sm:w-auto h-11 px-6 text-sm font-medium">

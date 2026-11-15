@@ -37,6 +37,8 @@ export interface UserWithDetails {
   birth_date?: string | null;
   last_seen_at?: string | null;
   is_active: boolean;
+  auto_dismissal_enabled: boolean;
+  dismissal_reason?: string | null;
 }
 
 export interface FetchUsersOptions {
@@ -80,6 +82,7 @@ export interface CreateUserPayload {
   attendedMiniCamp: boolean;
   attendedCamp: boolean;
   isAshbal: boolean;
+  autoDismissalEnabled?: boolean;
   avatarFile: File | null;
 }
 
@@ -95,6 +98,7 @@ export interface UpdateUserPayload {
   attendedMiniCamp: boolean;
   attendedCamp: boolean;
   isAshbal: boolean;
+  autoDismissalEnabled?: boolean;
   joinDate: string;
   birthDate: string | null;
   role: UserRole;
@@ -174,6 +178,8 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
     let query = supabase
       .from('profiles')
       .select('*', { count: 'exact' })
+      .neq('email', 'Medaniparticipations@rtc.org')
+      .neq('email', 'kiosk@rtc.internal')
       .order('full_name')
       .range(from, to);
 
@@ -294,6 +300,8 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
       birth_date: profile.birth_date,
       last_seen_at: profile.last_seen_at || null,
       is_active: profile.is_active !== false,
+      auto_dismissal_enabled: profile.auto_dismissal_enabled !== false,
+      dismissal_reason: profile.dismissal_reason ?? null,
     };
   });
 
@@ -373,6 +381,13 @@ export async function createUser(payload: CreateUserPayload): Promise<{ userId: 
 
   const userId = data.user.id;
 
+  if (payload.autoDismissalEnabled === false) {
+    await supabase
+      .from('profiles')
+      .update({ auto_dismissal_enabled: false })
+      .eq('id', userId);
+  }
+
   if (payload.avatarFile) {
     await uploadAvatar(userId, payload.avatarFile);
   }
@@ -381,24 +396,39 @@ export async function createUser(payload: CreateUserPayload): Promise<{ userId: 
 }
 
 export async function updateUser(payload: UpdateUserPayload): Promise<void> {
-  const { data: profileData, error: profileError } = await supabase
+  const baseUpdates: ProfileUpdate = {
+    full_name: payload.fullName,
+    full_name_ar: payload.fullNameAr || null,
+    email: payload.email,
+    phone: payload.phone || null,
+    committee_id: payload.committeeId || null,
+    branch_id: payload.branchId || null,
+    level: payload.level as ProfileRow['level'],
+    attended_mini_camp: payload.level === 'under_follow_up' ? payload.attendedMiniCamp : null,
+    attended_camp: payload.level === 'project_responsible' ? payload.attendedCamp : null,
+    is_ashbal: payload.isAshbal,
+    join_date: payload.joinDate,
+    birth_date: payload.birthDate || null,
+  };
+
+  let { data: profileData, error: profileError } = await supabase
     .from('profiles')
     .update({
-      full_name: payload.fullName,
-      full_name_ar: payload.fullNameAr || null,
-      email: payload.email,
-      phone: payload.phone || null,
-      committee_id: payload.committeeId || null,
-      branch_id: payload.branchId || null,
-      level: payload.level as ProfileRow['level'],
-      attended_mini_camp: payload.level === 'under_follow_up' ? payload.attendedMiniCamp : null,
-      attended_camp: payload.level === 'project_responsible' ? payload.attendedCamp : null,
-      is_ashbal: payload.isAshbal,
-      join_date: payload.joinDate,
-      birth_date: payload.birthDate || null,
+      ...baseUpdates,
+      ...(payload.autoDismissalEnabled !== undefined ? { auto_dismissal_enabled: payload.autoDismissalEnabled } : {}),
     })
     .eq('id', payload.userId)
     .select();
+
+  if (profileError && isMissingColumnError(profileError)) {
+    const fallbackRes = await supabase
+      .from('profiles')
+      .update(baseUpdates)
+      .eq('id', payload.userId)
+      .select();
+    profileData = fallbackRes.data;
+    profileError = fallbackRes.error;
+  }
 
   if (profileError) throw profileError;
   if (!profileData || profileData.length === 0) {
@@ -458,8 +488,22 @@ export async function deleteUser(userId: string): Promise<void> {
 export async function toggleUserActive(userId: string, isActive: boolean): Promise<void> {
   const { error } = await supabase
     .from('profiles')
-    .update({ is_active: isActive })
+    .update({
+      is_active: isActive,
+      dismissal_reason: isActive ? null : 'manual',
+      dismissed_at: isActive ? null : new Date().toISOString(),
+    })
     .eq('id', userId);
+
+  if (error && isMissingColumnError(error)) {
+    const { error: fallbackError } = await supabase
+      .from('profiles')
+      .update({ is_active: isActive })
+      .eq('id', userId);
+    if (fallbackError) throw fallbackError;
+    return;
+  }
+
   if (error) throw error;
 }
 

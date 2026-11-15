@@ -1529,12 +1529,15 @@ export type Database = {
           ashbal_status: string | null
           attended_camp: boolean | null
           attended_mini_camp: boolean | null
+          auto_dismissal_enabled: boolean
           avatar_url: string | null
           birth_date: string | null
           branch_id: string | null
           committee_id: string | null
           cover_url: string | null
           created_at: string
+          dismissal_reason: string | null
+          dismissed_at: string | null
           email: string
           full_name: string | null
           full_name_ar: string | null
@@ -1554,12 +1557,15 @@ export type Database = {
           ashbal_status?: string | null
           attended_camp?: boolean | null
           attended_mini_camp?: boolean | null
+          auto_dismissal_enabled?: boolean
           avatar_url?: string | null
           birth_date?: string | null
           branch_id?: string | null
           committee_id?: string | null
           cover_url?: string | null
           created_at?: string
+          dismissal_reason?: string | null
+          dismissed_at?: string | null
           email: string
           full_name?: string | null
           full_name_ar?: string | null
@@ -1579,12 +1585,15 @@ export type Database = {
           ashbal_status?: string | null
           attended_camp?: boolean | null
           attended_mini_camp?: boolean | null
+          auto_dismissal_enabled?: boolean
           avatar_url?: string | null
           birth_date?: string | null
           branch_id?: string | null
           committee_id?: string | null
           cover_url?: string | null
           created_at?: string
+          dismissal_reason?: string | null
+          dismissed_at?: string | null
           email?: string
           full_name?: string | null
           full_name_ar?: string | null
