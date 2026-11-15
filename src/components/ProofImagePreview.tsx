@@ -3,6 +3,7 @@ import { ImagePreview } from '@/components/ui/image-preview';
 import {
   createActivityProofSignedUrl,
   getActivityProofPath,
+  isDeadStorageUrl,
 } from '@/utils/activityProofs';
 
 interface ProofImagePreviewProps {
@@ -18,13 +19,22 @@ export function ProofImagePreview({
   className,
   imgClassName,
 }: ProofImagePreviewProps) {
+  const isDeadUrl = useMemo(() => isDeadStorageUrl(proofUrl), [proofUrl]);
   const storagePath = useMemo(() => getActivityProofPath(proofUrl), [proofUrl]);
-  const [resolvedUrl, setResolvedUrl] = useState(proofUrl);
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(() => {
+    if (isDeadUrl) return null;
+    return storagePath ? null : proofUrl;
+  });
 
   useEffect(() => {
     let cancelled = false;
 
     const resolveUrl = async () => {
+      if (isDeadUrl) {
+        setResolvedUrl(null);
+        return;
+      }
+
       if (!storagePath) {
         setResolvedUrl(proofUrl);
         return;
@@ -33,16 +43,18 @@ export function ProofImagePreview({
       const signedUrl = await createActivityProofSignedUrl(storagePath);
 
       if (!cancelled) {
-        setResolvedUrl(signedUrl ?? proofUrl);
+        setResolvedUrl(signedUrl);
       }
     };
 
-    resolveUrl();
+    void resolveUrl();
 
     return () => {
       cancelled = true;
     };
-  }, [proofUrl, storagePath]);
+  }, [isDeadUrl, proofUrl, storagePath]);
+
+  if (!resolvedUrl) return null;
 
   return (
     <ImagePreview src={resolvedUrl} alt={alt} className={className}>

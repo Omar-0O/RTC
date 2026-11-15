@@ -2,9 +2,13 @@ import { supabase } from '@/integrations/supabase/client';
 
 export const ACTIVITY_PROOFS_BUCKET = 'activity-proofs';
 export const ACTIVITY_PROOF_SIGNED_URL_TTL_SECONDS = 60 * 60; // 1 hour
+const DEAD_STORAGE_HOST = 'dscphfuyhjorrshtyqan.supabase.co';
+
+export const isDeadStorageUrl = (value: string | null | undefined): boolean =>
+  Boolean(value && value.includes(DEAD_STORAGE_HOST));
 
 export const getActivityProofPath = (value: string): string | null => {
-  if (!value || value.startsWith('data:') || value.startsWith('blob:')) return null;
+  if (!value || value.startsWith('data:') || value.startsWith('blob:') || isDeadStorageUrl(value)) return null;
 
   if (!value.includes('://')) {
     return value.startsWith(`${ACTIVITY_PROOFS_BUCKET}/`)
@@ -24,13 +28,21 @@ export const getActivityProofPath = (value: string): string | null => {
   }
 };
 
+const signedUrlCache = new Map<string, string | null>();
+
 export async function createActivityProofSignedUrl(value: string): Promise<string | null> {
   const path = getActivityProofPath(value);
   if (!path) return null;
+
+  if (signedUrlCache.has(path)) {
+    return signedUrlCache.get(path) ?? null;
+  }
 
   const { data, error } = await supabase.storage
     .from(ACTIVITY_PROOFS_BUCKET)
     .createSignedUrl(path, ACTIVITY_PROOF_SIGNED_URL_TTL_SECONDS);
 
-  return error ? null : data.signedUrl;
+  const result = error ? null : data.signedUrl;
+  signedUrlCache.set(path, result);
+  return result;
 }

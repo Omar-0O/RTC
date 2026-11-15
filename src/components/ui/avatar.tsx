@@ -15,11 +15,23 @@ const Avatar = React.forwardRef<
 ));
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 
+const DEAD_STORAGE_HOST = "dscphfuyhjorrshtyqan.supabase.co";
+
+const sanitizeAvatarSrc = (src: string | undefined): string | undefined => {
+  if (!src || src.includes(DEAD_STORAGE_HOST)) return undefined;
+  return src;
+};
+
 const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
->(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Image ref={ref} className={cn("aspect-square h-full w-full", className)} {...props} />
+>(({ className, src, ...props }, ref) => (
+  <AvatarPrimitive.Image
+    ref={ref}
+    src={sanitizeAvatarSrc(src)}
+    className={cn("aspect-square h-full w-full", className)}
+    {...props}
+  />
 ));
 AvatarImage.displayName = AvatarPrimitive.Image.displayName;
 

@@ -109,7 +109,13 @@ export default function SupervisorUserManagement() {
                 .update(updates)
                 .eq('id', selectedUser.id);
 
-            if (profileError && String(profileError.message || '').includes('auto_dismissal_enabled')) {
+            if (
+                profileError &&
+                (profileError.code === 'PGRST204' ||
+                    profileError.code === '42703' ||
+                    String(profileError.message || '').includes('auto_dismissal_enabled') ||
+                    String(profileError.message || '').includes('schema cache'))
+            ) {
                 const { auto_dismissal_enabled: _omit, ...fallbackUpdates } = updates;
                 ({ error: profileError } = await supabase
                     .from('profiles')

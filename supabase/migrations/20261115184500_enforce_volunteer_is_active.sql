@@ -280,4 +280,44 @@ WHERE feature IN ('courses_management', 'quran_circles_management')
     SELECT user_id FROM public.user_roles WHERE role::text = 'head_marketing'
   );
 
+-- 8. Allow head_marketing to view activity proof images in storage
+DROP POLICY IF EXISTS "activity_proofs_select" ON storage.objects;
+CREATE POLICY "activity_proofs_select"
+ON storage.objects
+FOR SELECT
+TO authenticated
+USING (
+  bucket_id = 'activity-proofs'
+  AND (
+    auth.uid()::text = (storage.foldername(name))[1]
+    OR EXISTS (
+      SELECT 1
+      FROM public.user_roles ur
+      WHERE ur.user_id = auth.uid()
+        AND ur.role::text IN (
+          'admin',
+          'executive',
+          'branch_admin',
+          'supervisor',
+          'hr',
+          'head_hr',
+          'committee_leader',
+          'head_production',
+          'head_fourth_year',
+          'head_events',
+          'head_caravans',
+          'head_ethics',
+          'head_quran',
+          'head_ashbal',
+          'head_marketing'
+        )
+    )
+  )
+);
+
+-- 9. Clean up dead legacy Supabase storage URLs (dscphfuyhjorrshtyqan.supabase.co)
+UPDATE public.profiles
+SET avatar_url = NULL
+WHERE avatar_url LIKE '%dscphfuyhjorrshtyqan.supabase.co%';
+
 COMMIT;

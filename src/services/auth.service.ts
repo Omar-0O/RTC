@@ -61,28 +61,30 @@ async function getUserFeatures(userId: string): Promise<string[]> {
   }
 }
 
-export async function ensureMonthlyAutoDismissal(): Promise<void> {
+export async function ensureMonthlyAutoDismissal(profileData?: Record<string, unknown> | null): Promise<void> {
   try {
+    // Only invoke the RPC if the database migration has been applied (auto_dismissal_enabled column exists)
+    if (!profileData || !('auto_dismissal_enabled' in profileData)) {
+      return;
+    }
     const currentYm = new Date().toISOString().slice(0, 7);
     const storageKey = `rtc_auto_dismissal_${currentYm}`;
     if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(storageKey) === '1') {
       return;
     }
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(storageKey, '1');
+    }
     const rpcClient = supabase as unknown as {
       rpc: (fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }>;
     };
-    const { error } = await rpcClient.rpc('run_monthly_auto_dismissal', { p_force: false });
-    if (!error && typeof sessionStorage !== 'undefined') {
-      sessionStorage.setItem(storageKey, '1');
-    }
+    await rpcClient.rpc('run_monthly_auto_dismissal', { p_force: false });
   } catch {
     // Best-effort background check; never block auth flow.
   }
 }
 
 export async function getAuthData(userId: string): Promise<AuthData> {
-  void ensureMonthlyAutoDismissal();
-
   const [profileResult, rolesResult, features] = await Promise.all([
     supabase
       .from('profiles')
@@ -97,6 +99,8 @@ export async function getAuthData(userId: string): Promise<AuthData> {
   ]);
 
   if (profileResult.error) throw profileResult.error;
+
+  void ensureMonthlyAutoDismissal(profileResult.data as Record<string, unknown> | null);
 
   const roles = rolesResult.error || !rolesResult.data?.length
     ? DEFAULT_ROLES

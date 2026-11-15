@@ -128,7 +128,20 @@ const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 const USER_PROFILE_COLUMNS = 'id, email, full_name, full_name_ar, avatar_url, committee_id, branch_id, total_points, level, join_date, created_at, phone, attended_mini_camp, attended_camp, is_ashbal, birth_date, last_seen_at, is_active';
 const LEGACY_USER_PROFILE_COLUMNS = 'id, email, full_name, full_name_ar, avatar_url, committee_id, total_points, level, join_date, created_at, phone';
 
-const isMissingColumnError = (error: { code?: string } | null): boolean => error?.code === '42703';
+let autoDismissalColumnsSupported = true;
+
+const isMissingColumnError = (error: { code?: string; message?: string } | null): boolean => {
+  if (!error) return false;
+  if (error.code === '42703' || error.code === 'PGRST204') return true;
+  const msg = (error.message || '').toLowerCase();
+  return (
+    msg.includes('schema cache') ||
+    msg.includes('does not exist') ||
+    msg.includes('auto_dismissal_enabled') ||
+    msg.includes('dismissal_reason') ||
+    msg.includes('dismissed_at')
+  );
+};
 
 // ─── Avatar upload ──────────────────────────────────────────────────
 
@@ -381,11 +394,14 @@ export async function createUser(payload: CreateUserPayload): Promise<{ userId: 
 
   const userId = data.user.id;
 
-  if (payload.autoDismissalEnabled === false) {
-    await supabase
+  if (payload.autoDismissalEnabled === false && autoDismissalColumnsSupported) {
+    const { error: autoDismissError } = await supabase
       .from('profiles')
       .update({ auto_dismissal_enabled: false })
       .eq('id', userId);
+    if (autoDismissError && isMissingColumnError(autoDismissError)) {
+      autoDismissalColumnsSupported = false;
+    }
   }
 
   if (payload.avatarFile) {
@@ -415,12 +431,15 @@ export async function updateUser(payload: UpdateUserPayload): Promise<void> {
     .from('profiles')
     .update({
       ...baseUpdates,
-      ...(payload.autoDismissalEnabled !== undefined ? { auto_dismissal_enabled: payload.autoDismissalEnabled } : {}),
+      ...(autoDismissalColumnsSupported && payload.autoDismissalEnabled !== undefined
+        ? { auto_dismissal_enabled: payload.autoDismissalEnabled }
+        : {}),
     })
     .eq('id', payload.userId)
     .select();
 
   if (profileError && isMissingColumnError(profileError)) {
+    autoDismissalColumnsSupported = false;
     const fallbackRes = await supabase
       .from('profiles')
       .update(baseUpdates)
@@ -486,6 +505,15 @@ export async function deleteUser(userId: string): Promise<void> {
 }
 
 export async function toggleUserActive(userId: string, isActive: boolean): Promise<void> {
+  if (!autoDismissalColumnsSupported) {
+    const { error: directError } = await supabase
+      .from('profiles')
+      .update({ is_active: isActive })
+      .eq('id', userId);
+    if (directError) throw directError;
+    return;
+  }
+
   const { error } = await supabase
     .from('profiles')
     .update({
@@ -496,6 +524,7 @@ export async function toggleUserActive(userId: string, isActive: boolean): Promi
     .eq('id', userId);
 
   if (error && isMissingColumnError(error)) {
+    autoDismissalColumnsSupported = false;
     const { error: fallbackError } = await supabase
       .from('profiles')
       .update({ is_active: isActive })
