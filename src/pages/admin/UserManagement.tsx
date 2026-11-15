@@ -144,6 +144,7 @@ export default function UserManagement() {
   const [searchQuery, setSearchQuery] = useState('');
   const [levelFilter, setLevelFilter] = useState<string>('all');
   const [committeeFilter, setCommitteeFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -178,6 +179,7 @@ export default function UserManagement() {
   const [formAttendedMiniCamp, setFormAttendedMiniCamp] = useState(false);
   const [formAttendedCamp, setFormAttendedCamp] = useState(false);
   const [formIsAshbal, setFormIsAshbal] = useState(false);
+  const [formAutoDismissalEnabled, setFormAutoDismissalEnabled] = useState(true);
   const [formJoinDate, setFormJoinDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [formBirthDate, setFormBirthDate] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
@@ -199,8 +201,8 @@ export default function UserManagement() {
       await toggleActiveMutation.mutateAsync({ userId: user.id, isActive: newStatus });
       toast.success(
         newStatus
-          ? (isRTL ? `✅ تم تفعيل ${user.full_name_ar || user.full_name}` : `✅ ${user.full_name || user.full_name_ar} activated`)
-          : (isRTL ? `🚫 تم تعطيل ${user.full_name_ar || user.full_name}` : `🚫 ${user.full_name || user.full_name_ar} deactivated`)
+          ? (isRTL ? `✅ تم إلغاء رفد ${user.full_name_ar || user.full_name} وإعادته للنشاط` : `✅ ${user.full_name || user.full_name_ar} reinstated`)
+          : (isRTL ? `🚫 تم رفد المتطوع ${user.full_name_ar || user.full_name}` : `🚫 ${user.full_name || user.full_name_ar} dismissed`)
       );
     } catch (err: unknown) {
       toast.error(getErrorMessage(err, isRTL ? 'فشل في تغيير الحالة' : 'Failed to change status'));
@@ -239,14 +241,19 @@ export default function UserManagement() {
       user.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesLevel = levelFilter === 'all' || user.level === levelFilter;
     const matchesCommittee = committeeFilter === 'all' || user.committee_id === committeeFilter;
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'active' && user.is_active) ||
+      (statusFilter === 'inactive' && !user.is_active);
     const isNotAdmin = user.role !== 'admin';
-    return matchesSearch && matchesLevel && matchesCommittee && isNotAdmin;
+    return matchesSearch && matchesLevel && matchesCommittee && matchesStatus && isNotAdmin;
   });
 
   const accountForm: UserAccountForm = {
     name: formName, nameAr: formNameAr, email: formEmail, phone: formPhone, password: formPassword,
     role: formRole, level: formLevel, committeeId: formCommitteeId, branchId: formBranchId,
     attendedMiniCamp: formAttendedMiniCamp, attendedCamp: formAttendedCamp, isAshbal: formIsAshbal,
+    autoDismissalEnabled: formAutoDismissalEnabled,
     joinDate: formJoinDate, birthDate: formBirthDate,
   };
 
@@ -263,6 +270,7 @@ export default function UserManagement() {
     if (patch.attendedMiniCamp !== undefined) setFormAttendedMiniCamp(patch.attendedMiniCamp);
     if (patch.attendedCamp !== undefined) setFormAttendedCamp(patch.attendedCamp);
     if (patch.isAshbal !== undefined) setFormIsAshbal(patch.isAshbal);
+    if (patch.autoDismissalEnabled !== undefined) setFormAutoDismissalEnabled(patch.autoDismissalEnabled);
     if (patch.joinDate !== undefined) setFormJoinDate(patch.joinDate);
     if (patch.birthDate !== undefined) setFormBirthDate(patch.birthDate);
   };
@@ -282,6 +290,7 @@ export default function UserManagement() {
     setFormAttendedMiniCamp(false);
     setFormAttendedCamp(false);
     setFormIsAshbal(false);
+    setFormAutoDismissalEnabled(true);
     setFormJoinDate(format(new Date(), 'yyyy-MM-dd'));
     setFormBirthDate('');
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -352,7 +361,7 @@ export default function UserManagement() {
         email: formEmail.trim(), password: formPassword, fullName: formName.trim(), fullNameAr: formNameAr.trim(), role: formRole,
         committeeId: formCommitteeId || null, phone: formPhone.trim() || null, level: formLevel, joinDate: formJoinDate,
         branchId: formBranchId || null, birthDate: formBirthDate || null, attendedMiniCamp: formAttendedMiniCamp,
-        attendedCamp: formAttendedCamp, isAshbal: formIsAshbal, avatarFile: formAvatarFile,
+        attendedCamp: formAttendedCamp, isAshbal: formIsAshbal, autoDismissalEnabled: formAutoDismissalEnabled, avatarFile: formAvatarFile,
       });
       toast.success(language === "ar" ? "تم إضافة المستخدم بنجاح" : "User added successfully");
       setIsAddDialogOpen(false);
@@ -379,6 +388,7 @@ export default function UserManagement() {
     setFormAttendedMiniCamp(user.attended_mini_camp || false);
     setFormAttendedCamp(user.attended_camp || false);
     setFormIsAshbal(user.is_ashbal || false);
+    setFormAutoDismissalEnabled(user.auto_dismissal_enabled !== false);
     setFormJoinDate(user.join_date ? format(new Date(user.join_date), 'yyyy-MM-dd') : format(new Date(), 'yyyy-MM-dd'));
     setFormBirthDate(user.birth_date || '');
     setIsCropping(false);
@@ -404,7 +414,8 @@ export default function UserManagement() {
       await updateUserMutation.mutateAsync({
         userId: selectedUser.id, fullName: formName.trim(), fullNameAr: formNameAr.trim() || null, email: formEmail.trim(),
         phone: formPhone.trim() || null, committeeId: formCommitteeId || null, branchId: formBranchId || null, level: formLevel,
-        attendedMiniCamp: formAttendedMiniCamp, attendedCamp: formAttendedCamp, isAshbal: formIsAshbal, joinDate: formJoinDate,
+        attendedMiniCamp: formAttendedMiniCamp, attendedCamp: formAttendedCamp, isAshbal: formIsAshbal,
+        autoDismissalEnabled: formAutoDismissalEnabled, joinDate: formJoinDate,
         birthDate: formBirthDate || null, role: formRole, previousRole: selectedUser.role, password: formPassword || undefined,
         avatarFile: formAvatarFile,
       });
@@ -598,10 +609,12 @@ export default function UserManagement() {
         search={searchQuery}
         level={levelFilter}
         committeeId={committeeFilter}
+        status={statusFilter}
         committees={committees}
         onSearchChange={setSearchQuery}
         onLevelChange={setLevelFilter}
         onCommitteeChange={setCommitteeFilter}
+        onStatusChange={setStatusFilter}
       />
 
       {isUsersError && (

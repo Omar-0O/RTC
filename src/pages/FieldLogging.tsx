@@ -247,6 +247,8 @@ export default function FieldLogging() {
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, full_name, full_name_ar, phone, avatar_url, branch_id')
+        .neq('email', 'Medaniparticipations@rtc.org')
+        .neq('email', 'kiosk@rtc.internal')
         .range(0, 4999)
         .order('full_name');
 
@@ -669,7 +671,7 @@ export default function FieldLogging() {
       // Also filtering by selectedBranchId or null to find the volunteer in the correct branch or if unassigned.
       let dbQuery = supabase
         .from('profiles')
-        .select('id, full_name, full_name_ar, phone, total_points, level, committee_id, avatar_url, branch_id')
+        .select('id, full_name, full_name_ar, phone, total_points, level, committee_id, avatar_url, branch_id, is_active')
         .in('phone', allFormats);
 
       if (selectedBranchId) {

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, UserMinus, User, Phone, Mail, Calendar, Loader2, Check, ChevronsUpDown, Eye, MoreVertical, MessageCircle } from 'lucide-react';
+import { Search, Plus, UserMinus, User, Phone, Mail, Calendar, Loader2, Check, ChevronsUpDown, Eye, MoreVertical, MessageCircle, MessageSquare, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -78,7 +79,7 @@ interface MembersProps {
 }
 
 export default function Members({ committeeId: propCommitteeId }: MembersProps) {
-    const { profile } = useAuth();
+    const { profile, hasRole } = useAuth();
     const { t, language } = useLanguage();
     const navigate = useNavigate();
     const [members, setMembers] = useState<Profile[]>([]);
@@ -91,8 +92,33 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
     const [selectedVolunteerIds, setSelectedVolunteerIds] = useState<string[]>([]);
     const [isActionLoading, setIsActionLoading] = useState(false);
     const [comboboxOpen, setComboboxOpen] = useState(false);
+    const [fallbackCommitteeId, setFallbackCommitteeId] = useState<string | null>(null);
 
-    const committeeId = propCommitteeId || profile?.committee_id;
+    const committeeId = propCommitteeId || profile?.committee_id || fallbackCommitteeId;
+
+    useEffect(() => {
+        if (propCommitteeId || profile?.committee_id || !hasRole('head_marketing')) return;
+        let cancelled = false;
+        const resolveMarketingCommittee = async () => {
+            let query = supabase
+                .from('committees')
+                .select('id')
+                .or('name.ilike.%Marketing%,name_ar.ilike.%تسويق%');
+            if (profile?.branch_id) {
+                query = query.eq('branch_id', profile.branch_id);
+            }
+            const { data } = await query.limit(1).maybeSingle();
+            if (!cancelled && data?.id) {
+                setFallbackCommitteeId(data.id);
+            } else if (!cancelled) {
+                setIsLoading(false);
+            }
+        };
+        void resolveMarketingCommittee();
+        return () => {
+            cancelled = true;
+        };
+    }, [propCommitteeId, profile?.committee_id, profile?.branch_id, hasRole]);
 
     const fetchData = useCallback(async () => {
         if (!committeeId) return;
@@ -389,6 +415,14 @@ export default function Members({ committeeId: propCommitteeId }: MembersProps) 
                                                         <DropdownMenuItem onClick={() => navigate(`/leader/members/${member.id}`)}>
                                                             <Eye className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
                                                             {language === 'ar' ? 'عرض البروفايل' : 'View Profile'}
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => navigate(`/leader/members/${member.id}?tab=feedbacks&action=add-feedback`)}>
+                                                            <MessageSquare className="h-4 w-4 ltr:mr-2 rtl:ml-2 text-primary" />
+                                                            {language === 'ar' ? 'إضافة Feedback' : 'Add Feedback'}
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => navigate(`/leader/members/${member.id}?tab=fines&action=add-fine`)}>
+                                                            <AlertCircle className="h-4 w-4 ltr:mr-2 rtl:ml-2 text-destructive" />
+                                                            {language === 'ar' ? 'إضافة غرامة' : 'Add Fine'}
                                                         </DropdownMenuItem>
                                                         {member.phone && (
                                                             <DropdownMenuItem

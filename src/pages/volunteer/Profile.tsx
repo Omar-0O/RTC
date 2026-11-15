@@ -168,6 +168,30 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
     isViewOnly ? viewedProfile?.cover_url : (viewedProfile?.cover_url || authProfile?.cover_url),
   );
   const isAshbal = displayProfile?.is_ashbal;
+  const isSameCommitteeAsAuth = Boolean(
+    displayProfile?.committee_id &&
+    authProfile?.committee_id &&
+    displayProfile.committee_id === authProfile.committee_id
+  );
+  const isMarketingCommitteeMember = Boolean(
+    displayProfile?.committee_id && (
+      isSameCommitteeAsAuth ||
+      displayProfile.committee?.name?.toLowerCase().includes('marketing') ||
+      displayProfile.committee?.name_ar?.includes('تسويق')
+    )
+  );
+
+  useEffect(() => {
+    if (!isViewOnly || loading || !displayProfile) return;
+    const action = searchParams.get('action');
+    if (action === 'add-feedback') {
+      setIsFeedbackDialogOpen(true);
+      setSearchParams({ tab: 'feedbacks' }, { replace: true });
+    } else if (action === 'add-fine') {
+      setIsFineDialogOpen(true);
+      setSearchParams({ tab: 'fines' }, { replace: true });
+    }
+  }, [isViewOnly, loading, displayProfile, searchParams, setSearchParams]);
 
 
 
@@ -754,7 +778,12 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
 
 
-      <Tabs defaultValue="activities" className="space-y-4 px-3 sm:px-0" dir={isRTL ? 'rtl' : 'ltr'}>
+      <Tabs
+        value={activeTab}
+        onValueChange={(val) => setSearchParams({ tab: val }, { replace: true })}
+        className="space-y-4 px-3 sm:px-0"
+        dir={isRTL ? 'rtl' : 'ltr'}
+      >
         <TabsList className="w-full flex overflow-x-auto no-scrollbar rounded-xl">
           <TabsTrigger value="activities" className="flex-1 min-w-fit text-xs sm:text-sm">{t('profile.activityHistory')}</TabsTrigger>
           <TabsTrigger value="badges" className="flex-1 min-w-fit text-xs sm:text-sm">
@@ -876,7 +905,21 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                 </CardDescription>
               </div>
 
-              {isViewOnly && (hasRole('admin') || hasRole('head_hr') || hasRole('hr') || hasRole('committee_leader') || hasRole('supervisor') || hasRole('head_caravans') || hasRole('head_events') || hasRole('head_ethics') || hasRole('head_quran') || hasRole('head_production') || hasRole('head_fourth_year')) && (
+              {isViewOnly && (
+                hasRole('admin') ||
+                hasRole('branch_admin') ||
+                hasRole('head_hr') ||
+                hasRole('hr') ||
+                hasRole('committee_leader') ||
+                hasRole('supervisor') ||
+                hasRole('head_caravans') ||
+                hasRole('head_events') ||
+                hasRole('head_ethics') ||
+                hasRole('head_quran') ||
+                hasRole('head_production') ||
+                hasRole('head_fourth_year') ||
+                (hasRole('head_marketing') && isMarketingCommitteeMember)
+              ) && (
                 <Dialog open={isFeedbackDialogOpen} onOpenChange={setIsFeedbackDialogOpen}>
                   <DialogTrigger asChild>
                     <Button size="sm" className="gap-1">
@@ -1040,9 +1083,11 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
 
                   {isViewOnly && (
                     hasRole('admin') ||
+                    hasRole('branch_admin') ||
                     hasRole('head_hr') ||
                     hasRole('hr') ||
-                    (hasRole('committee_leader') && authProfile?.committee_id === displayProfile?.committee_id)
+                    (hasRole('committee_leader') && isSameCommitteeAsAuth) ||
+                    (hasRole('head_marketing') && isMarketingCommitteeMember)
                   ) && (
                       <Dialog open={isFineDialogOpen} onOpenChange={setIsFineDialogOpen}>
                         <DialogTrigger asChild>
@@ -1160,10 +1205,12 @@ export default function Profile({ userId: propUserId }: ProfileProps) {
                         {/* Delete Fine Button - for all fine types */}
                         {(
                           hasRole('admin') ||
+                          hasRole('branch_admin') ||
                           hasRole('supervisor') ||
                           hasRole('head_hr') ||
                           hasRole('hr') ||
-                          (hasRole('committee_leader') && authProfile?.committee_id === displayProfile?.committee_id) ||
+                          (hasRole('committee_leader') && isSameCommitteeAsAuth) ||
+                          (hasRole('head_marketing') && isMarketingCommitteeMember) ||
                           hasRole('head_caravans') ||
                           hasRole('head_events') ||
                           hasRole('head_ethics') ||

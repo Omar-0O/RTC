@@ -141,7 +141,7 @@ export default function BadgeManagement() {
           .from('badges')
           .select('id, name, name_ar, description, description_ar, icon, color, points_required, activities_required, auto_award')
           .order('created_at', { ascending: false }),
-        supabase.from('profiles').select('id, full_name, full_name_ar, email').order('full_name'),
+        supabase.from('profiles').select('id, full_name, full_name_ar, email').eq('is_active', true).order('full_name'),
       ]);
 
       if (badgesRes.error) throw badgesRes.error;

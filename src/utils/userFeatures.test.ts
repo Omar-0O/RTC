@@ -28,6 +28,8 @@ describe('userFeatures utility', () => {
     expect(getRoleDefaultFeatures('head_quran')).toContain('group_submission');
     expect(getRoleDefaultFeatures('head_ashbal')).toContain('group_submission');
     expect(getRoleDefaultFeatures('head_marketing')).toContain('group_submission');
+    expect(getRoleDefaultFeatures('head_marketing')).not.toContain('courses_management');
+    expect(getRoleDefaultFeatures('head_marketing')).not.toContain('quran_circles_management');
   });
 
   it('does NOT provide group_submission as default for standard volunteer', () => {

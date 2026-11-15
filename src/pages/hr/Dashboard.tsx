@@ -145,7 +145,8 @@ export default function HRDashboard() {
                     phone,
                     committee_id,
                     committees:committees(id, name, name_ar)
-                `);
+                `)
+                .eq('is_active', true);
 
             let submissionsQuery = supabase
                 .from('activity_submissions')

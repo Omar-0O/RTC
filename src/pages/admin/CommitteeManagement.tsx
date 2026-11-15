@@ -105,7 +105,7 @@ const fetchCommitteeStats = async (
   }
 
   const [profilesResult, trainersResult, submissionsResult] = await Promise.all([
-    supabase.from('profiles').select('committee_id').in('committee_id', committeeIds),
+    supabase.from('profiles').select('committee_id').in('committee_id', committeeIds).eq('is_active', true),
     supabase.from('trainers').select('committee_id').in('committee_id', committeeIds),
     submissionsQuery,
   ]);

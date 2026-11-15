@@ -82,7 +82,7 @@ export const getRoleDefaultFeatures = (role: UserRole): string[] => {
     case 'head_ashbal':
       return ['ashbal_management', 'events_management', 'group_submission'];
     case 'head_marketing':
-      return ['courses_management', 'events_management', 'quran_circles_management', 'group_submission'];
+      return ['events_management', 'group_submission'];
     default:
       return [];
   }

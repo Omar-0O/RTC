@@ -93,6 +93,7 @@ export default function BadgeAward({ committeeId: propCommitteeId }: BadgeAwardP
             let profilesQuery = supabase
                 .from('profiles')
                 .select('id, full_name, full_name_ar, email, avatar_url, total_points, activities_count')
+                .eq('is_active', true)
                 .order('full_name');
 
             // If not admin/HR/supervisor, restrict to committee

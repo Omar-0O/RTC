@@ -84,6 +84,7 @@ export default function BranchManagement() {
         supabase
           .from('profiles')
           .select('branch_id')
+          .eq('is_active', true)
           .not('branch_id', 'is', null),
       ]);
 
