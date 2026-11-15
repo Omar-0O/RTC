@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Download, Calendar, TrendingUp, Users, Activity, Award } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -37,6 +37,7 @@ import {
   REPORT_ACTIVITY_TYPE_COLUMNS,
   REPORT_COMMITTEE_COLUMNS,
   REPORT_PROFILE_COLUMNS,
+  REPORT_TRAINER_COLUMNS,
   REPORT_USER_ROLE_COLUMNS,
 } from '@/services/reportData.service';
 
@@ -135,9 +136,46 @@ export default function Reports() {
   const [committees, setCommittees] = useState<Committee[]>([]);
   const [submissions, setSubmissions] = useState<ActivitySubmission[]>([]);
   const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
-  // Add Trainers state
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  const profilesMap = useMemo(() => new Map(profiles.map(p => [p.id, p])), [profiles]);
+  const activityTypesMap = useMemo(() => new Map(activityTypes.map(a => [a.id, a])), [activityTypes]);
+  const committeesMap = useMemo(() => new Map(committees.map(c => [c.id, c])), [committees]);
+  const trainersById = useMemo(() => new Map(trainers.map(trainer => [trainer.id, trainer])), [trainers]);
+  const trainersByUserId = useMemo(
+    () => new Map(trainers.filter(trainer => trainer.user_id).map(trainer => [trainer.user_id as string, trainer])),
+    [trainers],
+  );
+
+  const { indexedSubmissions, submissionsByMonth } = useMemo(() => {
+    const byMonth = new Map<string, ActivitySubmission[]>();
+    const indexed = submissions.map(s => {
+      const date = new Date(s.submitted_at);
+      const timestamp = date.getTime();
+      const monthKey = Number.isNaN(timestamp) ? '' : format(date, 'yyyy-MM');
+      if (monthKey) {
+        const bucket = byMonth.get(monthKey);
+        if (bucket) {
+          bucket.push(s);
+        } else {
+          byMonth.set(monthKey, [s]);
+        }
+      }
+      return { submission: s, timestamp };
+    });
+    return { indexedSubmissions: indexed, submissionsByMonth: byMonth };
+  }, [submissions]);
+
+  const supervisorIds = useMemo(() => {
+    const ids = new Set<string>();
+    profiles.forEach(p => {
+      if (['responsible', 'platinum', 'diamond'].includes(p.level || 'under_follow_up')) {
+        ids.add(p.id);
+      }
+    });
+    return ids;
+  }, [profiles]);
 
   useEffect(() => {
     fetchData();
@@ -146,12 +184,13 @@ export default function Reports() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [profilesRes, committeesRes, submissionsRes, activityTypesRes, userRolesRes] = await Promise.all([
+      const [profilesRes, committeesRes, submissionsRes, activityTypesRes, userRolesRes, trainersRes] = await Promise.all([
         supabase.from('profiles').select(REPORT_PROFILE_COLUMNS),
         supabase.from('committees').select(REPORT_COMMITTEE_COLUMNS),
         fetchAllReportActivitySubmissions(),
         supabase.from('activity_types').select(REPORT_ACTIVITY_TYPE_COLUMNS),
         supabase.from('user_roles').select(REPORT_USER_ROLE_COLUMNS),
+        supabase.from('trainers').select(REPORT_TRAINER_COLUMNS),
       ]);
 
       if (profilesRes.error) throw profilesRes.error;
@@ -201,10 +240,7 @@ export default function Reports() {
         setSubmissions(submissionsRes.data as ActivitySubmission[]);
       }
       if (activityTypesRes.data) setActivityTypes(activityTypesRes.data);
-
-      // Fetch trainers
-      const { data: trainersData } = await supabase.from('trainers').select('id, user_id, name_en, name_ar, phone');
-      if (trainersData) setTrainers(trainersData);
+      if (trainersRes.data) setTrainers(trainersRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -213,7 +249,7 @@ export default function Reports() {
   };
 
   // Get date range based on selection
-  const getDateRange = () => {
+  const getDateRange = useCallback(() => {
     const now = new Date();
     switch (dateRange) {
       case 'week':
@@ -229,7 +265,7 @@ export default function Reports() {
       default:
         return { start: startOfMonth(now), end: endOfMonth(now) };
     }
-  };
+  }, [dateRange]);
 
   // Helper function to get level name in Arabic for exports
   const getLevelName = (level: string): string => {
@@ -264,30 +300,62 @@ export default function Reports() {
   };
 
   // Filter submissions by date range
-  const filteredSubmissions = submissions.filter(s => {
+  const filteredSubmissions = useMemo(() => {
     const { start, end } = getDateRange();
-    const submittedDate = new Date(s.submitted_at);
-    return submittedDate >= start && submittedDate <= end;
-  });
+    const startMs = start.getTime();
+    const endMs = end.getTime();
+    return indexedSubmissions
+      .filter(item => item.timestamp >= startMs && item.timestamp <= endMs)
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .map(item => item.submission);
+  }, [indexedSubmissions, getDateRange]);
 
   // Committee distribution data
-  const committeeData = committees.map(committee => {
-    const volunteers = profiles.filter(p => p.committee_id === committee.id);
-    return {
-      name: language === 'ar' ? committee.name_ar : committee.name,
-      volunteers: volunteers.length,
-      points: volunteers.reduce((sum, v) => sum + (v.total_points || 0), 0),
-    };
-  }).filter(c => c.volunteers > 0);
+  const committeeData = useMemo(() => {
+    const profilesByCommittee = new Map<string, Profile[]>();
+    profiles.forEach(p => {
+      if (p.committee_id) {
+        const list = profilesByCommittee.get(p.committee_id) || [];
+        list.push(p);
+        profilesByCommittee.set(p.committee_id, list);
+      }
+    });
+
+    return committees.map(committee => {
+      const volunteers = profilesByCommittee.get(committee.id) || [];
+      return {
+        name: language === 'ar' ? committee.name_ar : committee.name,
+        volunteers: volunteers.length,
+        points: volunteers.reduce((sum, v) => sum + (v.total_points || 0), 0),
+      };
+    }).filter(c => c.volunteers > 0);
+  }, [committees, profiles, language]);
 
   // Level distribution data
-  const levelData = [
-    { name: t('level.under_follow_up'), value: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length, color: '#64748b' }, // slate-500
-    { name: t('level.project_responsible'), value: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length, color: '#3b82f6' }, // blue-500
-    { name: t('level.responsible'), value: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length, color: '#9333ea' }, // purple-600
-  ].filter(l => l.value > 0);
+  const levelData = useMemo(() => {
+    let underFollowUp = 0;
+    let projectResponsible = 0;
+    let responsible = 0;
 
-  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value, name }: PieLabelProps) => {
+    profiles.forEach(p => {
+      const level = p.level || 'under_follow_up';
+      if (['responsible', 'platinum', 'diamond'].includes(level)) {
+        responsible++;
+      } else if (['project_responsible', 'gold'].includes(level)) {
+        projectResponsible++;
+      } else {
+        underFollowUp++;
+      }
+    });
+
+    return [
+      { name: t('level.under_follow_up'), value: underFollowUp, color: '#64748b' },
+      { name: t('level.project_responsible'), value: projectResponsible, color: '#3b82f6' },
+      { name: t('level.responsible'), value: responsible, color: '#9333ea' },
+    ].filter(l => l.value > 0);
+  }, [profiles, t]);
+
+  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value }: PieLabelProps) => {
     if (
       typeof cx !== 'number' ||
       typeof cy !== 'number' ||
@@ -299,43 +367,30 @@ export default function Reports() {
     }
 
     const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 0.5 + (outerRadius - innerRadius);
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-    // Standard logic is x > cx ? 'start' : 'end'
-    // In RTL: 'start' aligns to Right, 'end' aligns to Left.
-    // So for right side (x > cx), we want text extending Right -> 'end' (Left edge at point)
-    // For left side (x < cx), we want text extending Left -> 'start' (Right edge at point)
-    let textAnchor = x > cx ? 'start' : 'end';
-    if (language === 'ar') {
-      textAnchor = x > cx ? 'end' : 'start';
-    }
 
     return (
       <text
         x={x}
         y={y}
-        fill="hsl(var(--foreground))"
-        textAnchor={textAnchor}
+        fill="#ffffff"
+        textAnchor="middle"
         dominantBaseline="central"
-        fontSize={12}
+        fontSize={11}
+        fontWeight={600}
       >
-        {`${name ?? ''}: ${value ?? ''}`}
+        {value ?? ''}
       </text>
     );
   };
 
   // Activity submissions over time (last 6 months) by Level
-  const activityTrend = Array.from({ length: 6 }, (_, i) => {
+  const activityTrend = useMemo(() => Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
-    const monthStart = startOfMonth(date);
-    const monthEnd = endOfMonth(date);
-
-    const monthSubmissions = submissions.filter(s => {
-      const submittedDate = new Date(s.submitted_at);
-      return submittedDate >= monthStart && submittedDate <= monthEnd;
-    });
+    const monthKey = format(date, 'yyyy-MM');
+    const monthSubmissions = submissionsByMonth.get(monthKey) || [];
 
     const counts = {
       under_follow_up: 0,
@@ -344,7 +399,7 @@ export default function Reports() {
     };
 
     monthSubmissions.forEach(s => {
-      const volunteer = profiles.find(p => p.id === s.volunteer_id);
+      const volunteer = profilesMap.get(s.volunteer_id);
       if (volunteer) {
         const level = volunteer.level || 'under_follow_up';
 
@@ -353,7 +408,6 @@ export default function Reports() {
         } else if (['project_responsible', 'gold'].includes(level)) {
           counts.project_responsible++;
         } else {
-          // Default to under_follow_up for others (bronze, silver, newbie, active, etc)
           counts.under_follow_up++;
         }
       }
@@ -363,66 +417,77 @@ export default function Reports() {
       month: format(date, 'MMM'),
       ...counts
     };
-  });
+  }), [submissionsByMonth, profilesMap]);
 
   // Top activities by submissions
-  const activityStats = activityTypes.map(activity => {
-    const activitySubmissions = submissions.filter(s => s.activity_type_id === activity.id);
-    return {
-      name: language === 'ar' ? activity.name_ar : activity.name,
-      count: activitySubmissions.length,
-      points: activity.points,
-    };
-  }).filter(a => a.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
+  const activityStats = useMemo(() => {
+    const counts = new Map<string, number>();
+    submissions.forEach(s => {
+      counts.set(s.activity_type_id, (counts.get(s.activity_type_id) || 0) + 1);
+    });
+
+    return activityTypes.map(activity => {
+      const count = counts.get(activity.id) || 0;
+      return {
+        name: language === 'ar' ? activity.name_ar : activity.name,
+        count,
+        points: activity.points,
+      };
+    }).filter(a => a.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
+  }, [activityTypes, submissions, language]);
 
   // Supervisor average participations in selected date range (capped at 8 per supervisor)
-  const supervisorAverageSelectedRange = (() => {
-    const supervisors = profiles.filter(p => ['responsible', 'platinum', 'diamond'].includes(p.level || 'under_follow_up'));
-    if (supervisors.length === 0) return 0;
+  const supervisorAverageSelectedRange = useMemo(() => {
+    if (supervisorIds.size === 0) return 0;
 
-    let totalCapped = 0;
-    supervisors.forEach(sup => {
-      const supSubmissionsCount = filteredSubmissions.filter(s => s.volunteer_id === sup.id).length;
-      totalCapped += Math.min(supSubmissionsCount, 8);
+    const countsBySupervisor = new Map<string, number>();
+    filteredSubmissions.forEach(s => {
+      if (supervisorIds.has(s.volunteer_id)) {
+        countsBySupervisor.set(s.volunteer_id, (countsBySupervisor.get(s.volunteer_id) || 0) + 1);
+      }
     });
 
-    return parseFloat((totalCapped / supervisors.length).toFixed(2));
-  })();
+    let totalCapped = 0;
+    countsBySupervisor.forEach(count => {
+      totalCapped += Math.min(count, 8);
+    });
+
+    return parseFloat((totalCapped / supervisorIds.size).toFixed(2));
+  }, [supervisorIds, filteredSubmissions]);
 
   // Monthly average supervisor participations over last 6 months (capped at 8 per supervisor)
-  const supervisorAverageTrend = Array.from({ length: 6 }, (_, i) => {
+  const supervisorAverageTrend = useMemo<SupervisorAverageTrendDatum[]>(() => Array.from({ length: 6 }, (_, i) => {
     const date = subMonths(new Date(), 5 - i);
-    const monthStart = startOfMonth(date);
-    const monthEnd = endOfMonth(date);
+    const monthKey = format(date, 'yyyy-MM');
+    const monthSubmissions = submissionsByMonth.get(monthKey) || [];
+    const supervisorsCount = supervisorIds.size;
 
-    const monthSubmissions = submissions.filter(s => {
-      const submittedDate = new Date(s.submitted_at);
-      return submittedDate >= monthStart && submittedDate <= monthEnd;
-    });
-
-    const supervisors = profiles.filter(p => ['responsible', 'platinum', 'diamond'].includes(p.level || 'under_follow_up'));
-    
     let totalCapped = 0;
     let totalUncapped = 0;
-    if (supervisors.length > 0) {
-      supervisors.forEach(sup => {
-        const supSubmissionsCount = monthSubmissions.filter(s => s.volunteer_id === sup.id).length;
-        totalCapped += Math.min(supSubmissionsCount, 8);
-        totalUncapped += supSubmissionsCount;
+    if (supervisorsCount > 0) {
+      const countsBySupervisor = new Map<string, number>();
+      monthSubmissions.forEach(s => {
+        if (supervisorIds.has(s.volunteer_id)) {
+          countsBySupervisor.set(s.volunteer_id, (countsBySupervisor.get(s.volunteer_id) || 0) + 1);
+        }
+      });
+      countsBySupervisor.forEach(count => {
+        totalCapped += Math.min(count, 8);
+        totalUncapped += count;
       });
     }
 
-    const average = supervisors.length > 0 ? parseFloat((totalCapped / supervisors.length).toFixed(2)) : 0;
+    const average = supervisorsCount > 0 ? parseFloat((totalCapped / supervisorsCount).toFixed(2)) : 0;
 
     return {
       month: language === 'ar' ? ARABIC_MONTHS[date.getMonth()] : format(date, 'MMM'),
-      average: average,
-      supervisorsCount: supervisors.length,
+      average,
+      supervisorsCount,
       totalCappedParticipations: totalCapped,
       totalUncappedParticipations: totalUncapped,
-      monthKey: format(date, 'yyyy-MM')
+      monthKey,
     };
-  });
+  }), [submissionsByMonth, supervisorIds, language]);
 
   // CSV Export functions
   const downloadCSV = (data: CsvRow[], filename: string) => {
@@ -466,7 +531,7 @@ export default function Reports() {
             [language === 'ar' ? 'حضر الكامب' : 'Attended Camp']: campAttendance,
             [language === 'ar' ? 'الأثر' : 'Impact']: p.total_points,
             [language === 'ar' ? 'عدد المشاركات' : 'Participations Count']: p.activities_count,
-            [language === 'ar' ? 'اللجنة' : 'Committee']: committees.find(c => c.id === p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] || '',
+            [language === 'ar' ? 'اللجنة' : 'Committee']: (p.committee_id ? committeesMap.get(p.committee_id)?.[language === 'ar' ? 'name_ar' : 'name'] : '') || '',
           };
         });
         downloadCSV(volunteersData, 'volunteers');
@@ -475,9 +540,10 @@ export default function Reports() {
 
       case 'activities': {
         const reportData = filteredSubmissions.map(s => {
-          const volunteer = profiles.find(p => p.id === s.volunteer_id);
-          const activityType = activityTypes.find(a => a.id === s.activity_type_id);
-          const committee = committees.find(c => c.id === (volunteer?.committee_id || s.committee_id));
+          const volunteer = profilesMap.get(s.volunteer_id);
+          const activityType = activityTypesMap.get(s.activity_type_id);
+          const committeeId = volunteer?.committee_id || s.committee_id;
+          const committee = committeeId ? committeesMap.get(committeeId) : undefined;
 
           let locationStr = s.location || 'branch';
           if (locationStr === 'home' || locationStr === 'remote') locationStr = language === 'ar' ? 'من البيت' : 'Home';
@@ -490,7 +556,7 @@ export default function Reports() {
 
           if (s.participant_type === 'trainer' || (!volunteer && s.trainer_id)) {
             participantType = language === 'ar' ? 'مدرب' : 'Trainer';
-            const trainer = trainers.find(t => t.id === s.trainer_id || t.user_id === s.volunteer_id);
+            const trainer = (s.trainer_id ? trainersById.get(s.trainer_id) : null) || (s.volunteer_id ? trainersByUserId.get(s.volunteer_id) : null);
             if (trainer) {
               participantName = language === 'ar' ? trainer.name_ar : trainer.name_en;
               participantPhone = trainer.phone || participantPhone;
@@ -532,7 +598,6 @@ export default function Reports() {
         break;
       }
 
-
       case 'full':
         // Export all data as a comprehensive report
         // Temporarily disabled as requested
@@ -543,15 +608,27 @@ export default function Reports() {
 
   // Calculate summary stats
   const totalVolunteers = profiles.length;
-  const totalApprovedActivities = submissions.filter(s => s.status === 'approved').length;
+  const totalApprovedActivities = useMemo(() => submissions.filter(s => s.status === 'approved').length, [submissions]);
   const totalSubmissions = submissions.length;
 
   // Calculate volunteers by level
-  const volunteersByLevel = {
-    under_follow_up: profiles.filter(p => !p.level || p.level === 'under_follow_up' || p.level === 'bronze' || p.level === 'silver' || p.level === 'newbie' || p.level === 'active').length,
-    project_responsible: profiles.filter(p => p.level === 'project_responsible' || p.level === 'gold').length,
-    responsible: profiles.filter(p => p.level === 'responsible' || p.level === 'platinum' || p.level === 'diamond').length
-  };
+  const volunteersByLevel = useMemo(() => {
+    let under_follow_up = 0;
+    let project_responsible = 0;
+    let responsible = 0;
+
+    profiles.forEach(p => {
+      const level = p.level || 'under_follow_up';
+      if (['responsible', 'platinum', 'diamond'].includes(level)) {
+        responsible++;
+      } else if (['project_responsible', 'gold'].includes(level)) {
+        project_responsible++;
+      } else {
+        under_follow_up++;
+      }
+    });
+    return { under_follow_up, project_responsible, responsible };
+  }, [profiles]);
 
   if (isLoading) {
     return (
@@ -562,16 +639,16 @@ export default function Reports() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{t('reports.title')}</h1>
-          <p className="text-muted-foreground">{t('reports.subtitle')}</p>
+    <div className="space-y-6 min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words">{t('reports.title')}</h1>
+          <p className="text-sm sm:text-base text-muted-foreground break-words">{t('reports.subtitle')}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto">
           <Select value={dateRange} onValueChange={setDateRange}>
-            <SelectTrigger className="w-[150px]">
-              <Calendar className="h-4 w-4 ltr:mr-2 rtl:ml-2" />
+            <SelectTrigger className="w-full sm:w-[160px]">
+              <Calendar className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -582,62 +659,61 @@ export default function Reports() {
               <SelectItem value="year">{t('reports.thisYear')}</SelectItem>
             </SelectContent>
           </Select>
-
         </div>
       </div>
 
       {/* Summary Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-primary/10 p-3">
-                <Users className="h-6 w-6 text-primary" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-4">
+        <Card className="h-full min-w-0 overflow-hidden">
+          <CardContent className="p-4 sm:p-6 flex items-center h-full">
+            <div className="flex items-center gap-3 sm:gap-4 w-full min-w-0">
+              <div className="rounded-full bg-primary/10 p-2.5 sm:p-3 shrink-0">
+                <Users className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('admin.totalVolunteers')}</p>
-                <p className="text-2xl font-bold">{totalVolunteers}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-success/10 p-3">
-                <Activity className="h-6 w-6 text-success" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('admin.totalActivities')}</p>
-                <p className="text-2xl font-bold">{totalApprovedActivities}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground leading-snug break-words">{t('admin.totalVolunteers')}</p>
+                <p className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 truncate">{totalVolunteers}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-warning/10 p-3">
-                <Award className="h-6 w-6 text-warning" />
+        <Card className="h-full min-w-0 overflow-hidden">
+          <CardContent className="p-4 sm:p-6 flex items-center h-full">
+            <div className="flex items-center gap-3 sm:gap-4 w-full min-w-0">
+              <div className="rounded-full bg-success/10 p-2.5 sm:p-3 shrink-0">
+                <Activity className="h-5 w-5 sm:h-6 sm:w-6 text-success" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{language === 'ar' ? 'إجمالي المشاركات' : 'Total Submissions'}</p>
-                <p className="text-2xl font-bold">{totalSubmissions.toLocaleString()}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground leading-snug break-words">{t('admin.totalActivities')}</p>
+                <p className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 truncate">{totalApprovedActivities}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-purple-100 dark:bg-purple-900/20 p-3">
-                <TrendingUp className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+        <Card className="h-full min-w-0 overflow-hidden">
+          <CardContent className="p-4 sm:p-6 flex items-center h-full">
+            <div className="flex items-center gap-3 sm:gap-4 w-full min-w-0">
+              <div className="rounded-full bg-warning/10 p-2.5 sm:p-3 shrink-0">
+                <Award className="h-5 w-5 sm:h-6 sm:w-6 text-warning" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground leading-snug break-words">{language === 'ar' ? 'إجمالي المشاركات' : 'Total Submissions'}</p>
+                <p className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 truncate">{totalSubmissions.toLocaleString()}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="h-full min-w-0 overflow-hidden">
+          <CardContent className="p-4 sm:p-6 flex items-center h-full">
+            <div className="flex items-center gap-3 sm:gap-4 w-full min-w-0">
+              <div className="rounded-full bg-purple-100 dark:bg-purple-900/20 p-2.5 sm:p-3 shrink-0">
+                <TrendingUp className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground leading-snug break-words">
                   {language === 'ar' ? 'متوسط مشاركات المسؤولين' : 'Supervisors Avg. Participations'}
                 </p>
-                <p className="text-2xl font-bold">{supervisorAverageSelectedRange}</p>
+                <p className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 truncate">{supervisorAverageSelectedRange}</p>
               </div>
             </div>
           </CardContent>
@@ -645,62 +721,62 @@ export default function Reports() {
       </div>
 
       {/* Volunteers by Level */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-slate-500/10 p-3">
-                <Activity className="h-6 w-6 text-slate-500" />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+        <Card className="h-full min-w-0 overflow-hidden">
+          <CardContent className="p-4 sm:p-6 flex items-center h-full">
+            <div className="flex items-center gap-3 sm:gap-4 w-full min-w-0">
+              <div className="rounded-full bg-slate-500/10 p-2.5 sm:p-3 shrink-0">
+                <Activity className="h-5 w-5 sm:h-6 sm:w-6 text-slate-500" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('level.under_follow_up')}</p>
-                <p className="text-2xl font-bold">{volunteersByLevel.under_follow_up}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-blue-500/10 p-3">
-                <Activity className="h-6 w-6 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('level.project_responsible')}</p>
-                <p className="text-2xl font-bold">{volunteersByLevel.project_responsible}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground leading-snug break-words">{t('level.under_follow_up')}</p>
+                <p className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 truncate">{volunteersByLevel.under_follow_up}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="rounded-full bg-purple-600/10 p-3">
-                <Activity className="h-6 w-6 text-purple-600" />
+        <Card className="h-full min-w-0 overflow-hidden">
+          <CardContent className="p-4 sm:p-6 flex items-center h-full">
+            <div className="flex items-center gap-3 sm:gap-4 w-full min-w-0">
+              <div className="rounded-full bg-blue-500/10 p-2.5 sm:p-3 shrink-0">
+                <Activity className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">{t('level.responsible')}</p>
-                <p className="text-2xl font-bold">{volunteersByLevel.responsible}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground leading-snug break-words">{t('level.project_responsible')}</p>
+                <p className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 truncate">{volunteersByLevel.project_responsible}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="h-full min-w-0 overflow-hidden">
+          <CardContent className="p-4 sm:p-6 flex items-center h-full">
+            <div className="flex items-center gap-3 sm:gap-4 w-full min-w-0">
+              <div className="rounded-full bg-purple-600/10 p-2.5 sm:p-3 shrink-0">
+                <Activity className="h-5 w-5 sm:h-6 sm:w-6 text-purple-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground leading-snug break-words">{t('level.responsible')}</p>
+                <p className="text-xl sm:text-2xl font-bold tracking-tight mt-0.5 truncate">{volunteersByLevel.responsible}</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         {/* Activity Trend */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('reports.activityTrend')}</CardTitle>
-            <CardDescription>{t('reports.activityTrendDesc')}</CardDescription>
+        <Card className="h-full min-w-0 overflow-hidden flex flex-col">
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+            <CardTitle className="text-lg sm:text-xl leading-snug break-words">{t('reports.activityTrend')}</CardTitle>
+            <CardDescription className="text-xs sm:text-sm leading-relaxed break-words">{t('reports.activityTrendDesc')}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
+          <CardContent className="p-4 sm:p-6 pt-2 sm:pt-0 flex-1 flex flex-col justify-between">
+            <div className="h-[250px] sm:h-[300px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={activityTrend}>
+                <LineChart data={activityTrend} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" />
-                  <YAxis className="text-xs" />
+                  <YAxis className="text-xs" width={36} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
@@ -708,7 +784,7 @@ export default function Reports() {
                       borderRadius: '8px'
                     }}
                   />
-                  <Legend />
+                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
                   <Line
                     type="monotone"
                     dataKey="under_follow_up"
@@ -737,75 +813,101 @@ export default function Reports() {
         </Card>
 
         {/* Level Distribution */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('reports.levelDistribution')}</CardTitle>
-            <CardDescription>{t('reports.levelDistributionDesc')}</CardDescription>
+        <Card className="h-full min-w-0 overflow-hidden flex flex-col">
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+            <CardTitle className="text-lg sm:text-xl leading-snug break-words">{t('reports.levelDistribution')}</CardTitle>
+            <CardDescription className="text-xs sm:text-sm leading-relaxed break-words">{t('reports.levelDistributionDesc')}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
-              {levelData.length === 0 ? (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  {language === 'ar' ? 'لا توجد بيانات' : 'No data available'}
+          <CardContent className="p-4 sm:p-6 pt-2 sm:pt-0 flex-1 flex flex-col justify-between gap-4">
+            {levelData.length === 0 ? (
+              <div className="flex items-center justify-center h-[240px] text-muted-foreground">
+                {language === 'ar' ? 'لا توجد بيانات' : 'No data available'}
+              </div>
+            ) : (
+              <>
+                <div className="h-[220px] sm:h-[250px] w-full min-w-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={levelData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius="42%"
+                        outerRadius="72%"
+                        paddingAngle={5}
+                        dataKey="value"
+                        label={renderCustomLabel}
+                        labelLine={false}
+                      >
+                        {levelData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px'
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={levelData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={5}
-                      dataKey="value"
-                      label={renderCustomLabel}
-                    >
-                      {levelData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: 'hsl(var(--card))',
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                  {levelData.map((item) => {
+                    const pct = totalVolunteers > 0 ? Math.round((item.value / totalVolunteers) * 100) : 0;
+                    return (
+                      <div
+                        key={item.name}
+                        className="flex items-center justify-between sm:flex-col sm:items-start gap-2 rounded-lg border bg-muted/30 px-3 py-2 min-w-0"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <span className="text-xs font-medium text-muted-foreground truncate">
+                            {item.name}
+                          </span>
+                        </div>
+                        <div className="flex items-baseline gap-1.5 shrink-0">
+                          <span className="text-sm font-bold">{item.value}</span>
+                          <span className="text-[11px] text-muted-foreground">({pct}%)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
-
-
         {/* Top Activities */}
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('reports.topActivities')}</CardTitle>
-            <CardDescription>{t('reports.topActivitiesDesc')}</CardDescription>
+        <Card className="h-full min-w-0 overflow-hidden flex flex-col">
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+            <CardTitle className="text-lg sm:text-xl leading-snug break-words">{t('reports.topActivities')}</CardTitle>
+            <CardDescription className="text-xs sm:text-sm leading-relaxed break-words">{t('reports.topActivitiesDesc')}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
+          <CardContent className="p-4 sm:p-6 pt-2 sm:pt-0 flex-1">
+            <div className="space-y-3 sm:space-y-4">
               {activityStats.length === 0 ? (
                 <div className="flex items-center justify-center h-32 text-muted-foreground">
                   {language === 'ar' ? 'لا توجد أنشطة بعد' : 'No activities yet'}
                 </div>
               ) : (
                 activityStats.map((activity, index) => (
-                  <div key={activity.name} className="flex items-center gap-4">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-sm font-bold">
+                  <div key={activity.name} className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <span className="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs sm:text-sm font-bold">
                       {index + 1}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{activity.name}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-sm sm:text-base font-medium truncate">{activity.name}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">
                         {activity.count} {language === 'ar' ? 'مشاركة' : 'submissions'} • {activity.points} {t('common.points')}
                       </p>
                     </div>
-                    <div className="h-2 w-24 rounded-full bg-muted overflow-hidden">
+                    <div className="h-2 w-16 sm:w-24 shrink-0 rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full bg-primary rounded-full"
                         style={{ width: `${(activity.count / activityStats[0].count) * 100}%` }}
@@ -819,30 +921,30 @@ export default function Reports() {
         </Card>
 
         {/* Supervisor Average Participations Trend Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>
+        <Card className="h-full min-w-0 overflow-hidden flex flex-col">
+          <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+            <CardTitle className="text-lg sm:text-xl leading-snug break-words">
               {language === 'ar' ? 'معدل متوسط مشاركات المسؤولين' : 'Supervisors Average Participations Trend'}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs sm:text-sm leading-relaxed break-words">
               {language === 'ar'
                 ? 'متوسط مشاركات درجة مسئول شهرياً (بحد أقصى 8 مشاركات للمسؤول الواحد)'
                 : 'Monthly average participations for supervisor level (capped at 8 per supervisor)'}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="h-[300px]">
+          <CardContent className="p-4 sm:p-6 pt-2 sm:pt-0 flex-1 flex flex-col justify-between">
+            <div className="h-[250px] sm:h-[300px] w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={supervisorAverageTrend}>
+                <BarChart data={supervisorAverageTrend} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="month" className="text-xs" />
-                  <YAxis className="text-xs" />
+                  <YAxis className="text-xs" width={36} />
                   <Tooltip
                     content={({ active, payload }: SupervisorAverageTooltipProps) => {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (
-                          <div className="rounded-lg border bg-card p-3 shadow-md space-y-1 text-sm">
+                          <div className="rounded-lg border bg-card p-3 shadow-md space-y-1 text-xs sm:text-sm max-w-[260px]">
                             <p className="font-semibold">{data.month}</p>
                             <p className="text-purple-600 dark:text-purple-400 font-medium">
                               {language === 'ar' ? 'متوسط المشاركات: ' : 'Average: '}
@@ -871,7 +973,7 @@ export default function Reports() {
                       return null;
                     }}
                   />
-                  <Legend />
+                  <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '8px' }} />
                   <Bar
                     dataKey="average"
                     fill="#9333ea"
@@ -892,20 +994,27 @@ export default function Reports() {
       </div>
 
       {/* Export Options */}
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('reports.exportData')}</CardTitle>
-
+      <Card className="min-w-0 overflow-hidden">
+        <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-4">
+          <CardTitle className="text-lg sm:text-xl leading-snug break-words">{t('reports.exportData')}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-2">
-            <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('volunteers')}>
+        <CardContent className="p-4 sm:p-6 pt-2 sm:pt-0">
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start h-auto min-h-[44px] py-3 px-3 sm:px-4 whitespace-normal text-start"
+              onClick={() => handleExport('volunteers')}
+            >
               <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
-              <span className="truncate">{t('reports.volunteerList')}</span>
+              <span className="min-w-0 flex-1 break-words">{t('reports.volunteerList')}</span>
             </Button>
-            <Button variant="outline" className="justify-start h-auto py-3 px-4" onClick={() => handleExport('activities')}>
+            <Button
+              variant="outline"
+              className="w-full justify-start h-auto min-h-[44px] py-3 px-3 sm:px-4 whitespace-normal text-start"
+              onClick={() => handleExport('activities')}
+            >
               <Download className="h-4 w-4 shrink-0 ltr:mr-2 rtl:ml-2" />
-              <span className="truncate">{t('reports.activityLog')}</span>
+              <span className="min-w-0 flex-1 break-words">{t('reports.activityLog')}</span>
             </Button>
           </div>
         </CardContent>
