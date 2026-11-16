@@ -24,7 +24,6 @@ import {
   Laptop,
   Cake,
   Heart,
-  Info,
   AlertTriangle,
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
@@ -690,10 +689,6 @@ export function AppSidebar() {
                 }}>
                   <User className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
                   {t('nav.profile')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => { navigate('/about'); handleNavClick(); }}>
-                  <Info className={cn("h-4 w-4", isRTL ? "ml-2" : "mr-2")} />
-                  {language === 'ar' ? 'عن المشروع' : 'About Project'}
                 </DropdownMenuItem>
               </>
             )}

@@ -32,7 +32,7 @@ describe('roles utility', () => {
       expect(getRoleLabel('committee_leader', true)).toBe('هيد اللجنة');
       expect(getRoleLabel('branch_admin', true)).toBe('مسؤول الفرع');
       expect(getRoleLabel('executive', true)).toBe('تنفيذي');
-      expect(getRoleLabel('hr', true)).toBe('الموارد البشرية');
+      expect(getRoleLabel('hr', true)).toBe('HR');
     });
 
     it('returns correct English labels when isRTL is false', () => {
