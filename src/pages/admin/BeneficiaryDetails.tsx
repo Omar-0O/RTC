@@ -57,6 +57,7 @@ interface ProgressChartPoint {
 interface AttendanceQueryRow {
     attendance_type: 'memorization' | 'revision' | string | null;
     quran_circles: { date: string | null } | null;
+    quran_circle_sessions?: { session_date: string | null } | null;
 }
 
 export default function BeneficiaryDetails() {
@@ -72,36 +73,48 @@ export default function BeneficiaryDetails() {
         if (!id) return;
         setLoading(true);
         try {
-            // Fetch Beneficiary Details
-            const { data: benData, error: benError } = await supabase
-                .from('quran_beneficiaries')
-                .select('id, name_ar, name_en, phone, image_url, current_parts, previous_parts, created_at')
-                .eq('id', id)
-                .single();
+            // Fetch beneficiary details, attendance history, and progress history concurrently
+            const [
+                { data: benData, error: benError },
+                { data: attData, error: attError },
+                { data: progData, error: progError },
+            ] = await Promise.all([
+                supabase
+                    .from('quran_beneficiaries')
+                    .select('id, name_ar, name_en, phone, image_url, current_parts, previous_parts, created_at')
+                    .eq('id', id)
+                    .single(),
+                supabase
+                    .from('quran_circle_beneficiaries')
+                    .select(`
+                        attendance_type,
+                        quran_circles (
+                            date
+                        ),
+                        quran_circle_sessions (
+                            session_date
+                        )
+                    `)
+                    .eq('beneficiary_id', id),
+                supabase
+                    .from('quran_progress_history')
+                    .select('created_at, new_parts')
+                    .eq('beneficiary_id', id)
+                    .order('created_at', { ascending: true }),
+            ]);
 
             if (benError) throw benError;
-            setBeneficiary(benData);
-
-            // Fetch Attendance History
-            // Joining quran_circles to get the date
-            const { data: attData, error: attError } = await supabase
-                .from('quran_circle_beneficiaries')
-                .select(`
-                    attendance_type,
-                    quran_circles (
-                        date
-                    )
-                `)
-                .eq('beneficiary_id', id);
-
             if (attError) throw attError;
+            if (progError) throw progError;
+
+            setBeneficiary(benData);
 
             // Process Attendance Data for Chart
             // Group by date and count types
             const attMap = new Map<string, { date: string, memorization: number, revision: number }>();
 
             (attData as unknown as AttendanceQueryRow[] | null)?.forEach((record) => {
-                const date = record.quran_circles?.date;
+                const date = record.quran_circle_sessions?.session_date || record.quran_circles?.date;
                 if (!date) return;
 
                 if (!attMap.has(date)) {
@@ -120,15 +133,6 @@ export default function BeneficiaryDetails() {
                 .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
             setAttendanceData(processedAttData);
-
-            // Fetch Progress History
-            const { data: progData, error: progError } = await supabase
-                .from('quran_progress_history')
-                .select('created_at, new_parts')
-                .eq('beneficiary_id', id)
-                .order('created_at', { ascending: true });
-
-            if (progError) throw progError;
 
             // Process Progress Data
             const processedProgData = progData?.map(p => ({

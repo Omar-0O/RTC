@@ -133,6 +133,16 @@ async function getTrainerActivityMetadata(course: TrainerParticipationCourse) {
   };
 }
 
+const isPermissionDeniedError = (error: unknown): boolean => {
+  if (typeof error !== 'object' || error === null) return false;
+  const err = error as { code?: string; status?: number; message?: string };
+  return (
+    err.code === '42501' ||
+    err.status === 403 ||
+    /row-level security|permission denied/i.test(err.message || '')
+  );
+};
+
 export async function createCourseTrainerParticipation({
   course,
   lectureId,
@@ -151,19 +161,37 @@ export async function createCourseTrainerParticipation({
   if (trainers.length === 0) return;
 
   const externalProfileTrainers = trainers.filter(trainer => !trainer.hasTrainerId && trainer.volunteerId);
-  const metadata = externalProfileTrainers.length > 0
-    ? await getTrainerActivityMetadata(course)
-    : null;
 
-  const recordRequest = supabase.from('trainer_lecture_records').insert(
-    trainers.map(trainer => ({
-      course_id: course.id,
-      lecture_id: lectureId,
-      trainer_name: trainer.name,
-      trainer_phone: trainer.phone,
-      volunteer_id: trainer.volunteerId,
-    })),
+  const [existingRecordRes, metadata] = await Promise.all([
+    supabase
+      .from('trainer_lecture_records')
+      .select('id')
+      .eq('lecture_id', lectureId)
+      .limit(1),
+    externalProfileTrainers.length > 0
+      ? getTrainerActivityMetadata(course)
+      : Promise.resolve(null),
+  ]);
+
+  if (existingRecordRes.error && !isPermissionDeniedError(existingRecordRes.error)) {
+    throw existingRecordRes.error;
+  }
+
+  const alreadyRecorded = Boolean(
+    !existingRecordRes.error && existingRecordRes.data && existingRecordRes.data.length > 0,
   );
+
+  const recordRequest = !alreadyRecorded && !existingRecordRes.error
+    ? supabase.from('trainer_lecture_records').insert(
+      trainers.map(trainer => ({
+        course_id: course.id,
+        lecture_id: lectureId,
+        trainer_name: trainer.name,
+        trainer_phone: trainer.phone,
+        volunteer_id: trainer.volunteerId,
+      })),
+    )
+    : Promise.resolve({ error: null });
 
   const activityRows = metadata?.committeeId && metadata.activityTypeId
     ? externalProfileTrainers.map(trainer => ({
@@ -188,6 +216,18 @@ export async function createCourseTrainerParticipation({
       : Promise.resolve({ error: null }),
   ]);
 
-  if (recordResult.error) throw recordResult.error;
-  if (activityResult.error) throw activityResult.error;
+  if (recordResult.error) {
+    if (isPermissionDeniedError(recordResult.error)) {
+      console.warn('Skipping trainer_lecture_records insert due to RLS permissions:', recordResult.error);
+    } else {
+      throw recordResult.error;
+    }
+  }
+  if (activityResult.error) {
+    if (isPermissionDeniedError(activityResult.error)) {
+      console.warn('Skipping activity_submissions insert due to RLS permissions:', activityResult.error);
+    } else {
+      throw activityResult.error;
+    }
+  }
 }

@@ -205,8 +205,11 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
     return query;
   };
 
-  // Current schema first with select('*'). Old deployments can still list users.
-  const profilesRes = await fetchProfiles(true);
+  // Current schema first with select('*') alongside lightweight committees lookup.
+  const [profilesRes, committeesRes] = await Promise.all([
+    fetchProfiles(true),
+    supabase.from('committees').select('id, name, name_ar'),
+  ]);
   let profilesData: LegacyProfileRow[];
   let totalCount: number;
 
@@ -226,13 +229,8 @@ export async function getUsers(opts: FetchUsersOptions): Promise<UsersResult> {
     totalCount = profilesRes.count ?? 0;
   }
 
-  // Lightweight lookup table.
-  const { data: committeesDataResult, error: committeesError } = await supabase
-    .from('committees')
-    .select('id, name, name_ar');
-
-  if (committeesError) throw committeesError;
-  const committeesData = (committeesDataResult ?? []) as Pick<CommitteeRow, 'id' | 'name' | 'name_ar'>[];
+  if (committeesRes.error) throw committeesRes.error;
+  const committeesData = (committeesRes.data ?? []) as Pick<CommitteeRow, 'id' | 'name' | 'name_ar'>[];
 
   // 3. Page-scoped roles and participation counts
   const userIds = profilesData.map(profile => profile.id);

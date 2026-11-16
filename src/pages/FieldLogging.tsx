@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { kioskSupabase as supabase, AUTH_STORAGE_KEY } from '@/integrations/supabase/client';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { kioskSupabase as supabase, supabase as mainSupabase, AUTH_STORAGE_KEY } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { normalizePhoneE164 } from '@/utils/phoneUtils';
 import { isFutureDate, getTodayLocalDateString } from '@/utils/dateUtils';
+import { fetchAllVolunteerProfiles, filterAndRankVolunteers } from '@/utils/volunteerSearch';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
@@ -101,8 +102,11 @@ interface VolunteerProfile {
 type TopVolunteerProfile = Pick<VolunteerProfile, 'id' | 'full_name' | 'full_name_ar' | 'avatar_url' | 'level'>;
 
 type VolunteerListItem = Pick<VolunteerProfile, 'id' | 'full_name' | 'full_name_ar' | 'phone' | 'avatar_url'> & {
+  email?: string | null;
   branch_id?: string | null;
 };
+
+const MAX_VISIBLE_VOLUNTEERS = 80;
 
 interface Committee {
   id: string;
@@ -180,7 +184,7 @@ export default function FieldLogging() {
       // Storage cleanup best effort
     }
 
-    if (authLoading || user || kioskAuthAttempted) return;
+    if (authLoading || kioskAuthAttempted) return;
 
     setKioskAuthAttempted(true);
     setKioskLoggingIn(true);
@@ -235,6 +239,7 @@ export default function FieldLogging() {
   const [isLeader, setIsLeader] = useState<boolean>(false);
   const [isGroupSubmission, setIsGroupSubmission] = useState<boolean>(false);
   const [volunteersList, setVolunteersList] = useState<VolunteerListItem[]>([]);
+  const [volunteersLoading, setVolunteersLoading] = useState<boolean>(false);
   const [selectedVolunteers, setSelectedVolunteers] = useState<string[]>([]);
   const [includeMe, setIncludeMe] = useState<boolean>(true);
   const [guests, setGuests] = useState<{ name: string; phone?: string }[]>([]);
@@ -243,33 +248,30 @@ export default function FieldLogging() {
   const [volunteerSearch, setVolunteerSearch] = useState<string>('');
 
   const fetchVolunteersList = useCallback(async () => {
+    setVolunteersLoading(true);
     try {
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, full_name, full_name_ar, phone, avatar_url, branch_id')
-        .neq('email', 'Medaniparticipations@rtc.org')
-        .neq('email', 'kiosk@rtc.internal')
-        .range(0, 4999)
-        .order('full_name');
+      const profilesData = await fetchAllVolunteerProfiles(supabase, {
+        fallbackClient: user ? mainSupabase : undefined,
+      });
 
-      if (profilesError) throw profilesError;
-
-      const sanitized = (profilesData || []).map(v => ({
-        ...v,
-        full_name: v.full_name_ar || v.full_name || 'Unknown Volunteer'
-      }));
-
-      setVolunteersList(sanitized as VolunteerListItem[]);
+      setVolunteersList(profilesData as VolunteerListItem[]);
     } catch (error) {
       console.error('Error fetching volunteers list:', error);
+    } finally {
+      setVolunteersLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    if (isGroupSubmission) {
+    if (isGroupSubmission && !kioskLoggingIn) {
       fetchVolunteersList();
     }
-  }, [isGroupSubmission, fetchVolunteersList]);
+  }, [isGroupSubmission, kioskLoggingIn, fetchVolunteersList]);
+
+  const filteredVolunteers = useMemo(
+    () => filterAndRankVolunteers(volunteersList, volunteerSearch, volunteer?.id),
+    [volunteersList, volunteerSearch, volunteer?.id]
+  );
 
   const toggleVolunteer = (id: string) => {
     setSelectedVolunteers(prev =>
@@ -522,11 +524,13 @@ export default function FieldLogging() {
           query = query.or(`branch_id.eq.${selectedBranchId},branch_id.is.null`);
         }
 
-        const { data: activityData, error } = await query;
+        const [{ data: activityData, error }, { data: mappingData, error: mappingError }] = await Promise.all([
+          query,
+          supabase.from('activity_type_committees').select('activity_type_id, committee_id'),
+        ]);
         if (error) throw error;
+        if (mappingError) throw mappingError;
 
-        // Fetch activity type-committee mapping
-        const { data: mappingData } = await supabase.from('activity_type_committees').select('*');
         const mappingMap = new Map<string, string[]>();
         if (mappingData) {
           mappingData.forEach((item) => {
@@ -1492,7 +1496,7 @@ export default function FieldLogging() {
                               <div className="relative">
                                 <input
                                   type="text"
-                                  placeholder={isRTL ? '🔍 ابحث بالاسم...' : '🔍 Search by name...'}
+                                  placeholder={isRTL ? '🔍 ابحث بالاسم أو رقم الموبايل...' : '🔍 Search by name or phone...'}
                                   value={volunteerSearch}
                                   onChange={e => setVolunteerSearch(e.target.value)}
                                   className="w-full h-11 px-4 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary transition-colors"
@@ -1511,80 +1515,74 @@ export default function FieldLogging() {
 
                               {/* Results List */}
                               {(() => {
-                                const normalizeStr = (str: string) =>
-                                  (str || '')
-                                    .toLowerCase()
-                                    .replace(/[أإآ]/g, 'ا')
-                                    .replace(/ة/g, 'ه')
-                                    .replace(/ى/g, 'ي')
-                                    .replace(/[\u064B-\u0652]/g, '')
-                                    .trim();
+                                const hasQuery = volunteerSearch.trim().length > 0;
+                                if (volunteersLoading && volunteersList.length === 0) {
+                                  return (
+                                    <div className="rounded-xl border-2 border-border py-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      <span>{isRTL ? 'جاري تحميل المتطوعين...' : 'Loading volunteers...'}</span>
+                                    </div>
+                                  );
+                                }
 
-                                const qRaw = volunteerSearch.trim().toLowerCase();
-                                const qNorm = normalizeStr(qRaw);
-                                const qDigits = qRaw.replace(/[^0-9]/g, '');
+                                if (!hasQuery && filteredVolunteers.length === 0) return null;
 
-                                const filtered = volunteersList
-                                  .filter(v => v.id !== volunteer?.id)
-                                  .filter(v => {
-                                    if (!qRaw) return true;
-                                    const nameArNorm = normalizeStr(v.full_name_ar || '');
-                                    const nameEnNorm = normalizeStr(v.full_name || '');
-                                    const phoneDigits = (v.phone || '').replace(/[^0-9]/g, '');
-
-                                    const nameMatch = qNorm && (nameArNorm.includes(qNorm) || nameEnNorm.includes(qNorm));
-                                    const phoneMatch = qDigits.length > 0 && phoneDigits.includes(qDigits);
-
-                                    return nameMatch || phoneMatch;
-                                  });
-
-                                if (!qRaw && filtered.length === 0) return null;
+                                const visibleVolunteers = filteredVolunteers.slice(0, MAX_VISIBLE_VOLUNTEERS);
 
                                 return (
                                   <div className="rounded-xl border-2 border-border overflow-hidden">
-                                    {filtered.length === 0 ? (
+                                    {filteredVolunteers.length === 0 ? (
                                       <p className="text-center text-sm text-muted-foreground py-6">
                                         {isRTL ? 'لم يتم العثور على متطوعين' : 'No volunteers found'}
                                       </p>
                                     ) : (
-                                      <div className="max-h-52 overflow-y-auto divide-y divide-border/50">
-                                        {filtered.map(v => {
-                                          const isSelected = selectedVolunteers.includes(v.id);
-                                          const vName = isRTL ? (v.full_name_ar || v.full_name) : (v.full_name || v.full_name_ar);
-                                          return (
-                                            <button
-                                              key={v.id}
-                                              type="button"
-                                              onClick={() => toggleVolunteer(v.id)}
-                                              className={cn(
-                                                'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/60',
-                                                isSelected && 'bg-primary/8'
-                                              )}
-                                            >
-                                              <Avatar className="h-8 w-8 shrink-0">
-                                                <AvatarImage src={v.avatar_url || undefined} />
-                                                <AvatarFallback className="text-xs bg-primary/10 text-primary font-bold">
-                                                  {vName?.charAt(0).toUpperCase()}
-                                                </AvatarFallback>
-                                              </Avatar>
-                                              <div className="flex-1 min-w-0 text-right">
-                                                <p className="text-sm font-medium truncate">{vName}</p>
-                                                {v.phone && (
-                                                  <p className="text-xs text-muted-foreground dir-ltr text-right">{v.phone}</p>
+                                      <>
+                                        <div className="max-h-52 overflow-y-auto divide-y divide-border/50">
+                                          {visibleVolunteers.map(v => {
+                                            const isSelected = selectedVolunteers.includes(v.id);
+                                            const vName = isRTL ? (v.full_name_ar || v.full_name) : (v.full_name || v.full_name_ar);
+                                            return (
+                                              <button
+                                                key={v.id}
+                                                type="button"
+                                                onClick={() => toggleVolunteer(v.id)}
+                                                className={cn(
+                                                  'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/60',
+                                                  isSelected && 'bg-primary/8'
                                                 )}
-                                              </div>
-                                              <div className={cn(
-                                                'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
-                                                isSelected
-                                                  ? 'bg-primary border-primary'
-                                                  : 'border-border'
-                                              )}>
-                                                {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
-                                              </div>
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
+                                              >
+                                                <Avatar className="h-8 w-8 shrink-0">
+                                                  <AvatarImage src={v.avatar_url || undefined} />
+                                                  <AvatarFallback className="text-xs bg-primary/10 text-primary font-bold">
+                                                    {vName?.charAt(0).toUpperCase()}
+                                                  </AvatarFallback>
+                                                </Avatar>
+                                                <div className="flex-1 min-w-0 text-right">
+                                                  <p className="text-sm font-medium truncate">{vName}</p>
+                                                  {v.phone && (
+                                                    <p className="text-xs text-muted-foreground dir-ltr text-right">{v.phone}</p>
+                                                  )}
+                                                </div>
+                                                <div className={cn(
+                                                  'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                                                  isSelected
+                                                    ? 'bg-primary border-primary'
+                                                    : 'border-border'
+                                                )}>
+                                                  {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                                                </div>
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                        {filteredVolunteers.length > MAX_VISIBLE_VOLUNTEERS && (
+                                          <p className="px-3 py-2 text-xs text-center text-muted-foreground bg-muted/30 border-t">
+                                            {isRTL
+                                              ? `عرض ${visibleVolunteers.length} من أصل ${filteredVolunteers.length} متطوع — اكتب الاسم أو الموبايل لتضييق النتائج`
+                                              : `Showing ${visibleVolunteers.length} of ${filteredVolunteers.length} volunteers — type a name or phone to narrow results`}
+                                          </p>
+                                        )}
+                                      </>
                                     )}
                                   </div>
                                 );

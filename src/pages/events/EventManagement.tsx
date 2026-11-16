@@ -440,7 +440,9 @@ export default function EventManagement() {
                 ? await ensureEventActivityType()
                 : undefined;
 
-            // 2. Add Participants & Award Points
+            // 2-4. Save participants, speakers, organizers, and participation points concurrently
+            const relationOps: Array<Promise<void>> = [];
+
             if (participants.length > 0) {
                 const participantRows: EventParticipantInsert[] = participants.map(p => ({
                     event_id: event.id,
@@ -449,70 +451,80 @@ export default function EventManagement() {
                     phone: p.phone,
                     is_volunteer: p.is_volunteer
                 }));
-                const { error: partsError } = await supabase
-                    .from('event_participants')
-                    .insert(participantRows);
-                if (partsError) throw partsError;
+                relationOps.push((async () => {
+                    const { error: partsError } = await supabase
+                        .from('event_participants')
+                        .insert(participantRows);
+                    if (partsError) throw partsError;
+                })());
             }
 
-            // 3. Save speakers
             if (speakers.length > 0) {
                 const speakerRows: EventSpeakerInsert[] = speakers.map(s => ({
-                        event_id: event.id,
-                        name: s.name, phone: s.phone || null,
-                        social_media_link: s.social_media_link || null
-                    }));
-                const { error: speakersError } = await supabase.from('event_speakers').insert(speakerRows);
-                if (speakersError) throw speakersError;
+                    event_id: event.id,
+                    name: s.name, phone: s.phone || null,
+                    social_media_link: s.social_media_link || null
+                }));
+                relationOps.push((async () => {
+                    const { error: speakersError } = await supabase.from('event_speakers').insert(speakerRows);
+                    if (speakersError) throw speakersError;
+                })());
 
-                // Award points to speakers who match existing volunteers
-                const matchedVolunteers = speakers.map(s => 
-                    volunteers.find(v => 
-                        (s.phone && v.phone === s.phone) || 
+                const matchedVolunteers = speakers.map(s =>
+                    volunteers.find(v =>
+                        (s.phone && v.phone === s.phone) ||
                         v.full_name === s.name
                     )
                 ).filter(Boolean);
-                
+
                 const uniqueSpeakerIds = Array.from(new Set(matchedVolunteers.map(v => v!.id)));
-                
+
                 if (activityTypeId && targetCommitteeId && uniqueSpeakerIds.length > 0) {
-                    const { error: speakerParticipationError } = await supabase.from('activity_submissions').insert(
-                        uniqueSpeakerIds.map(volunteerId => ({
-                            volunteer_id: volunteerId,
-                            activity_type_id: activityTypeId,
-                            committee_id: targetCommitteeId,
-                            status: 'approved' as const,
-                            points_awarded: 5,
-                            submitted_at: formData.date ? new Date(formData.date + 'T12:00:00').toISOString() : new Date().toISOString(),
-                            description: `Event Speaker: ${formData.name}`,
-                        }))
-                    );
-                    if (speakerParticipationError) throw speakerParticipationError;
+                    const submittedAt = formData.date ? new Date(formData.date + 'T12:00:00').toISOString() : new Date().toISOString();
+                    relationOps.push((async () => {
+                        const { error: speakerParticipationError } = await supabase.from('activity_submissions').insert(
+                            uniqueSpeakerIds.map(volunteerId => ({
+                                volunteer_id: volunteerId,
+                                activity_type_id: activityTypeId,
+                                committee_id: targetCommitteeId,
+                                status: 'approved' as const,
+                                points_awarded: 5,
+                                submitted_at: submittedAt,
+                                description: `Event Speaker: ${formData.name}`,
+                            }))
+                        );
+                        if (speakerParticipationError) throw speakerParticipationError;
+                    })());
                 }
             }
 
-            // 4. Save organizers & award participation
             if (organizers.length > 0) {
                 const organizerRows: EventOrganizerInsert[] = organizers.map(o => ({ event_id: event.id, volunteer_id: o.volunteer_id }));
-                const { error: organizersError } = await supabase.from('event_organizers').insert(organizerRows);
-                if (organizersError) throw organizersError;
+                relationOps.push((async () => {
+                    const { error: organizersError } = await supabase.from('event_organizers').insert(organizerRows);
+                    if (organizersError) throw organizersError;
+                })());
 
-                // Award points to organizers
                 if (activityTypeId && targetCommitteeId) {
-                    const { error: organizerParticipationError } = await supabase.from('activity_submissions').insert(
-                        organizers.map(o => ({
-                            volunteer_id: o.volunteer_id,
-                            activity_type_id: activityTypeId,
-                            committee_id: targetCommitteeId,
-                            status: 'approved' as const,
-                            points_awarded: 5,
-                            submitted_at: formData.date ? new Date(formData.date + 'T12:00:00').toISOString() : new Date().toISOString(),
-                            description: `Event: ${formData.name}`,
-                        }))
-                    );
-                    if (organizerParticipationError) throw organizerParticipationError;
+                    const submittedAt = formData.date ? new Date(formData.date + 'T12:00:00').toISOString() : new Date().toISOString();
+                    relationOps.push((async () => {
+                        const { error: organizerParticipationError } = await supabase.from('activity_submissions').insert(
+                            organizers.map(o => ({
+                                volunteer_id: o.volunteer_id,
+                                activity_type_id: activityTypeId,
+                                committee_id: targetCommitteeId,
+                                status: 'approved' as const,
+                                points_awarded: 5,
+                                submitted_at: submittedAt,
+                                description: `Event: ${formData.name}`,
+                            }))
+                        );
+                        if (organizerParticipationError) throw organizerParticipationError;
+                    })());
                 }
             }
+
+            await Promise.all(relationOps);
 
             toast.success(isRTL ? 'تم إنشاء الإيفينت بنجاح' : 'Event created successfully');
             setIsCreateOpen(false);

@@ -226,14 +226,23 @@ export async function getCircles(branchId?: string): Promise<QuranCircle[]> {
   let query = supabase
     .from('quran_circles')
     .select(CIRCLE_COLUMNS);
+  let teachersQuery = supabase.from('quran_teachers').select('id, name, target_gender, teaching_mode');
 
   if (branchId) {
     query = query.eq('branch_id', branchId);
+    teachersQuery = teachersQuery.eq('branch_id', branchId);
   }
 
-  const { data, error } = await query.order('created_at', { ascending: false });
+  const [
+    { data, error },
+    { data: teachersData, error: teachersError },
+  ] = await Promise.all([
+    query.order('created_at', { ascending: false }),
+    teachersQuery,
+  ]);
 
   if (error) throw error;
+  if (teachersError) throw teachersError;
 
   const circleRows = (data ?? []) as unknown as CircleWithOrganizers[];
   const circleIds = circleRows.map((circle) => circle.id);
@@ -247,10 +256,6 @@ export async function getCircles(branchId?: string): Promise<QuranCircle[]> {
     enrollmentCounts[enrollment.circle_id] = (enrollmentCounts[enrollment.circle_id] || 0) + 1;
   });
 
-  let teachersQuery = supabase.from('quran_teachers').select('id, name, target_gender, teaching_mode');
-  if (branchId) teachersQuery = teachersQuery.eq('branch_id', branchId);
-  const { data: teachersData, error: teachersError } = await teachersQuery;
-  if (teachersError) throw teachersError;
   const teachersMap = new Map((teachersData ?? []).map((teacher) => [teacher.id, teacher]));
 
   return circleRows.map((circle) => {
@@ -530,31 +535,35 @@ export async function saveCircle(payload: SaveCirclePayload): Promise<string> {
 
   if (!circleId) throw new Error('Circle save returned no ID');
 
-  {
-    const { error: organizerDeleteError } = await supabase.from('quran_circle_organizers').delete().eq('circle_id', circleId);
-    if (organizerDeleteError) throw organizerDeleteError;
-    if (payload.organizers.length > 0) {
-      const organizerRows: QuranCircleOrganizerInsert[] = payload.organizers.map((organizer) => ({
-        circle_id: circleId,
-        volunteer_id: organizer.volunteer_id || null,
-        name: organizer.name,
-        phone: organizer.phone,
-      }));
-      const { error } = await supabase.from('quran_circle_organizers').insert(organizerRows);
-      if (error) throw error;
-    }
-    const { error: marketerDeleteError } = await supabase.from('quran_circle_marketers').delete().eq('circle_id', circleId);
-    if (marketerDeleteError) throw marketerDeleteError;
-    if (payload.marketers.length > 0) {
-      const marketerRows: QuranCircleMarketerInsert[] = payload.marketers.flatMap((marketer) =>
-        marketer.volunteer_id ? [{ circle_id: circleId, volunteer_id: marketer.volunteer_id }] : []
-      );
+  const organizerRows: QuranCircleOrganizerInsert[] = payload.organizers.map((organizer) => ({
+    circle_id: circleId,
+    volunteer_id: organizer.volunteer_id || null,
+    name: organizer.name,
+    phone: organizer.phone,
+  }));
+
+  const marketerRows: QuranCircleMarketerInsert[] = payload.marketers.flatMap((marketer) =>
+    marketer.volunteer_id ? [{ circle_id: circleId, volunteer_id: marketer.volunteer_id }] : []
+  );
+
+  await Promise.all([
+    (async () => {
+      const { error: organizerDeleteError } = await supabase.from('quran_circle_organizers').delete().eq('circle_id', circleId);
+      if (organizerDeleteError) throw organizerDeleteError;
+      if (organizerRows.length > 0) {
+        const { error } = await supabase.from('quran_circle_organizers').insert(organizerRows);
+        if (error) throw error;
+      }
+    })(),
+    (async () => {
+      const { error: marketerDeleteError } = await supabase.from('quran_circle_marketers').delete().eq('circle_id', circleId);
+      if (marketerDeleteError) throw marketerDeleteError;
       if (marketerRows.length > 0) {
         const { error } = await supabase.from('quran_circle_marketers').insert(marketerRows);
         if (error) throw error;
       }
-    }
-  }
+    })(),
+  ]);
 
   return circleId;
 }

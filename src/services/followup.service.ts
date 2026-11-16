@@ -207,27 +207,27 @@ export async function getFollowUpUsers(opts: FetchFollowUpOptions): Promise<Foll
     return q;
   };
 
-  // Fetch approved records — always branch-scoped
-  const approved = await fetchAllPaginated<FollowUpUser>((from, to) => {
-    const q = supabase
-      .from('users_followup')
-      .select(FOLLOW_UP_USER_FIELDS)
-      .eq('status', 'approved')
-      .order('id', { ascending: true })
-      .range(from, to) as unknown as BranchScopedQuery<FollowUpUser>;
-    return buildBranchQuery(q);
-  });
-
-  // Fetch pending records — ALSO branch-scoped (BUG #2 fix)
-  const pending = await fetchAllPaginated<FollowUpUser>((from, to) => {
-    const q = supabase
-      .from('users_followup')
-      .select(FOLLOW_UP_USER_FIELDS)
-      .eq('status', 'pending')
-      .order('id', { ascending: true })
-      .range(from, to) as unknown as BranchScopedQuery<FollowUpUser>;
-    return buildBranchQuery(q);
-  });
+  // Fetch approved and pending records concurrently — both branch-scoped
+  const [approved, pending] = await Promise.all([
+    fetchAllPaginated<FollowUpUser>((from, to) => {
+      const q = supabase
+        .from('users_followup')
+        .select(FOLLOW_UP_USER_FIELDS)
+        .eq('status', 'approved')
+        .order('id', { ascending: true })
+        .range(from, to) as unknown as BranchScopedQuery<FollowUpUser>;
+      return buildBranchQuery(q);
+    }),
+    fetchAllPaginated<FollowUpUser>((from, to) => {
+      const q = supabase
+        .from('users_followup')
+        .select(FOLLOW_UP_USER_FIELDS)
+        .eq('status', 'pending')
+        .order('id', { ascending: true })
+        .range(from, to) as unknown as BranchScopedQuery<FollowUpUser>;
+      return buildBranchQuery(q);
+    }),
+  ]);
 
   return [...approved, ...pending];
 }
@@ -409,12 +409,19 @@ export async function linkToAnother(payload: LinkFollowUpPayload): Promise<numbe
       const ids = (submissions as SubmissionIdRow[]).map((s) => s.id);
       const BATCH = 100;
       const transferUpdate: ActivitySubmissionUpdate = { guest_phone: targetPhone };
+      const updatePromises: Array<PromiseLike<{ error: unknown }>> = [];
       for (let i = 0; i < ids.length; i += BATCH) {
         const chunk = ids.slice(i, i + BATCH);
-        await supabase
-          .from('activity_submissions')
-          .update(transferUpdate)
-          .in('id', chunk);
+        updatePromises.push(
+          supabase
+            .from('activity_submissions')
+            .update(transferUpdate)
+            .in('id', chunk),
+        );
+      }
+      const updateResults = await Promise.all(updatePromises);
+      for (const res of updateResults) {
+        if (res.error) throw res.error;
       }
       transferredCount = submissions.length;
     }
@@ -459,18 +466,6 @@ export async function getParticipations(user: FollowUpUser): Promise<Participati
     if (p.startsWith('201')) variants.add('0' + p.slice(2));
   });
 
-  // Fetch guest_phone submissions
-  const orFilter = [...variants].map(v => `guest_phone.eq.${v}`).join(',');
-  const { data: guestSubmissions } = await supabase
-    .from('activity_submissions')
-    .select('id, date, submitted_at, created_at, activity_types(name, name_ar)')
-    .or(orFilter)
-    .order('date', { ascending: false, nullsLast: true })
-    .limit(200);
-
-  const items: ParticipationItem[] = (guestSubmissions || []) as unknown as ParticipationItem[];
-
-  // Check if this person has a volunteer profile
   const profileVariants = new Set<string>();
   phones.forEach(p => {
     profileVariants.add(p);
@@ -478,11 +473,23 @@ export async function getParticipations(user: FollowUpUser): Promise<Participati
     if (p.startsWith('+20')) profileVariants.add('0' + p.slice(3));
   });
 
-  const { data: profileRes } = await supabase
-    .from('profiles')
-    .select('id')
-    .in('phone', [...profileVariants])
-    .limit(1);
+  // Fetch guest_phone submissions and matching volunteer profile concurrently
+  const orFilter = [...variants].map(v => `guest_phone.eq.${v}`).join(',');
+  const [{ data: guestSubmissions }, { data: profileRes }] = await Promise.all([
+    supabase
+      .from('activity_submissions')
+      .select('id, date, submitted_at, created_at, activity_types(name, name_ar)')
+      .or(orFilter)
+      .order('date', { ascending: false, nullsLast: true })
+      .limit(200),
+    supabase
+      .from('profiles')
+      .select('id')
+      .in('phone', [...profileVariants])
+      .limit(1),
+  ]);
+
+  const items: ParticipationItem[] = (guestSubmissions || []) as unknown as ParticipationItem[];
 
   // If profile found, also get their volunteer_id submissions
   if (profileRes && profileRes.length > 0) {
@@ -514,33 +521,49 @@ export async function getParticipations(user: FollowUpUser): Promise<Participati
 // ─── Sync ───────────────────────────────────────────────────────────
 
 export async function syncFollowUp(opts: SyncFollowUpOptions): Promise<SyncResult> {
-  // Fetch submissions
-  const submissions = await fetchAllPaginated<FollowUpSourceSubmission>((from, to) => {
-    let q = supabase
-      .from('activity_submissions')
-      .select('id, guest_name, guest_phone, volunteer_id, trainer_id, branch_id, location')
-      .range(from, to) as unknown as BranchScopedQuery<FollowUpSourceSubmission>;
-    if (opts.branchId) {
-      q = q.eq('branch_id', opts.branchId);
-    }
-    return q;
-  });
+  // Fetch submissions, trainers, profiles, and existing follow-up records concurrently
+  const [
+    submissions,
+    { data: trainers, error: trainersError },
+    { data: profiles, error: profilesError },
+    allExisting,
+  ] = await Promise.all([
+    fetchAllPaginated<FollowUpSourceSubmission>((from, to) => {
+      let q = supabase
+        .from('activity_submissions')
+        .select('id, guest_name, guest_phone, volunteer_id, trainer_id, branch_id, location')
+        .order('id', { ascending: true })
+        .range(from, to) as unknown as BranchScopedQuery<FollowUpSourceSubmission>;
+      if (opts.branchId) {
+        q = q.eq('branch_id', opts.branchId);
+      }
+      return q;
+    }),
+    supabase.from('trainers').select('id, user_id, name_en, name_ar, phone'),
+    supabase.from('profiles').select('id, full_name, full_name_ar, phone'),
+    fetchAllPaginated<FollowUpImportRow>((from, to) =>
+      supabase
+        .from('users_followup')
+        .select('id, phone_1, phone_2, full_name, status, linked_to')
+        .order('id', { ascending: true })
+        .range(from, to) as unknown as PaginatedQuery<FollowUpImportRow>
+    ),
+  ]);
 
-  const { data: trainers } = await supabase.from('trainers').select('id, user_id, name_en, name_ar, phone');
-  const { data: profiles } = await supabase.from('profiles').select('id, full_name, full_name_ar, phone');
+  if (trainersError) throw trainersError;
+  if (profilesError) throw profilesError;
   if (submissions.length === 0) return { newCount: 0, cleanedCount: 0 };
 
-  const trainerRows = (trainers || []) as TrainerPhoneRow[];
+  const trainersById = new Map<string, TrainerPhoneRow>();
+  const trainersByUserId = new Map<string, TrainerPhoneRow>();
+  ((trainers || []) as TrainerPhoneRow[]).forEach((t) => {
+    trainersById.set(t.id, t);
+    if (t.user_id && !trainersByUserId.has(t.user_id)) {
+      trainersByUserId.set(t.user_id, t);
+    }
+  });
   const profilesMap = new Map<string, ProfilePhoneRow>();
   (profiles || []).forEach((p) => profilesMap.set(p.id, p as ProfilePhoneRow));
-
-  // Fetch ALL existing follow-up users (across all branches for dedup)
-  const allExisting = await fetchAllPaginated<FollowUpImportRow>((from, to) =>
-    supabase
-      .from('users_followup')
-      .select('id, phone_1, phone_2, full_name, status, linked_to')
-      .range(from, to) as unknown as PaginatedQuery<FollowUpImportRow>
-  );
 
   // Build phone maps
   const phoneToUser = new Map<string, string>();
@@ -592,10 +615,10 @@ export async function syncFollowUp(opts: SyncFollowUpOptions): Promise<SyncResul
       if (p) { if (!name) name = p.full_name_ar || p.full_name || ''; if (p.phone) phones.push(p.phone); }
     }
     if (s.trainer_id) {
-      const tr = trainerRows.find((t) => t.id === s.trainer_id);
+      const tr = trainersById.get(s.trainer_id);
       if (tr) { if (!name) name = tr.name_ar || tr.name_en; if (tr.phone) phones.push(tr.phone); }
     } else if (s.volunteer_id) {
-      const tr = trainerRows.find((t) => t.user_id === s.volunteer_id);
+      const tr = trainersByUserId.get(s.volunteer_id);
       if (tr) { if (!name) name = tr.name_ar || tr.name_en; if (tr.phone) phones.push(tr.phone); }
     }
     if (!name) name = 'Unknown';
@@ -631,10 +654,21 @@ export async function syncFollowUp(opts: SyncFollowUpOptions): Promise<SyncResul
     const phonesToCheck = [...new Set(newToInsert.map(u => u.phone_1).filter(Boolean))];
     const existing = new Set<string>();
     const CHUNK = 100;
+    const phoneCheckPromises: Array<
+      PromiseLike<{ data: Pick<FollowUpPhoneRow, 'phone_1'>[] | null; error: unknown }>
+    > = [];
     for (let i = 0; i < phonesToCheck.length; i += CHUNK) {
       const chunk = phonesToCheck.slice(i, i + CHUNK);
-      const { data: rows } = await supabase.from('users_followup').select('phone_1').in('phone_1', chunk);
-      (rows || []).forEach((r: Pick<FollowUpPhoneRow, 'phone_1'>) => { if (r.phone_1) existing.add(r.phone_1); });
+      phoneCheckPromises.push(
+        supabase.from('users_followup').select('phone_1').in('phone_1', chunk),
+      );
+    }
+    const phoneCheckResults = await Promise.all(phoneCheckPromises);
+    for (const res of phoneCheckResults) {
+      if (res.error) throw res.error;
+      (res.data || []).forEach((r) => {
+        if (r.phone_1) existing.add(r.phone_1);
+      });
     }
     const trulyNew = newToInsert.filter(u => u.phone_1 && !existing.has(u.phone_1));
     if (trulyNew.length > 0) {
@@ -691,14 +725,16 @@ export async function importReplace(opts: ImportReplaceOptions): Promise<{
     ));
   }
 
-  // 4. Insert new records in batches
+  // 4. Insert new records in batches concurrently
   const BATCH = 100;
+  const insertPromises: Array<PromiseLike<{ error: unknown }>> = [];
   for (let i = 0; i < cleanRecords.length; i += BATCH) {
     const batch = cleanRecords.slice(i, i + BATCH);
-    const { error: insertError } = await supabase
-      .from('users_followup')
-      .insert(batch);
-    if (insertError) throw insertError;
+    insertPromises.push(supabase.from('users_followup').insert(batch));
+  }
+  const insertResults = await Promise.all(insertPromises);
+  for (const res of insertResults) {
+    if (res.error) throw res.error;
   }
 
   const duplicateCount = cleanRecords.filter((r) => r.status === 'pending').length;

@@ -3,16 +3,20 @@ import { supabase } from '@/integrations/supabase/client';
 const MY_COURSE_COLUMNS = 'id, name, trainer_id, trainer_name, trainer_phone, room, schedule_days, schedule_time, schedule_end_time, has_interview, interview_date, total_lectures, start_date, end_date, committee_id, course_lectures(status), course_trainers(trainer_id, trainers(name_ar, name_en)), trainers:trainer_id(name_ar, name_en)';
 
 /**
- * Fetches all courses for a given branch.
- * Used when the caller wants to show every volunteer in the branch
- * all branch courses with full organizer access.
+ * Fetches courses for a given branch, or all courses when branchId is unset.
+ * Used when the caller wants to show volunteers courses with full organizer access.
  */
-export async function getBranchCourses(branchId: string) {
-  const { data, error } = await supabase
+export async function getBranchCourses(branchId?: string | null) {
+  let query = supabase
     .from('courses')
     .select(MY_COURSE_COLUMNS)
-    .eq('branch_id', branchId)
     .order('start_date', { ascending: false });
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId);
+  }
+
+  const { data, error } = await query;
   if (error) throw error;
   return data ?? [];
 }

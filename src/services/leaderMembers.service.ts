@@ -33,26 +33,13 @@ export type LeaderMembersData = {
 };
 
 export async function getLeaderMembers(committeeId: string): Promise<LeaderMembersData> {
-  const membersResult = await supabase
-    .from('profiles')
-    .select(PROFILE_COLUMNS)
-    .eq('committee_id', committeeId)
-    .eq('is_active', true)
-    .order('full_name');
-
-  if (membersResult.error) throw membersResult.error;
-
-  const members = (membersResult.data ?? []) as LeaderMember[];
-  const memberIds = members.map(({ id }) => id);
-
-  const [submissionsResult, volunteersResult] = await Promise.all([
-    memberIds.length > 0
-      ? supabase
-        .from('activity_submissions')
-        .select('volunteer_id, points_awarded')
-        .eq('committee_id', committeeId)
-        .in('volunteer_id', memberIds)
-      : Promise.resolve({ data: [], error: null }),
+  const [membersResult, volunteersResult] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select(PROFILE_COLUMNS)
+      .eq('committee_id', committeeId)
+      .eq('is_active', true)
+      .order('full_name'),
     supabase
       .from('profiles')
       .select(PROFILE_COLUMNS)
@@ -62,8 +49,22 @@ export async function getLeaderMembers(committeeId: string): Promise<LeaderMembe
       .order('full_name'),
   ]);
 
-  if (submissionsResult.error) throw submissionsResult.error;
+  if (membersResult.error) throw membersResult.error;
   if (volunteersResult.error) throw volunteersResult.error;
+
+  const members = (membersResult.data ?? []) as LeaderMember[];
+  const memberIds = members.map(({ id }) => id);
+
+  const submissionsResult = memberIds.length > 0
+    ? await supabase
+      .from('activity_submissions')
+      .select('volunteer_id, points_awarded')
+      .eq('committee_id', committeeId)
+      .eq('status', 'approved')
+      .in('volunteer_id', memberIds)
+    : { data: [], error: null };
+
+  if (submissionsResult.error) throw submissionsResult.error;
 
   const statsByVolunteer = new Map<string, { points: number; activities: number }>();
   (submissionsResult.data as CommitteeSubmission[] ?? []).forEach((submission) => {

@@ -152,3 +152,60 @@ BEGIN
   RAISE NOTICE 'PASS: Helper functions exist';
 END;
 $$;
+
+-- ── TEST 7: Verify PostgreSQL audit & optimization invariants ───────
+DO $$
+DECLARE
+  idx_name text;
+  idx_exists boolean;
+BEGIN
+  PERFORM proname FROM pg_proc
+    WHERE proname = 'has_leadership_role' AND pronamespace = 'public'::regnamespace;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'FAIL: has_leadership_role() function not found';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname = 'public' AND indexname = 'idx_profiles_is_active'
+  ) THEN
+    RAISE EXCEPTION 'FAIL: Redundant index idx_profiles_is_active still exists';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE table_schema = 'public'
+      AND (
+        (table_name = 'users_followup' AND constraint_name = 'users_followup_linked_to_fkey')
+        OR (table_name = 'quran_circle_sessions' AND constraint_name = 'fk_session_circle')
+      )
+  ) THEN
+    RAISE EXCEPTION 'FAIL: Duplicate foreign key constraint still exists';
+  END IF;
+
+  FOR idx_name IN SELECT unnest(ARRAY[
+    'idx_activity_submissions_volunteer_status_submitted',
+    'idx_activity_submissions_committee_status_submitted',
+    'idx_activity_submissions_branch_status_submitted',
+    'idx_activity_submissions_source',
+    'idx_profiles_committee_id',
+    'idx_profiles_branch_active',
+    'idx_volunteer_fines_volunteer_paid',
+    'idx_courses_room_schedule',
+    'idx_course_lectures_course_number',
+    'idx_course_attendance_lecture_id',
+    'idx_quran_circle_beneficiaries_beneficiary_id'
+  ]) LOOP
+    SELECT EXISTS (
+      SELECT 1 FROM pg_indexes
+      WHERE schemaname = 'public' AND indexname = idx_name
+    ) INTO idx_exists;
+
+    IF NOT idx_exists THEN
+      RAISE EXCEPTION 'FAIL: Required optimization index % not found', idx_name;
+    END IF;
+  END LOOP;
+
+  RAISE NOTICE 'PASS: PostgreSQL audit & optimization invariants verified';
+END;
+$$;

@@ -268,11 +268,6 @@ export default function MyCourses() {
     const fetchBranchCourses = async (hasCache = false) => {
         if (!user) return;
         const branchId = profile?.branch_id;
-        if (!branchId) {
-            // No branch assigned — nothing to show
-            setLoading(false);
-            return;
-        }
         if (!hasCache) setLoading(true);
         try {
             const coursesData = (await getBranchCourses(branchId)) as Course[];
@@ -348,6 +343,8 @@ export default function MyCourses() {
             return;
         }
 
+        const wasCompleted = targetLecture?.status === 'completed';
+
         try {
             await updateCourseLectureStatus(lectureId, status);
         } catch (error) {
@@ -356,31 +353,54 @@ export default function MyCourses() {
             return;
         }
 
-        // If marked as completed, create trainer participation
-        // Only register if lecture was NOT already completed (prevent duplicate)
-        if (status === 'completed' && selectedCourse) {
-            const currentLecture = lectures.find(l => l.id === lectureId);
-            if (currentLecture?.status !== 'completed') {
-                await createTrainerParticipation(selectedCourse, lectureId);
-            }
+        const nextLectures = lectures.map(l => l.id === lectureId ? { ...l, status } : l);
+        setLectures(nextLectures);
+
+        if (selectedCourse) {
+            const nextCourseLectures = nextLectures.map(l => ({ status: l.status }));
+            setSelectedCourse(prev => prev ? { ...prev, course_lectures: nextCourseLectures } : prev);
+            setCourses(prevCourses => {
+                const updatedCourses = prevCourses.map(course =>
+                    course.id === selectedCourse.id
+                        ? { ...course, course_lectures: nextCourseLectures }
+                        : course
+                );
+                if (user?.id) {
+                    setLocalCache(`rtc_branch_courses_data_${user.id}`, { courses: updatedCourses }, CACHE_TTL.short);
+                }
+                return updatedCourses;
+            });
         }
 
         toast.success(isRTL ? 'تم التحديث' : 'Updated');
-        setLectures(prev => prev.map(l => l.id === lectureId ? { ...l, status } : l));
+
+        // If marked as completed, create trainer participation in background-safe try/catch
+        // Only register if lecture was NOT already completed (prevent duplicate)
+        if (status === 'completed' && selectedCourse && !wasCompleted) {
+            try {
+                await createTrainerParticipation(selectedCourse, lectureId);
+            } catch (error) {
+                console.error('Error creating trainer participation:', error);
+            }
+        }
     };
 
     // Create trainer participation when lecture is completed
     // Always logs in trainer_lecture_records (name + phone, no account needed)
     // Additionally logs in activity_submissions if the trainer has a system profile
     const createTrainerParticipation = async (course: Course, lectureId: string) => {
-        const lecture = lectures.find((item) => item.id === lectureId);
-        if (!lecture) return;
-        await createCourseTrainerParticipation({
-            course,
-            lectureId,
-            lectureNumber: lecture.lecture_number,
-            lectureDate: lecture.date,
-        });
+        try {
+            const lecture = lectures.find((item) => item.id === lectureId);
+            if (!lecture) return;
+            await createCourseTrainerParticipation({
+                course,
+                lectureId,
+                lectureNumber: lecture.lecture_number,
+                lectureDate: lecture.date,
+            });
+        } catch (error) {
+            console.error('Error in createTrainerParticipation:', error);
+        }
     };
 
     const isLectureOpen = (dateStr: string) => {

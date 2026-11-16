@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { isFutureDate } from '@/utils/dateUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { canSubmitGroupActivity } from '@/utils/userFeatures';
+import { fetchAllVolunteerProfiles, filterAndRankVolunteers } from '@/utils/volunteerSearch';
 import { DismissalNoticeBanner } from '@/components/volunteer/DismissalNoticeBanner';
 import { supabase } from '@/integrations/supabase/client';
 import { ProofImagePreview } from '@/components/ProofImagePreview';
@@ -85,9 +86,12 @@ interface GroupSubmissionListItem {
 interface Volunteer {
   id: string;
   full_name: string;
+  full_name_ar?: string | null;
   phone?: string;
   avatar_url?: string | null;
 }
+
+const MAX_VISIBLE_VOLUNTEERS = 80;
 
 export default function LogActivity() {
   const { user, profile, refreshProfile, primaryRole, features = [] } = useAuth();
@@ -131,36 +135,26 @@ export default function LogActivity() {
   const fetchVolunteers = useCallback(async () => {
     try {
       // First, get all volunteers (including dismissed ones so they can be registered in group activities)
-      let query = supabase
-        .from('profiles')
-        .select('id, full_name, phone, avatar_url')
-        .neq('email', 'Medaniparticipations@rtc.org')
-        .neq('email', 'kiosk@rtc.internal');
+      const [profilesData, adminRolesRes] = await Promise.all([
+        fetchAllVolunteerProfiles(supabase, {
+          branchId: profile?.branch_id,
+        }),
+        supabase
+          .from('user_roles')
+          .select('user_id')
+          .eq('role', 'admin'),
+      ]);
 
-      if (profile?.branch_id) {
-        query = query.eq('branch_id', profile.branch_id);
-      }
+      if (adminRolesRes.error) throw adminRolesRes.error;
 
-      const { data: profilesData, error: profilesError } = await query.order('full_name');
+      // Filter out admins and current user
+      const adminIds = new Set((adminRolesRes.data || []).map(r => r.user_id));
+      const filteredProfiles = profilesData.filter(v => !adminIds.has(v.id) && v.id !== user?.id);
 
-      if (profilesError) throw profilesError;
-
-      // Then, get admin user IDs
-      const { data: adminRoles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .eq('role', 'admin');
-
-      if (rolesError) throw rolesError;
-
-      // Filter out admins
-      const adminIds = new Set((adminRoles || []).map(r => r.user_id));
-      const filteredProfiles = (profilesData || []).filter(v => !adminIds.has(v.id) && v.id !== user?.id);
-
-      // Sanitize data to prevent crashes if full_name is null
-      const sanitizedData = filteredProfiles.map(v => ({
+      const sanitizedData: Volunteer[] = filteredProfiles.map(v => ({
         id: v.id,
-        full_name: v.full_name || 'Unknown Volunteer', // Fallback for null names
+        full_name: v.full_name || v.full_name_ar || 'Unknown Volunteer',
+        full_name_ar: v.full_name_ar || null,
         phone: v.phone || undefined,
         avatar_url: v.avatar_url
       }));
@@ -170,6 +164,11 @@ export default function LogActivity() {
       console.error('Error fetching volunteers:', error);
     }
   }, [profile?.branch_id, user?.id]);
+
+  const filteredVolunteers = useMemo(
+    () => filterAndRankVolunteers(volunteers, volunteerSearch, user?.id),
+    [volunteers, volunteerSearch, user?.id]
+  );
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -416,7 +415,7 @@ export default function LogActivity() {
           ...selectedVolunteers.map(id => {
             const v = volunteers.find(v => v.id === id);
             return {
-              name: v?.full_name || 'Unknown',
+              name: v?.full_name_ar || v?.full_name || 'Unknown',
               phone: v?.phone || '',
               type: 'volunteer' as const,
               points: selectedActivity.points
@@ -875,13 +874,14 @@ export default function LogActivity() {
                       <div className="flex flex-wrap gap-2">
                         {selectedVolunteers.map(id => {
                           const v = volunteers.find(v => v.id === id);
+                          const vName = v ? (isRTL ? (v.full_name_ar || v.full_name) : (v.full_name || v.full_name_ar)) : '';
                           return v ? (
                             <span key={id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/15 text-sm font-medium text-primary border border-primary/25 hover:bg-primary/25 transition-colors">
                               <Avatar className="h-5 w-5 shrink-0">
                                 <AvatarImage src={v.avatar_url || undefined} />
-                                <AvatarFallback className="text-[10px] bg-primary/20 text-primary font-bold">{v.full_name?.charAt(0)}</AvatarFallback>
+                                <AvatarFallback className="text-[10px] bg-primary/20 text-primary font-bold">{vName?.charAt(0)}</AvatarFallback>
                               </Avatar>
-                              {v.full_name?.split(' ').slice(0, 2).join(' ')}
+                              {vName?.split(' ').slice(0, 2).join(' ')}
                               <button type="button" onClick={() => toggleVolunteer(id)} className="hover:bg-primary/30 rounded-full p-0.5 transition-colors" aria-label={isRTL ? 'إزالة' : 'Remove'}>
                                 <X className="h-3.5 w-3.5" />
                               </button>
@@ -895,7 +895,7 @@ export default function LogActivity() {
                     <div className="relative">
                       <input
                         type="text"
-                        placeholder={isRTL ? '🔍 ابحث بالاسم...' : '🔍 Search by name...'}
+                        placeholder={isRTL ? '🔍 ابحث بالاسم أو رقم الموبايل...' : '🔍 Search by name or phone...'}
                         value={volunteerSearch}
                         onChange={e => setVolunteerSearch(e.target.value)}
                         className="w-full h-11 px-4 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary transition-colors"
@@ -914,51 +914,63 @@ export default function LogActivity() {
 
                     {/* Results List */}
                     {(() => {
-                      const q = volunteerSearch.trim().toLowerCase();
-                      const filtered = volunteers.filter(v => {
-                        if (!q) return true;
-                        return (v.full_name || '').toLowerCase().includes(q);
-                      });
+                      const hasQuery = volunteerSearch.trim().length > 0;
+                      if (!hasQuery && filteredVolunteers.length === 0) return null;
 
-                      if (!q && filtered.length === 0) return null;
+                      const visibleVolunteers = filteredVolunteers.slice(0, MAX_VISIBLE_VOLUNTEERS);
 
                       return (
                         <div className="rounded-xl border-2 border-border overflow-hidden bg-background">
-                          {filtered.length === 0 ? (
+                          {filteredVolunteers.length === 0 ? (
                             <p className="text-center text-sm text-muted-foreground py-6">
                               {isRTL ? 'لم يتم العثور على متطوعين' : 'No volunteers found'}
                             </p>
                           ) : (
-                            <div className="max-h-52 overflow-y-auto divide-y divide-border/50">
-                              {filtered.map(v => {
-                                const isSelected = selectedVolunteers.includes(v.id);
-                                return (
-                                  <button
-                                    key={v.id}
-                                    type="button"
-                                    onClick={() => toggleVolunteer(v.id)}
-                                    className={cn(
-                                      'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/60',
-                                      isSelected && 'bg-primary/8'
-                                    )}
-                                  >
-                                    <Avatar className="h-8 w-8 shrink-0">
-                                      <AvatarImage src={v.avatar_url || undefined} />
-                                      <AvatarFallback className="text-xs bg-primary/10 text-primary font-bold">
-                                        {v.full_name?.charAt(0).toUpperCase()}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <span className="flex-1 text-sm font-medium truncate">{v.full_name}</span>
-                                    <div className={cn(
-                                      'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
-                                      isSelected ? 'bg-primary border-primary' : 'border-border'
-                                    )}>
-                                      {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
+                            <>
+                              <div className="max-h-52 overflow-y-auto divide-y divide-border/50">
+                                {visibleVolunteers.map(v => {
+                                  const isSelected = selectedVolunteers.includes(v.id);
+                                  const vName = isRTL ? (v.full_name_ar || v.full_name) : (v.full_name || v.full_name_ar);
+                                  return (
+                                    <button
+                                      key={v.id}
+                                      type="button"
+                                      onClick={() => toggleVolunteer(v.id)}
+                                      className={cn(
+                                        'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/60',
+                                        isSelected && 'bg-primary/8'
+                                      )}
+                                    >
+                                      <Avatar className="h-8 w-8 shrink-0">
+                                        <AvatarImage src={v.avatar_url || undefined} />
+                                        <AvatarFallback className="text-xs bg-primary/10 text-primary font-bold">
+                                          {vName?.charAt(0).toUpperCase()}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div className="flex-1 min-w-0 text-start">
+                                        <p className="text-sm font-medium truncate">{vName}</p>
+                                        {v.phone && (
+                                          <p className="text-xs text-muted-foreground dir-ltr text-start">{v.phone}</p>
+                                        )}
+                                      </div>
+                                      <div className={cn(
+                                        'h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all',
+                                        isSelected ? 'bg-primary border-primary' : 'border-border'
+                                      )}>
+                                        {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                                      </div>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {filteredVolunteers.length > MAX_VISIBLE_VOLUNTEERS && (
+                                <p className="px-3 py-2 text-xs text-center text-muted-foreground bg-muted/30 border-t">
+                                  {isRTL
+                                    ? `عرض ${visibleVolunteers.length} من أصل ${filteredVolunteers.length} متطوع — اكتب الاسم أو الموبايل لتضييق النتائج`
+                                    : `Showing ${visibleVolunteers.length} of ${filteredVolunteers.length} volunteers — type a name or phone to narrow results`}
+                                </p>
+                              )}
+                            </>
                           )}
                         </div>
                       );

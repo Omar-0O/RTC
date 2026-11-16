@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import MyCourses from './MyCourses';
 import * as myCoursesService from '@/services/myCourses.service';
 import * as courseDetailsService from '@/services/courseDetails.service';
+import * as courseParticipationService from '@/services/courseParticipation.service';
 
 const mockUseLanguage = vi.fn(() => ({
   language: 'ar',
@@ -282,5 +283,69 @@ describe('MyCourses responsive course cards, month filter, sorting, and lazy loa
     // Pinned course badge should be present
     expect(screen.getByText('مثبت')).toBeInTheDocument();
     expect(screen.getByText(/1 كورس مثبت في المقدمة/i)).toBeInTheDocument();
+  });
+
+  it('updates lecture status immediately and ignores trainer_lecture_records 42501 RLS errors without unhandled rejection', async () => {
+    vi.mocked(courseDetailsService.getCourseDetails).mockResolvedValue({
+      ads: [],
+      lectures: [
+        {
+          id: 'lec-1',
+          course_id: 'course-1',
+          lecture_number: 1,
+          date: '2026-05-10',
+          status: 'scheduled',
+        },
+      ],
+      beneficiaries: [],
+      organizers: [],
+      marketers: [],
+      attendanceByLecture: {},
+    });
+    vi.mocked(myCoursesService.updateCourseLectureStatus).mockResolvedValue(undefined);
+    vi.mocked(courseParticipationService.createCourseTrainerParticipation).mockRejectedValue({
+      code: '42501',
+      message: 'new row violates row-level security policy for table "trainer_lecture_records"',
+    });
+
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    render(<MyCourses />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('كورس الإسعافات الأولية المتقدم والتعامل مع الطوارئ الميدانية'),
+      ).toBeInTheDocument();
+    });
+
+    const detailsButtons = screen.getAllByRole('button', { name: /التفاصيل والحضور/i });
+    fireEvent.click(detailsButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByRole('tab', { name: /المحاضرات/i })).toBeInTheDocument();
+    });
+
+    const lecturesTab = screen.getByRole('tab', { name: /المحاضرات/i });
+    fireEvent.mouseDown(lecturesTab);
+    fireEvent.click(lecturesTab);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /إتمام/i })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /إتمام/i }));
+
+    await waitFor(() => {
+      expect(myCoursesService.updateCourseLectureStatus).toHaveBeenCalledWith('lec-1', 'completed');
+      expect(screen.getByText('تمت')).toBeInTheDocument();
+      expect(courseParticipationService.createCourseTrainerParticipation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lectureId: 'lec-1',
+          lectureNumber: 1,
+        }),
+      );
+    });
+
+    consoleErrorSpy.mockRestore();
   });
 });
