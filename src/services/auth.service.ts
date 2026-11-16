@@ -61,13 +61,30 @@ async function getUserFeatures(userId: string): Promise<string[]> {
   }
 }
 
+function getCairoDateParts(date: Date): { yearMonth: string; day: number } {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Cairo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((p) => p.type === 'year')?.value ?? '';
+  const month = parts.find((p) => p.type === 'month')?.value ?? '';
+  const day = Number(parts.find((p) => p.type === 'day')?.value ?? '0');
+  return { yearMonth: `${year}-${month}`, day };
+}
+
 export async function ensureMonthlyAutoDismissal(profileData?: Record<string, unknown> | null): Promise<void> {
   try {
     // Only invoke the RPC if the database migration has been applied (auto_dismissal_enabled column exists)
     if (!profileData || !('auto_dismissal_enabled' in profileData)) {
       return;
     }
-    const currentYm = new Date().toISOString().slice(0, 7);
+    // Automatic dismissal check only runs on the 1st day of the month (Africa/Cairo)
+    const { yearMonth: currentYm, day } = getCairoDateParts(new Date());
+    if (day !== 1) {
+      return;
+    }
     const storageKey = `rtc_auto_dismissal_${currentYm}`;
     if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(storageKey) === '1') {
       return;

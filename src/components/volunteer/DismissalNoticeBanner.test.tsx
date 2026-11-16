@@ -128,6 +128,9 @@ describe('DismissalNoticeBanner', () => {
       expect(
         screen.getByText('إشعار رسمي بشأن حالة العضوية')
       ).toBeInTheDocument();
+      expect(
+        screen.getByText('ثانياً: إجراءات المراجعة مع HR')
+      ).toBeInTheDocument();
     });
   });
 });

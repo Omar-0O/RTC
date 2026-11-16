@@ -94,8 +94,8 @@ export function DismissalNoticeBanner({
 
               <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
                 {isRTL
-                  ? 'نحيطكم علماً بأن حسابكم في حالة إيقاف مؤقت (رفد مؤقت) لحين استكمال إجراءات المراجعة مع إدارة الموارد البشرية (HR). يقتصر استخدام الحساب حالياً على تسجيل المشاركات الجديدة فقط.'
-                  : 'Please be advised that your account is temporarily dismissed pending a formal review by Human Resources (HR). Account access is currently restricted to logging new participations.'}
+                  ? 'نحيطكم علماً بأن حسابكم في حالة إيقاف مؤقت (رفد مؤقت) لحين استكمال إجراءات المراجعة مع HR. يقتصر استخدام الحساب حالياً على تسجيل المشاركات الجديدة فقط.'
+                  : 'Please be advised that your account is temporarily dismissed pending a formal HR review. Account access is currently restricted to logging new participations.'}
               </p>
 
               <div className="pt-0.5">
@@ -177,14 +177,14 @@ export function DismissalNoticeBanner({
                 <PhoneCall className="h-4 w-4 shrink-0" />
                 <span>
                   {isRTL
-                    ? 'ثانياً: إجراءات المراجعة مع إدارة الموارد البشرية (HR)'
-                    : '2. Human Resources Review Process'}
+                    ? 'ثانياً: إجراءات المراجعة مع HR'
+                    : '2. HR Review Process'}
                 </span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed pr-6">
                 {isRTL
-                  ? 'سيتواصل معكم ممثل إدارة الموارد البشرية (HR) لتحديد موعد مقابلة متابعة رسمية؛ وذلك للوقوف على أسباب عدم استيفاء المتطلبات المقررة والنظر في إعادة تفعيل الحساب بكامل صلاحياته.'
-                  : 'A Human Resources (HR) representative will contact you to schedule a formal follow-up review to address the requirements and evaluate full account reinstatement.'}
+                  ? 'سيتواصل معكم ممثل HR لتحديد موعد مقابلة متابعة رسمية؛ وذلك للوقوف على أسباب عدم استيفاء المتطلبات المقررة والنظر في إعادة تفعيل الحساب بكامل صلاحياته.'
+                  : 'An HR representative will contact you to schedule a formal follow-up review to address the requirements and evaluate full account reinstatement.'}
               </p>
             </div>
 

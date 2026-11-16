@@ -72,6 +72,7 @@ const FieldLogging = lazy(() => import("./pages/FieldLogging"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const ExecutiveDashboard = lazy(() => import("./pages/executive/Dashboard"));
 const AboutProject = lazy(() => import("./pages/AboutProject"));
+const ActivityStructure = lazy(() => import("./pages/admin/ActivityStructure"));
 
 // Production-hardened QueryClient configuration
 const queryClient = new QueryClient({
@@ -275,6 +276,8 @@ function AppRoutes() {
         <Route path="/admin/rooms" element={<ManageRooms />} />
         <Route path="/admin/users" element={<UserManagement />} />
         <Route path="/admin/committees" element={<CommitteeManagement />} />
+        <Route path="/admin/activity-structure" element={<ActivityStructure />} />
+        <Route path="/activity-structure" element={<ActivityStructure />} />
         <Route path="/admin/activities" element={<ActivityManagement />} />
         <Route path="/admin/reports" element={<Reports />} />
         <Route path="/admin/reports" element={<Reports />} />

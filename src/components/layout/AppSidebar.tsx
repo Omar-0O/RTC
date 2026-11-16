@@ -25,6 +25,7 @@ import {
   Cake,
   Heart,
   AlertTriangle,
+  GitFork,
 } from 'lucide-react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
@@ -166,6 +167,7 @@ export function AppSidebar() {
     { title: isRTL ? 'تحت المتابعة' : 'Under Follow-Up', url: '/supervisor/under-follow-up', icon: UserCheck },
     { title: isRTL ? 'أيام الميلاد' : 'Birthdays', url: '/birthdays', icon: Cake },
     { title: t('nav.committees'), url: '/admin/committees', icon: Settings },
+    { title: t('nav.activityStructure'), url: '/admin/activity-structure', icon: GitFork },
     { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
     { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
     { title: isRTL ? 'الكورسات' : 'Courses', url: '/courses', icon: Activity },
@@ -203,6 +205,7 @@ export function AppSidebar() {
     { title: isRTL ? 'كشك المشاركات' : 'Field Kiosk', url: '/field-logging', icon: ClipboardCheck },
     { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
     { title: t('nav.committees'), url: '/admin/committees', icon: Settings },
+    { title: t('nav.activityStructure'), url: '/admin/activity-structure', icon: GitFork },
     { title: isRTL ? 'إدارة القاعات' : 'Manage Rooms', url: '/admin/rooms', icon: Building2 },
     { title: isRTL ? 'إدارة الفروع' : 'Branch Management', url: '/admin/branches', icon: Building2 },
     { title: t('nav.activities'), url: '/admin/activities', icon: Activity },
@@ -253,6 +256,7 @@ export function AppSidebar() {
           { title: isRTL ? 'شيت المتابعة' : 'Follow-Up Sheet', url: '/admin/followup', icon: UserCheck },
           { title: isRTL ? 'المدربين' : 'Trainers', url: '/trainers', icon: UserCheck },
           { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
+          { title: t('nav.activityStructure'), url: '/admin/activity-structure', icon: GitFork },
           { title: isRTL ? 'أيام الميلاد' : 'Birthdays', url: '/birthdays', icon: Cake },
           { title: t('nav.badges'), url: '/supervisor/badges', icon: Trophy },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
@@ -341,6 +345,7 @@ export function AppSidebar() {
           { title: t('nav.dashboard'), url: '/admin', icon: Home },
           { title: t('nav.userManagement'), url: '/admin/users', icon: Users },
           { title: t('nav.committees'), url: '/admin/committees', icon: Settings },
+          { title: t('nav.activityStructure'), url: '/admin/activity-structure', icon: GitFork },
           { title: isRTL ? 'إدارة القاعات' : 'Manage Rooms', url: '/admin/rooms', icon: Building2 },
           { title: t('nav.reports'), url: '/admin/reports', icon: BarChart3 },
           { title: t('nav.caravans'), url: '/caravans', icon: Bus },

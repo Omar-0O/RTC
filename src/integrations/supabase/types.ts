@@ -14,6 +14,183 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_structure_edges: {
+        Row: {
+          branch_id: string
+          created_at: string
+          id: string
+          label: string | null
+          source_id: string
+          target_id: string
+        }
+        Insert: {
+          branch_id: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          source_id: string
+          target_id: string
+        }
+        Update: {
+          branch_id?: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          source_id?: string
+          target_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_structure_edges_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_structure_edges_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "activity_structure_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_structure_edges_target_id_fkey"
+            columns: ["target_id"]
+            isOneToOne: false
+            referencedRelation: "activity_structure_nodes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_structure_root_meta: {
+        Row: {
+          branch_id: string
+          description: string | null
+          team_image_url: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          branch_id: string
+          description?: string | null
+          team_image_url?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          branch_id?: string
+          description?: string | null
+          team_image_url?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_structure_root_meta_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: true
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      activity_structure_nodes: {
+        Row: {
+          board_owner_id: string | null
+          branch_id: string
+          color: string
+          created_at: string
+          created_by: string | null
+          deputy_id: string | null
+          deputy_title: string | null
+          description: string | null
+          height: number
+          id: string
+          node_type: string
+          parent_id: string | null
+          pos_x: number
+          pos_y: number
+          responsibilities: string[]
+          section_id: string | null
+          section_title: string | null
+          sort_order: number
+          team_image_url: string | null
+          title: string
+          updated_at: string
+          volunteer_id: string | null
+          width: number
+        }
+        Insert: {
+          board_owner_id?: string | null
+          branch_id: string
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          height?: number
+          id?: string
+          node_type?: string
+          parent_id?: string | null
+          pos_x?: number
+          pos_y?: number
+          responsibilities?: string[]
+          section_id?: string | null
+          section_title?: string | null
+          sort_order?: number
+          team_image_url?: string | null
+          title: string
+          updated_at?: string
+          volunteer_id?: string | null
+          width?: number
+        }
+        Update: {
+          board_owner_id?: string | null
+          branch_id?: string
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          height?: number
+          id?: string
+          node_type?: string
+          parent_id?: string | null
+          pos_x?: number
+          pos_y?: number
+          responsibilities?: string[]
+          section_id?: string | null
+          section_title?: string | null
+          sort_order?: number
+          team_image_url?: string | null
+          title?: string
+          updated_at?: string
+          volunteer_id?: string | null
+          width?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_structure_nodes_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_structure_nodes_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "activity_structure_nodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_structure_nodes_volunteer_id_fkey"
+            columns: ["volunteer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_submissions: {
         Row: {
           activity_type_id: string | null
@@ -2562,6 +2739,8 @@ export type Database = {
           branch_id: string | null
           created_at: string | null
           created_by: string | null
+          deputy_id: string | null
+          deputy_title: string | null
           description: string | null
           fine_type_id: string
           id: string
@@ -2667,6 +2846,10 @@ export type Database = {
         Args: { points: number }
         Returns: Database["public"]["Enums"]["volunteer_level"]
       }
+      can_manage_activity_structure: {
+        Args: { _branch_id: string }
+        Returns: boolean
+      }
       can_view_all_branches: { Args: { _user_id: string }; Returns: boolean }
       check_room_conflict: {
         Args: {
@@ -2693,6 +2876,28 @@ export type Database = {
         Returns: boolean
       }
       delete_user_account: { Args: { target_user_id: string }; Returns: Json }
+      get_activity_structure_board: {
+        Args: { _branch_id: string }
+        Returns: Json
+      }
+      get_activity_structure: {
+        Args: { _branch_id: string }
+        Returns: {
+          branch_id: string
+          color: string
+          committee_name: string | null
+          committee_name_ar: string | null
+          id: string
+          parent_id: string | null
+          responsibilities: string[]
+          sort_order: number
+          title: string
+          volunteer_avatar: string | null
+          volunteer_id: string | null
+          volunteer_name: string | null
+          volunteer_name_ar: string | null
+        }[]
+      }
       get_branch_top_volunteers: {
         Args: { p_branch_id: string; p_month_only?: boolean }
         Returns: {

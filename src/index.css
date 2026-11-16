@@ -266,3 +266,84 @@
 .rdp-dropdown select:focus {
   border-color: hsl(var(--ring));
 }
+/* Activity Structure board (هيكلة النشاط) — org-chart connectors.
+   The tree is laid out LTR; RTL ordering is handled by reversing children in JSX. */
+.org-tree ul {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding-top: 1.5rem;
+}
+
+.org-tree li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem 0.5rem 0;
+  list-style: none;
+}
+
+.org-tree li::before,
+.org-tree li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 1.5rem;
+  border-top: 2px solid hsl(var(--border));
+}
+
+.org-tree li::after {
+  right: auto;
+  left: 50%;
+  border-left: 2px solid hsl(var(--border));
+}
+
+.org-tree li:only-child::before,
+.org-tree li:only-child::after {
+  display: none;
+}
+
+.org-tree li:only-child {
+  padding-top: 0;
+}
+
+.org-tree li:first-child::before,
+.org-tree li:last-child::after {
+  border: 0 none;
+}
+
+.org-tree li:last-child::before {
+  border-right: 2px solid hsl(var(--border));
+  border-radius: 0 0.5rem 0 0;
+}
+
+.org-tree li:first-child::after {
+  border-radius: 0.5rem 0 0 0;
+}
+
+.org-tree ul ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 1.5rem;
+  border-left: 2px solid hsl(var(--border));
+}
+
+.org-tree > ul {
+  gap: 2rem;
+  padding-top: 0;
+}
+
+.org-tree > ul > li {
+  padding-top: 0;
+}
+
+.org-tree > ul > li::before,
+.org-tree > ul > li::after {
+  display: none;
+}

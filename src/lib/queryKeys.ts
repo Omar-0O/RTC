@@ -21,6 +21,14 @@ export const queryKeys = {
     list: (branchId?: string) => ['committees', 'list', branchId] as const,
   },
 
+  // ── Activity Structure (هيكلة النشاط) ─────────────────────────────
+  activityStructure: {
+    all: ['activityStructure'] as const,
+    nodes: (branchId: string) => ['activityStructure', 'nodes', branchId] as const,
+    volunteers: (branchId: string) => ['activityStructure', 'volunteers', branchId] as const,
+    canManage: (branchId: string) => ['activityStructure', 'canManage', branchId] as const,
+  },
+
   // ── User Roles ────────────────────────────────────────────────────
   userRoles: {
     all: ['userRoles'] as const,

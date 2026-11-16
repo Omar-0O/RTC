@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { mockRpc } = vi.hoisted(() => ({
   mockRpc: vi.fn(),
@@ -60,6 +60,12 @@ describe('auth.service deactivation & kiosk helpers', () => {
       sessionStorage.clear();
       mockRpc.mockReset();
       mockRpc.mockResolvedValue({ error: null });
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-11-01T10:00:00Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
     });
 
     it('does not call RPC when profileData is missing or lacks auto_dismissal_enabled column', async () => {
@@ -70,9 +76,16 @@ describe('auth.service deactivation & kiosk helpers', () => {
       expect(mockRpc).not.toHaveBeenCalled();
     });
 
-    it('calls run_monthly_auto_dismissal once when auto_dismissal_enabled column exists and sets sessionStorage flag', async () => {
-      const currentYm = new Date().toISOString().slice(0, 7);
-      const storageKey = `rtc_auto_dismissal_${currentYm}`;
+    it('does not call RPC on days other than the 1st of the month (Cairo time)', async () => {
+      vi.setSystemTime(new Date('2026-11-16T10:00:00Z'));
+
+      await ensureMonthlyAutoDismissal({ id: 'u1', auto_dismissal_enabled: true });
+
+      expect(mockRpc).not.toHaveBeenCalled();
+    });
+
+    it('calls run_monthly_auto_dismissal once on the 1st of the month when auto_dismissal_enabled exists and sets sessionStorage flag', async () => {
+      const storageKey = 'rtc_auto_dismissal_2026-11';
 
       await ensureMonthlyAutoDismissal({ id: 'u1', auto_dismissal_enabled: true });
 
@@ -82,9 +95,7 @@ describe('auth.service deactivation & kiosk helpers', () => {
     });
 
     it('does not call RPC a second time in the same session when sessionStorage flag is already set', async () => {
-      const currentYm = new Date().toISOString().slice(0, 7);
-      const storageKey = `rtc_auto_dismissal_${currentYm}`;
-      sessionStorage.setItem(storageKey, '1');
+      sessionStorage.setItem('rtc_auto_dismissal_2026-11', '1');
 
       await ensureMonthlyAutoDismissal({ id: 'u1', auto_dismissal_enabled: true });
 
