@@ -20,6 +20,7 @@ import { subscribeToAllTables, subscribeToTable, onTableChange } from '@/lib/rea
 import { detectConflict, type ConflictInfo, type ConflictRecord } from '@/lib/conflictResolver';
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import { queryKeys } from '@/lib/queryKeys';
+import { useOfflineStatus } from '@/hooks/useOffline';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -52,7 +53,9 @@ type EditableRecord = ConflictRecord & {
 
 export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
   const queryClient = useQueryClient();
+  const { isOnline } = useOfflineStatus();
   const { tables, onConflict, enabled = true } = options ?? {};
+  const isSubscriptionActive = enabled && isOnline;
   const tableKey = tables?.join(',') ?? '';
   const hasTableFilter = tableKey.length > 0;
   const selectedTables = useMemo<TableName[]>(
@@ -71,7 +74,7 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
 
   // ─── Start/stop subscriptions ───────────────────────────────────
   useEffect(() => {
-    if (!enabled) return;
+    if (!isSubscriptionActive) return;
 
     let cleanup: (() => void) | undefined;
 
@@ -90,11 +93,11 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
     }
 
     return cleanup;
-  }, [queryClient, enabled, hasTableFilter, selectedTables]);
+  }, [queryClient, isSubscriptionActive, hasTableFilter, selectedTables]);
 
   // ─── Conflict detection listener ────────────────────────────────
   useEffect(() => {
-    if (!enabled || !onConflict) return;
+    if (!isSubscriptionActive || !onConflict) return;
 
     const unsubs = selectedTables.map(table =>
       onTableChange(table, (payload: RealtimePostgresChangesPayload<EditableRecord>) => {
@@ -134,7 +137,7 @@ export function useRealtimeSync(options?: UseRealtimeSyncOptions) {
     );
 
     return () => unsubs.forEach(fn => fn());
-  }, [enabled, onConflict, selectedTables]);
+  }, [isSubscriptionActive, onConflict, selectedTables]);
 
   // ─── API for marking records as "being edited" ─────────────────
   const markEditing = useCallback((table: TableName, recordId: string, version: number, data: ConflictRecord) => {

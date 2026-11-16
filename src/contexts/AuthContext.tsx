@@ -256,9 +256,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     void initializeAuth();
 
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      void supabase.auth.stopAutoRefresh();
+      supabase.realtime.disconnect();
+    }
+
+    const handleOffline = () => {
+      if (!mounted) return;
+      void supabase.auth.stopAutoRefresh();
+      supabase.realtime.disconnect();
+    };
+
     // Recover session seamlessly when returning online after sleep or Wi-Fi switch
     const handleOnline = () => {
       if (!mounted || isCircuitOpen()) return;
+      if (document.visibilityState === 'visible') {
+        void supabase.auth.startAutoRefresh();
+      }
       void supabase.auth.getSession().then(({ data: { session: refreshedSession } }) => {
         if (mounted && refreshedSession) {
           applySession(refreshedSession);
@@ -268,11 +282,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     };
 
+    const handleVisibilityChange = () => {
+      if (!mounted) return;
+      if (document.visibilityState === 'visible' && navigator.onLine && !isCircuitOpen()) {
+        void supabase.auth.startAutoRefresh();
+      } else if (document.visibilityState === 'hidden') {
+        void supabase.auth.stopAutoRefresh();
+      }
+    };
+
+    window.addEventListener('offline', handleOffline);
     window.addEventListener('online', handleOnline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       mounted = false;
+      window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       subscription.unsubscribe();
     };
   }, [applySession, clearAuthState]);

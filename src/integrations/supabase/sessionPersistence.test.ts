@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   createClockSkewCorrectedStorage,
+  createOfflineAwareFetch,
   getStoredSessionSnapshot,
   isRateLimitOrTransientAuthError,
   isRevokedTokenError,
@@ -187,6 +188,38 @@ describe('Session Persistence & Clock-Skew Storage Adapter', () => {
 
       expect(didPurge).toBe(true);
       expect(getStoredSessionSnapshot(storage, key)).toBeNull();
+    });
+  });
+
+  describe('Offline-Aware Fetch Guard', () => {
+    it('rejects immediately without calling baseFetch when navigator.onLine is false', async () => {
+      const originalOnLine = navigator.onLine;
+      Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+      const baseFetch = vi.fn();
+
+      try {
+        const guardedFetch = createOfflineAwareFetch(baseFetch as unknown as typeof fetch);
+        await expect(guardedFetch('https://example.supabase.co/auth/v1/token')).rejects.toThrow('Failed to fetch');
+        expect(baseFetch).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(navigator, 'onLine', { value: originalOnLine, configurable: true });
+      }
+    });
+
+    it('delegates to baseFetch when navigator.onLine is true', async () => {
+      const originalOnLine = navigator.onLine;
+      Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+      const mockResponse = new Response('{}', { status: 200 });
+      const baseFetch = vi.fn().mockResolvedValue(mockResponse);
+
+      try {
+        const guardedFetch = createOfflineAwareFetch(baseFetch as unknown as typeof fetch);
+        const result = await guardedFetch('https://example.supabase.co/rest/v1/profiles');
+        expect(result).toBe(mockResponse);
+        expect(baseFetch).toHaveBeenCalledTimes(1);
+      } finally {
+        Object.defineProperty(navigator, 'onLine', { value: originalOnLine, configurable: true });
+      }
     });
   });
 });

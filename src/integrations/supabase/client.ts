@@ -368,6 +368,24 @@ export const purgeExpiredAuthToken = () => {
 
 purgeExpiredAuthToken();
 
+/**
+ * Short-circuits network calls when the browser explicitly reports offline
+ * (`navigator.onLine === false`) so auth auto-refresh and background polls do
+ * not spam `ERR_INTERNET_DISCONNECTED` in the console.
+ */
+export const createOfflineAwareFetch = (
+  baseFetch: typeof fetch = globalThis.fetch.bind(globalThis)
+): typeof fetch => {
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new TypeError('Failed to fetch');
+    }
+    return baseFetch(input, init);
+  };
+};
+
+const offlineAwareFetch = createOfflineAwareFetch();
+
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: clockSkewCorrectedStorage,
@@ -375,6 +393,9 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,
+  },
+  global: {
+    fetch: offlineAwareFetch,
   },
 });
 
