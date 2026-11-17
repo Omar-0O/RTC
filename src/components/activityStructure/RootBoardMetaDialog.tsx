@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { AvatarCropDialog } from '@/components/common/AvatarCropDialog';
 import { uploadSectionTeamImage, type RootBoardMeta } from '@/services/activityStructure.service';
 
 interface RootBoardMetaDialogProps {
@@ -35,6 +36,7 @@ export function RootBoardMetaDialog({
   const [description, setDescription] = useState('');
   const [teamImageUrl, setTeamImageUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -43,27 +45,44 @@ export function RootBoardMetaDialog({
     setTeamImageUrl(meta?.team_image_url ?? null);
   }, [open, meta]);
 
-  const handleImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const closeCropper = () => {
+    setCropSrc((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  };
+
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file || !branchId) return;
     if (!file.type.startsWith('image/')) {
       toast.error(label('يرجى اختيار ملف صورة صالح', 'Please select a valid image file'));
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error(label('الحد الأقصى لحجم الصورة 5 ميجابايت', 'Maximum image size is 5MB'));
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(label('الحد الأقصى لحجم الصورة 10 ميجابايت', 'Maximum image size is 10MB'));
       return;
     }
+    const objectUrl = URL.createObjectURL(file);
+    setCropSrc((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return objectUrl;
+    });
+  };
+
+  const handleConfirmCrop = async (croppedFile: File) => {
+    if (!branchId) return;
     try {
       setUploading(true);
-      const url = await uploadSectionTeamImage(branchId, file);
+      const url = await uploadSectionTeamImage(branchId, croppedFile);
       setTeamImageUrl(url);
       toast.success(label('تم رفع الصورة الجماعية', 'Group photo uploaded'));
+      closeCropper();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : label('فشل رفع الصورة', 'Failed to upload image'));
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -174,6 +193,20 @@ export function RootBoardMetaDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <AvatarCropDialog
+        open={Boolean(cropSrc)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) closeCropper();
+        }}
+        imageSrc={cropSrc}
+        aspect={16 / 9}
+        cropShape="rect"
+        title={label('قص وتعديل الصورة الجماعية', 'Crop & Adjust Group Photo')}
+        isSubmitting={uploading}
+        onConfirm={handleConfirmCrop}
+        onCancel={closeCropper}
+      />
     </Dialog>
   );
 }

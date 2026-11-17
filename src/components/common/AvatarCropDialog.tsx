@@ -22,6 +22,10 @@ interface AvatarCropDialogProps {
   onConfirm: (file: File) => Promise<void> | void;
   onCancel?: () => void;
   isSubmitting?: boolean;
+  aspect?: number;
+  cropShape?: 'round' | 'rect';
+  title?: string;
+  description?: string;
 }
 
 export function AvatarCropDialog({
@@ -31,6 +35,10 @@ export function AvatarCropDialog({
   onConfirm,
   onCancel,
   isSubmitting = false,
+  aspect = 1,
+  cropShape = 'round',
+  title,
+  description,
 }: AvatarCropDialogProps) {
   const { isRTL } = useLanguage();
 
@@ -92,34 +100,35 @@ export function AvatarCropDialog({
       <DialogContent className="max-w-md sm:max-w-lg p-5 sm:p-6 overflow-hidden">
         <DialogHeader className="text-center sm:text-center space-y-1.5">
           <DialogTitle className="text-xl font-bold">
-            {isRTL ? 'تعديل أبعاد الصورة الشخصية' : 'Adjust Profile Picture'}
+            {title ?? (isRTL ? 'تعديل أبعاد الصورة الشخصية' : 'Adjust Profile Picture')}
           </DialogTitle>
           <DialogDescription className="text-xs sm:text-sm text-muted-foreground">
-            {isRTL
-              ? 'قم بسحب الصورة وتحريكها وتكبيرها لتناسب الإطار الدائري للصورة الشخصية'
-              : 'Drag, zoom, and rotate the image to fit the circular profile avatar requirements.'}
+            {description ??
+              (isRTL
+                ? 'قم بسحب الصورة وتحريكها وتكبيرها وتدويرها لتناسب الإطار المطلوب'
+                : 'Drag, zoom, and rotate the image to fit the required frame.')}
           </DialogDescription>
         </DialogHeader>
 
         {imageSrc && (
           <div className="space-y-4 pt-2">
-            {/* Cropper Viewport with Circular Mask */}
+            {/* Cropper Viewport */}
             <div className="relative h-64 sm:h-72 w-full bg-black/95 rounded-xl overflow-hidden border border-border/50 shadow-inner">
               <Cropper
                 image={imageSrc}
                 crop={crop}
                 zoom={zoom}
                 rotation={rotation}
-                aspect={1}
-                cropShape="round"
-                showGrid={false}
+                aspect={aspect}
+                cropShape={cropShape}
+                showGrid={cropShape === 'rect'}
                 onCropChange={setCrop}
                 onCropComplete={handleCropComplete}
                 onZoomChange={setZoom}
                 onRotationChange={setRotation}
               />
               <div className="absolute top-2.5 ltr:left-2.5 rtl:right-2.5 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-medium text-white/90 border border-white/10 pointer-events-none select-none">
-                1:1 PFP
+                {cropShape === 'round' ? '1:1' : '16:9'}
               </div>
             </div>
 

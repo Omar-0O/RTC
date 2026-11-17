@@ -27,6 +27,7 @@ import {
   type SaveStructureNodeInput,
   type StructureVolunteerOption,
 } from '@/services/activityStructure.service';
+import { AvatarCropDialog } from '@/components/common/AvatarCropDialog';
 import { STRUCTURE_COLOR_TOKENS } from './structureColors';
 
 interface StructureNodeDialogProps {
@@ -166,6 +167,7 @@ export function StructureNodeDialog({
   const [description, setDescription] = useState('');
   const [teamImageUrl, setTeamImageUrl] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [cropTarget, setCropTarget] = useState<{ kind: 'avatar' | 'team'; src: string } | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -200,56 +202,65 @@ export function StructureNodeDialog({
     return volunteers.find((v) => v.id === volunteerId) ?? fallbackVolunteer;
   }, [fallbackVolunteer, volunteerId, volunteers]);
 
-  const validateAndUpload = async (
+  const openCropForFile = (
     event: React.ChangeEvent<HTMLInputElement>,
-    uploader: (bId: string, file: File) => Promise<string>,
-    setBusy: (v: boolean) => void,
-    onDone: (url: string) => void,
-    successMsg: string,
+    kind: 'avatar' | 'team',
     inputRef: React.RefObject<HTMLInputElement | null>
   ) => {
     const file = event.target.files?.[0];
+    if (inputRef.current) inputRef.current.value = '';
     if (!file || !branchId) return;
     if (!file.type.startsWith('image/')) {
       toast.error(label('يرجى اختيار ملف صورة صالح', 'Please select a valid image file'));
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error(label('الحد الأقصى لحجم الصورة 5 ميجابايت', 'Maximum image size is 5MB'));
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(label('الحد الأقصى لحجم الصورة 10 ميجابايت', 'Maximum image size is 10MB'));
       return;
     }
+    const objectUrl = URL.createObjectURL(file);
+    setCropTarget((prev) => {
+      if (prev?.src) URL.revokeObjectURL(prev.src);
+      return { kind, src: objectUrl };
+    });
+  };
+
+  const closeCropper = () => {
+    setCropTarget((prev) => {
+      if (prev?.src) URL.revokeObjectURL(prev.src);
+      return null;
+    });
+  };
+
+  const handleConfirmCrop = async (croppedFile: File) => {
+    if (!branchId || !cropTarget) return;
+    const isAvatar = cropTarget.kind === 'avatar';
+    const setBusy = isAvatar ? setUploadingAvatar : setUploadingImage;
     try {
       setBusy(true);
-      const url = await uploader(branchId, file);
-      onDone(url);
-      toast.success(successMsg);
+      const url = isAvatar
+        ? await uploadNodeCustomAvatar(branchId, croppedFile)
+        : await uploadSectionTeamImage(branchId, croppedFile);
+      if (isAvatar) {
+        setCustomAvatarUrl(url);
+        toast.success(label('تم رفع الصورة المخصصة للبورد', 'Custom board photo uploaded'));
+      } else {
+        setTeamImageUrl(url);
+        toast.success(label('تم رفع صورة السكشن', 'Section photo uploaded'));
+      }
+      closeCropper();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : label('فشل رفع الصورة', 'Failed to upload image'));
     } finally {
       setBusy(false);
-      if (inputRef.current) inputRef.current.value = '';
     }
   };
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) =>
-    validateAndUpload(
-      event,
-      uploadSectionTeamImage,
-      setUploadingImage,
-      setTeamImageUrl,
-      label('تم رفع صورة السكشن', 'Section photo uploaded'),
-      fileInputRef
-    );
+    openCropForFile(event, 'team', fileInputRef);
 
   const handleCustomAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) =>
-    validateAndUpload(
-      event,
-      uploadNodeCustomAvatar,
-      setUploadingAvatar,
-      setCustomAvatarUrl,
-      label('تم رفع الصورة المخصصة للبورد', 'Custom board photo uploaded'),
-      avatarInputRef
-    );
+    openCropForFile(event, 'avatar', avatarInputRef);
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -498,6 +509,24 @@ export function StructureNodeDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+
+      <AvatarCropDialog
+        open={Boolean(cropTarget)}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) closeCropper();
+        }}
+        imageSrc={cropTarget?.src ?? null}
+        aspect={cropTarget?.kind === 'team' ? 16 / 9 : 1}
+        cropShape={cropTarget?.kind === 'team' ? 'rect' : 'round'}
+        title={
+          cropTarget?.kind === 'team'
+            ? label('قص وتعديل صورة السكشن', 'Crop & Adjust Section Photo')
+            : label('قص وتعديل صورة المتطوع', 'Crop & Adjust Volunteer Photo')
+        }
+        isSubmitting={uploadingAvatar || uploadingImage}
+        onConfirm={handleConfirmCrop}
+        onCancel={closeCropper}
+      />
     </Dialog>
   );
 }
