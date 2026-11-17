@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   buildStructureTree,
   canReparent,
+  computePyramidLayoutPositions,
   getChainOfCommand,
   getDescendantIds,
   getDirectReports,
+  getRecursiveSectionMembers,
   getSearchVisibleIds,
   isStructureColor,
   matchesStructureSearch,
@@ -131,5 +133,83 @@ describe('misc helpers', () => {
   it('validates colors', () => {
     expect(isStructureColor('blue')).toBe(true);
     expect(isStructureColor('javascript:alert(1)')).toBe(false);
+  });
+});
+
+describe('getRecursiveSectionMembers', () => {
+  it('collects only direct section volunteers + deputies without pulling nested sub-section members into parent', () => {
+    const nodes: StructureNode[] = [
+      node('head', null, { volunteer_id: 'v-head', volunteer_name_ar: 'القائد' }),
+      node('lead-1', null, {
+        board_owner_id: 'head',
+        volunteer_id: 'v-1',
+        volunteer_name_ar: 'مسئول ١',
+        volunteer_avatar: 'https://img/1.jpg',
+        deputy_id: 'v-dep1',
+        deputy_name_ar: 'نائب ١',
+        deputy_avatar: 'https://img/dep1.jpg',
+        sort_order: 1,
+      }),
+      node('vacant', null, { board_owner_id: 'head', volunteer_id: null, sort_order: 2 }),
+      node('sub-member', null, {
+        board_owner_id: 'lead-1',
+        volunteer_id: 'v-2',
+        volunteer_name_ar: 'عضو فرعي',
+        volunteer_avatar: 'https://img/2.jpg',
+        sort_order: 1,
+      }),
+      node('self-ref', null, {
+        board_owner_id: 'head',
+        volunteer_id: 'v-head',
+        volunteer_name_ar: 'القائد',
+      }),
+    ];
+
+    const headMembers = getRecursiveSectionMembers(nodes, 'head', true);
+    expect(headMembers.map((m) => m.id)).toEqual(['v-1', 'v-dep1']);
+    expect(headMembers[0].avatarUrl).toBe('https://img/1.jpg');
+    expect(headMembers[1].name).toBe('نائب ١');
+
+    const leadMembers = getRecursiveSectionMembers(nodes, 'lead-1', true);
+    expect(leadMembers.map((m) => m.id)).toEqual(['v-2']);
+  });
+});
+
+describe('computePyramidLayoutPositions', () => {
+  it('arranges hierarchy levels into a centered non-overlapping pyramid with deputies beside their head', () => {
+    const nodes: StructureNode[] = [
+      node('head', null, { sort_order: 0 }),
+      node('deputy', null, { sort_order: 1 }),
+      node('lead-a', null, { sort_order: 1 }),
+      node('lead-b', null, { sort_order: 2 }),
+      node('mem-1', null, { sort_order: 1 }),
+      node('mem-2', null, { sort_order: 2 }),
+    ];
+    const edges = [
+      { id: 'e-dep', branch_id: 'b1', source_id: 'head', target_id: 'deputy', label: 'deputy' },
+      { id: 'e-1', branch_id: 'b1', source_id: 'head', target_id: 'lead-a', label: null },
+      { id: 'e-2', branch_id: 'b1', source_id: 'head', target_id: 'lead-b', label: null },
+      { id: 'e-3', branch_id: 'b1', source_id: 'lead-a', target_id: 'mem-1', label: null },
+      { id: 'e-4', branch_id: 'b1', source_id: 'lead-a', target_id: 'mem-2', label: null },
+    ];
+
+    const pos = computePyramidLayoutPositions(nodes, edges, true, 80);
+    expect(pos.size).toBe(6);
+
+    // Level 0: Head + Deputy side-by-side at y=80 / y=88
+    expect(pos.get('head')?.pos_y).toBe(80);
+    expect(pos.get('deputy')?.pos_y).toBe(88);
+    expect((pos.get('head')?.pos_x ?? 0) - (pos.get('deputy')?.pos_x ?? 0)).toBe(192);
+
+    // Level 1: lead-a and lead-b at y=350, non-overlapping
+    expect(pos.get('lead-a')?.pos_y).toBe(350);
+    expect(pos.get('lead-b')?.pos_y).toBe(350);
+    expect(Math.abs((pos.get('lead-a')?.pos_x ?? 0) - (pos.get('lead-b')?.pos_x ?? 0))).toBeGreaterThanOrEqual(176);
+
+    // Level 2: mem-1 and mem-2 at y=620, centered under lead-a
+    expect(pos.get('mem-1')?.pos_y).toBe(620);
+    expect(pos.get('mem-2')?.pos_y).toBe(620);
+    const memMid = ((pos.get('mem-1')?.pos_x ?? 0) + (pos.get('mem-2')?.pos_x ?? 0)) / 2;
+    expect(Math.abs((pos.get('lead-a')?.pos_x ?? 0) - memMid)).toBeLessThanOrEqual(1);
   });
 });

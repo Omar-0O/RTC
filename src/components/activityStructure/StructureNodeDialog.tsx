@@ -22,6 +22,7 @@ import {
   type StructureNode,
 } from '@/utils/activityStructureTree';
 import {
+  uploadNodeCustomAvatar,
   uploadSectionTeamImage,
   type SaveStructureNodeInput,
   type StructureVolunteerOption,
@@ -150,11 +151,12 @@ export function StructureNodeDialog({
 }: StructureNodeDialogProps): React.ReactElement {
   const label = (ar: string, en: string): string => (isRTL ? ar : en);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const [title, setTitle] = useState('');
   const [volunteerId, setVolunteerId] = useState<string | null>(null);
-  const [deputyId, setDeputyId] = useState<string | null>(null);
-  const [deputyTitle, setDeputyTitle] = useState('');
+  const [customAvatarUrl, setCustomAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [color, setColor] = useState<StructureColor>('primary');
   const [responsibilitiesText, setResponsibilitiesText] = useState('');
 
@@ -169,8 +171,7 @@ export function StructureNodeDialog({
     if (!open) return;
     setTitle(editing?.title ?? '');
     setVolunteerId(editing?.volunteer_id ?? null);
-    setDeputyId(editing?.deputy_id ?? null);
-    setDeputyTitle(editing?.deputy_title ?? '');
+    setCustomAvatarUrl(editing?.custom_avatar_url ?? null);
     setColor(editing?.color ?? 'primary');
     setResponsibilitiesText((editing?.responsibilities ?? []).join('\n'));
     const owned = Boolean(editing?.section_title?.trim() || editing?.description?.trim() || editing?.team_image_url);
@@ -190,21 +191,23 @@ export function StructureNodeDialog({
     };
   }, [editing]);
 
-  const fallbackDeputy = useMemo<StructureVolunteerOption | null>(() => {
-    if (!editing?.deputy_id) return null;
-    return {
-      id: editing.deputy_id,
-      full_name: editing.deputy_name ?? null,
-      full_name_ar: editing.deputy_name_ar ?? null,
-      avatar_url: editing.deputy_avatar ?? null,
-    };
-  }, [editing]);
-
   const responsibilities = useMemo(() => parseResponsibilities(responsibilitiesText), [responsibilitiesText]);
   const trimmedTitle = title.trim();
-  const canSave = trimmedTitle.length > 0 && !saving && !uploadingImage;
+  const canSave = trimmedTitle.length > 0 && !saving && !uploadingImage && !uploadingAvatar;
 
-  const handleImageChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const selectedVolunteer = useMemo(() => {
+    if (!volunteerId) return null;
+    return volunteers.find((v) => v.id === volunteerId) ?? fallbackVolunteer;
+  }, [fallbackVolunteer, volunteerId, volunteers]);
+
+  const validateAndUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+    uploader: (bId: string, file: File) => Promise<string>,
+    setBusy: (v: boolean) => void,
+    onDone: (url: string) => void,
+    successMsg: string,
+    inputRef: React.RefObject<HTMLInputElement | null>
+  ) => {
     const file = event.target.files?.[0];
     if (!file || !branchId) return;
     if (!file.type.startsWith('image/')) {
@@ -216,17 +219,37 @@ export function StructureNodeDialog({
       return;
     }
     try {
-      setUploadingImage(true);
-      const url = await uploadSectionTeamImage(branchId, file);
-      setTeamImageUrl(url);
-      toast.success(label('تم رفع صورة السكشن', 'Section photo uploaded'));
+      setBusy(true);
+      const url = await uploader(branchId, file);
+      onDone(url);
+      toast.success(successMsg);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : label('فشل رفع الصورة', 'Failed to upload image'));
     } finally {
-      setUploadingImage(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = '';
     }
   };
+
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) =>
+    validateAndUpload(
+      event,
+      uploadSectionTeamImage,
+      setUploadingImage,
+      setTeamImageUrl,
+      label('تم رفع صورة السكشن', 'Section photo uploaded'),
+      fileInputRef
+    );
+
+  const handleCustomAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) =>
+    validateAndUpload(
+      event,
+      uploadNodeCustomAvatar,
+      setUploadingAvatar,
+      setCustomAvatarUrl,
+      label('تم رفع الصورة المخصصة للبورد', 'Custom board photo uploaded'),
+      avatarInputRef
+    );
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -234,8 +257,9 @@ export function StructureNodeDialog({
     onSubmit({
       title: trimmedTitle,
       volunteer_id: volunteerId,
-      deputy_id: deputyId,
-      deputy_title: deputyId ? deputyTitle.trim() || null : null,
+      custom_avatar_url: customAvatarUrl,
+      deputy_id: null,
+      deputy_title: null,
       parent_id: editing?.parent_id ?? null,
       responsibilities,
       color,
@@ -253,10 +277,10 @@ export function StructureNodeDialog({
         <form onSubmit={handleSubmit} className="space-y-5">
           <DialogHeader>
             <DialogTitle>
-              {editing ? label('تعديل المتطوع والنائب والسكشن', 'Edit volunteer, deputy & section') : label('إضافة متطوع للبورد', 'Add volunteer to board')}
+              {editing ? label('تعديل المتطوع والسكشن', 'Edit volunteer & section') : label('إضافة متطوع للبورد', 'Add volunteer to board')}
             </DialogTitle>
             <DialogDescription>
-              {label('اختر المتطوع ومسئوليته، ويمكنك إضافة نائب بجانبه أو ربطه بسكشن له بورد خاصة.', 'Pick the volunteer and role. Optionally add a deputy beside them or attach a section sub-board.')}
+              {label('اختر المتطوع ومسئوليته، ويمكنك ربطه بسكشن له بورد خاصة.', 'Pick the volunteer and role, and optionally attach a section sub-board.')}
             </DialogDescription>
           </DialogHeader>
 
@@ -285,30 +309,63 @@ export function StructureNodeDialog({
               isRTL={isRTL}
               onChange={setVolunteerId}
             />
-          </div>
 
-          {/* Deputy (نائب) */}
-          <div className="space-y-2.5 rounded-xl border bg-muted/15 p-3.5">
-            <Label>{label('النائب (يظهر بجانب المتطوع)', 'Deputy (appears beside volunteer)')}</Label>
-            <VolunteerPicker
-              value={deputyId}
-              fallbackOption={fallbackDeputy}
-              volunteers={volunteers}
-              placeholder={label('اختر نائب (اختياري)', 'Pick a deputy (optional)')}
-              searchPlaceholder={label('ابحث عن النائب بالاسم...', 'Search deputy by name...')}
-              emptyText={label('لا يوجد نتائج', 'No results')}
-              clearLabel={label('إزالة النائب', 'Clear deputy')}
-              isRTL={isRTL}
-              onChange={setDeputyId}
-            />
-            {deputyId && (
-              <Input
-                value={deputyTitle}
-                maxLength={MAX_TITLE_LENGTH}
-                onChange={(e) => setDeputyTitle(e.target.value)}
-                placeholder={label('مسمى النائب (افتراضي: نائب)', 'Deputy title (default: Deputy)')}
-              />
-            )}
+            {/* Board Photo Source: App Avatar vs Custom Uploaded Photo */}
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-muted/15 px-3 py-2.5">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Avatar className="h-9 w-9 border shadow-sm shrink-0">
+                  <AvatarImage src={customAvatarUrl ?? selectedVolunteer?.avatar_url ?? undefined} className="object-cover" />
+                  <AvatarFallback className="text-xs font-bold">
+                    <UserRound className="h-4 w-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-foreground">
+                    {customAvatarUrl
+                      ? label('صورة مخصصة للبورد', 'Custom board photo')
+                      : label('صورة التطبيق الشخصية', 'App profile photo')}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {customAvatarUrl
+                      ? label('تظهر هذه الصورة على البورد فقط', 'Shown on the board only')
+                      : label('تعتمد على صورة المتطوع في التطبيق', 'Uses volunteer profile photo')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleCustomAvatarChange}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs"
+                  disabled={uploadingAvatar || !branchId}
+                  onClick={() => avatarInputRef.current?.click()}
+                >
+                  {uploadingAvatar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
+                  {customAvatarUrl ? label('تغيير', 'Change') : label('رفع صورة', 'Upload photo')}
+                </Button>
+                {customAvatarUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setCustomAvatarUrl(null)}
+                    title={label('الرجوع لصورة التطبيق', 'Use app photo')}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    {label('صورة التطبيق', 'App photo')}
+                  </Button>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">

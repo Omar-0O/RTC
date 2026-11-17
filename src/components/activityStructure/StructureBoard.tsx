@@ -22,11 +22,14 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { cn } from '@/lib/utils';
 import {
   computeAutoLayoutPositions,
+  computePyramidLayoutPositions,
   getBoardBreadcrumb,
   getInitials,
+  getRecursiveSectionMembers,
   getVolunteerName,
   matchesStructureSearch,
   type RootBoardMeta,
+  type SectionMemberThumb,
   type StructureEdge,
   type StructureNode,
 } from '@/utils/activityStructureTree';
@@ -43,7 +46,7 @@ export interface StructureBoardEditHandlers {
   onDelete: (id: string) => void;
   onMovePosition: (id: string, pos_x: number, pos_y: number) => void;
   onBatchMovePositions: (updates: Array<{ id: string; pos_x: number; pos_y: number }>) => void;
-  onCreateEdge: (sourceId: string, targetId: string) => void;
+  onCreateEdge: (sourceId: string, targetId: string, label?: string | null) => void;
   onDeleteEdge: (edgeId: string) => void;
 }
 
@@ -71,7 +74,16 @@ type DragState =
   | { kind: 'pan'; startClientX: number; startClientY: number; startPanX: number; startPanY: number }
   | { kind: 'zoom'; startClientX: number; startClientY: number; startZoom: number; startPanX: number; startPanY: number }
   | { kind: 'node'; id: string; startClientX: number; startClientY: number; startX: number; startY: number; moved: boolean }
-  | { kind: 'connect'; sourceId: string; x1: number; y1: number; x2: number; y2: number; targetId: string | null };
+  | {
+      kind: 'connect';
+      connectKind: 'hierarchy' | 'deputy';
+      sourceId: string;
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+      targetId: string | null;
+    };
 
 export function StructureBoard({
   nodes,
@@ -130,6 +142,27 @@ export function StructureBoard({
     [edges, visibleIdSet]
   );
 
+  // Inside a sub-board, any member without an explicit incoming edge is automatically
+  // shown connected with an arrow under the pinned section owner.
+  const effectiveLayerEdges = useMemo(() => {
+    if (!ownerNode) return layerEdges;
+    const hasIncoming = new Set<string>();
+    for (const e of layerEdges) hasIncoming.add(e.target_id);
+    const autoEdges: StructureEdge[] = [];
+    for (const n of layerNodes) {
+      if (!hasIncoming.has(n.id)) {
+        autoEdges.push({
+          id: `auto-${ownerNode.id}-${n.id}`,
+          branch_id: ownerNode.branch_id,
+          source_id: ownerNode.id,
+          target_id: n.id,
+          label: null,
+        });
+      }
+    }
+    return [...layerEdges, ...autoEdges];
+  }, [layerEdges, layerNodes, ownerNode]);
+
   // Count how many members exist inside each node's sub-board
   const subBoardCounts = useMemo(() => {
     const counts = new Map<string, number>();
@@ -140,6 +173,17 @@ export function StructureBoard({
     }
     return counts;
   }, [nodes]);
+
+  // Recursive volunteer thumbnails inside each visible node's section & nested sub-sections
+  const sectionMembersMap = useMemo(() => {
+    const map = new Map<string, SectionMemberThumb[]>();
+    for (const item of visibleNodes) {
+      if (ownerNode && item.id === ownerNode.id) continue;
+      const members = getRecursiveSectionMembers(nodes, item.id, isRTL);
+      if (members.length > 0) map.set(item.id, members);
+    }
+    return map;
+  }, [isRTL, nodes, ownerNode, visibleNodes]);
 
   // Fallback layout for any node without saved coordinates
   const autoFallback = useMemo(() => computeAutoLayoutPositions(layerNodes, layerEdges), [layerNodes, layerEdges]);
@@ -240,6 +284,22 @@ export function StructureBoard({
     setIsFullscreen((prev) => !prev);
   };
 
+  const handleArrangePyramid = useCallback(() => {
+    if (!editable || !editHandlers || layerNodes.length === 0) return;
+    const positions = computePyramidLayoutPositions(layerNodes, layerEdges, isRTL, ownerNode ? 260 : 80);
+    const updates = Array.from(positions.entries()).map(([id, pos]) => ({
+      id,
+      pos_x: pos.pos_x,
+      pos_y: pos.pos_y,
+    }));
+    if (updates.length === 0) return;
+    setLivePos({});
+    editHandlers.onBatchMovePositions(updates);
+    window.setTimeout(() => {
+      setPan(getCenterPan(zoom));
+    }, 60);
+  }, [editHandlers, editable, getCenterPan, isRTL, layerEdges, layerNodes, ownerNode, zoom]);
+
   // Measure rendered node sizes for crisp SVG Bezier connections
   useLayoutEffect(() => {
     const container = viewportRef.current;
@@ -278,22 +338,16 @@ export function StructureBoard({
     [byId, getPosition, nodeSizes, visibleIdSet]
   );
 
-  const reportsCount = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const e of edges) counts.set(e.source_id, (counts.get(e.source_id) ?? 0) + 1);
-    return counts;
-  }, [edges]);
-
   const searching = query.trim().length > 0;
   const connectedIds = useMemo(() => {
     if (!selectedId) return new Set<string>();
     const set = new Set<string>();
-    for (const e of layerEdges) {
+    for (const e of effectiveLayerEdges) {
       if (e.source_id === selectedId) set.add(e.target_id);
       if (e.target_id === selectedId) set.add(e.source_id);
     }
     return set;
-  }, [layerEdges, selectedId]);
+  }, [effectiveLayerEdges, selectedId]);
 
   const highlightFor = useCallback(
     (node: StructureNode): NodeHighlight => {
@@ -303,16 +357,6 @@ export function StructureBoard({
       return 'none';
     },
     [connectedIds, query, searching, selectedId]
-  );
-
-  const managerNameFor = useCallback(
-    (node: StructureNode): string | null => {
-      const edge = edges.find((e) => e.target_id === node.id);
-      const manager = edge ? byId.get(edge.source_id) : undefined;
-      if (!manager) return null;
-      return getVolunteerName(manager, isRTL) ?? manager.title;
-    },
-    [byId, edges, isRTL]
   );
 
   const clientToCanvas = useCallback(
@@ -371,14 +415,18 @@ export function StructureBoard({
   );
 
   const handleStartConnect = useCallback(
-    (sourceId: string, e: React.PointerEvent<HTMLButtonElement>) => {
+    (sourceId: string, e: React.PointerEvent<HTMLButtonElement>, connectKind: 'hierarchy' | 'deputy' = 'hierarchy') => {
       if (!editable) return;
       e.stopPropagation();
       const box = getNodeBox(sourceId);
-      const startPt = box ? { x: box.x + box.w / 2, y: box.y + box.h } : clientToCanvas(e.clientX, e.clientY);
+      const startPt =
+        connectKind === 'deputy' || !box
+          ? clientToCanvas(e.clientX, e.clientY)
+          : { x: box.x + box.w / 2, y: box.y + box.h };
       const endPt = clientToCanvas(e.clientX, e.clientY);
       setDragState({
         kind: 'connect',
+        connectKind,
         sourceId,
         x1: startPt.x,
         y1: startPt.y,
@@ -449,17 +497,34 @@ export function StructureBoard({
         editHandlers.onMovePosition(dragState.id, finalPos.pos_x, finalPos.pos_y);
       }
     } else if (dragState.kind === 'connect' && dragState.targetId && editHandlers) {
-      editHandlers.onCreateEdge(dragState.sourceId, dragState.targetId);
+      editHandlers.onCreateEdge(dragState.sourceId, dragState.targetId, dragState.connectKind === 'deputy' ? 'deputy' : null);
     }
     setDragState(null);
   };
 
   const renderedEdges = useMemo(() => {
-    return layerEdges
+    return effectiveLayerEdges
       .map((edge) => {
         const from = getNodeBox(edge.source_id);
         const to = getNodeBox(edge.target_id);
         if (!from || !to) return null;
+
+        const isDeputy = edge.label === 'deputy';
+        if (isDeputy) {
+          const toIsLeft = to.x + to.w / 2 < from.x + from.w / 2;
+          const x1 = toIsLeft ? from.x + 14 : from.x + from.w - 14;
+          const x2 = toIsLeft ? to.x + to.w - 14 : to.x + 14;
+          const y1 = from.y + 48;
+          const y2 = to.y + 48;
+          const dx = Math.max(30, Math.abs(x2 - x1) * 0.45);
+          const cx1 = toIsLeft ? x1 - dx : x1 + dx;
+          const cx2 = toIsLeft ? x2 + dx : x2 - dx;
+          const path = `M ${x1} ${y1} C ${cx1} ${y1}, ${cx2} ${y2}, ${x2} ${y2}`;
+          const midX = (x1 + x2) / 2;
+          const midY = (y1 + y2) / 2;
+          return { edge, path, midX, midY, isDeputy: true };
+        }
+
         const x1 = from.x + from.w / 2;
         const y1 = from.y + from.h;
         const x2 = to.x + to.w / 2;
@@ -468,10 +533,10 @@ export function StructureBoard({
         const path = `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`;
         const midX = (x1 + x2) / 2;
         const midY = (y1 + y2) / 2;
-        return { edge, path, midX, midY };
+        return { edge, path, midX, midY, isDeputy: false };
       })
-      .filter(Boolean) as Array<{ edge: StructureEdge; path: string; midX: number; midY: number }>;
-  }, [layerEdges, getNodeBox]);
+      .filter(Boolean) as Array<{ edge: StructureEdge; path: string; midX: number; midY: number; isDeputy: boolean }>;
+  }, [effectiveLayerEdges, getNodeBox]);
 
   const hasRootInfo = Boolean(rootMeta?.title?.trim() || rootMeta?.description?.trim() || rootMeta?.team_image_url);
 
@@ -587,6 +652,20 @@ export function StructureBoard({
           </Button>
         </div>
 
+        {editable && editHandlers && layerNodes.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleArrangePyramid}
+            className="gap-1.5"
+            title={label('ترتيب المتطوعين في شكل هرمي حسب الروابط', 'Arrange volunteers into a pyramid based on connections')}
+          >
+            <Network className="h-4 w-4" />
+            {label('ترتيب هرمي', 'Pyramid Layout')}
+          </Button>
+        )}
+
         <Button
           variant="outline"
           size="sm"
@@ -671,16 +750,17 @@ export function StructureBoard({
                 </marker>
               </defs>
               <g transform="translate(4000, 4000)">
-                {renderedEdges.map(({ edge, path, midX, midY }) => {
-                  const isHovered = editable && hoveredEdgeId === edge.id;
+                {renderedEdges.map(({ edge, path, midX, midY, isDeputy }) => {
+                  const isAutoEdge = edge.id.startsWith('auto-');
+                  const isHovered = editable && !isAutoEdge && hoveredEdgeId === edge.id;
                   return (
                     <g
                       key={edge.id}
-                      className={editable ? 'pointer-events-auto cursor-pointer' : undefined}
-                      onMouseEnter={() => editable && setHoveredEdgeId(edge.id)}
-                      onMouseLeave={() => editable && setHoveredEdgeId(null)}
+                      className={editable && !isAutoEdge ? 'pointer-events-auto cursor-pointer' : undefined}
+                      onMouseEnter={() => editable && !isAutoEdge && setHoveredEdgeId(edge.id)}
+                      onMouseLeave={() => editable && !isAutoEdge && setHoveredEdgeId(null)}
                       onClick={(e) => {
-                        if (!editable || !editHandlers) return;
+                        if (!editable || isAutoEdge || !editHandlers) return;
                         e.stopPropagation();
                         editHandlers.onDeleteEdge(edge.id);
                       }}
@@ -690,10 +770,15 @@ export function StructureBoard({
                         d={path}
                         fill="none"
                         strokeWidth={isHovered ? 3 : 2}
-                        markerEnd={isHovered ? 'url(#board-arrow-active)' : 'url(#board-arrow)'}
+                        strokeDasharray={isDeputy ? '6 5' : undefined}
+                        markerEnd={isDeputy ? undefined : isHovered ? 'url(#board-arrow-active)' : 'url(#board-arrow)'}
                         className={cn(
                           'transition-colors duration-200',
-                          isHovered ? 'stroke-destructive' : 'stroke-primary/45'
+                          isHovered
+                            ? 'stroke-destructive'
+                            : isDeputy
+                              ? 'stroke-amber-500/65'
+                              : 'stroke-primary/45'
                         )}
                       />
                       {isHovered && (
@@ -708,12 +793,16 @@ export function StructureBoard({
 
                 {dragState?.kind === 'connect' && (
                   <path
-                    d={`M ${dragState.x1} ${dragState.y1} C ${dragState.x1} ${dragState.y1 + 60}, ${dragState.x2} ${dragState.y2 - 60}, ${dragState.x2} ${dragState.y2}`}
+                    d={
+                      dragState.connectKind === 'deputy'
+                        ? `M ${dragState.x1} ${dragState.y1} C ${(dragState.x1 + dragState.x2) / 2} ${dragState.y1}, ${(dragState.x1 + dragState.x2) / 2} ${dragState.y2}, ${dragState.x2} ${dragState.y2}`
+                        : `M ${dragState.x1} ${dragState.y1} C ${dragState.x1} ${dragState.y1 + 60}, ${dragState.x2} ${dragState.y2 - 60}, ${dragState.x2} ${dragState.y2}`
+                    }
                     fill="none"
                     strokeWidth={2.5}
                     strokeDasharray="6 4"
-                    markerEnd="url(#board-arrow)"
-                    className="stroke-primary"
+                    markerEnd={dragState.connectKind === 'deputy' ? undefined : 'url(#board-arrow)'}
+                    className={dragState.connectKind === 'deputy' ? 'stroke-amber-500' : 'stroke-primary'}
                   />
                 )}
               </g>
@@ -735,9 +824,8 @@ export function StructureBoard({
                 >
                   <StructureNodeCard
                     node={item}
-                    managerName={managerNameFor(item)}
-                    directReports={reportsCount.get(item.id) ?? 0}
                     subBoardCount={subBoardCounts.get(item.id) ?? 0}
+                    sectionMembers={isPinnedHead ? undefined : sectionMembersMap.get(item.id)}
                     isRTL={isRTL}
                     editable={editable}
                     highlight={highlightFor(item)}

@@ -27,6 +27,7 @@ export interface StructureNode {
   section_title?: string | null;
   description?: string | null;
   team_image_url?: string | null;
+  custom_avatar_url?: string | null;
   deputy_id?: string | null;
   deputy_title?: string | null;
   pos_x?: number;
@@ -316,4 +317,209 @@ export function getBoardBreadcrumb(
     currId = node.board_owner_id ?? null;
   }
   return chain;
+}
+
+export interface SectionMemberThumb {
+  id: string;
+  name: string | null;
+  avatarUrl: string | null;
+  color: StructureColor;
+}
+
+/**
+ * Collect volunteers (and deputies) directly inside `ownerId`'s section board
+ * (`board_owner_id === ownerId`). Sub-sections owned by those members belong
+ * strictly to their own owners and are not merged into `ownerId`.
+ */
+export function getRecursiveSectionMembers(
+  nodes: readonly StructureNode[],
+  ownerId: string,
+  isRTL: boolean
+): SectionMemberThumb[] {
+  let ownerVolunteerId: string | null = null;
+  const directChildren: StructureNode[] = [];
+
+  for (const n of nodes) {
+    if (n.id === ownerId) ownerVolunteerId = n.volunteer_id;
+    if (n.board_owner_id === ownerId && n.node_type !== 'section') {
+      directChildren.push(n);
+    }
+  }
+  directChildren.sort(compareNodes);
+
+  const result: SectionMemberThumb[] = [];
+  const seenVolunteers = new Set<string>();
+  if (ownerVolunteerId) seenVolunteers.add(ownerVolunteerId);
+
+  for (const child of directChildren) {
+    if (child.volunteer_id && !seenVolunteers.has(child.volunteer_id)) {
+      seenVolunteers.add(child.volunteer_id);
+      result.push({
+        id: child.volunteer_id,
+        name: getVolunteerName(child, isRTL),
+        avatarUrl: child.volunteer_avatar,
+        color: child.color,
+      });
+    }
+    if (child.deputy_id && !seenVolunteers.has(child.deputy_id)) {
+      seenVolunteers.add(child.deputy_id);
+      result.push({
+        id: child.deputy_id,
+        name: getDeputyName(child, isRTL),
+        avatarUrl: child.deputy_avatar ?? null,
+        color: child.color,
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Compute a clean, non-overlapping hierarchical pyramid layout based on
+ * reporting edges (`label !== 'deputy'`) and side-by-side deputy edges (`label === 'deputy'`).
+ * Every parent (or Head + Deputy pair) is centered over its subtree.
+ */
+export function computePyramidLayoutPositions(
+  nodes: readonly StructureNode[],
+  edges: readonly StructureEdge[],
+  isRTL = true,
+  baseY = 80
+): Map<string, { pos_x: number; pos_y: number }> {
+  const positions = new Map<string, { pos_x: number; pos_y: number }>();
+  if (nodes.length === 0) return positions;
+
+  const CARD_W = 176;
+  const H_GAP = 56;
+  const DEPUTY_GAP = 192;
+  const ROW_GAP = 270;
+
+  const sortedNodes = [...nodes].sort(compareNodes);
+  const byId = new Map(sortedNodes.map((n) => [n.id, n]));
+
+  // 1. Pair deputies with their Head (each deputy attached to at most one head)
+  const deputyHeadOf = new Map<string, string>();
+  const deputiesOf = new Map<string, StructureNode[]>();
+  for (const e of edges) {
+    if (e.label !== 'deputy') continue;
+    if (!byId.has(e.source_id) || !byId.has(e.target_id) || e.source_id === e.target_id) continue;
+    if (deputyHeadOf.has(e.target_id)) continue;
+    deputyHeadOf.set(e.target_id, e.source_id);
+    const depNode = byId.get(e.target_id) as StructureNode;
+    const list = deputiesOf.get(e.source_id);
+    if (list) list.push(depNode);
+    else deputiesOf.set(e.source_id, [depNode]);
+  }
+  for (const list of deputiesOf.values()) list.sort(compareNodes);
+
+  // 2. Build strict hierarchy forest (each non-deputy node has at most one parent)
+  const hasParent = new Set<string>();
+  const rawChildren = new Map<string, StructureNode[]>();
+  for (const e of edges) {
+    if (e.label === 'deputy') continue;
+    if (!byId.has(e.source_id) || !byId.has(e.target_id) || e.source_id === e.target_id) continue;
+    if (deputyHeadOf.has(e.target_id) || hasParent.has(e.target_id)) continue;
+    hasParent.add(e.target_id);
+    const child = byId.get(e.target_id) as StructureNode;
+    const list = rawChildren.get(e.source_id);
+    if (list) list.push(child);
+    else rawChildren.set(e.source_id, [child]);
+  }
+  for (const list of rawChildren.values()) list.sort(compareNodes);
+
+  // Collect cycle-safe tree children (including any children attached to a unit's deputies)
+  const treeChildren = new Map<string, StructureNode[]>();
+  const visited = new Set<string>();
+
+  const buildTree = (nodeId: string) => {
+    if (visited.has(nodeId)) return;
+    visited.add(nodeId);
+    const deps = deputiesOf.get(nodeId) ?? [];
+    for (const d of deps) visited.add(d.id);
+
+    const direct = [...(rawChildren.get(nodeId) ?? []), ...deps.flatMap((d) => rawChildren.get(d.id) ?? [])];
+    const uniqueChildren: StructureNode[] = [];
+    for (const c of direct) {
+      if (!visited.has(c.id)) {
+        uniqueChildren.push(c);
+        buildTree(c.id);
+      }
+    }
+    uniqueChildren.sort(compareNodes);
+    treeChildren.set(nodeId, uniqueChildren);
+  };
+
+  const roots: StructureNode[] = [];
+  for (const n of sortedNodes) {
+    if (!hasParent.has(n.id) && !deputyHeadOf.has(n.id) && !visited.has(n.id)) {
+      roots.push(n);
+      buildTree(n.id);
+    }
+  }
+  // Promote any remaining nodes (e.g. trapped in a cycle) to roots
+  for (const n of sortedNodes) {
+    if (!visited.has(n.id) && !deputyHeadOf.has(n.id)) {
+      roots.push(n);
+      buildTree(n.id);
+    }
+  }
+
+  // 3. Bottom-up subtree widths
+  const unitWidth = (id: string): number => CARD_W + (deputiesOf.get(id)?.length ?? 0) * DEPUTY_GAP;
+  const subtreeW = new Map<string, number>();
+
+  const calcWidth = (id: string): number => {
+    const children = treeChildren.get(id) ?? [];
+    if (children.length === 0) {
+      const w = unitWidth(id);
+      subtreeW.set(id, w);
+      return w;
+    }
+    const childrenSum = children.reduce((acc, c) => acc + calcWidth(c.id), 0) + H_GAP * (children.length - 1);
+    const w = Math.max(unitWidth(id), childrenSum);
+    subtreeW.set(id, w);
+    return w;
+  };
+  for (const r of roots) calcWidth(r.id);
+
+  // 4. Top-down placement centered around x = 500
+  const place = (id: string, leftX: number, level: number) => {
+    const y = baseY + level * ROW_GAP;
+    const w = subtreeW.get(id) ?? CARD_W;
+    const uW = unitWidth(id);
+    const unitLeft = leftX + (w - uW) / 2;
+    const deps = deputiesOf.get(id) ?? [];
+
+    const headX = isRTL ? unitLeft + uW - CARD_W : unitLeft;
+    positions.set(id, { pos_x: Math.round(headX), pos_y: Math.round(y) });
+
+    deps.forEach((dep, idx) => {
+      const depX = isRTL ? headX - (idx + 1) * DEPUTY_GAP : headX + (idx + 1) * DEPUTY_GAP;
+      positions.set(dep.id, { pos_x: Math.round(depX), pos_y: Math.round(y + 8) });
+    });
+
+    const children = treeChildren.get(id) ?? [];
+    if (children.length > 0) {
+      const childrenSum =
+        children.reduce((acc, c) => acc + (subtreeW.get(c.id) ?? CARD_W), 0) + H_GAP * (children.length - 1);
+      let cursor = leftX + (w - childrenSum) / 2;
+      for (const child of children) {
+        const cw = subtreeW.get(child.id) ?? CARD_W;
+        place(child.id, cursor, level + 1);
+        cursor += cw + H_GAP;
+      }
+    }
+  };
+
+  const ROOT_GAP = Math.round(H_GAP * 1.4);
+  const totalRootsW =
+    roots.reduce((acc, r) => acc + (subtreeW.get(r.id) ?? CARD_W), 0) + ROOT_GAP * Math.max(0, roots.length - 1);
+  let rootCursor = 500 - totalRootsW / 2;
+  for (const r of roots) {
+    const rw = subtreeW.get(r.id) ?? CARD_W;
+    place(r.id, rootCursor, 0);
+    rootCursor += rw + ROOT_GAP;
+  }
+
+  return positions;
 }

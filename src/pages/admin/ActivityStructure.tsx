@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import type React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AlertCircle,
   Building2,
@@ -39,11 +40,13 @@ import { StructureBoard, type StructureBoardEditHandlers } from '@/components/ac
 import { StructureNodeDialog } from '@/components/activityStructure/StructureNodeDialog';
 import { RootBoardMetaDialog } from '@/components/activityStructure/RootBoardMetaDialog';
 import { nextSortOrder, type StructureNode } from '@/utils/activityStructureTree';
-import type { SaveStructureNodeInput } from '@/services/activityStructure.service';
+import { queryKeys } from '@/lib/queryKeys';
+import { cloneSubtreeIntoSection, type SaveStructureNodeInput } from '@/services/activityStructure.service';
 
 export default function ActivityStructure(): React.ReactElement {
   const { language, isRTL } = useLanguage();
   const label = useCallback((ar: string, en: string): string => (isRTL ? ar : en), [isRTL]);
+  const queryClient = useQueryClient();
 
   const { primaryRole } = useAuth();
   const { branches, activeBranch, setActiveBranch, canViewAllBranches, userBranchId } = useBranch();
@@ -140,11 +143,31 @@ export default function ActivityStructure(): React.ReactElement {
           return next;
         });
       },
-      onCreateEdge: (sourceId: string, targetId: string) => {
+      onCreateEdge: (sourceId: string, targetId: string, edgeLabel?: string | null) => {
         createEdge.mutate(
-          { sourceId, targetId },
+          { sourceId, targetId, label: edgeLabel ?? undefined },
           {
-            onSuccess: () => toast.success(label('تم إنشاء التوصيل', 'Connection added')),
+            onSuccess: async () => {
+              if (edgeLabel === 'deputy') {
+                toast.success(label('تم ربط النائب بجانب الهيد', 'Deputy linked beside lead'));
+                return;
+              }
+              if (effectiveBranchId) {
+                try {
+                  const cloned = await cloneSubtreeIntoSection(effectiveBranchId, sourceId, targetId, nodes, edges);
+                  if (cloned) {
+                    await queryClient.invalidateQueries({
+                      queryKey: queryKeys.activityStructure.board(effectiveBranchId),
+                    });
+                    toast.success(label('تم التوصيل وإضافة الفريق داخل سكشن الأب', 'Connected & added to parent section'));
+                    return;
+                  }
+                } catch {
+                  // Edge was created; surface fallback toast if cloning failed
+                }
+              }
+              toast.success(label('تم إنشاء التوصيل', 'Connection added'));
+            },
             onError: (err) => toast.error(err instanceof Error ? err.message : label('تعذر التوصيل', 'Failed to connect')),
           }
         );
@@ -156,7 +179,7 @@ export default function ActivityStructure(): React.ReactElement {
         });
       },
     };
-  }, [canManage, editMode, nodes, createEdge, deleteEdge, label]);
+  }, [canManage, editMode, effectiveBranchId, nodes, edges, createEdge, deleteEdge, queryClient, label]);
 
   const handleSaveChanges = async () => {
     const updates = Object.entries(pendingPositions).map(([id, pos]) => ({ id, ...pos }));

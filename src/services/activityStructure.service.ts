@@ -46,6 +46,7 @@ export interface SaveStructureNodeInput {
   section_title?: string | null;
   description?: string | null;
   team_image_url?: string | null;
+  custom_avatar_url?: string | null;
   deputy_id?: string | null;
   deputy_title?: string | null;
   pos_x?: number;
@@ -70,6 +71,7 @@ function sanitizeInput(input: SaveStructureNodeInput) {
     section_title: input.section_title?.trim() || null,
     description: input.description?.trim() || null,
     team_image_url: input.team_image_url?.trim() || null,
+    custom_avatar_url: nodeType === 'section' ? null : (input.custom_avatar_url?.trim() || null),
     deputy_id: nodeType === 'section' ? null : (input.deputy_id || null),
     deputy_title: nodeType === 'section' ? null : (input.deputy_title?.trim() || null),
     ...(typeof input.pos_x === 'number' ? { pos_x: Math.round(input.pos_x) } : {}),
@@ -107,6 +109,7 @@ export async function getActivityStructureBoard(
       section_title: row.section_title ? String(row.section_title) : null,
       description: row.description ? String(row.description) : null,
       team_image_url: row.team_image_url ? String(row.team_image_url) : null,
+      custom_avatar_url: row.custom_avatar_url ? String(row.custom_avatar_url) : null,
       deputy_id: row.deputy_id ? String(row.deputy_id) : null,
       deputy_title: row.deputy_title ? String(row.deputy_title) : null,
       pos_x: typeof row.pos_x === 'number' ? row.pos_x : 0,
@@ -219,22 +222,155 @@ export async function createStructureEdge(
   label?: string | null
 ): Promise<void> {
   if (sourceId === targetId) return;
+  const normalizedLabel = label?.trim() || null;
   const { error } = await supabase
     .from('activity_structure_edges')
-    .insert({ branch_id: branchId, source_id: sourceId, target_id: targetId, label: label?.trim() || null });
-  // Ignore unique violation if edge already exists
-  if (error && error.code !== '23505') {
+    .insert({ branch_id: branchId, source_id: sourceId, target_id: targetId, label: normalizedLabel });
+  if (error?.code === '23505') {
+    unwrap(
+      await supabase
+        .from('activity_structure_edges')
+        .update({ label: normalizedLabel })
+        .eq('source_id', sourceId)
+        .eq('target_id', targetId)
+    );
+    return;
+  }
+  if (error) {
     throw error;
   }
+}
+
+/**
+ * Clone `childId` (along with its subordinates via edges and its nested sub-boards)
+ * into `parentId`'s section (`board_owner_id = parentId`) as independent copies,
+ * so deleting a copy inside `parentId`'s section never deletes the original outside.
+ */
+export async function cloneSubtreeIntoSection(
+  branchId: string,
+  parentId: string,
+  childId: string,
+  nodes: readonly StructureNode[],
+  edges: readonly StructureEdge[]
+): Promise<boolean> {
+  if (parentId === childId) return false;
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const childNode = byId.get(childId);
+  if (!byId.has(parentId) || !childNode) return false;
+
+  const existingInParent = nodes.filter((n) => n.board_owner_id === parentId);
+  const alreadyPresent = existingInParent.some(
+    (n) => n.volunteer_id === childNode.volunteer_id && n.title === childNode.title
+  );
+  if (alreadyPresent) return false;
+
+  const clonedIdMap = new Map<string, string>();
+  const clonedOrigIds: string[] = [];
+
+  const cloneOne = async (
+    orig: StructureNode,
+    targetBoardOwnerId: string,
+    posX: number,
+    posY: number,
+    sortOrder: number
+  ): Promise<string> => {
+    const newId = await createStructureNode(
+      branchId,
+      {
+        title: orig.title,
+        volunteer_id: orig.volunteer_id,
+        custom_avatar_url: orig.custom_avatar_url ?? null,
+        parent_id: null,
+        responsibilities: orig.responsibilities,
+        color: orig.color,
+        node_type: 'volunteer',
+        board_owner_id: targetBoardOwnerId,
+        section_title: orig.section_title ?? null,
+        description: orig.description ?? null,
+        team_image_url: orig.team_image_url ?? null,
+        pos_x: posX,
+        pos_y: posY,
+      },
+      sortOrder
+    );
+    clonedIdMap.set(orig.id, newId);
+    clonedOrigIds.push(orig.id);
+    return newId;
+  };
+
+  // 1. Clone the child itself into parent's sub-board
+  const baseX = 220 + existingInParent.length * 210;
+  const baseY = 260;
+  await cloneOne(childNode, parentId, baseX, baseY, existingInParent.length);
+
+  // 2. Clone same-board descendants connected under `childId` (BFS, cycle-safe)
+  const sameBoardQueue: string[] = [childId];
+  const sameBoardEdgesToCopy: StructureEdge[] = [];
+  let offsetIdx = 1;
+
+  while (sameBoardQueue.length > 0) {
+    const currOrigId = sameBoardQueue.shift() as string;
+    const outgoing = edges.filter((e) => e.source_id === currOrigId);
+    for (const edge of outgoing) {
+      const target = byId.get(edge.target_id);
+      if (!target || target.board_owner_id !== childNode.board_owner_id) continue;
+      sameBoardEdgesToCopy.push(edge);
+      if (!clonedIdMap.has(target.id)) {
+        const dx = (target.pos_x ?? 0) - (childNode.pos_x ?? 0);
+        const dy = (target.pos_y ?? 0) - (childNode.pos_y ?? 0);
+        const nextX = dx !== 0 || dy !== 0 ? baseX + dx : baseX + offsetIdx * 200;
+        const nextY = dx !== 0 || dy !== 0 ? baseY + dy : baseY + 240;
+        offsetIdx += 1;
+        await cloneOne(target, parentId, nextX, nextY, existingInParent.length + offsetIdx);
+        sameBoardQueue.push(target.id);
+      }
+    }
+  }
+
+  for (const edge of sameBoardEdgesToCopy) {
+    const newSrc = clonedIdMap.get(edge.source_id);
+    const newDst = clonedIdMap.get(edge.target_id);
+    if (newSrc && newDst) {
+      await createStructureEdge(branchId, newSrc, newDst, edge.label ?? null);
+    }
+  }
+
+  // 3. Recursively clone nested sub-board members (`board_owner_id === origId`)
+  const subBoardQueue = [...clonedOrigIds];
+  while (subBoardQueue.length > 0) {
+    const origOwnerId = subBoardQueue.shift() as string;
+    const newOwnerId = clonedIdMap.get(origOwnerId);
+    if (!newOwnerId) continue;
+
+    const subMembers = nodes.filter((n) => n.board_owner_id === origOwnerId);
+    for (const sub of subMembers) {
+      if (clonedIdMap.has(sub.id)) continue;
+      await cloneOne(sub, newOwnerId, sub.pos_x ?? 240, sub.pos_y ?? 260, sub.sort_order);
+      subBoardQueue.push(sub.id);
+    }
+
+    const subIdSet = new Set(subMembers.map((m) => m.id));
+    for (const edge of edges) {
+      if (subIdSet.has(edge.source_id) && subIdSet.has(edge.target_id)) {
+        const newSrc = clonedIdMap.get(edge.source_id);
+        const newDst = clonedIdMap.get(edge.target_id);
+        if (newSrc && newDst) {
+          await createStructureEdge(branchId, newSrc, newDst, edge.label ?? null);
+        }
+      }
+    }
+  }
+
+  return true;
 }
 
 export async function deleteStructureEdge(id: string): Promise<void> {
   unwrap(await supabase.from('activity_structure_edges').delete().eq('id', id));
 }
 
-export async function uploadSectionTeamImage(branchId: string, file: File): Promise<string> {
+async function uploadStructureImage(branchId: string, folder: string, file: File): Promise<string> {
   const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-  const filePath = `structure-sections/${branchId}/${crypto.randomUUID()}.${ext}`;
+  const filePath = `${folder}/${branchId}/${crypto.randomUUID()}.${ext}`;
   const { error } = await supabase.storage.from('avatars').upload(filePath, file, {
     cacheControl: '3600',
     upsert: false,
@@ -242,6 +378,14 @@ export async function uploadSectionTeamImage(branchId: string, file: File): Prom
   if (error) throw error;
   const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
   return data.publicUrl;
+}
+
+export async function uploadSectionTeamImage(branchId: string, file: File): Promise<string> {
+  return uploadStructureImage(branchId, 'structure-sections', file);
+}
+
+export async function uploadNodeCustomAvatar(branchId: string, file: File): Promise<string> {
+  return uploadStructureImage(branchId, 'structure-avatars', file);
 }
 
 export async function upsertRootBoardMeta(
