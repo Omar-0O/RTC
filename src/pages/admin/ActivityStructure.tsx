@@ -214,10 +214,13 @@ export default function ActivityStructure(): React.ReactElement {
       } else {
         const { pos_x, pos_y } = viewportCenterRef.current;
         const sortOrder = nextSortOrder(nodes, null);
-        await createNode.mutateAsync({
+        const newNodeId = await createNode.mutateAsync({
           input: { ...input, board_owner_id: activeBoardOwnerId, pos_x, pos_y },
           sortOrder,
         });
+        if (activeBoardOwnerId && newNodeId) {
+          await createEdge.mutateAsync({ sourceId: activeBoardOwnerId, targetId: newNodeId });
+        }
         toast.success(label('تم إضافة المتطوع بنجاح', 'Volunteer added successfully'));
       }
       setDialogOpen(false);
