@@ -258,7 +258,7 @@ export default function ActivityStructure(): React.ReactElement {
   const deleteTargetNode = nodes.find((n) => n.id === deleteTargetId);
 
   return (
-    <div className="space-y-6 p-4 sm:p-6 lg:p-8" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="space-y-4 p-2.5 sm:space-y-6 sm:p-6 lg:p-8" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header Card */}
       <Card className="border-border/60 shadow-sm">
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -279,7 +279,7 @@ export default function ActivityStructure(): React.ReactElement {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex w-full flex-wrap items-center gap-2.5 sm:w-auto sm:gap-3">
             {canViewAllBranches && branches.length > 1 && (
               <Select
                 value={effectiveBranchId || ''}
@@ -291,7 +291,7 @@ export default function ActivityStructure(): React.ReactElement {
                   }
                 }}
               >
-                <SelectTrigger className="h-9 w-[180px]">
+                <SelectTrigger className="h-9 w-full sm:w-[180px]">
                   <SelectValue placeholder={label('اختر الفرع', 'Select Branch')} />
                 </SelectTrigger>
                 <SelectContent>
@@ -305,7 +305,7 @@ export default function ActivityStructure(): React.ReactElement {
             )}
 
             {canManage ? (
-              <div className="flex flex-wrap items-center gap-2.5 rounded-lg border bg-muted/40 px-3 py-1.5">
+              <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-2.5 py-1.5 sm:w-auto sm:gap-2.5 sm:px-3">
                 <div className="flex items-center gap-2">
                   <Switch id="edit-mode-toggle" checked={editMode} onCheckedChange={setEditMode} />
                   <label htmlFor="edit-mode-toggle" className="cursor-pointer select-none text-xs font-medium">
@@ -366,7 +366,7 @@ export default function ActivityStructure(): React.ReactElement {
 
       {/* Main Board Area */}
       <Card className="overflow-hidden border-border/60 shadow-sm">
-        <CardContent className="p-4 sm:p-6">
+        <CardContent className="p-2.5 sm:p-6">
           {boardLoading ? (
             <div className="flex min-h-[380px] flex-col items-center justify-center gap-3 text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />

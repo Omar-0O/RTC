@@ -102,6 +102,8 @@ export function StructureBoard({
   const boardContainerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const justDraggedRef = useRef(false);
+  const touchPointsRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pinchStartRef = useRef<{ dist: number; zoom: number; panX: number; panY: number; midX: number; midY: number } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [query, setQuery] = useState('');
   const [zoom, setZoom] = useState(1);
@@ -372,6 +374,19 @@ export function StructureBoard({
   );
 
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') {
+      touchPointsRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touchPointsRef.current.size === 2) {
+        const pts = Array.from(touchPointsRef.current.values());
+        const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        const rect = viewportRef.current?.getBoundingClientRect();
+        const midX = (pts[0].x + pts[1].x) / 2 - (rect?.left ?? 0);
+        const midY = (pts[0].y + pts[1].y) / 2 - (rect?.top ?? 0);
+        pinchStartRef.current = { dist: Math.max(dist, 1), zoom, panX: pan.x, panY: pan.y, midX, midY };
+        setDragState(null);
+        return;
+      }
+    }
     if (e.button === 2) {
       e.preventDefault();
       setDragState({
@@ -439,6 +454,22 @@ export function StructureBoard({
   );
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch' && touchPointsRef.current.has(e.pointerId)) {
+      touchPointsRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touchPointsRef.current.size === 2 && pinchStartRef.current) {
+        const pts = Array.from(touchPointsRef.current.values());
+        const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        const start = pinchStartRef.current;
+        const nextZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(start.zoom * (dist / start.dist)).toFixed(3)));
+        const scaleRatio = nextZoom / start.zoom;
+        setZoom(nextZoom);
+        setPan({
+          x: Math.round(start.midX - (start.midX - start.panX) * scaleRatio),
+          y: Math.round(start.midY - (start.midY - start.panY) * scaleRatio),
+        });
+        return;
+      }
+    }
     if (!dragState) return;
     if (dragState.kind === 'pan') {
       const dx = e.clientX - dragState.startClientX;
@@ -485,7 +516,13 @@ export function StructureBoard({
     }
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e?: React.PointerEvent<HTMLDivElement>) => {
+    if (e && e.pointerType === 'touch') {
+      touchPointsRef.current.delete(e.pointerId);
+      if (touchPointsRef.current.size < 2) {
+        pinchStartRef.current = null;
+      }
+    }
     if (!dragState) return;
     if (dragState.kind === 'node' && dragState.moved && editHandlers) {
       justDraggedRef.current = true;
@@ -576,7 +613,7 @@ export function StructureBoard({
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[220px] flex-1">
+        <div className="relative min-w-[160px] flex-1">
           <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
@@ -708,8 +745,8 @@ export function StructureBoard({
           onPointerCancel={handlePointerUp}
           onContextMenu={(e) => e.preventDefault()}
           className={cn(
-            'relative flex-1 overflow-hidden',
-            isFullscreen ? 'h-full' : 'h-[620px]',
+            'relative flex-1 touch-none overflow-hidden',
+            isFullscreen ? 'h-full' : 'h-[65dvh] min-h-[420px] max-h-[620px] sm:h-[620px]',
             'bg-[linear-gradient(145deg,#eef2f1_0%,#e6ebe9_52%,#dde4e2_100%)] dark:bg-[linear-gradient(145deg,#161a1d_0%,#111518_55%,#0d1012_100%)]',
             dragState?.kind === 'pan'
               ? 'cursor-grabbing'
@@ -854,7 +891,7 @@ export function StructureBoard({
             dir={isRTL ? 'rtl' : 'ltr'}
             className={cn(
               'w-full shrink-0 space-y-4 overflow-y-auto border-t bg-card/85 p-4 backdrop-blur-md lg:w-72 lg:border-l lg:border-t-0',
-              isFullscreen ? 'lg:h-full' : 'lg:h-[620px]'
+              isFullscreen ? 'max-h-[40dvh] lg:h-full lg:max-h-none' : 'lg:h-[620px]'
             )}
           >
             {ownerNode.team_image_url && (

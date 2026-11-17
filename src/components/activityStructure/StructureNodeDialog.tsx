@@ -273,7 +273,7 @@ export function StructureNodeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg" dir={isRTL ? 'rtl' : 'ltr'}>
+      <DialogContent className="max-h-[90dvh] w-[95vw] overflow-y-auto rounded-2xl sm:max-w-lg" dir={isRTL ? 'rtl' : 'ltr'}>
         <form onSubmit={handleSubmit} className="space-y-5">
           <DialogHeader>
             <DialogTitle>
