@@ -173,6 +173,27 @@ describe('getRecursiveSectionMembers', () => {
     const leadMembers = getRecursiveSectionMembers(nodes, 'lead-1', true);
     expect(leadMembers.map((m) => m.id)).toEqual(['v-2']);
   });
+
+  it('includes manually curated "الفرقة" (squad_members) even without a section and deduplicates', () => {
+    const nodes: StructureNode[] = [
+      node('solo', null, {
+        volunteer_id: 'v-solo',
+        squad_members: [
+          { id: 'v-sq1', full_name: 'Squad 1', full_name_ar: 'فرقة ١', avatar_url: 'https://img/sq1.jpg' },
+          { id: 'v-sq2', full_name: 'Squad 2', full_name_ar: 'فرقة ٢', avatar_url: null },
+        ],
+      }),
+      node('section-dup', null, {
+        board_owner_id: 'solo',
+        volunteer_id: 'v-sq1',
+        volunteer_name_ar: 'فرقة ١',
+      }),
+    ];
+
+    const members = getRecursiveSectionMembers(nodes, 'solo', true);
+    expect(members.map((m) => m.id)).toEqual(['v-sq1', 'v-sq2']);
+    expect(members[0].name).toBe('فرقة ١');
+  });
 });
 
 describe('computePyramidLayoutPositions', () => {

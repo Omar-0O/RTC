@@ -47,6 +47,7 @@ export interface SaveStructureNodeInput {
   description?: string | null;
   team_image_url?: string | null;
   custom_avatar_url?: string | null;
+  squad_volunteer_ids?: string[];
   deputy_id?: string | null;
   deputy_title?: string | null;
   pos_x?: number;
@@ -72,6 +73,9 @@ function sanitizeInput(input: SaveStructureNodeInput) {
     description: input.description?.trim() || null,
     team_image_url: input.team_image_url?.trim() || null,
     custom_avatar_url: nodeType === 'section' ? null : (input.custom_avatar_url?.trim() || null),
+    ...(input.squad_volunteer_ids !== undefined
+      ? { squad_volunteer_ids: nodeType === 'section' ? [] : Array.from(new Set(input.squad_volunteer_ids.filter(Boolean))) }
+      : {}),
     deputy_id: nodeType === 'section' ? null : (input.deputy_id || null),
     deputy_title: nodeType === 'section' ? null : (input.deputy_title?.trim() || null),
     ...(typeof input.pos_x === 'number' ? { pos_x: Math.round(input.pos_x) } : {}),
@@ -110,6 +114,18 @@ export async function getActivityStructureBoard(
       description: row.description ? String(row.description) : null,
       team_image_url: row.team_image_url ? String(row.team_image_url) : null,
       custom_avatar_url: row.custom_avatar_url ? String(row.custom_avatar_url) : null,
+      squad_volunteer_ids: Array.isArray(row.squad_volunteer_ids) ? row.squad_volunteer_ids.map(String) : [],
+      squad_members: Array.isArray(row.squad_members)
+        ? row.squad_members.map((m) => {
+            const sm = m as Record<string, unknown>;
+            return {
+              id: String(sm.id),
+              full_name: sm.full_name ? String(sm.full_name) : null,
+              full_name_ar: sm.full_name_ar ? String(sm.full_name_ar) : null,
+              avatar_url: sm.avatar_url ? String(sm.avatar_url) : null,
+            };
+          })
+        : [],
       deputy_id: row.deputy_id ? String(row.deputy_id) : null,
       deputy_title: row.deputy_title ? String(row.deputy_title) : null,
       pos_x: typeof row.pos_x === 'number' ? row.pos_x : 0,

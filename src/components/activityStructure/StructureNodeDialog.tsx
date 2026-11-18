@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
-import { Check, ChevronsUpDown, ImagePlus, Layers, Loader2, Trash2, UserRound, X } from 'lucide-react';
+import { Check, ChevronsUpDown, ImagePlus, Layers, Loader2, Trash2, UserRound, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -157,6 +157,7 @@ export function StructureNodeDialog({
   const [title, setTitle] = useState('');
   const [volunteerId, setVolunteerId] = useState<string | null>(null);
   const [customAvatarUrl, setCustomAvatarUrl] = useState<string | null>(null);
+  const [squadIds, setSquadIds] = useState<string[]>([]);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [color, setColor] = useState<StructureColor>('primary');
   const [responsibilitiesText, setResponsibilitiesText] = useState('');
@@ -174,6 +175,7 @@ export function StructureNodeDialog({
     setTitle(editing?.title ?? '');
     setVolunteerId(editing?.volunteer_id ?? null);
     setCustomAvatarUrl(editing?.custom_avatar_url ?? null);
+    setSquadIds(editing?.squad_volunteer_ids ?? []);
     setColor(editing?.color ?? 'primary');
     setResponsibilitiesText((editing?.responsibilities ?? []).join('\n'));
     const owned = Boolean(editing?.section_title?.trim() || editing?.description?.trim() || editing?.team_image_url);
@@ -262,6 +264,18 @@ export function StructureNodeDialog({
   const handleCustomAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) =>
     openCropForFile(event, 'avatar', avatarInputRef);
 
+  const squadOptions = useMemo(() => {
+    const map = new Map<string, StructureVolunteerOption>();
+    for (const m of editing?.squad_members ?? []) map.set(m.id, m);
+    for (const v of volunteers) map.set(v.id, v);
+    return map;
+  }, [editing?.squad_members, volunteers]);
+
+  const availableForSquad = useMemo(
+    () => volunteers.filter((v) => v.id !== volunteerId && !squadIds.includes(v.id)),
+    [squadIds, volunteerId, volunteers]
+  );
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!canSave) return;
@@ -269,6 +283,7 @@ export function StructureNodeDialog({
       title: trimmedTitle,
       volunteer_id: volunteerId,
       custom_avatar_url: customAvatarUrl,
+      squad_volunteer_ids: squadIds,
       deputy_id: null,
       deputy_title: null,
       parent_id: editing?.parent_id ?? null,
@@ -392,6 +407,76 @@ export function StructureNodeDialog({
               value={responsibilitiesText}
               onChange={(e) => setResponsibilitiesText(e.target.value)}
               placeholder={label('كل مسئولية في سطر\nمثال: متابعة أعضاء اللجنة\nرفع تقرير أسبوعي', 'One responsibility per line')}
+            />
+          </div>
+
+          {/* الفرقة (Squad — mini avatars orbiting around volunteer, works even without a section) */}
+          <div className="space-y-2.5 rounded-xl border bg-muted/20 p-3.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-primary" />
+                <div>
+                  <Label className="font-semibold">{label('الفرقة', 'Squad')}</Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    {label(
+                      'المتطوعون الذين تظهر صورهم المصغّرة حول هذا المتطوع حتى لو لم يكن له سكشن.',
+                      'Volunteers whose mini photos appear around this person, even without a section.'
+                    )}
+                  </p>
+                </div>
+              </div>
+              {squadIds.length > 0 && (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                  {squadIds.length}
+                </span>
+              )}
+            </div>
+
+            {squadIds.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {squadIds.map((sqId) => {
+                  const member = squadOptions.get(sqId);
+                  const memberName =
+                    (isRTL ? member?.full_name_ar || member?.full_name : member?.full_name || member?.full_name_ar) ||
+                    label('متطوع', 'Volunteer');
+                  return (
+                    <span
+                      key={sqId}
+                      className="inline-flex items-center gap-1.5 rounded-full border bg-background py-0.5 pe-1.5 ps-1 text-xs shadow-sm"
+                    >
+                      <Avatar className="h-5 w-5">
+                        <AvatarImage src={member?.avatar_url ?? undefined} className="object-cover" />
+                        <AvatarFallback className="text-[9px] font-bold">{getInitials(memberName)}</AvatarFallback>
+                      </Avatar>
+                      <span className="max-w-[130px] truncate font-medium">{memberName}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSquadIds((prev) => prev.filter((id) => id !== sqId))}
+                        className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+                        aria-label={label('إزالة من الفرقة', 'Remove from squad')}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            <VolunteerPicker
+              value={null}
+              fallbackOption={null}
+              volunteers={availableForSquad}
+              placeholder={label('+ إضافة متطوع للفرقة...', '+ Add volunteer to squad...')}
+              searchPlaceholder={label('ابحث بالاسم...', 'Search by name...')}
+              emptyText={label('لا يوجد نتائج', 'No results')}
+              clearLabel={label('إلغاء', 'Clear')}
+              isRTL={isRTL}
+              onChange={(pickedId) => {
+                if (pickedId && !squadIds.includes(pickedId)) {
+                  setSquadIds((prev) => [...prev, pickedId]);
+                }
+              }}
             />
           </div>
 

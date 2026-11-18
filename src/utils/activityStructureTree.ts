@@ -12,6 +12,13 @@ export const MAX_TITLE_LENGTH = 120;
 
 export type StructureNodeType = 'volunteer' | 'section';
 
+export interface SquadMemberOption {
+  id: string;
+  full_name: string | null;
+  full_name_ar: string | null;
+  avatar_url: string | null;
+}
+
 export interface StructureNode {
   id: string;
   branch_id: string;
@@ -28,6 +35,8 @@ export interface StructureNode {
   description?: string | null;
   team_image_url?: string | null;
   custom_avatar_url?: string | null;
+  squad_volunteer_ids?: string[];
+  squad_members?: SquadMemberOption[];
   deputy_id?: string | null;
   deputy_title?: string | null;
   pos_x?: number;
@@ -327,20 +336,21 @@ export interface SectionMemberThumb {
 }
 
 /**
- * Collect volunteers (and deputies) directly inside `ownerId`'s section board
- * (`board_owner_id === ownerId`). Sub-sections owned by those members belong
- * strictly to their own owners and are not merged into `ownerId`.
+ * Collect volunteers appearing around `ownerId`:
+ * 1) Manually curated "الفرقة" (`squad_members`) — works even without a section.
+ * 2) Direct members inside `ownerId`'s section board (`board_owner_id === ownerId`).
+ * Sub-sections owned by those members belong strictly to their own owners.
  */
 export function getRecursiveSectionMembers(
   nodes: readonly StructureNode[],
   ownerId: string,
   isRTL: boolean
 ): SectionMemberThumb[] {
-  let ownerVolunteerId: string | null = null;
+  let ownerNode: StructureNode | null = null;
   const directChildren: StructureNode[] = [];
 
   for (const n of nodes) {
-    if (n.id === ownerId) ownerVolunteerId = n.volunteer_id;
+    if (n.id === ownerId) ownerNode = n;
     if (n.board_owner_id === ownerId && n.node_type !== 'section') {
       directChildren.push(n);
     }
@@ -349,8 +359,22 @@ export function getRecursiveSectionMembers(
 
   const result: SectionMemberThumb[] = [];
   const seenVolunteers = new Set<string>();
-  if (ownerVolunteerId) seenVolunteers.add(ownerVolunteerId);
+  if (ownerNode?.volunteer_id) seenVolunteers.add(ownerNode.volunteer_id);
 
+  // 1. Curated "الفرقة" members (independent of having a section)
+  for (const sq of ownerNode?.squad_members ?? []) {
+    if (!sq.id || seenVolunteers.has(sq.id)) continue;
+    seenVolunteers.add(sq.id);
+    const sqName = (isRTL ? sq.full_name_ar || sq.full_name : sq.full_name || sq.full_name_ar) || null;
+    result.push({
+      id: sq.id,
+      name: sqName,
+      avatarUrl: sq.avatar_url,
+      color: ownerNode?.color ?? 'primary',
+    });
+  }
+
+  // 2. Direct section board members
   for (const child of directChildren) {
     if (child.volunteer_id && !seenVolunteers.has(child.volunteer_id)) {
       seenVolunteers.add(child.volunteer_id);
