@@ -392,6 +392,13 @@ export async function createUser(payload: CreateUserPayload): Promise<{ userId: 
 
   const userId = data.user.id;
 
+  if (payload.branchId) {
+    await supabase
+      .from('profiles')
+      .update({ branch_id: payload.branchId })
+      .eq('id', userId);
+  }
+
   if (payload.autoDismissalEnabled === false && autoDismissalColumnsSupported) {
     const { error: autoDismissError } = await supabase
       .from('profiles')

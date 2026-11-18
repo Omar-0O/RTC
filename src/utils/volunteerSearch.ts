@@ -39,6 +39,15 @@ export function isKioskEmail(email?: string | null): boolean {
   return KIOSK_SERVICE_EMAILS.has(email.trim().toLowerCase());
 }
 
+export function isSystemPlaceholderVolunteer(
+  volunteer: Pick<SearchableVolunteer, 'email' | 'full_name' | 'full_name_ar'>
+): boolean {
+  if (isKioskEmail(volunteer.email)) return true;
+  const nameEn = volunteer.full_name?.trim().toLowerCase() ?? '';
+  const nameAr = volunteer.full_name_ar?.trim().toLowerCase() ?? '';
+  return nameEn === 'rtc admin' || nameAr === 'rtc admin';
+}
+
 function toAsciiDigits(str: string): string {
   return str
     .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
@@ -73,8 +82,18 @@ export function getCoreEgyptianPhoneDigits(digits: string): string {
   return digits;
 }
 
-export function getVolunteerDisplayName(volunteer: SearchableVolunteer): string {
+export function getVolunteerDisplayName(
+  volunteer: SearchableVolunteer,
+  locale: 'ar' | 'en' = 'ar'
+): string {
+  if (locale === 'en') {
+    return (volunteer.full_name || volunteer.full_name_ar || '').trim() || 'Unknown Volunteer';
+  }
   return (volunteer.full_name_ar || volunteer.full_name || '').trim() || 'Unknown Volunteer';
+}
+
+export interface FilterAndRankVolunteersOptions {
+  locale?: 'ar' | 'en';
 }
 
 function scoreVolunteerMatch(
@@ -141,10 +160,12 @@ function scoreVolunteerMatch(
 export function filterAndRankVolunteers<T extends SearchableVolunteer>(
   volunteers: T[],
   query: string,
-  excludeId?: string | null
+  excludeId?: string | null,
+  options: FilterAndRankVolunteersOptions = {}
 ): T[] {
+  const locale = options.locale ?? 'ar';
   const eligible = volunteers.filter(
-    (v) => (!excludeId || v.id !== excludeId) && !isKioskEmail(v.email)
+    (v) => (!excludeId || v.id !== excludeId) && !isSystemPlaceholderVolunteer(v)
   );
 
   const trimmedQuery = query.trim();
@@ -153,7 +174,7 @@ export function filterAndRankVolunteers<T extends SearchableVolunteer>(
 
   if (!qNorm && !qDigits) {
     return [...eligible].sort((a, b) =>
-      getVolunteerDisplayName(a).localeCompare(getVolunteerDisplayName(b), 'ar')
+      getVolunteerDisplayName(a, locale).localeCompare(getVolunteerDisplayName(b, locale), locale)
     );
   }
 
@@ -161,10 +182,7 @@ export function filterAndRankVolunteers<T extends SearchableVolunteer>(
   const qCollapsed = qNorm.replace(/\s+/g, '');
   const isPhoneOnlyQuery = !/[^\d\s+\-()\u0660-\u0669\u06F0-\u06F9]/.test(trimmedQuery);
   const allowPhoneMatch = qDigits.length > 0 && (isPhoneOnlyQuery || qDigits.length >= 4);
-  const qCore =
-    qDigits.startsWith('0') || qDigits.startsWith('20')
-      ? getCoreEgyptianPhoneDigits(qDigits)
-      : '';
+  const qCore = getCoreEgyptianPhoneDigits(qDigits);
 
   const scored: { volunteer: T; rank: number }[] = [];
 
@@ -185,9 +203,9 @@ export function filterAndRankVolunteers<T extends SearchableVolunteer>(
 
   scored.sort((a, b) => {
     if (a.rank !== b.rank) return a.rank - b.rank;
-    return getVolunteerDisplayName(a.volunteer).localeCompare(
-      getVolunteerDisplayName(b.volunteer),
-      'ar'
+    return getVolunteerDisplayName(a.volunteer, locale).localeCompare(
+      getVolunteerDisplayName(b.volunteer, locale),
+      locale
     );
   });
 
@@ -208,7 +226,14 @@ async function fetchPagedProfiles(
       .select('id, full_name, full_name_ar, phone, avatar_url, email, branch_id');
 
     if (branchId) {
-      query = query.eq('branch_id', branchId);
+      const queryWithOr = query as typeof query & {
+        or?: (filters: string) => typeof query;
+      };
+      if (typeof queryWithOr.or === 'function') {
+        query = queryWithOr.or(`branch_id.eq.${branchId},branch_id.is.null`);
+      } else {
+        query = query.eq('branch_id', branchId);
+      }
     }
 
     const { data, error } = await query
@@ -225,7 +250,7 @@ async function fetchPagedProfiles(
   }
 
   return allRows
-    .filter((row) => !isKioskEmail(row.email))
+    .filter((row) => !isSystemPlaceholderVolunteer(row))
     .map((row) => ({
       id: row.id,
       full_name: row.full_name?.trim() || row.full_name_ar?.trim() || 'Unknown Volunteer',

@@ -246,6 +246,7 @@ export default function FieldLogging() {
   const [guestNameInput, setGuestNameInput] = useState<string>('');
   const [guestPhoneInput, setGuestPhoneInput] = useState<string>('');
   const [volunteerSearch, setVolunteerSearch] = useState<string>('');
+  const [visibleVolunteerCount, setVisibleVolunteerCount] = useState<number>(MAX_VISIBLE_VOLUNTEERS);
 
   const fetchVolunteersList = useCallback(async () => {
     setVolunteersLoading(true);
@@ -269,8 +270,10 @@ export default function FieldLogging() {
   }, [isGroupSubmission, kioskLoggingIn, fetchVolunteersList]);
 
   const filteredVolunteers = useMemo(
-    () => filterAndRankVolunteers(volunteersList, volunteerSearch, volunteer?.id),
-    [volunteersList, volunteerSearch, volunteer?.id]
+    () => filterAndRankVolunteers(volunteersList, volunteerSearch, volunteer?.id, {
+      locale: isRTL ? 'ar' : 'en',
+    }),
+    [volunteersList, volunteerSearch, volunteer?.id, isRTL]
   );
 
   const toggleVolunteer = (id: string) => {
@@ -660,6 +663,8 @@ export default function FieldLogging() {
       // 3. Local Egyptian format: 01XXXXXXXXX (strip country code 20)
       if (normalized.startsWith('+20')) {
         allFormats.push('0' + normalized.slice(3));
+        // Also match 10-digit numbers where Excel import stripped the leading zero (e.g. 10XXXXXXXX)
+        allFormats.push(normalized.slice(3));
       }
 
       // 4. Strip all non-digits as a last fallback (pure digit string)
@@ -1498,14 +1503,20 @@ export default function FieldLogging() {
                                   type="text"
                                   placeholder={isRTL ? '🔍 ابحث بالاسم أو رقم الموبايل...' : '🔍 Search by name or phone...'}
                                   value={volunteerSearch}
-                                  onChange={e => setVolunteerSearch(e.target.value)}
+                                  onChange={e => {
+                                    setVolunteerSearch(e.target.value);
+                                    setVisibleVolunteerCount(MAX_VISIBLE_VOLUNTEERS);
+                                  }}
                                   className="w-full h-11 px-4 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary transition-colors"
                                   dir={isRTL ? 'rtl' : 'ltr'}
                                 />
                                 {volunteerSearch && (
                                   <button
                                     type="button"
-                                    onClick={() => setVolunteerSearch('')}
+                                    onClick={() => {
+                                      setVolunteerSearch('');
+                                      setVisibleVolunteerCount(MAX_VISIBLE_VOLUNTEERS);
+                                    }}
                                     className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground transition-colors"
                                   >
                                     <X className="h-4 w-4" />
@@ -1527,7 +1538,7 @@ export default function FieldLogging() {
 
                                 if (!hasQuery && filteredVolunteers.length === 0) return null;
 
-                                const visibleVolunteers = filteredVolunteers.slice(0, MAX_VISIBLE_VOLUNTEERS);
+                                const visibleVolunteers = filteredVolunteers.slice(0, visibleVolunteerCount);
 
                                 return (
                                   <div className="rounded-xl border-2 border-border overflow-hidden">
@@ -1537,7 +1548,20 @@ export default function FieldLogging() {
                                       </p>
                                     ) : (
                                       <>
-                                        <div className="max-h-52 overflow-y-auto divide-y divide-border/50">
+                                        <div
+                                          className="max-h-60 overflow-y-auto divide-y divide-border/50"
+                                          onScroll={e => {
+                                            const el = e.currentTarget;
+                                            if (
+                                              visibleVolunteerCount < filteredVolunteers.length &&
+                                              el.scrollTop + el.clientHeight >= el.scrollHeight - 48
+                                            ) {
+                                              setVisibleVolunteerCount(prev =>
+                                                Math.min(prev + MAX_VISIBLE_VOLUNTEERS, filteredVolunteers.length)
+                                              );
+                                            }
+                                          }}
+                                        >
                                           {visibleVolunteers.map(v => {
                                             const isSelected = selectedVolunteers.includes(v.id);
                                             const vName = isRTL ? (v.full_name_ar || v.full_name) : (v.full_name || v.full_name_ar);
@@ -1575,12 +1599,25 @@ export default function FieldLogging() {
                                             );
                                           })}
                                         </div>
-                                        {filteredVolunteers.length > MAX_VISIBLE_VOLUNTEERS && (
-                                          <p className="px-3 py-2 text-xs text-center text-muted-foreground bg-muted/30 border-t">
-                                            {isRTL
-                                              ? `عرض ${visibleVolunteers.length} من أصل ${filteredVolunteers.length} متطوع — اكتب الاسم أو الموبايل لتضييق النتائج`
-                                              : `Showing ${visibleVolunteers.length} of ${filteredVolunteers.length} volunteers — type a name or phone to narrow results`}
-                                          </p>
+                                        {filteredVolunteers.length > visibleVolunteers.length && (
+                                          <div className="px-3 py-2 text-xs flex items-center justify-between gap-2 text-muted-foreground bg-muted/30 border-t">
+                                            <span>
+                                              {isRTL
+                                                ? `عرض ${visibleVolunteers.length} من أصل ${filteredVolunteers.length} — مرر للأسفل أو اضغط لعرض المزيد`
+                                                : `Showing ${visibleVolunteers.length} of ${filteredVolunteers.length} — scroll or tap to show more`}
+                                            </span>
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setVisibleVolunteerCount(prev =>
+                                                  Math.min(prev + MAX_VISIBLE_VOLUNTEERS, filteredVolunteers.length)
+                                                )
+                                              }
+                                              className="font-semibold text-primary hover:underline shrink-0"
+                                            >
+                                              {isRTL ? 'عرض المزيد' : 'Show more'}
+                                            </button>
+                                          </div>
                                         )}
                                       </>
                                     )}
