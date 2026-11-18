@@ -3,6 +3,7 @@ import {
   fetchAllVolunteerProfiles,
   filterAndRankVolunteers,
   isKioskEmail,
+  isSystemPlaceholderVolunteer,
   normalizePhoneDigits,
   normalizeVolunteerText,
   type SearchableVolunteer,
@@ -26,6 +27,7 @@ function createMockSupabaseClient(
   let callIndex = 0;
   const rangeCalls: Array<[number, number]> = [];
   const eqCalls: Array<[string, string]> = [];
+  const orCalls: string[] = [];
 
   const client = {
     from: vi.fn(() => {
@@ -33,6 +35,10 @@ function createMockSupabaseClient(
         select: vi.fn(() => builder),
         eq: vi.fn((col: string, val: string) => {
           eqCalls.push([col, val]);
+          return builder;
+        }),
+        or: vi.fn((filters: string) => {
+          orCalls.push(filters);
           return builder;
         }),
         order: vi.fn(() => builder),
@@ -47,7 +53,7 @@ function createMockSupabaseClient(
     }),
   } as unknown as VolunteerProfilesClient;
 
-  return { client, rangeCalls, eqCalls };
+  return { client, rangeCalls, eqCalls, orCalls };
 }
 
 describe('normalizeVolunteerText', () => {
@@ -65,7 +71,7 @@ describe('normalizeVolunteerText', () => {
   });
 });
 
-describe('normalizePhoneDigits & isKioskEmail', () => {
+describe('normalizePhoneDigits, isKioskEmail & isSystemPlaceholderVolunteer', () => {
   it('extracts ASCII digits from mixed formats and Eastern Arabic numerals', () => {
     expect(normalizePhoneDigits('+20 101-234-5678')).toBe('201012345678');
     expect(normalizePhoneDigits('٠١٠١٢٣٤٥٦٧٨')).toBe('01012345678');
@@ -76,6 +82,23 @@ describe('normalizePhoneDigits & isKioskEmail', () => {
     expect(isKioskEmail('kiosk@rtc.internal')).toBe(true);
     expect(isKioskEmail('volunteer@rtc.org')).toBe(false);
     expect(isKioskEmail(null)).toBe(false);
+  });
+
+  it('excludes only kiosk and RTC Admin system placeholder accounts while keeping human officials', () => {
+    expect(
+      isSystemPlaceholderVolunteer({
+        full_name: 'RTC Admin',
+        full_name_ar: null,
+        email: 'admin@rtc.org',
+      })
+    ).toBe(true);
+    expect(
+      isSystemPlaceholderVolunteer({
+        full_name: 'Omar Official',
+        full_name_ar: 'عمر مسؤول',
+        email: 'omar.official@rtc.org',
+      })
+    ).toBe(false);
   });
 });
 
@@ -116,13 +139,35 @@ describe('filterAndRankVolunteers', () => {
       phone: '+200000000000',
       email: 'Medaniparticipations@rtc.org',
     },
+    {
+      id: 'v6',
+      full_name: 'RTC Admin',
+      full_name_ar: null,
+      phone: null,
+      email: 'root@rtc.org',
+    },
   ];
 
-  it('excludes current volunteer and kiosk accounts', () => {
+  it('excludes current volunteer, kiosk accounts, and RTC Admin placeholder while keeping officials', () => {
     const res = filterAndRankVolunteers(sampleVolunteers, '', 'v4');
     expect(res.map((v) => v.id)).not.toContain('v4');
     expect(res.map((v) => v.id)).not.toContain('v5');
+    expect(res.map((v) => v.id)).not.toContain('v6');
     expect(res).toHaveLength(3);
+  });
+
+  it('sorts alphabetically according to the requested UI locale (ar vs en)', () => {
+    const mixedLocaleVolunteers: SearchableVolunteer[] = [
+      { id: 'i1', full_name: 'Ikhlas Abdo', full_name_ar: 'إخلاص عبده' },
+      { id: 'b1', full_name: 'Basma Adel', full_name_ar: 'بسمة عادل' },
+      { id: 'a1', full_name: 'Abrar Hassan', full_name_ar: 'أبرار حسن' },
+    ];
+
+    const enSorted = filterAndRankVolunteers(mixedLocaleVolunteers, '', null, { locale: 'en' });
+    expect(enSorted.map((v) => v.id)).toEqual(['a1', 'b1', 'i1']);
+
+    const arSorted = filterAndRankVolunteers(mixedLocaleVolunteers, '', null, { locale: 'ar' });
+    expect(arSorted.map((v) => v.id)).toEqual(['a1', 'i1', 'b1']);
   });
 
   it('matches Arabic queries regardless of hamza, teh marbuta, or tashkeel', () => {
@@ -150,13 +195,13 @@ describe('filterAndRankVolunteers', () => {
     expect(resNoSpace.map((v) => v.id)).toEqual(['v3']);
 
     const volunteersNoSpace: SearchableVolunteer[] = [
-      { id: 'v6', full_name: 'Abdelrahman', full_name_ar: 'عبدالرحمن عادل', phone: '01099887766' },
+      { id: 'v7', full_name: 'Abdelrahman', full_name_ar: 'عبدالرحمن عادل', phone: '01099887766' },
     ];
     const resWithSpace = filterAndRankVolunteers(volunteersNoSpace, 'عبد الرحمن');
-    expect(resWithSpace.map((v) => v.id)).toEqual(['v6']);
+    expect(resWithSpace.map((v) => v.id)).toEqual(['v7']);
   });
 
-  it('matches phone numbers across Western, Eastern Arabic, and E.164 formats', () => {
+  it('matches phone numbers across Western, Eastern Arabic, E.164, and 10-digit leading-zero-stripped formats', () => {
     expect(filterAndRankVolunteers(sampleVolunteers, '01012345678').map((v) => v.id)).toEqual([
       'v1',
     ]);
@@ -167,6 +212,9 @@ describe('filterAndRankVolunteers', () => {
       'v2',
     ]);
     expect(filterAndRankVolunteers(sampleVolunteers, '010').map((v) => v.id)).toEqual(['v1']);
+    expect(filterAndRankVolunteers(sampleVolunteers, '10 12345678').map((v) => v.id)).toEqual([
+      'v1',
+    ]);
   });
 
   it('matches English names even when Arabic name exists', () => {
@@ -176,7 +224,7 @@ describe('filterAndRankVolunteers', () => {
 });
 
 describe('fetchAllVolunteerProfiles', () => {
-  it('paginates across multiple batches until a partial batch is returned and preserves both names', async () => {
+  it('paginates across multiple batches and includes branch_id IS NULL when branchId is provided', async () => {
     const batch1 = [
       {
         id: '1',
@@ -217,9 +265,7 @@ describe('fetchAllVolunteerProfiles', () => {
         branch_id: 'b1',
       },
     ];
-    // pageSize = 2: batch1 has 2 items -> fetch next page [2, 3]
-    // batch2 has 2 items -> fetch next page [4, 5] which returns 0 items -> stop
-    const { client, rangeCalls, eqCalls } = createMockSupabaseClient([
+    const { client, rangeCalls, orCalls } = createMockSupabaseClient([
       { data: batch1, error: null },
       { data: batch2, error: null },
       { data: [], error: null },
@@ -235,12 +281,12 @@ describe('fetchAllVolunteerProfiles', () => {
       [2, 3],
       [4, 5],
     ]);
-    expect(eqCalls).toEqual([
-      ['branch_id', 'b1'],
-      ['branch_id', 'b1'],
-      ['branch_id', 'b1'],
+    expect(orCalls).toEqual([
+      'branch_id.eq.b1,branch_id.is.null',
+      'branch_id.eq.b1,branch_id.is.null',
+      'branch_id.eq.b1,branch_id.is.null',
     ]);
-    // Kiosk account filtered out, null-email row preserved, both names preserved
+    // Kiosk account filtered out, null-email & null-branch rows preserved, both names preserved
     expect(result).toHaveLength(3);
     expect(result[0]).toMatchObject({
       id: '1',

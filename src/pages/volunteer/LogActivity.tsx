@@ -123,6 +123,7 @@ export default function LogActivity() {
   const [volunteers, setVolunteers] = useState<Volunteer[]>([]);
   const [selectedVolunteers, setSelectedVolunteers] = useState<string[]>([]);
   const [volunteerSearch, setVolunteerSearch] = useState('');
+  const [visibleVolunteerCount, setVisibleVolunteerCount] = useState<number>(MAX_VISIBLE_VOLUNTEERS);
   const [includeMe, setIncludeMe] = useState(false);
   const [guests, setGuests] = useState<{ name: string; phone?: string; notes?: string }[]>([]);
   const [guestName, setGuestName] = useState('');
@@ -134,22 +135,9 @@ export default function LogActivity() {
 
   const fetchVolunteers = useCallback(async () => {
     try {
-      // First, get all volunteers (including dismissed ones so they can be registered in group activities)
-      const [profilesData, adminRolesRes] = await Promise.all([
-        fetchAllVolunteerProfiles(supabase, {
-          branchId: profile?.branch_id,
-        }),
-        supabase
-          .from('user_roles')
-          .select('user_id')
-          .eq('role', 'admin'),
-      ]);
-
-      if (adminRolesRes.error) throw adminRolesRes.error;
-
-      // Filter out admins and current user
-      const adminIds = new Set((adminRolesRes.data || []).map(r => r.user_id));
-      const filteredProfiles = profilesData.filter(v => !adminIds.has(v.id) && v.id !== user?.id);
+      // Fetch all volunteer and official profiles (including dismissed and unassigned ones)
+      const profilesData = await fetchAllVolunteerProfiles(supabase);
+      const filteredProfiles = profilesData.filter(v => v.id !== user?.id);
 
       const sanitizedData: Volunteer[] = filteredProfiles.map(v => ({
         id: v.id,
@@ -163,11 +151,13 @@ export default function LogActivity() {
     } catch (error) {
       console.error('Error fetching volunteers:', error);
     }
-  }, [profile?.branch_id, user?.id]);
+  }, [user?.id]);
 
   const filteredVolunteers = useMemo(
-    () => filterAndRankVolunteers(volunteers, volunteerSearch, user?.id),
-    [volunteers, volunteerSearch, user?.id]
+    () => filterAndRankVolunteers(volunteers, volunteerSearch, user?.id, {
+      locale: isRTL ? 'ar' : 'en',
+    }),
+    [volunteers, volunteerSearch, user?.id, isRTL]
   );
 
   const fetchData = useCallback(async () => {
@@ -897,14 +887,20 @@ export default function LogActivity() {
                         type="text"
                         placeholder={isRTL ? '🔍 ابحث بالاسم أو رقم الموبايل...' : '🔍 Search by name or phone...'}
                         value={volunteerSearch}
-                        onChange={e => setVolunteerSearch(e.target.value)}
+                        onChange={e => {
+                          setVolunteerSearch(e.target.value);
+                          setVisibleVolunteerCount(MAX_VISIBLE_VOLUNTEERS);
+                        }}
                         className="w-full h-11 px-4 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary transition-colors"
                         dir={isRTL ? 'rtl' : 'ltr'}
                       />
                       {volunteerSearch && (
                         <button
                           type="button"
-                          onClick={() => setVolunteerSearch('')}
+                          onClick={() => {
+                            setVolunteerSearch('');
+                            setVisibleVolunteerCount(MAX_VISIBLE_VOLUNTEERS);
+                          }}
                           className="absolute top-1/2 -translate-y-1/2 ltr:right-3 rtl:left-3 text-muted-foreground hover:text-foreground transition-colors"
                         >
                           <X className="h-4 w-4" />
@@ -917,7 +913,7 @@ export default function LogActivity() {
                       const hasQuery = volunteerSearch.trim().length > 0;
                       if (!hasQuery && filteredVolunteers.length === 0) return null;
 
-                      const visibleVolunteers = filteredVolunteers.slice(0, MAX_VISIBLE_VOLUNTEERS);
+                      const visibleVolunteers = filteredVolunteers.slice(0, visibleVolunteerCount);
 
                       return (
                         <div className="rounded-xl border-2 border-border overflow-hidden bg-background">
@@ -927,7 +923,20 @@ export default function LogActivity() {
                             </p>
                           ) : (
                             <>
-                              <div className="max-h-52 overflow-y-auto divide-y divide-border/50">
+                              <div
+                                className="max-h-60 overflow-y-auto divide-y divide-border/50"
+                                onScroll={e => {
+                                  const el = e.currentTarget;
+                                  if (
+                                    visibleVolunteerCount < filteredVolunteers.length &&
+                                    el.scrollTop + el.clientHeight >= el.scrollHeight - 48
+                                  ) {
+                                    setVisibleVolunteerCount(prev =>
+                                      Math.min(prev + MAX_VISIBLE_VOLUNTEERS, filteredVolunteers.length)
+                                    );
+                                  }
+                                }}
+                              >
                                 {visibleVolunteers.map(v => {
                                   const isSelected = selectedVolunteers.includes(v.id);
                                   const vName = isRTL ? (v.full_name_ar || v.full_name) : (v.full_name || v.full_name_ar);
@@ -963,12 +972,25 @@ export default function LogActivity() {
                                   );
                                 })}
                               </div>
-                              {filteredVolunteers.length > MAX_VISIBLE_VOLUNTEERS && (
-                                <p className="px-3 py-2 text-xs text-center text-muted-foreground bg-muted/30 border-t">
-                                  {isRTL
-                                    ? `عرض ${visibleVolunteers.length} من أصل ${filteredVolunteers.length} متطوع — اكتب الاسم أو الموبايل لتضييق النتائج`
-                                    : `Showing ${visibleVolunteers.length} of ${filteredVolunteers.length} volunteers — type a name or phone to narrow results`}
-                                </p>
+                              {filteredVolunteers.length > visibleVolunteers.length && (
+                                <div className="px-3 py-2 text-xs flex items-center justify-between gap-2 text-muted-foreground bg-muted/30 border-t">
+                                  <span>
+                                    {isRTL
+                                      ? `عرض ${visibleVolunteers.length} من أصل ${filteredVolunteers.length} — مرر للأسفل أو اضغط لعرض المزيد`
+                                      : `Showing ${visibleVolunteers.length} of ${filteredVolunteers.length} — scroll or tap to show more`}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setVisibleVolunteerCount(prev =>
+                                        Math.min(prev + MAX_VISIBLE_VOLUNTEERS, filteredVolunteers.length)
+                                      )
+                                    }
+                                    className="font-semibold text-primary hover:underline shrink-0"
+                                  >
+                                    {isRTL ? 'عرض المزيد' : 'Show more'}
+                                  </button>
+                                </div>
                               )}
                             </>
                           )}

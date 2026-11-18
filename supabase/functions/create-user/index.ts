@@ -12,9 +12,13 @@ interface CreateUserBody {
     fullNameAr?: string;
     role?: string;
     committeeId?: string;
+    branchId?: string | null;
     phone?: string;
     level?: string;
     joinDate?: string;
+    birthDate?: string | null;
+    attendedMiniCamp?: boolean | null;
+    attendedCamp?: boolean | null;
     isAshbal?: boolean;
 }
 
@@ -38,7 +42,22 @@ Deno.serve(async (req: Request) => {
             throw new Error('Invalid JSON body', { cause })
         }
 
-        const { email, password, fullName, fullNameAr, role, committeeId, phone, level, joinDate, isAshbal } = body;
+        const {
+            email,
+            password,
+            fullName,
+            fullNameAr,
+            role,
+            committeeId,
+            branchId,
+            phone,
+            level,
+            joinDate,
+            birthDate,
+            attendedMiniCamp,
+            attendedCamp,
+            isAshbal
+        } = body;
 
         const supabaseUrl = Deno.env.get('SUPABASE_URL')
         const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -120,15 +139,20 @@ Deno.serve(async (req: Request) => {
 
         // Update profile
         try {
+            const resolvedLevel = level || 'under_follow_up';
             const { error: profileError } = await supabaseAdmin
                 .from('profiles')
                 .update({
                     full_name: fullName,
                     full_name_ar: fullNameAr,
                     committee_id: (committeeId === 'general' ? null : committeeId) || null,
+                    branch_id: branchId || undefined,
                     phone: phone || null,
-                    level: level || 'under_follow_up',
+                    level: resolvedLevel,
                     join_date: joinDate || undefined,
+                    birth_date: birthDate || null,
+                    attended_mini_camp: resolvedLevel === 'under_follow_up' ? (attendedMiniCamp ?? false) : null,
+                    attended_camp: resolvedLevel === 'project_responsible' ? (attendedCamp ?? false) : null,
                     is_ashbal: isAshbal || false
                 })
                 .eq('id', userData.user.id)
