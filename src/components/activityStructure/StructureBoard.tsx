@@ -42,6 +42,7 @@ const ZOOM_STEP = 0.15;
 
 export interface StructureBoardEditHandlers {
   onEdit: (id: string) => void;
+  onQuickCreate?: (pos: { pos_x: number; pos_y: number }) => void;
   onEditRootMeta: () => void;
   onDelete: (id: string) => void;
   onMovePosition: (id: string, pos_x: number, pos_y: number) => void;
@@ -104,6 +105,7 @@ export function StructureBoard({
   const justDraggedRef = useRef(false);
   const touchPointsRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchStartRef = useRef<{ dist: number; zoom: number; panX: number; panY: number; midX: number; midY: number } | null>(null);
+  const canvasLastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [query, setQuery] = useState('');
   const [zoom, setZoom] = useState(1);
@@ -522,6 +524,23 @@ export function StructureBoard({
       if (touchPointsRef.current.size < 2) {
         pinchStartRef.current = null;
       }
+      if (
+        editable &&
+        editHandlers?.onQuickCreate &&
+        dragState?.kind === 'pan' &&
+        Math.hypot(e.clientX - dragState.startClientX, e.clientY - dragState.startClientY) < 8 &&
+        !(e.target instanceof HTMLElement && (e.target.closest('[data-node-id]') || e.target.closest('button')))
+      ) {
+        const now = Date.now();
+        const prevTap = canvasLastTapRef.current;
+        if (prevTap && now - prevTap.time < 320 && Math.hypot(e.clientX - prevTap.x, e.clientY - prevTap.y) < 24) {
+          canvasLastTapRef.current = null;
+          const pt = clientToCanvas(e.clientX, e.clientY);
+          editHandlers.onQuickCreate({ pos_x: Math.round(pt.x - 88), pos_y: Math.round(pt.y - 50) });
+        } else {
+          canvasLastTapRef.current = { time: now, x: e.clientX, y: e.clientY };
+        }
+      }
     }
     if (!dragState) return;
     if (dragState.kind === 'node' && dragState.moved && editHandlers) {
@@ -736,6 +755,56 @@ export function StructureBoard({
             {label('تصغير الشاشة', 'Exit Fullscreen')}
           </Button>
         )}
+        {isFullscreen && activeBoardOwnerId && (
+          <div
+            dir={isRTL ? 'rtl' : 'ltr'}
+            className="absolute right-4 top-4 z-30 flex max-w-[calc(100vw-180px)] items-center gap-1 overflow-x-auto rounded-full border bg-background/85 px-2.5 py-1 text-xs shadow-md backdrop-blur-md"
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-6 gap-1 rounded-full px-2 text-xs font-semibold"
+              onClick={() => onChangeBoardOwner(ownerNode?.board_owner_id ?? null)}
+            >
+              <ArrowRight className={cn('h-3.5 w-3.5', !isRTL && 'rotate-180')} />
+              {label('رجوع', 'Back')}
+            </Button>
+            {breadcrumb.length > 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 rounded-full px-2 text-xs text-muted-foreground"
+                onClick={() => onChangeBoardOwner(null)}
+              >
+                {label('الرئيسية', 'Main')}
+              </Button>
+            )}
+            {breadcrumb.map((crumb, idx) => {
+              const isLast = idx === breadcrumb.length - 1;
+              const crumbLabel = crumb.section_title?.trim() || getVolunteerName(crumb, isRTL) || crumb.title;
+              return (
+                <div key={crumb.id} className="flex shrink-0 items-center gap-1">
+                  {isRTL ? (
+                    <ChevronLeft className="h-3 w-3 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                  )}
+                  <Button
+                    type="button"
+                    variant={isLast ? 'secondary' : 'ghost'}
+                    size="sm"
+                    className="h-6 rounded-full px-2 text-xs font-medium"
+                    onClick={() => !isLast && onChangeBoardOwner(crumb.id)}
+                  >
+                    {crumbLabel}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
         {/* Ceramic Matte Interactive Board */}
         <div
           ref={viewportRef}
@@ -743,6 +812,14 @@ export function StructureBoard({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
+          onDoubleClick={(e) => {
+            if (!editable || !editHandlers?.onQuickCreate) return;
+            if (e.target instanceof HTMLElement && (e.target.closest('[data-node-id]') || e.target.closest('button'))) {
+              return;
+            }
+            const pt = clientToCanvas(e.clientX, e.clientY);
+            editHandlers.onQuickCreate({ pos_x: Math.round(pt.x - 88), pos_y: Math.round(pt.y - 50) });
+          }}
           onContextMenu={(e) => e.preventDefault()}
           className={cn(
             'relative flex-1 touch-none overflow-hidden',

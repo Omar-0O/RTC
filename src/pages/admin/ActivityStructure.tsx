@@ -120,6 +120,11 @@ export default function ActivityStructure(): React.ReactElement {
           setDialogOpen(true);
         }
       },
+      onQuickCreate: (pos: { pos_x: number; pos_y: number }) => {
+        viewportCenterRef.current = pos;
+        setEditingNode(null);
+        setDialogOpen(true);
+      },
       onEditRootMeta: () => {
         setRootMetaOpen(true);
       },
