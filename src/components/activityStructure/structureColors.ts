@@ -90,3 +90,18 @@ export const STRUCTURE_COLOR_TOKENS: Record<StructureColor, ColorTokens> = {
     labelEn: 'Slate',
   },
 };
+
+/** Concrete hex palette used by SVG Mini-Map and HTML5 Canvas PNG export. */
+export const STRUCTURE_COLOR_HEX: Record<
+  StructureColor,
+  { solid: string; soft: string; softDark: string; text: string }
+> = {
+  primary: { solid: '#2563eb', soft: '#dbeafe', softDark: '#1e3a8a', text: '#1d4ed8' },
+  blue: { solid: '#3b82f6', soft: '#dbeafe', softDark: '#1e3a8a', text: '#1d4ed8' },
+  green: { solid: '#10b981', soft: '#d1fae5', softDark: '#064e3b', text: '#047857' },
+  amber: { solid: '#f59e0b', soft: '#fef3c7', softDark: '#78350f', text: '#b45309' },
+  rose: { solid: '#f43f5e', soft: '#ffe4e6', softDark: '#881337', text: '#be123c' },
+  violet: { solid: '#8b5cf6', soft: '#ede9fe', softDark: '#4c1d95', text: '#6d28d9' },
+  teal: { solid: '#14b8a6', soft: '#ccfbf1', softDark: '#134e4a', text: '#0f766e' },
+  slate: { solid: '#64748b', soft: '#e2e8f0', softDark: '#334155', text: '#475569' },
+};

@@ -69,6 +69,21 @@ export function normalizeVolunteerText(str?: string | null): string {
     .trim();
 }
 
+const ACTIVITY_STRUCTURE_TRIGGERS = new Set([
+  'هيكله',
+  'الهيكله',
+  'هيكله النشاط',
+]);
+
+/**
+ * Matches secret Arabic keyword inputs (e.g. "هيكلة") used to open the
+ * Activity Structure board directly from Field Logging volunteer search inputs.
+ */
+export function isActivityStructureTrigger(query?: string | null): boolean {
+  const normalized = normalizeVolunteerText(query);
+  return normalized.length > 0 && ACTIVITY_STRUCTURE_TRIGGERS.has(normalized);
+}
+
 export function normalizePhoneDigits(str?: string | null): string {
   if (!str) return '';
   return toAsciiDigits(str).replace(/\D/g, '');

@@ -1,11 +1,16 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { kioskSupabase as supabase, supabase as mainSupabase, AUTH_STORAGE_KEY } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useBranch } from '@/contexts/BranchContext';
 import { normalizePhoneE164 } from '@/utils/phoneUtils';
 import { isFutureDate, getTodayLocalDateString } from '@/utils/dateUtils';
-import { fetchAllVolunteerProfiles, filterAndRankVolunteers } from '@/utils/volunteerSearch';
+import {
+  fetchAllVolunteerProfiles,
+  filterAndRankVolunteers,
+  isActivityStructureTrigger,
+} from '@/utils/volunteerSearch';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
@@ -44,7 +49,9 @@ import {
   Image as ImageIcon,
   Users,
   Keyboard,
-  ChevronsUpDown
+  ChevronsUpDown,
+  GitFork,
+  AlertCircle,
 } from 'lucide-react';
 import { ArabicVirtualKeyboard } from '@/components/common/ArabicVirtualKeyboard';
 import { getSafeImageExtension, isSafeImageFile, SAFE_IMAGE_ACCEPT } from '@/utils/safeImages';
@@ -86,7 +93,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Calendar } from '@/components/ui/calendar';
 import logo from '@/assets/logo.webp';
 import CourseSchedule from '@/components/courses/CourseSchedule';
+import { getActivityStructureBoard, type ActivityStructureBoardData } from '@/services/activityStructure.service';
 import { processTopVolunteersByGrade, TopByLevel, RawVolunteerItem } from '@/utils/volunteerRanking';
+
+const LazyStructureBoard = lazy(() =>
+  import('@/components/activityStructure/StructureBoard').then((mod) => ({
+    default: mod.StructureBoard,
+  }))
+);
 
 interface VolunteerProfile {
   id: string;
@@ -159,11 +173,35 @@ export default function FieldLogging() {
   const { isRTL, language, t, setLanguage } = useLanguage();
   const { setTheme } = useTheme();
   const { activeBranch, branches, canViewAllBranches } = useBranch();
+  const [searchParams] = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<'schedule' | 'participation'>('schedule');
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const initialTab = (() => {
+    const tParam = searchParams.get('tab');
+    if (tParam === 'structure' || tParam === 'participation' || tParam === 'schedule') return tParam;
+    return 'schedule';
+  })();
+
+  const [activeTab, setActiveTab] = useState<'schedule' | 'participation' | 'structure'>(initialTab);
+  const [structureBoard, setStructureBoard] = useState<ActivityStructureBoardData>({
+    nodes: [],
+    edges: [],
+    rootMeta: null,
+  });
+  const [structureLoading, setStructureLoading] = useState<boolean>(false);
+  const [structureError, setStructureError] = useState<string | null>(null);
+  const [structureOwnerId, setStructureOwnerId] = useState<string | null>(null);
+  const [structureReloadTick, setStructureReloadTick] = useState<number>(0);
+
+  const openStructureTab = useCallback(() => {
+    setStructureOwnerId(null);
+    setActiveTab('structure');
+  }, []);
+
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    () => localStorage.getItem('rtc_kiosk_branch_id') || ''
+  );
   const [savedBranchId, setSavedBranchId] = useState<string | null>(
-    localStorage.getItem('rtc_kiosk_branch_id')
+    () => localStorage.getItem('rtc_kiosk_branch_id')
   );
 
   // ── Kiosk Auto-Login ─────────────────────────────────────────────────
@@ -211,6 +249,46 @@ export default function FieldLogging() {
       }
     })();
   }, [authLoading, user, kioskAuthAttempted]);
+
+  useEffect(() => {
+    if (activeTab !== 'structure' || !selectedBranchId || authLoading || kioskLoggingIn) return;
+    let cancelled = false;
+    setStructureLoading(true);
+    setStructureError(null);
+    setStructureOwnerId(null);
+
+    const loadBoard = async () => {
+      try {
+        const primaryClient = user ? mainSupabase : supabase;
+        let data: ActivityStructureBoardData;
+        try {
+          data = await getActivityStructureBoard(selectedBranchId, primaryClient);
+        } catch (primaryErr) {
+          if (!user) throw primaryErr;
+          data = await getActivityStructureBoard(selectedBranchId, supabase);
+        }
+        if (!cancelled) {
+          setStructureBoard(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to load structure board in kiosk:', err);
+          setStructureError(
+            err instanceof Error ? err.message : 'Failed to load activity structure'
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setStructureLoading(false);
+        }
+      }
+    };
+
+    loadBoard();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, selectedBranchId, authLoading, kioskLoggingIn, user, structureReloadTick]);
 
 
 
@@ -501,6 +579,8 @@ export default function FieldLogging() {
   }, [user?.id]);
 
   useEffect(() => {
+    if (branches.length === 0) return;
+
     const saved = localStorage.getItem('rtc_kiosk_branch_id');
     if (saved && branches.some((b) => b.id === saved)) {
       setSelectedBranchId(saved);
@@ -508,12 +588,20 @@ export default function FieldLogging() {
       return;
     }
 
-    // Default selected branch in dropdown to active/default/first
-    const defaultBranchId = activeBranch?.id || branches.find((branch) => branch.is_default)?.id || branches[0]?.id || '';
+    if (saved) {
+      localStorage.removeItem('rtc_kiosk_branch_id');
+      setSavedBranchId(null);
+    }
+
+    // Pre-select default branch; only auto-activate if there is a single branch
+    const defaultBranchId =
+      activeBranch?.id || branches.find((branch) => branch.is_default)?.id || branches[0]?.id || '';
     if (defaultBranchId) {
-      setSelectedBranchId(defaultBranchId);
-      setSavedBranchId(defaultBranchId);
-      localStorage.setItem('rtc_kiosk_branch_id', defaultBranchId);
+      setSelectedBranchId((prev) => prev || defaultBranchId);
+      if (branches.length === 1) {
+        setSavedBranchId(defaultBranchId);
+        localStorage.setItem('rtc_kiosk_branch_id', defaultBranchId);
+      }
     }
   }, [activeBranch?.id, branches]);
 
@@ -615,23 +703,17 @@ export default function FieldLogging() {
     );
   }
 
-  // Save selected branch to local storage
-  const handleBranchChange = (id: string) => {
-    setSelectedBranchId(id);
-    setSavedBranchId(id);
-    localStorage.setItem('rtc_kiosk_branch_id', id);
-    toast.success(
-      isRTL
-        ? 'تم تحديث الفرع بنجاح'
-        : 'Branch updated successfully'
-    );
-  };
-
   // Perform volunteer lookup by phone number
   const lookupVolunteer = async (overridePhone?: string) => {
     const targetPhone = overridePhone !== undefined ? overridePhone : phone;
     if (!targetPhone.trim()) {
       toast.error(isRTL ? 'يرجى إدخال رقم الموبايل أولاً' : 'Please enter the mobile number first');
+      return;
+    }
+
+    if (isActivityStructureTrigger(targetPhone)) {
+      setPhone('');
+      openStructureTab();
       return;
     }
 
@@ -1111,6 +1193,12 @@ export default function FieldLogging() {
   // Trigger search on typing 11 digits for easy Egyptian kiosk flow
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
+    if (isActivityStructureTrigger(val)) {
+      setPhone('');
+      openStructureTab();
+      return;
+    }
+
     setPhone(val);
 
     // Egyptian numbers standard length 11 digits (e.g. 01012345678)
@@ -1250,6 +1338,8 @@ export default function FieldLogging() {
           <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-lg shrink-0">
             {activeTab === 'schedule' ? (
               <CalendarIcon className="h-7 w-7 text-white" />
+            ) : activeTab === 'structure' ? (
+              <GitFork className="h-7 w-7 text-white" />
             ) : (
               <ClipboardList className="h-7 w-7 text-white" />
             )}
@@ -1258,33 +1348,19 @@ export default function FieldLogging() {
             <h1 className="text-2xl font-bold flex items-center gap-2">
               {activeTab === 'schedule'
                 ? (isRTL ? 'جدول الكورسات والفعاليات' : 'Course & Event Schedule')
-                : (isRTL ? 'تسجيل مشاركات الميداني' : 'Field Participation Logging')}
+                : activeTab === 'structure'
+                  ? (isRTL ? 'هيكلة النشاط' : 'Activity Structure')
+                  : (isRTL ? 'تسجيل مشاركات الميداني' : 'Field Participation Logging')}
             </h1>
-            {branches.length > 1 ? (
-              <Select value={selectedBranchId} onValueChange={handleBranchChange}>
-                <SelectTrigger className="h-9 rounded-full bg-primary/10 border-primary/20 text-primary font-bold text-sm px-3 hover:bg-primary/20 transition-colors w-auto gap-1.5 shadow-sm">
-                  <Building2 className="h-4 w-4 text-primary shrink-0" />
-                  <SelectValue placeholder={isRTL ? 'اختر الفرع' : 'Select Branch'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id} className="font-medium">
-                      {isRTL ? b.name_ar : b.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20 flex items-center gap-1.5">
-                <Building2 className="h-4 w-4 text-primary shrink-0" />
-                {isRTL ? `فرع ${currentBranchName || 'المهندسين'}` : `${currentBranchName || 'Mohandseen'} Branch`}
-              </span>
-            )}
+            <span className="text-sm font-bold text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20 flex items-center gap-1.5">
+              <Building2 className="h-4 w-4 text-primary shrink-0" />
+              {isRTL ? `فرع ${currentBranchName || 'المهندسين'}` : `${currentBranchName || 'Mohandseen'} Branch`}
+            </span>
           </div>
         </div>
 
         {/* Opposite side view-switch button */}
-        <div className="flex items-center gap-3 relative z-10">
+        <div className="flex flex-wrap items-center gap-3 relative z-10">
           {activeTab === 'schedule' ? (
             <Button
               onClick={() => setActiveTab('participation')}
@@ -1294,6 +1370,26 @@ export default function FieldLogging() {
               <ClipboardList className="h-5 w-5" />
               <span>{isRTL ? 'تسجيل المشاركات' : 'Log Participation'}</span>
             </Button>
+          ) : activeTab === 'structure' ? (
+            <>
+              <Button
+                onClick={() => setActiveTab('participation')}
+                size="lg"
+                className="rounded-xl h-12 px-6 font-bold shadow-md bg-gradient-to-r from-primary to-primary/90 text-white hover:from-primary/90 hover:to-primary transition-all flex items-center gap-2 text-base"
+              >
+                <ClipboardList className="h-5 w-5" />
+                <span>{isRTL ? 'تسجيل المشاركات' : 'Log Participation'}</span>
+              </Button>
+              <Button
+                onClick={() => setActiveTab('schedule')}
+                variant="outline"
+                size="lg"
+                className="rounded-xl h-12 px-6 font-bold shadow-sm flex items-center gap-2 text-base"
+              >
+                <CalendarIcon className="h-5 w-5" />
+                <span>{isRTL ? 'جدول الكورسات' : 'Course Schedule'}</span>
+              </Button>
+            </>
           ) : (
             <Button
               onClick={() => setActiveTab('schedule')}
@@ -1311,6 +1407,57 @@ export default function FieldLogging() {
       {activeTab === 'schedule' ? (
         <div className="w-full flex-1 animate-fade-in">
           <CourseSchedule isKiosk={true} branchId={selectedBranchId} />
+        </div>
+      ) : activeTab === 'structure' ? (
+        <div className="w-full flex-1 animate-fade-in">
+          {structureLoading ? (
+            <div className="flex min-h-[400px] items-center justify-center gap-3 text-muted-foreground">
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+              <span className="text-sm font-medium">
+                {isRTL ? 'جاري تحميل هيكلة النشاط...' : 'Loading activity structure...'}
+              </span>
+            </div>
+          ) : structureError ? (
+            <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 text-center p-6 rounded-2xl border bg-card">
+              <AlertCircle className="h-10 w-10 text-destructive" />
+              <div className="space-y-1">
+                <p className="text-base font-semibold">
+                  {isRTL ? 'تعذر تحميل هيكلة النشاط' : 'Failed to load activity structure'}
+                </p>
+                <p className="text-sm text-muted-foreground">{structureError}</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setStructureReloadTick((n) => n + 1)}
+                className="gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>{isRTL ? 'إعادة المحاولة' : 'Retry'}</span>
+              </Button>
+            </div>
+          ) : (
+            <Suspense
+              fallback={
+                <div className="flex min-h-[400px] items-center justify-center gap-3 text-muted-foreground">
+                  <Loader2 className="h-7 w-7 animate-spin text-primary" />
+                  <span className="text-sm font-medium">
+                    {isRTL ? 'جاري تحميل هيكلة النشاط...' : 'Loading activity structure...'}
+                  </span>
+                </div>
+              }
+            >
+              <LazyStructureBoard
+                nodes={structureBoard.nodes}
+                edges={structureBoard.edges}
+                rootMeta={structureBoard.rootMeta}
+                activeBoardOwnerId={structureOwnerId}
+                onChangeBoardOwner={setStructureOwnerId}
+                isRTL={isRTL}
+                editable={false}
+              />
+            </Suspense>
+          )}
         </div>
       ) : (
         <div className="w-full grid gap-8 lg:grid-cols-2 flex-1 animate-fade-in">
@@ -1344,7 +1491,7 @@ export default function FieldLogging() {
                     <Input
                       id="phone-input"
                       ref={phoneInputRef}
-                      type="tel"
+                      type="text"
                       placeholder={isRTL ? 'مثال: 01012345678 (اضغط Enter للبحث)' : 'e.g. 01012345678 (Press Enter to search)'}
                       value={phone}
                       onChange={handlePhoneChange}
@@ -1358,7 +1505,7 @@ export default function FieldLogging() {
                       }}
                       className="h-12 text-base px-4 border-2 hover:border-primary/50 transition-colors bg-background"
                       disabled={searchLoading || submitting}
-                      dir="ltr"
+                      dir="auto"
                     />
                     {searchLoading && (
                       <div className="absolute inset-y-0 ltr:right-3 rtl:left-3 flex items-center pointer-events-none">
@@ -1504,8 +1651,23 @@ export default function FieldLogging() {
                                   placeholder={isRTL ? '🔍 ابحث بالاسم أو رقم الموبايل...' : '🔍 Search by name or phone...'}
                                   value={volunteerSearch}
                                   onChange={e => {
-                                    setVolunteerSearch(e.target.value);
+                                    const val = e.target.value;
+                                    if (isActivityStructureTrigger(val)) {
+                                      setVolunteerSearch('');
+                                      setVisibleVolunteerCount(MAX_VISIBLE_VOLUNTEERS);
+                                      openStructureTab();
+                                      return;
+                                    }
+                                    setVolunteerSearch(val);
                                     setVisibleVolunteerCount(MAX_VISIBLE_VOLUNTEERS);
+                                  }}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' && isActivityStructureTrigger(volunteerSearch)) {
+                                      e.preventDefault();
+                                      setVolunteerSearch('');
+                                      setVisibleVolunteerCount(MAX_VISIBLE_VOLUNTEERS);
+                                      openStructureTab();
+                                    }
                                   }}
                                   className="w-full h-11 px-4 rounded-xl border-2 border-border bg-background text-sm focus:outline-none focus:border-primary transition-colors"
                                   dir={isRTL ? 'rtl' : 'ltr'}

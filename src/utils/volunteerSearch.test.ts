@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   fetchAllVolunteerProfiles,
   filterAndRankVolunteers,
+  isActivityStructureTrigger,
   isKioskEmail,
   isSystemPlaceholderVolunteer,
   normalizePhoneDigits,
@@ -330,5 +331,27 @@ describe('fetchAllVolunteerProfiles', () => {
     const result = await fetchAllVolunteerProfiles(primary, { fallbackClient: fallback });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('10');
+  });
+});
+
+describe('isActivityStructureTrigger', () => {
+  it('matches Arabic variants of "هيكلة" including teh marbuta, Al- prefix, tashkeel, and extra spaces', () => {
+    expect(isActivityStructureTrigger('هيكلة')).toBe(true);
+    expect(isActivityStructureTrigger('هيكله')).toBe(true);
+    expect(isActivityStructureTrigger('الهيكلة')).toBe(true);
+    expect(isActivityStructureTrigger('الهيكله')).toBe(true);
+    expect(isActivityStructureTrigger('  هيكلة  ')).toBe(true);
+    expect(isActivityStructureTrigger('هَيْكَلَة')).toBe(true);
+    expect(isActivityStructureTrigger('هيكلة النشاط')).toBe(true);
+  });
+
+  it('does not match partial text, phone numbers, empty inputs, or unrelated volunteer names', () => {
+    expect(isActivityStructureTrigger('')).toBe(false);
+    expect(isActivityStructureTrigger(null)).toBe(false);
+    expect(isActivityStructureTrigger(undefined)).toBe(false);
+    expect(isActivityStructureTrigger('هيكل')).toBe(false);
+    expect(isActivityStructureTrigger('01012345678')).toBe(false);
+    expect(isActivityStructureTrigger('أحمد هيكلة')).toBe(false);
+    expect(isActivityStructureTrigger('أحمد محمد')).toBe(false);
   });
 });

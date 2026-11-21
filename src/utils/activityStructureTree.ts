@@ -10,7 +10,7 @@ export type StructureColor = (typeof STRUCTURE_COLORS)[number];
 export const MAX_RESPONSIBILITIES = 30;
 export const MAX_TITLE_LENGTH = 120;
 
-export type StructureNodeType = 'volunteer' | 'section';
+export type StructureNodeType = 'volunteer' | 'section' | 'joker';
 
 export interface SquadMemberOption {
   id: string;
@@ -175,6 +175,7 @@ export function matchesStructureSearch(node: StructureNode, query: string): bool
     node.deputy_title,
     node.committee_name,
     node.committee_name_ar,
+    node.node_type === 'joker' ? 'جوكر joker' : null,
     ...node.responsibilities,
   ].some((value) => typeof value === 'string' && value.toLowerCase().includes(q));
 }
@@ -546,4 +547,146 @@ export function computePyramidLayoutPositions(
   }
 
   return positions;
+}
+
+export type StructureNodeTier = 'root' | 'lead' | 'member';
+
+/**
+ * Assign a visual tier to every visible node on the board so the leadership
+ * hierarchy is scannable at a glance:
+ * - `root` (96px): top-of-pyramid head or pinned sub-board owner
+ * - `lead` (80px): section/mid-level leads, deputies of heads, or uniform default on unconnected boards
+ * - `member` (68px): leaf members with no subordinates and no owned section
+ */
+export function computeNodeTiers(
+  visibleNodes: readonly StructureNode[],
+  layerEdges: readonly StructureEdge[],
+  subBoardCounts: ReadonlyMap<string, number>,
+  pinnedHeadId: string | null = null
+): Map<string, StructureNodeTier> {
+  const tiers = new Map<string, StructureNodeTier>();
+  if (visibleNodes.length === 0) return tiers;
+
+  const visibleIds = new Set(visibleNodes.map((n) => n.id));
+  const incomingHierarchy = new Set<string>();
+  const outgoingHierarchy = new Set<string>();
+  const deputyTargets = new Set<string>();
+  const deputySources = new Set<string>();
+
+  for (const e of layerEdges) {
+    if (!visibleIds.has(e.source_id) || !visibleIds.has(e.target_id) || e.source_id === e.target_id) continue;
+    if (e.label === 'deputy') {
+      deputyTargets.add(e.target_id);
+      deputySources.add(e.source_id);
+    } else {
+      incomingHierarchy.add(e.target_id);
+      outgoingHierarchy.add(e.source_id);
+    }
+  }
+
+  const hasAnyHierarchyEdge = incomingHierarchy.size > 0;
+
+  for (const n of visibleNodes) {
+    if (pinnedHeadId && n.id === pinnedHeadId) {
+      tiers.set(n.id, 'root');
+      continue;
+    }
+
+    const isTopUnconnectedHead =
+      !pinnedHeadId &&
+      hasAnyHierarchyEdge &&
+      !incomingHierarchy.has(n.id) &&
+      !deputyTargets.has(n.id) &&
+      (outgoingHierarchy.has(n.id) || (subBoardCounts.get(n.id) ?? 0) > 0 || deputySources.has(n.id));
+
+    if (isTopUnconnectedHead) {
+      tiers.set(n.id, 'root');
+    } else if (!hasAnyHierarchyEdge && !pinnedHeadId) {
+      tiers.set(n.id, 'lead');
+    } else if (deputyTargets.has(n.id)) {
+      tiers.set(n.id, 'lead');
+    } else if (
+      outgoingHierarchy.has(n.id) ||
+      (subBoardCounts.get(n.id) ?? 0) > 0 ||
+      Boolean(n.section_title?.trim() || n.team_image_url)
+    ) {
+      tiers.set(n.id, 'lead');
+    } else {
+      tiers.set(n.id, 'member');
+    }
+  }
+
+  return tiers;
+}
+
+/**
+ * Trace the full reporting path through `focusNodeId`:
+ * all ancestors above it, all descendants below it, and any deputy pairs
+ * attached to nodes along that path. Cycle-safe.
+ */
+export function getPathHighlightSet(
+  focusNodeId: string,
+  edges: readonly StructureEdge[]
+): { nodeIds: Set<string>; edgeIds: Set<string> } {
+  const nodeIds = new Set<string>([focusNodeId]);
+  const edgeIds = new Set<string>();
+
+  const parentsOf = new Map<string, StructureEdge[]>();
+  const childrenOf = new Map<string, StructureEdge[]>();
+  const deputyEdges: StructureEdge[] = [];
+
+  for (const e of edges) {
+    if (e.label === 'deputy') {
+      deputyEdges.push(e);
+      continue;
+    }
+    const pList = parentsOf.get(e.target_id);
+    if (pList) pList.push(e);
+    else parentsOf.set(e.target_id, [e]);
+
+    const cList = childrenOf.get(e.source_id);
+    if (cList) cList.push(e);
+    else childrenOf.set(e.source_id, [e]);
+  }
+
+  // Walk upward (ancestors)
+  const upVisited = new Set<string>([focusNodeId]);
+  const upQueue: string[] = [focusNodeId];
+  while (upQueue.length > 0) {
+    const curr = upQueue.shift() as string;
+    for (const e of parentsOf.get(curr) ?? []) {
+      edgeIds.add(e.id);
+      if (!upVisited.has(e.source_id)) {
+        upVisited.add(e.source_id);
+        nodeIds.add(e.source_id);
+        upQueue.push(e.source_id);
+      }
+    }
+  }
+
+  // Walk downward (descendants)
+  const downVisited = new Set<string>([focusNodeId]);
+  const downQueue: string[] = [focusNodeId];
+  while (downQueue.length > 0) {
+    const curr = downQueue.shift() as string;
+    for (const e of childrenOf.get(curr) ?? []) {
+      edgeIds.add(e.id);
+      if (!downVisited.has(e.target_id)) {
+        downVisited.add(e.target_id);
+        nodeIds.add(e.target_id);
+        downQueue.push(e.target_id);
+      }
+    }
+  }
+
+  // Attach paired deputies / heads for any node on the highlighted path
+  for (const e of deputyEdges) {
+    if (nodeIds.has(e.source_id) || nodeIds.has(e.target_id)) {
+      edgeIds.add(e.id);
+      nodeIds.add(e.source_id);
+      nodeIds.add(e.target_id);
+    }
+  }
+
+  return { nodeIds, edgeIds };
 }

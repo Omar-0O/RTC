@@ -2,16 +2,19 @@ import { describe, expect, it } from 'vitest';
 import {
   buildStructureTree,
   canReparent,
+  computeNodeTiers,
   computePyramidLayoutPositions,
   getChainOfCommand,
   getDescendantIds,
   getDirectReports,
+  getPathHighlightSet,
   getRecursiveSectionMembers,
   getSearchVisibleIds,
   isStructureColor,
   matchesStructureSearch,
   nextSortOrder,
   parseResponsibilities,
+  type StructureEdge,
   type StructureNode,
 } from './activityStructureTree';
 
@@ -232,5 +235,96 @@ describe('computePyramidLayoutPositions', () => {
     expect(pos.get('mem-2')?.pos_y).toBe(620);
     const memMid = ((pos.get('mem-1')?.pos_x ?? 0) + (pos.get('mem-2')?.pos_x ?? 0)) / 2;
     expect(Math.abs((pos.get('lead-a')?.pos_x ?? 0) - memMid)).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('computeNodeTiers', () => {
+  it('assigns root, lead, and member tiers based on hierarchy depth and ownership', () => {
+    const nodes: StructureNode[] = [
+      node('head', null),
+      node('deputy', null),
+      node('lead-a', null),
+      node('section-leaf', null, { section_title: 'Media' }),
+      node('mem-1', null),
+    ];
+    const edges: StructureEdge[] = [
+      { id: 'e-dep', branch_id: 'b1', source_id: 'head', target_id: 'deputy', label: 'deputy' },
+      { id: 'e-1', branch_id: 'b1', source_id: 'head', target_id: 'lead-a', label: null },
+      { id: 'e-2', branch_id: 'b1', source_id: 'head', target_id: 'section-leaf', label: null },
+      { id: 'e-3', branch_id: 'b1', source_id: 'lead-a', target_id: 'mem-1', label: null },
+    ];
+    const subCounts = new Map<string, number>([['section-leaf', 3]]);
+    const tiers = computeNodeTiers(nodes, edges, subCounts, null);
+
+    expect(tiers.get('head')).toBe('root');
+    expect(tiers.get('lead-a')).toBe('lead');
+    expect(tiers.get('section-leaf')).toBe('lead');
+    expect(tiers.get('mem-1')).toBe('member');
+  });
+
+  it('gives pinned sub-board head the root tier and unconnected flat nodes lead tier', () => {
+    const nodes: StructureNode[] = [node('owner', null), node('sub-1', null)];
+    const pinnedTiers = computeNodeTiers(nodes, [], new Map(), 'owner');
+    expect(pinnedTiers.get('owner')).toBe('root');
+    expect(pinnedTiers.get('sub-1')).toBe('member');
+
+    const flatTiers = computeNodeTiers([node('a', null), node('b', null)], [], new Map(), null);
+    expect(flatTiers.get('a')).toBe('lead');
+    expect(flatTiers.get('b')).toBe('lead');
+  });
+});
+
+describe('getPathHighlightSet', () => {
+  it('collects ancestors, descendants, paired deputies, and their edges without unrelated siblings', () => {
+    const edges: StructureEdge[] = [
+      { id: 'e-head-dep', branch_id: 'b1', source_id: 'head', target_id: 'dep', label: 'deputy' },
+      { id: 'e-head-a', branch_id: 'b1', source_id: 'head', target_id: 'lead-a', label: null },
+      { id: 'e-head-b', branch_id: 'b1', source_id: 'head', target_id: 'lead-b', label: null },
+      { id: 'e-a-m1', branch_id: 'b1', source_id: 'lead-a', target_id: 'mem-1', label: null },
+      { id: 'e-b-m2', branch_id: 'b1', source_id: 'lead-b', target_id: 'mem-2', label: null },
+    ];
+
+    const res = getPathHighlightSet('lead-a', edges);
+    expect(res.nodeIds.has('head')).toBe(true);
+    expect(res.nodeIds.has('mem-1')).toBe(true);
+    expect(res.nodeIds.has('lead-b')).toBe(false);
+    expect(res.nodeIds.has('mem-2')).toBe(false);
+    expect(res.edgeIds.has('e-head-a')).toBe(true);
+    expect(res.edgeIds.has('e-a-m1')).toBe(true);
+    expect(res.edgeIds.has('e-head-b')).toBe(false);
+    expect(res.edgeIds.has('e-b-m2')).toBe(false);
+  });
+
+  it('terminates cleanly on cyclic edges', () => {
+    const edges: StructureEdge[] = [
+      { id: 'e1', branch_id: 'b1', source_id: 'a', target_id: 'b', label: null },
+      { id: 'e2', branch_id: 'b1', source_id: 'b', target_id: 'a', label: null },
+    ];
+    const res = getPathHighlightSet('a', edges);
+    expect(res.nodeIds.has('a')).toBe(true);
+    expect(res.nodeIds.has('b')).toBe(true);
+    expect(res.edgeIds.has('e1')).toBe(true);
+    expect(res.edgeIds.has('e2')).toBe(true);
+  });
+});
+
+describe('joker classification behavior', () => {
+  it('matches Arabic and English joker keywords in search and includes jokers in section members', () => {
+    const head = node('head', null, { volunteer_id: 'v-head' });
+    const jokerMember = node('jk-1', null, {
+      board_owner_id: 'head',
+      node_type: 'joker',
+      title: 'دعم سريع',
+      volunteer_id: 'v-joker',
+      volunteer_name: 'Karim Adel',
+      volunteer_name_ar: 'كريم عادل',
+    });
+
+    expect(matchesStructureSearch(jokerMember, 'جوكر')).toBe(true);
+    expect(matchesStructureSearch(jokerMember, 'joker')).toBe(true);
+    expect(matchesStructureSearch(head, 'جوكر')).toBe(false);
+
+    const thumbs = getRecursiveSectionMembers([head, jokerMember], 'head', true);
+    expect(thumbs.map((t) => t.id)).toEqual(['v-joker']);
   });
 });

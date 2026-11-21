@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import {
   AlertCircle,
@@ -6,8 +6,10 @@ import {
   GitFork,
   Loader2,
   Lock,
+  Redo2,
   RotateCcw,
   Save,
+  Undo2,
   UserPlus,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -35,9 +37,33 @@ import {
   useCanManageActivityStructure,
   useStructureVolunteers,
 } from '@/hooks/useActivityStructure';
-import { StructureBoard, type StructureBoardEditHandlers } from '@/components/activityStructure/StructureBoard';
+import {
+  StructureBoard,
+  type StructureBoardDraftControls,
+  type StructureBoardEditHandlers,
+} from '@/components/activityStructure/StructureBoard';
 import { StructureNodeDialog } from '@/components/activityStructure/StructureNodeDialog';
 import { RootBoardMetaDialog } from '@/components/activityStructure/RootBoardMetaDialog';
+import {
+  applyDraftTransform,
+  batchMoveDraftNodes,
+  computeBoardDraftDiff,
+  createDraftEdge,
+  createDraftHistory,
+  createDraftNode,
+  deleteDraftEdge,
+  deleteDraftNode,
+  discardDraft,
+  isDraftDiffEmpty,
+  markDraftSaved,
+  moveDraftNode,
+  redoDraft,
+  undoDraft,
+  updateDraftNode,
+  updateDraftRootMeta,
+  type BoardSnapshot,
+  type DraftHistoryState,
+} from '@/utils/activityStructureDraft';
 import { nextSortOrder, type StructureNode } from '@/utils/activityStructureTree';
 import type { SaveStructureNodeInput } from '@/services/activityStructure.service';
 
@@ -67,7 +93,6 @@ export default function ActivityStructure(): React.ReactElement {
     error: boardError,
   } = useActivityStructureBoard(effectiveBranchId);
 
-  const { nodes, edges, rootMeta } = board;
   const { data: canManageServer = false } = useCanManageActivityStructure(effectiveBranchId);
 
   const canManage = useMemo(() => {
@@ -82,39 +107,130 @@ export default function ActivityStructure(): React.ReactElement {
   // Multi-layer navigation state (null = Root Branch Board; <nodeId> = Sub-board owned by that node)
   const [activeBoardOwnerId, setActiveBoardOwnerId] = useState<string | null>(null);
 
-  // UI state
+  // UI & local draft state
+  type PendingExitIntent =
+    | { type: 'exitEditMode' }
+    | { type: 'switchBranch'; branch: (typeof branches)[number] };
+
   const [editMode, setEditMode] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [rootMetaOpen, setRootMetaOpen] = useState(false);
   const [editingNode, setEditingNode] = useState<StructureNode | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [pendingPositions, setPendingPositions] = useState<Record<string, { pos_x: number; pos_y: number }>>({});
-  const [positionHistory, setPositionHistory] = useState<Array<Record<string, { pos_x: number; pos_y: number }>>>([]);
+  const [draftState, setDraftState] = useState<DraftHistoryState | null>(null);
+  const [pendingExitIntent, setPendingExitIntent] = useState<PendingExitIntent | null>(null);
   const viewportCenterRef = useRef<{ pos_x: number; pos_y: number }>({ pos_x: 320, pos_y: 220 });
 
-  const hasUnsavedChanges = Object.keys(pendingPositions).length > 0;
+  const activeBoard: BoardSnapshot =
+    editMode && draftState && draftState.branchId === effectiveBranchId ? draftState.present : board;
+
+  const draftDiff = useMemo(
+    () => (draftState ? computeBoardDraftDiff(draftState.base, draftState.present) : null),
+    [draftState]
+  );
+
+  const hasUnsavedChanges = Boolean(draftDiff && !isDraftDiffEmpty(draftDiff));
+  const canUndo = Boolean(draftState && draftState.past.length > 0);
+  const canRedo = Boolean(draftState && draftState.future.length > 0);
 
   const { data: volunteers = [] } = useStructureVolunteers(effectiveBranchId, dialogOpen || editMode);
 
-  // Mutations
-  const {
-    createNode,
-    updateNode,
-    batchMovePositions,
-    deleteNode,
-    createEdge,
-    deleteEdge,
-    upsertRootMeta,
-  } = useActivityStructureMutations(effectiveBranchId);
+  // Mutations (committed only when user explicitly clicks Save)
+  const { saveDraft } = useActivityStructureMutations(effectiveBranchId);
+  const isSaving = saveDraft.isPending;
 
-  const isSaving = createNode.isPending || updateNode.isPending || deleteNode.isPending;
+  const applyDraftChange = useCallback((transform: (snapshot: BoardSnapshot) => BoardSnapshot) => {
+    setDraftState((prev) => (prev ? applyDraftTransform(prev, transform) : prev));
+  }, []);
+
+  const handleUndo = useCallback(() => {
+    setDraftState((prev) => (prev ? undoDraft(prev) : prev));
+  }, []);
+
+  const handleRedo = useCallback(() => {
+    setDraftState((prev) => (prev ? redoDraft(prev) : prev));
+  }, []);
+
+  const handleDiscardChanges = useCallback(() => {
+    setDraftState((prev) => (prev ? discardDraft(prev) : prev));
+  }, []);
+
+  const handleSaveChanges = useCallback(async (): Promise<boolean> => {
+    if (!effectiveBranchId || !draftState || !draftDiff) return false;
+    if (isDraftDiffEmpty(draftDiff)) return true;
+    try {
+      await saveDraft.mutateAsync({ diff: draftDiff, nextSnapshot: draftState.present });
+      setDraftState((prev) => (prev ? markDraftSaved(prev) : prev));
+      toast.success(label('تم حفظ التعديلات بنجاح', 'Changes saved successfully'));
+      return true;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : label('تعذر حفظ التعديلات', 'Failed to save changes'));
+      return false;
+    }
+  }, [draftDiff, draftState, effectiveBranchId, label, saveDraft]);
+
+  // Reset active sub-board or delete prompt if an Undo/Discard removes the referenced node
+  useEffect(() => {
+    if (activeBoardOwnerId && !activeBoard.nodes.some((n) => n.id === activeBoardOwnerId)) {
+      setActiveBoardOwnerId(null);
+    }
+  }, [activeBoard.nodes, activeBoardOwnerId]);
+
+  useEffect(() => {
+    if (deleteTargetId && !activeBoard.nodes.some((n) => n.id === deleteTargetId)) {
+      setDeleteTargetId(null);
+    }
+  }, [activeBoard.nodes, deleteTargetId]);
+
+  // Warn before closing/reloading tab if draft has unsaved changes
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  // Keyboard shortcuts (Ctrl/Cmd+Z, Ctrl/Cmd+Y / Ctrl+Shift+Z, Ctrl/Cmd+S) in Edit Mode
+  useEffect(() => {
+    if (!editMode) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (dialogOpen || rootMetaOpen || Boolean(deleteTargetId) || Boolean(pendingExitIntent)) return;
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const key = e.key.toLowerCase();
+      if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if (key === 'y' || (key === 'z' && e.shiftKey)) {
+        e.preventDefault();
+        handleRedo();
+      } else if (key === 's') {
+        e.preventDefault();
+        void handleSaveChanges();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [deleteTargetId, dialogOpen, editMode, handleRedo, handleSaveChanges, handleUndo, pendingExitIntent, rootMetaOpen]);
 
   const editHandlers: StructureBoardEditHandlers | undefined = useMemo(() => {
-    if (!canManage || !editMode) return undefined;
+    if (!canManage || !editMode || !effectiveBranchId) return undefined;
 
     return {
       onEdit: (id: string) => {
-        const found = nodes.find((n) => n.id === id);
+        const found = activeBoard.nodes.find((n) => n.id === id);
         if (found) {
           setEditingNode(found);
           setDialogOpen(true);
@@ -125,6 +241,11 @@ export default function ActivityStructure(): React.ReactElement {
         setEditingNode(null);
         setDialogOpen(true);
       },
+      onCreateInLayer: (ownerId: string | null) => {
+        setActiveBoardOwnerId(ownerId);
+        setEditingNode(null);
+        setDialogOpen(true);
+      },
       onEditRootMeta: () => {
         setRootMetaOpen(true);
       },
@@ -132,60 +253,78 @@ export default function ActivityStructure(): React.ReactElement {
         setDeleteTargetId(id);
       },
       onMovePosition: (id: string, pos_x: number, pos_y: number) => {
-        setPendingPositions((prev) => {
-          setPositionHistory((hist) => [...hist, prev]);
-          return { ...prev, [id]: { pos_x, pos_y } };
-        });
+        applyDraftChange((s) => moveDraftNode(s, id, pos_x, pos_y));
       },
       onBatchMovePositions: (updates) => {
-        setPendingPositions((prev) => {
-          setPositionHistory((hist) => [...hist, prev]);
-          const next = { ...prev };
-          for (const u of updates) next[u.id] = { pos_x: u.pos_x, pos_y: u.pos_y };
-          return next;
-        });
+        applyDraftChange((s) => batchMoveDraftNodes(s, updates));
       },
       onCreateEdge: (sourceId: string, targetId: string, edgeLabel?: string | null) => {
-        createEdge.mutate(
-          { sourceId, targetId, label: edgeLabel ?? undefined },
-          {
-            onSuccess: () =>
-              toast.success(
-                edgeLabel === 'deputy'
-                  ? label('تم ربط النائب بجانب الهيد', 'Deputy linked beside lead')
-                  : label('تم إنشاء التوصيل', 'Connection added')
-              ),
-            onError: (err) => toast.error(err instanceof Error ? err.message : label('تعذر التوصيل', 'Failed to connect')),
-          }
+        applyDraftChange((s) =>
+          createDraftEdge(s, {
+            id: crypto.randomUUID(),
+            branchId: effectiveBranchId,
+            sourceId,
+            targetId,
+            label: edgeLabel,
+          })
         );
       },
       onDeleteEdge: (edgeId: string) => {
-        deleteEdge.mutate(edgeId, {
-          onSuccess: () => toast.success(label('تم حذف التوصيل', 'Connection removed')),
-          onError: (err) => toast.error(err instanceof Error ? err.message : label('تعذر الحذف', 'Failed to remove')),
-        });
+        applyDraftChange((s) => deleteDraftEdge(s, edgeId));
       },
     };
-  }, [canManage, editMode, nodes, createEdge, deleteEdge, label]);
+  }, [activeBoard.nodes, applyDraftChange, canManage, editMode, effectiveBranchId]);
 
-  const handleSaveChanges = async () => {
-    const updates = Object.entries(pendingPositions).map(([id, pos]) => ({ id, ...pos }));
-    if (updates.length === 0) return;
-    try {
-      await batchMovePositions.mutateAsync(updates);
-      setPendingPositions({});
-      setPositionHistory([]);
-      toast.success(label('تم حفظ التعديلات بنجاح', 'Changes saved successfully'));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : label('تعذر حفظ التعديلات', 'Failed to save changes'));
+  const draftControls: StructureBoardDraftControls | undefined = useMemo(() => {
+    if (!canManage || !editMode) return undefined;
+    return {
+      canUndo,
+      canRedo,
+      hasUnsavedChanges,
+      isSaving,
+      onUndo: handleUndo,
+      onRedo: handleRedo,
+      onDiscard: handleDiscardChanges,
+      onSave: () => {
+        void handleSaveChanges();
+      },
+    };
+  }, [
+    canManage,
+    canRedo,
+    canUndo,
+    editMode,
+    handleDiscardChanges,
+    handleRedo,
+    handleSaveChanges,
+    handleUndo,
+    hasUnsavedChanges,
+    isSaving,
+  ]);
+
+  const handleToggleEditMode = (checked: boolean) => {
+    if (checked) {
+      if (!effectiveBranchId || boardLoading) return;
+      setDraftState(createDraftHistory(effectiveBranchId, board));
+      setEditMode(true);
+      return;
     }
+    if (hasUnsavedChanges) {
+      setPendingExitIntent({ type: 'exitEditMode' });
+      return;
+    }
+    setEditMode(false);
+    setDraftState(null);
   };
 
-  const handleRevertStep = () => {
-    if (positionHistory.length === 0) return;
-    const previous = positionHistory[positionHistory.length - 1];
-    setPositionHistory((hist) => hist.slice(0, -1));
-    setPendingPositions(previous);
+  const executeExitIntent = (intent: PendingExitIntent) => {
+    setPendingExitIntent(null);
+    setEditMode(false);
+    setDraftState(null);
+    if (intent.type === 'switchBranch') {
+      setActiveBranch(intent.branch);
+      setActiveBoardOwnerId(null);
+    }
   };
 
   const handleOpenCreate = () => {
@@ -193,56 +332,46 @@ export default function ActivityStructure(): React.ReactElement {
     setDialogOpen(true);
   };
 
-  const handleFormSubmit = async (input: SaveStructureNodeInput) => {
-    try {
-      if (editingNode) {
-        await updateNode.mutateAsync({ id: editingNode.id, input });
-        toast.success(label('تم التحديث بنجاح', 'Updated successfully'));
-      } else {
-        const { pos_x, pos_y } = viewportCenterRef.current;
-        const sortOrder = nextSortOrder(nodes, null);
-        const newNodeId = await createNode.mutateAsync({
+  const handleFormSubmit = (input: SaveStructureNodeInput) => {
+    if (!effectiveBranchId) return;
+    if (editingNode) {
+      applyDraftChange((s) => updateDraftNode(s, editingNode.id, input, volunteers));
+    } else {
+      const { pos_x, pos_y } = viewportCenterRef.current;
+      const newId = crypto.randomUUID();
+      const autoEdgeId = crypto.randomUUID();
+      applyDraftChange((s) =>
+        createDraftNode(s, {
+          id: newId,
+          branchId: effectiveBranchId,
           input: { ...input, board_owner_id: activeBoardOwnerId, pos_x, pos_y },
-          sortOrder,
-        });
-        if (activeBoardOwnerId && newNodeId) {
-          await createEdge.mutateAsync({ sourceId: activeBoardOwnerId, targetId: newNodeId });
-        }
-        toast.success(label('تم إضافة المتطوع بنجاح', 'Volunteer added successfully'));
-      }
-      setDialogOpen(false);
-      setEditingNode(null);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : label('فشل في الحفظ', 'Failed to save'));
+          sortOrder: nextSortOrder(s.nodes, null),
+          volunteers,
+          activeBoardOwnerId,
+          autoEdgeId,
+        })
+      );
     }
+    setDialogOpen(false);
+    setEditingNode(null);
   };
 
-  const handleSaveRootMeta = async (meta: { title: string | null; description: string | null; team_image_url: string | null }) => {
-    try {
-      await upsertRootMeta.mutateAsync(meta);
-      toast.success(label('تم حفظ بيانات الفرع', 'Branch info saved'));
-      setRootMetaOpen(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : label('فشل الحفظ', 'Failed to save'));
-    }
+  const handleSaveRootMeta = (meta: { title: string | null; description: string | null; team_image_url: string | null }) => {
+    if (!effectiveBranchId) return;
+    applyDraftChange((s) => updateDraftRootMeta(s, effectiveBranchId, meta));
+    setRootMetaOpen(false);
   };
 
-  const handleConfirmDelete = async () => {
+  const handleConfirmDelete = () => {
     if (!deleteTargetId) return;
-    try {
-      await deleteNode.mutateAsync(deleteTargetId);
-      if (activeBoardOwnerId === deleteTargetId) {
-        setActiveBoardOwnerId(null);
-      }
-      toast.success(label('تم الحذف بنجاح', 'Deleted successfully'));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : label('تعذر الحذف', 'Failed to delete'));
-    } finally {
-      setDeleteTargetId(null);
+    applyDraftChange((s) => deleteDraftNode(s, deleteTargetId));
+    if (activeBoardOwnerId === deleteTargetId) {
+      setActiveBoardOwnerId(null);
     }
+    setDeleteTargetId(null);
   };
 
-  const deleteTargetNode = nodes.find((n) => n.id === deleteTargetId);
+  const deleteTargetNode = activeBoard.nodes.find((n) => n.id === deleteTargetId);
 
   return (
     <div className="space-y-4 p-2.5 sm:space-y-6 sm:p-6 lg:p-8" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -272,10 +401,15 @@ export default function ActivityStructure(): React.ReactElement {
                 value={effectiveBranchId || ''}
                 onValueChange={(val) => {
                   const b = branches.find((branch) => branch.id === val);
-                  if (b) {
-                    setActiveBranch(b);
-                    setActiveBoardOwnerId(null);
+                  if (!b || b.id === effectiveBranchId) return;
+                  if (editMode && hasUnsavedChanges) {
+                    setPendingExitIntent({ type: 'switchBranch', branch: b });
+                    return;
                   }
+                  setEditMode(false);
+                  setDraftState(null);
+                  setActiveBranch(b);
+                  setActiveBoardOwnerId(null);
                 }}
               >
                 <SelectTrigger className="h-9 w-full sm:w-[180px]">
@@ -294,7 +428,12 @@ export default function ActivityStructure(): React.ReactElement {
             {canManage ? (
               <div className="flex w-full flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-2.5 py-1.5 sm:w-auto sm:gap-2.5 sm:px-3">
                 <div className="flex items-center gap-2">
-                  <Switch id="edit-mode-toggle" checked={editMode} onCheckedChange={setEditMode} />
+                  <Switch
+                    id="edit-mode-toggle"
+                    checked={editMode}
+                    onCheckedChange={handleToggleEditMode}
+                    disabled={boardLoading || isSaving}
+                  />
                   <label htmlFor="edit-mode-toggle" className="cursor-pointer select-none text-xs font-medium">
                     {label('وضع التعديل', 'Edit Mode')}
                   </label>
@@ -302,40 +441,60 @@ export default function ActivityStructure(): React.ReactElement {
 
                 {editMode && (
                   <>
-                    <Button size="sm" onClick={handleOpenCreate} className="h-8 gap-1.5 font-medium">
+                    <Button size="sm" onClick={handleOpenCreate} disabled={isSaving} className="h-8 gap-1.5 font-medium">
                       <UserPlus className="h-3.5 w-3.5" />
                       {label('إضافة متطوع', 'Add Volunteer')}
                     </Button>
-                    {(hasUnsavedChanges || positionHistory.length > 0) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleUndo}
+                      disabled={!canUndo || isSaving}
+                      className="h-8 gap-1.5 px-2.5 text-xs font-medium"
+                      title={label('تراجع عن آخر خطوة (Ctrl+Z)', 'Undo last step (Ctrl+Z)')}
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                      <span>{label('تراجع', 'Undo')}</span>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleRedo}
+                      disabled={!canRedo || isSaving}
+                      className="h-8 gap-1.5 px-2.5 text-xs font-medium"
+                      title={label('إعادة الخطوة (Ctrl+Y)', 'Redo step (Ctrl+Y)')}
+                    >
+                      <Redo2 className="h-3.5 w-3.5" />
+                      <span>{label('إعادة', 'Redo')}</span>
+                    </Button>
+                    {hasUnsavedChanges && (
                       <>
-                        {positionHistory.length > 0 && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleRevertStep}
-                            disabled={batchMovePositions.isPending}
-                            className="h-8 gap-1.5 px-2.5 text-xs font-medium"
-                            title={label('رجوع خطوة للخلف', 'Revert last step')}
-                          >
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            <span>{label('تراجع', 'Revert')}</span>
-                          </Button>
-                        )}
-                        {hasUnsavedChanges && (
-                          <Button
-                            size="sm"
-                            onClick={handleSaveChanges}
-                            disabled={batchMovePositions.isPending}
-                            className="h-8 gap-1.5 bg-emerald-600 font-medium text-white hover:bg-emerald-700"
-                          >
-                            {batchMovePositions.isPending ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Save className="h-3.5 w-3.5" />
-                            )}
-                            {label('حفظ', 'Save')}
-                          </Button>
-                        )}
+                        <Badge
+                          variant="outline"
+                          className="border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300"
+                        >
+                          {label('تعديلات غير محفوظة', 'Unsaved')}
+                        </Badge>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleDiscardChanges}
+                          disabled={isSaving}
+                          className="h-8 gap-1.5 px-2 text-xs font-medium text-muted-foreground hover:text-destructive"
+                          title={label('تجاهل كل التعديلات غير المحفوظة', 'Discard unsaved changes')}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          <span>{label('تجاهل', 'Discard')}</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => void handleSaveChanges()}
+                          disabled={isSaving}
+                          className="h-8 gap-1.5 bg-emerald-600 font-medium text-white hover:bg-emerald-700"
+                        >
+                          {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                          {label('حفظ', 'Save')}
+                        </Button>
                       </>
                     )}
                   </>
@@ -369,14 +528,14 @@ export default function ActivityStructure(): React.ReactElement {
             </div>
           ) : (
             <StructureBoard
-              nodes={nodes}
-              edges={edges}
-              rootMeta={rootMeta}
+              nodes={activeBoard.nodes}
+              edges={activeBoard.edges}
+              rootMeta={activeBoard.rootMeta}
               activeBoardOwnerId={activeBoardOwnerId}
               onChangeBoardOwner={setActiveBoardOwnerId}
               isRTL={isRTL}
               editable={Boolean(editHandlers)}
-              pendingPositions={pendingPositions}
+              draftControls={draftControls}
               onViewportCenterChange={(center) => {
                 viewportCenterRef.current = center;
               }}
@@ -398,7 +557,7 @@ export default function ActivityStructure(): React.ReactElement {
         volunteers={volunteers}
         editing={editingNode}
         activeBoardOwnerId={activeBoardOwnerId}
-        saving={isSaving}
+        saving={false}
         onSubmit={handleFormSubmit}
       />
 
@@ -408,8 +567,8 @@ export default function ActivityStructure(): React.ReactElement {
         onOpenChange={setRootMetaOpen}
         branchId={effectiveBranchId}
         isRTL={isRTL}
-        meta={rootMeta}
-        saving={upsertRootMeta.isPending}
+        meta={activeBoard.rootMeta}
+        saving={false}
         onSubmit={handleSaveRootMeta}
       />
 
@@ -425,8 +584,8 @@ export default function ActivityStructure(): React.ReactElement {
             <AlertDialogTitle>{label('تأكيد الحذف', 'Confirm Deletion')}</AlertDialogTitle>
             <AlertDialogDescription>
               {label(
-                `هل أنت متأكد من حذف "${deleteTargetNode?.title || ''}"؟ (سيتم حذف أي بورد فرعي تابع له أيضاً)`,
-                `Are you sure you want to delete "${deleteTargetNode?.title || ''}"? (Any nested sub-board under it will also be removed)`
+                `هل أنت متأكد من حذف "${deleteTargetNode?.title || ''}"؟ (سيتم حذف أي بورد فرعي تابع له أيضاً — ويمكنك التراجع قبل الحفظ)`,
+                `Are you sure you want to delete "${deleteTargetNode?.title || ''}"? (Any nested sub-board will also be removed — you can still undo before saving)`
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -438,6 +597,51 @@ export default function ActivityStructure(): React.ReactElement {
             >
               {label('تأكيد الحذف', 'Delete')}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unsaved Changes Guard Dialog */}
+      <AlertDialog
+        open={Boolean(pendingExitIntent)}
+        onOpenChange={(open) => {
+          if (!open && !isSaving) setPendingExitIntent(null);
+        }}
+      >
+        <AlertDialogContent dir={isRTL ? 'rtl' : 'ltr'}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{label('تعديلات غير محفوظة', 'Unsaved Changes')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {label(
+                'لديك تعديلات على البورد لم يتم حفظها بعد. هل تريد حفظها أم تجاهلها قبل المتابعة؟',
+                'You have unsaved changes on the board. Would you like to save or discard them before continuing?'
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-wrap gap-2">
+            <AlertDialogCancel disabled={isSaving}>
+              {label('الاستمرار في التعديل', 'Keep Editing')}
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isSaving}
+              onClick={() => pendingExitIntent && executeExitIntent(pendingExitIntent)}
+            >
+              {label('تجاهل التعديلات', 'Discard Changes')}
+            </Button>
+            <Button
+              type="button"
+              disabled={isSaving}
+              className="gap-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+              onClick={async () => {
+                const ok = await handleSaveChanges();
+                if (ok && pendingExitIntent) executeExitIntent(pendingExitIntent);
+              }}
+            >
+              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              {label('حفظ التعديلات', 'Save Changes')}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

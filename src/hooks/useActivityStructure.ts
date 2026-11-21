@@ -8,6 +8,7 @@ import { queryKeys } from '@/lib/queryKeys';
 import { shouldRetry } from '@/services/api';
 import * as structureService from '@/services/activityStructure.service';
 import type { ActivityStructureBoardData, SaveStructureNodeInput } from '@/services/activityStructure.service';
+import type { BoardDraftDiff } from '@/utils/activityStructureDraft';
 
 export type {
   ActivityStructureBoardData,
@@ -124,6 +125,15 @@ export function useActivityStructureMutations(branchId: string | null) {
     onSuccess: invalidate,
   });
 
+  const saveDraft = useMutation({
+    mutationFn: ({ diff }: { diff: BoardDraftDiff; nextSnapshot: ActivityStructureBoardData }) =>
+      structureService.commitBoardDraftDiff(branchId as string, diff),
+    onSuccess: (_data, { nextSnapshot }) => {
+      queryClient.setQueryData<ActivityStructureBoardData>(boardKey, nextSnapshot);
+      void invalidate();
+    },
+  });
+
   return {
     createNode,
     updateNode,
@@ -134,5 +144,6 @@ export function useActivityStructureMutations(branchId: string | null) {
     createEdge,
     deleteEdge,
     upsertRootMeta,
+    saveDraft,
   };
 }

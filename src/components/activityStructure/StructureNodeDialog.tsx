@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
-import { Check, ChevronsUpDown, ImagePlus, Layers, Loader2, Trash2, UserRound, Users, X } from 'lucide-react';
+import { Check, ChevronsUpDown, ImagePlus, Layers, Loader2, Sparkles, Trash2, UserRound, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -155,6 +155,7 @@ export function StructureNodeDialog({
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const [title, setTitle] = useState('');
+  const [nodeType, setNodeType] = useState<'volunteer' | 'joker'>('volunteer');
   const [volunteerId, setVolunteerId] = useState<string | null>(null);
   const [customAvatarUrl, setCustomAvatarUrl] = useState<string | null>(null);
   const [squadIds, setSquadIds] = useState<string[]>([]);
@@ -173,6 +174,7 @@ export function StructureNodeDialog({
   useEffect(() => {
     if (!open) return;
     setTitle(editing?.title ?? '');
+    setNodeType(editing?.node_type === 'joker' ? 'joker' : 'volunteer');
     setVolunteerId(editing?.volunteer_id ?? null);
     setCustomAvatarUrl(editing?.custom_avatar_url ?? null);
     setSquadIds(editing?.squad_volunteer_ids ?? []);
@@ -276,6 +278,8 @@ export function StructureNodeDialog({
     [squadIds, volunteerId, volunteers]
   );
 
+  const isInsideSection = Boolean(editing ? editing.board_owner_id : activeBoardOwnerId);
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!canSave) return;
@@ -289,7 +293,7 @@ export function StructureNodeDialog({
       parent_id: editing?.parent_id ?? null,
       responsibilities,
       color,
-      node_type: 'volunteer',
+      node_type: nodeType,
       board_owner_id: editing ? (editing.board_owner_id ?? null) : activeBoardOwnerId,
       section_title: hasSection ? sectionTitle.trim() || trimmedTitle : null,
       description: hasSection ? description.trim() || null : null,
@@ -309,6 +313,59 @@ export function StructureNodeDialog({
               {label('اختر المتطوع ومسئوليته، ويمكنك ربطه بسكشن له بورد خاصة.', 'Pick the volunteer and role, and optionally attach a section sub-board.')}
             </DialogDescription>
           </DialogHeader>
+
+          <div className="space-y-2">
+            <Label>{label('تصنيف المتطوع', 'Volunteer classification')}</Label>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setNodeType('volunteer');
+                  const t = title.trim();
+                  if (t === 'جوكر' || t === 'Joker') setTitle('');
+                }}
+                aria-pressed={nodeType === 'volunteer'}
+                className={cn(
+                  'flex flex-col items-start gap-1 rounded-xl border p-3 text-start transition-all',
+                  nodeType === 'volunteer'
+                    ? 'border-primary bg-primary/8 ring-2 ring-primary/25'
+                    : 'border-border/70 bg-muted/20 hover:bg-muted/40'
+                )}
+              >
+                <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                  <UserRound className="h-3.5 w-3.5 text-primary" />
+                  <span>{label('متطوع مرتبط', 'Linked Member')}</span>
+                </div>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  {isInsideSection
+                    ? label('يرتبط بسهم مع مسئول السكشن أو فريقه', 'Connected via arrow in the section')
+                    : label('متطوع ضمن الهيكل الهرمي للبورد', 'Standard member in the board hierarchy')}
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setNodeType('joker');
+                  if (title.trim() === '') setTitle(label('جوكر', 'Joker'));
+                }}
+                aria-pressed={nodeType === 'joker'}
+                className={cn(
+                  'flex flex-col items-start gap-1 rounded-xl border p-3 text-start transition-all',
+                  nodeType === 'joker'
+                    ? 'border-amber-500 bg-amber-500/10 ring-2 ring-amber-500/25'
+                    : 'border-border/70 bg-muted/20 hover:bg-muted/40'
+                )}
+              >
+                <div className="flex items-center gap-1.5 text-xs font-bold text-foreground">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                  <span>{label('جوكر', 'Joker')}</span>
+                </div>
+                <p className="text-[11px] leading-snug text-muted-foreground">
+                  {label('متطوع حر بدون ربط بسهم', 'Floating volunteer with no arrow')}
+                </p>
+              </button>
+            </div>
+          </div>
 
           <div className="space-y-2">
             <Label htmlFor="structure-title">{label('المسئولية / الوظيفة', 'Role / Position')} *</Label>
@@ -589,7 +646,11 @@ export function StructureNodeDialog({
               {label('إلغاء', 'Cancel')}
             </Button>
             <Button type="submit" disabled={!canSave}>
-              {saving ? label('جاري الحفظ...', 'Saving...') : label('حفظ', 'Save')}
+              {saving
+                ? label('جاري التطبيق...', 'Applying...')
+                : editing
+                  ? label('تطبيق التعديل', 'Apply Changes')
+                  : label('إضافة للبورد', 'Add to Board')}
             </Button>
           </DialogFooter>
         </form>

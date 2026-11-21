@@ -1,6 +1,6 @@
 import { memo, useRef, useState } from 'react';
 import type React from 'react';
-import { Layers, Pencil, Trash2, UserRound } from 'lucide-react';
+import { Check, Layers, Pencil, Sparkles, Trash2, UserRound } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -20,9 +20,12 @@ interface StructureNodeCardProps {
   editable: boolean;
   highlight: NodeHighlight;
   isDragging?: boolean;
+  isMultiSelected?: boolean;
   isConnectionTarget?: boolean;
   isPinnedHead?: boolean;
   onOpenSectionBoard?: (id: string) => void;
+  onHoverChange?: (id: string | null) => void;
+  onSelect?: (id: string, event?: React.MouseEvent) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onStartDrag?: (id: string, event: React.PointerEvent<HTMLDivElement>) => void;
@@ -218,9 +221,12 @@ function StructureNodeCardComponent({
   editable,
   highlight,
   isDragging = false,
+  isMultiSelected = false,
   isConnectionTarget = false,
   isPinnedHead = false,
   onOpenSectionBoard,
+  onHoverChange,
+  onSelect,
   onEdit,
   onDelete,
   onStartDrag,
@@ -228,6 +234,11 @@ function StructureNodeCardComponent({
 }: StructureNodeCardProps): React.ReactElement {
   const tokens = STRUCTURE_COLOR_TOKENS[node.color];
   const name = getVolunteerName(node, isRTL);
+  const isJoker = node.node_type === 'joker';
+  const hasOwnSectionIndicator = Boolean(
+    !isPinnedHead &&
+      (node.section_title?.trim() || node.team_image_url || node.description?.trim() || subBoardCount > 0)
+  );
   const label = (ar: string, en: string): string => (isRTL ? ar : en);
   const lastTapRef = useRef<number>(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -235,12 +246,12 @@ function StructureNodeCardComponent({
 
   const hasSection = Boolean(
     !isPinnedHead &&
-      (editable ||
-        node.section_title?.trim() ||
+      (node.section_title?.trim() ||
         node.team_image_url ||
         node.description?.trim() ||
         subBoardCount > 0 ||
-        sectionMembers.length > 0)
+        sectionMembers.length > 0 ||
+        (node.squad_volunteer_ids?.length ?? 0) > 0)
   );
 
   const stop = (fn: (id: string) => void) => (event: React.MouseEvent) => {
@@ -281,7 +292,12 @@ function StructureNodeCardComponent({
           setMobileDetailsOpen(true);
         }
       }}
-      onClick={(e) => e.stopPropagation()}
+      onMouseEnter={() => onHoverChange?.(node.id)}
+      onMouseLeave={() => onHoverChange?.(null)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onSelect?.(node.id, e);
+      }}
       onDoubleClick={(e) => {
         e.stopPropagation();
         if (hasSection && onOpenSectionBoard) onOpenSectionBoard(node.id);
@@ -301,10 +317,19 @@ function StructureNodeCardComponent({
             ? 'cursor-pointer'
             : 'cursor-default',
         isDragging && 'z-30 scale-105 opacity-95',
-        highlight === 'dimmed' && 'opacity-30 scale-95',
+        isMultiSelected && 'rounded-2xl bg-primary/8 ring-2 ring-primary/65 shadow-sm',
+        highlight === 'dimmed' && 'opacity-40 scale-[0.97]',
         isConnectionTarget && 'scale-105'
       )}
     >
+      {isMultiSelected && (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -start-1 -top-1 z-20 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground shadow"
+        >
+          <Check className="h-3 w-3" />
+        </span>
+      )}
       {/* Main Volunteer + Orbiting Section Member Thumbnails */}
       <div className="relative flex flex-col items-center">
           {!isPinnedHead && sectionMembers.length > 0 && <SectionMemberOrbit members={sectionMembers} />}
@@ -325,6 +350,12 @@ function StructureNodeCardComponent({
                   tokens.bar
                 )}
               />
+              {hasOwnSectionIndicator && (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -inset-[5px] rounded-full border-[1.5px] border-dashed border-primary/45 transition-all duration-300 group-hover/person:scale-105 group-hover/person:border-primary/80"
+                />
+              )}
               <div className="relative rounded-full bg-white/60 p-1 shadow-[0_14px_34px_-8px_rgba(0,0,0,0.22)] backdrop-blur-md transition-all duration-300 group-hover/person:shadow-[0_20px_42px_-8px_rgba(0,0,0,0.28)] dark:bg-zinc-900/60">
                 <Avatar
                   className={cn(
@@ -402,7 +433,18 @@ function StructureNodeCardComponent({
               >
                 {name ?? label('منصب شاغر', 'Vacant')}
               </p>
-              <p className="line-clamp-2 text-xs font-medium leading-snug text-muted-foreground">{node.title}</p>
+              <p className="inline-flex max-w-full items-center justify-center gap-1 text-xs font-medium leading-snug text-muted-foreground">
+                {hasOwnSectionIndicator && <Layers className="h-3 w-3 shrink-0 text-primary/70" aria-hidden="true" />}
+                <span className="line-clamp-2 min-w-0">{node.title}</span>
+              </p>
+              {isJoker && (
+                <div className="pt-0.5">
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/35 bg-amber-500/12 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                    <Sparkles className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+                    {label('جوكر', 'Joker')}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </PersonHoverCard>
@@ -446,7 +488,15 @@ function StructureNodeCardComponent({
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <DialogTitle className="text-base font-bold">{name ?? label('منصب شاغر', 'Vacant position')}</DialogTitle>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <DialogTitle className="text-base font-bold">{name ?? label('منصب شاغر', 'Vacant position')}</DialogTitle>
+                {isJoker && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/35 bg-amber-500/12 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                    <Sparkles className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+                    {label('جوكر', 'Joker')}
+                  </span>
+                )}
+              </div>
               <p className="text-xs font-medium text-muted-foreground">{node.title}</p>
             </div>
           </DialogHeader>

@@ -187,7 +187,7 @@ export function RootBoardMetaDialog({
                 {label('إلغاء', 'Cancel')}
               </Button>
               <Button type="submit" disabled={saving || uploading}>
-                {saving ? label('جاري الحفظ...', 'Saving...') : label('حفظ', 'Save')}
+                {saving ? label('جاري التطبيق...', 'Applying...') : label('تطبيق', 'Apply')}
               </Button>
             </div>
           </DialogFooter>

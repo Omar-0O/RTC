@@ -18,6 +18,7 @@ import {
   type StructureNode,
   type StructureNodeType,
 } from '@/utils/activityStructureTree';
+import type { BoardDraftDiff } from '@/utils/activityStructureDraft';
 
 export type { RootBoardMeta, StructureNode, StructureEdge, StructureColor, StructureNodeType } from '@/utils/activityStructureTree';
 
@@ -59,7 +60,8 @@ export interface SaveStructureNodeInput {
 function sanitizeInput(input: SaveStructureNodeInput) {
   const title = input.title.trim().slice(0, MAX_TITLE_LENGTH);
   if (!title) throw new Error('Title is required');
-  const nodeType: StructureNodeType = input.node_type === 'section' ? 'section' : 'volunteer';
+  const nodeType: StructureNodeType =
+    input.node_type === 'section' ? 'section' : input.node_type === 'joker' ? 'joker' : 'volunteer';
   return {
     title,
     volunteer_id: nodeType === 'section' ? null : (input.volunteer_id || null),
@@ -107,7 +109,7 @@ export async function getActivityStructureBoard(
       responsibilities: Array.isArray(row.responsibilities) ? row.responsibilities.map(String) : [],
       color: isStructureColor(row.color) ? row.color : 'primary',
       sort_order: typeof row.sort_order === 'number' ? row.sort_order : 0,
-      node_type: row.node_type === 'section' ? 'section' : 'volunteer',
+      node_type: row.node_type === 'section' ? 'section' : row.node_type === 'joker' ? 'joker' : 'volunteer',
       section_id: row.section_id ? String(row.section_id) : null,
       board_owner_id: row.board_owner_id ? String(row.board_owner_id) : null,
       section_title: row.section_title ? String(row.section_title) : null,
@@ -299,7 +301,7 @@ export async function cloneSubtreeIntoSection(
         parent_id: null,
         responsibilities: orig.responsibilities,
         color: orig.color,
-        node_type: 'volunteer',
+        node_type: orig.node_type === 'joker' ? 'joker' : 'volunteer',
         board_owner_id: targetBoardOwnerId,
         section_title: orig.section_title ?? null,
         description: orig.description ?? null,
@@ -420,4 +422,118 @@ export async function upsertRootBoardMeta(
       { onConflict: 'branch_id' }
     )
   );
+}
+
+function nodeToSaveInput(node: StructureNode): SaveStructureNodeInput {
+  return {
+    title: node.title,
+    volunteer_id: node.volunteer_id,
+    parent_id: node.parent_id,
+    responsibilities: node.responsibilities,
+    color: node.color,
+    node_type: node.node_type ?? 'volunteer',
+    section_id: node.section_id ?? null,
+    board_owner_id: node.board_owner_id ?? null,
+    section_title: node.section_title ?? null,
+    description: node.description ?? null,
+    team_image_url: node.team_image_url ?? null,
+    custom_avatar_url: node.custom_avatar_url ?? null,
+    squad_volunteer_ids: node.squad_volunteer_ids ?? [],
+    deputy_id: node.deputy_id ?? null,
+    deputy_title: node.deputy_title ?? null,
+    pos_x: node.pos_x,
+    pos_y: node.pos_y,
+    width: node.width,
+    height: node.height,
+  };
+}
+
+/**
+ * Commit all local draft edits atomically in strict FK-safe order when the user clicks Save.
+ */
+export async function commitBoardDraftDiff(branchId: string, diff: BoardDraftDiff): Promise<void> {
+  // 1. Delete removed edges first so recreating on the same (source_id, target_id) pair never conflicts
+  if (diff.deletedEdgeIds.length > 0) {
+    unwrap(await supabase.from('activity_structure_edges').delete().in('id', diff.deletedEdgeIds));
+  }
+
+  // 2. Insert new nodes in topological order (parents/owners before children)
+  for (const node of diff.createdNodes) {
+    const payload = {
+      ...sanitizeInput(nodeToSaveInput(node)),
+      id: node.id,
+      branch_id: branchId,
+      sort_order: node.sort_order,
+    };
+    unwrap(await supabase.from('activity_structure_nodes').upsert(payload, { onConflict: 'id' }));
+  }
+
+  // 3. Update existing nodes with non-position field changes
+  if (diff.updatedNodes.length > 0) {
+    await Promise.all(
+      diff.updatedNodes.map(async (node) => {
+        unwrap(
+          await supabase
+            .from('activity_structure_nodes')
+            .update({ ...sanitizeInput(nodeToSaveInput(node)), sort_order: node.sort_order })
+            .eq('id', node.id)
+        );
+      })
+    );
+  }
+
+  // 4. Update existing nodes with position-only changes
+  if (diff.positionUpdates.length > 0) {
+    await updateNodePositionsBatch(diff.positionUpdates);
+  }
+
+  // 5. Delete removed nodes (cascades remaining child sub-boards & edges in DB)
+  if (diff.deletedNodeIds.length > 0) {
+    unwrap(await supabase.from('activity_structure_nodes').delete().in('id', diff.deletedNodeIds));
+  }
+
+  // 6. Create newly drawn edges (preserving draft edge id)
+  for (const edge of diff.createdEdges) {
+    const normalizedLabel = edge.label?.trim() || null;
+    const { error } = await supabase.from('activity_structure_edges').insert({
+      id: edge.id,
+      branch_id: branchId,
+      source_id: edge.source_id,
+      target_id: edge.target_id,
+      label: normalizedLabel,
+    });
+    if (error?.code === '23505') {
+      unwrap(
+        await supabase
+          .from('activity_structure_edges')
+          .update({ label: normalizedLabel })
+          .eq('source_id', edge.source_id)
+          .eq('target_id', edge.target_id)
+      );
+    } else if (error) {
+      throw error;
+    }
+  }
+
+  // 7. Update labels on existing edges whose label changed
+  if (diff.updatedEdges.length > 0) {
+    await Promise.all(
+      diff.updatedEdges.map(async (edge) => {
+        unwrap(
+          await supabase
+            .from('activity_structure_edges')
+            .update({ label: edge.label?.trim() || null })
+            .eq('id', edge.id)
+        );
+      })
+    );
+  }
+
+  // 8. Persist root board metadata if modified
+  if (diff.rootMetaChanged) {
+    await upsertRootBoardMeta(
+      branchId,
+      diff.rootMeta ?? { title: null, description: null, team_image_url: null }
+    );
+  }
 }
